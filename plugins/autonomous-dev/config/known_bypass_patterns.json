@@ -17,6 +17,21 @@
       "severity": "critical"
     },
     {
+      "id": "worktree_path_boundary",
+      "name": "Worktree path boundary violation",
+      "description": "Write/Edit operations from batch worktree escape to main repo paths",
+      "issue": "#1390",
+      "hard_gate": "_check_worktree_path_boundary in unified_pre_tool.py",
+      "detection": {
+        "type": "activity_log_pattern",
+        "indicators": [
+          "worktree_path_boundary_violation in deviation logs",
+          "Write/Edit file_path outside .worktrees/batch-* when CWD is inside"
+        ]
+      },
+      "severity": "high"
+    },
+    {
       "id": "anti_stubbing",
       "name": "Stub as implementation",
       "description": "Model replaces broken code with NotImplementedError or pass placeholders",
@@ -197,9 +212,8 @@
       "id": "plan_mode_direct_edit_justification",
       "name": "Plan Mode used to justify direct prompt file edits",
       "description": "Model exits plan mode with approved plan, then uses 'plan called for .md changes' reasoning to bypass /implement and directly edit agents/*.md or commands/*.md",
-      "issue": null,
-      "hard_gate": "CLAUDE.md Critical Rules: NEVER direct-edit agents/*.md, commands/*.md + plan_mode_exit_detector hook (Issue #358)",
       "issue": "#358",
+      "hard_gate": "CLAUDE.md Critical Rules: NEVER direct-edit agents/*.md, commands/*.md + plan_mode_exit_detector hook (Issue #358)",
       "detection": {
         "type": "log_pattern",
         "indicators": [
@@ -263,7 +277,7 @@
     {
       "id": "sequential_step_parallelized",
       "name": "Sequential steps incorrectly parallelized",
-      "description": "Pipeline steps that must be sequential (e.g., test-master → implementer) were launched in the same message window",
+      "description": "Pipeline steps that must be sequential (e.g., test-master \u2192 implementer) were launched in the same message window",
       "issue": "#367",
       "hard_gate": "COORDINATOR FORBIDDEN LIST in implement.md: 'Combining or parallelizing sequential steps'",
       "detection": {
@@ -410,7 +424,7 @@
     {
       "id": "git_stash_mid_pipeline",
       "name": "git stash mid-pipeline state manipulation",
-      "description": "Coordinator uses git stash mid-pipeline to compare baselines or temporarily hide implementer changes. This is uncontrolled state manipulation — the pipeline spec captures baseline at STEP 1 and should not require stash workarounds.",
+      "description": "Coordinator uses git stash mid-pipeline to compare baselines or temporarily hide implementer changes. This is uncontrolled state manipulation \u2014 the pipeline spec captures baseline at STEP 1 and should not require stash workarounds.",
       "issue": "#1139",
       "hard_gate": "STEP 1 baseline capture + #990 baseline_scope record_baseline_scope",
       "detection": {
@@ -426,34 +440,92 @@
   ],
   "expected_end_states": {
     "quick": {
-      "required_agents": ["implementer"],
-      "required_actions": ["test_run"],
+      "required_agents": [
+        "implementer"
+      ],
+      "required_actions": [
+        "test_run"
+      ],
       "conditional_actions": {
         "git_commit": "AUTO_GIT_ENABLED=true",
         "git_push": "AUTO_GIT_PUSH=true"
       }
     },
     "full_pipeline": {
-      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "spec-validator", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
-      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
-      "required_actions": ["test_run", "git_commit"],
+      "required_agents": [
+        "researcher-local",
+        "researcher",
+        "planner",
+        "implementer",
+        "spec-validator",
+        "reviewer",
+        "security-auditor",
+        "doc-master",
+        "continuous-improvement-analyst"
+      ],
+      "optional_agents_by_mode": {
+        "--tdd-first": [
+          "test-master"
+        ]
+      },
+      "required_actions": [
+        "test_run",
+        "git_commit"
+      ],
       "conditional_actions": {
         "git_push": "AUTO_GIT_PUSH=true",
         "issue_close": "feature references GitHub issue"
       }
     },
     "batch-issues": {
-      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "spec-validator", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
-      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
-      "required_actions": ["test_run", "git_commit", "git_push", "issue_close"],
+      "required_agents": [
+        "researcher-local",
+        "researcher",
+        "planner",
+        "implementer",
+        "spec-validator",
+        "reviewer",
+        "security-auditor",
+        "doc-master",
+        "continuous-improvement-analyst"
+      ],
+      "optional_agents_by_mode": {
+        "--tdd-first": [
+          "test-master"
+        ]
+      },
+      "required_actions": [
+        "test_run",
+        "git_commit",
+        "git_push",
+        "issue_close"
+      ],
       "conditional_actions": {},
       "note": "All required_agents apply per issue, not per batch. Each issue gets a dedicated pipeline with all agents. test-master only in --tdd-first mode. See Issue #386, #404.",
       "per_issue": true
     },
     "batch": {
-      "required_agents": ["researcher-local", "researcher", "planner", "implementer", "spec-validator", "reviewer", "security-auditor", "doc-master", "continuous-improvement-analyst"],
-      "optional_agents_by_mode": {"--tdd-first": ["test-master"]},
-      "required_actions": ["test_run", "git_commit", "git_push"],
+      "required_agents": [
+        "researcher-local",
+        "researcher",
+        "planner",
+        "implementer",
+        "spec-validator",
+        "reviewer",
+        "security-auditor",
+        "doc-master",
+        "continuous-improvement-analyst"
+      ],
+      "optional_agents_by_mode": {
+        "--tdd-first": [
+          "test-master"
+        ]
+      },
+      "required_actions": [
+        "test_run",
+        "git_commit",
+        "git_push"
+      ],
       "conditional_actions": {}
     }
   },

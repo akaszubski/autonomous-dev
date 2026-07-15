@@ -5538,6 +5538,67 @@ def _check_rm_rf_unresolved_vars(command: str) -> "Optional[Tuple[str, str]]":
 
     return None
 
+def _check_worktree_path_boundary(
+    tool_name: str,
+    tool_input: Dict[str, Any],
+) -> "Optional[Tuple[str, str]]":
+    """Check if Write/Edit target path escapes worktree boundary.
+
+    Issue #1390: doc-master writes to main repo path instead of batch worktree.
+    When operating in a worktree (.worktrees/batch-*), Write/Edit must target
+    paths within that worktree, not escape to the main repo.
+
+    Returns:
+        None if allowed (non-worktree mode or target inside worktree)
+        (file_path, reason) if denied (worktree escape detected)
+    """
+    # Only check Write/Edit tools
+    if tool_name not in ("Write", "Edit"):
+        return None
+    
+    # Only active in worktree mode
+    cwd = os.getcwd()
+    if ".worktrees/batch-" not in cwd:
+        return None
+    
+    # Get target file path
+    file_path = tool_input.get("file_path", "")
+    if not file_path:
+        return None
+    
+    try:
+        # Resolve to absolute paths for comparison
+        target_path = Path(file_path).resolve()
+        worktree_root = Path(cwd).resolve()
+        
+        # Find the actual worktree root (go up to .worktrees/batch-* level)
+        current = worktree_root
+        while current != current.parent:
+            if current.name.startswith("batch-") and current.parent.name == ".worktrees":
+                worktree_root = current
+                break
+            current = current.parent
+        
+        # Check if target is within worktree boundary
+        try:
+            target_path.relative_to(worktree_root)
+            # Target is inside worktree - allow
+            return None
+        except ValueError:
+            # Target is outside worktree - deny
+            violation_path = str(target_path)
+            reason = (
+                f"WORKTREE BOUNDARY VIOLATION: Cannot write to '{violation_path}' "
+                f"from worktree '{worktree_root}'. Write/Edit operations in batch "
+                f"worktrees must target paths within the worktree. "
+                f"(Issue #1390)"
+            )
+            return (violation_path, reason)
+    except Exception:
+        # Fail open on errors
+        return None
+
+
 
 def _check_spec_test_deletion_scope(file_path: str) -> "Optional[Tuple[str, str]]":
     """Check if a spec validation test deletion is outside the current batch scope.
@@ -6672,6 +6733,18 @@ def main():
                                               f"write_pipeline_gate: {_wpg_tier}")
                     except Exception:
                         pass
+
+                # Issue #1390: Block Write/Edit that escape worktree boundary
+                worktree_violation = _check_worktree_path_boundary(tool_name, tool_input)
+                if worktree_violation is not None:
+                    violation_path, block_reason = worktree_violation
+                    _log_deviation(violation_path, tool_name, "worktree_path_boundary_violation")
+                    _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                    output_decision(
+                        "deny", block_reason,
+                        system_message=block_reason,
+                    )
+                    sys.exit(0)
 
                 # Issue #557: Block settings.json writes during active pipeline
                 if file_path:
