@@ -353,3 +353,4 @@
 {"fire_id": "20260714T200809Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "notes": "logs dir gitignored; HEAD detached after forced-update rebase; nothing pushed"}
 {"fire_id": "20260715T000812Z", "fired_at": "2026-07-15T00:08:28Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260715T000812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260715T020812Z", "fired_at": "2026-07-15T02:09:09Z", "selected_cluster": "none", "phase": "FIRE_START"}
