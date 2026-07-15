@@ -1239,6 +1239,31 @@ def main() -> int:
         except Exception:
             pass  # Non-blocking: ordering state is advisory
 
+        # Issue #1375: Warn on pipeline bypass (implementer without planner/reviewer)
+        if agent_name == "implementer":
+            try:
+                from pipeline_completion_state import get_completed_agents
+                completed = get_completed_agents(session_id, issue_number=_get_current_issue_number())
+                
+                # Check if neither planner nor reviewer ran before this implementer
+                if not ("planner" in completed or "reviewer" in completed):
+                    # Log warning to activity log
+                    warning_entry = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "kind": "pipeline_bypass_warning",
+                        "session_id": session_id,
+                        "message": "implementer invoked without prior planner/reviewer — consider /implement --fix mode for production code"
+                    }
+                    
+                    log_dir = _find_log_dir()
+                    log_file = log_dir / f"{datetime.now():%Y-%m-%d}.jsonl"
+                    log_file.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    with open(log_file, "a") as f:
+                        f.write(json.dumps(warning_entry, separators=(",", ":")) + "\n")
+            except Exception:
+                pass  # Non-blocking: warning is informational only
+
         # Sentinel heartbeat check (Issue #989): after recording completion,
         # verify the <repo>/.claude/local/implement_pipeline_state.json sentinel
         # (was /tmp/implement_pipeline_state.json pre-#1206) still exists
