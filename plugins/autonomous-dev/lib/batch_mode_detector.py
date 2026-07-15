@@ -92,6 +92,10 @@ FIX_SIGNALS: List[str] = [
     "misclass",
     "drift",
     "[ci]",
+    # Verb-form morphology (Issue #1391)
+    "fails",
+    "test fails",
+    "pre-existing:",
 ]
 
 # Light signals (case-insensitive)
