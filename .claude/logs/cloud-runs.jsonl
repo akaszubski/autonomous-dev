@@ -380,3 +380,4 @@
 {"fire_id": "20260716T140749Z", "fired_at": "2026-07-16T14:08:32Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260716T140749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260716T160819Z", "fired_at": "2026-07-16T16:08:35Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260716T160819Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
