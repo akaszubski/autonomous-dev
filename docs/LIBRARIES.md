@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-06-25 (goa_state.py, goa_watcher.py, goa_cli.py added — /goa MVP; pipeline_state.atomic_write_json promoted to public API — Issue #1320)
+**Last Updated**: 2026-07-27 (settings_generator.py DEFAULT_DENY_LIST migrated from Write(path) to Edit(path) rules + double-slash system-path anchoring — Issue #1409)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -6703,7 +6703,9 @@ Build comprehensive deny list of dangerous operations.
 - **Network tools**: `Bash(nc:*)`, `Bash(*curl *|*sh*)`
 - **Dangerous git**: `Bash(*git *--force*)`, `Bash(*git *reset*--hard*)`
 - **Package publishing**: `Bash(npm:publish*)`, `Bash(pip:upload*)`
-- **Sensitive files**: `Read(./.env)`, `Read(~/.ssh/**)`, `Write(/etc/**)`
+- **Sensitive files**: `Read(./.env)`, `Read(~/.ssh/**)`, `Edit(//etc/**)`
+
+**Note** (Issue #1409): `DEFAULT_DENY_LIST` path-scoped file rules use `Edit(<path>)`, not `Write(<path>)` — Claude Code's file-permission matcher only honors `Edit(path)` rules for the file-editing tools (Write/Edit/NotebookEdit); `Write(path)` rules are silently ignored (a no-op deny). Absolute system paths (`/etc/**`, `/System/**`, `/usr/**`, `/root/**`) use a doubled leading slash (`//etc/**`) so the pattern anchors to the filesystem root rather than matching relative to the working directory. `Read(...)` rules and bare tool allows (`"Write"`, `"Edit"`) are unaffected.
 
 **Example**:
 ```python
