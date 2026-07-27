@@ -190,10 +190,10 @@ DEFAULT_DENY_LIST = [
     "Read(~/.ssh/**)",
     "Read(~/.aws/**)",
     "Read(~/.config/gh/**)",
-    "Write(/etc/**)",
-    "Write(/System/**)",
-    "Write(/usr/**)",
-    "Write(~/.ssh/**)",
+    "Edit(//etc/**)",
+    "Edit(//System/**)",
+    "Edit(//usr/**)",
+    "Edit(~/.ssh/**)",
 ]
 
 
