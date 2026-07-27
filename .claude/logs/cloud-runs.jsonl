@@ -543,3 +543,5 @@
 {"fire_id": "20260727T001107Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260727T020744Z", "phase": "FIRE_START", "selected_cluster": "none"}
 {"fire_id": "20260727T020744Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260727T040822Z", "phase": "FIRE_START", "fired_at": "2026-07-27T04:09:09.972604Z", "selected_cluster": "none"}
+{"fire_id": "20260727T040822Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "telemetry_path_gitignored_local_only"}
