@@ -832,6 +832,11 @@ _DEFAULT_MARKER_DIR = Path("/tmp")
 _MARKER_PREFIX = "subagent_stop_seen_"
 _MARKER_SUFFIX = ".marker"
 
+# Issue #1414: Second-tier dedup for phantom-then-real SubagentStop firings
+# Keys: (session_id, subagent_type) -> timestamp of first completion call
+_PHANTOM_DEDUP_CACHE: dict[tuple[str, str], float] = {}
+PHANTOM_DEDUP_WINDOW_SECONDS = 300  # 5 minutes
+
 
 def _try_claim_subagent_stop_marker(
     key: str,
@@ -1230,12 +1235,58 @@ def main() -> int:
         # Pipeline ordering state — record agent completion (Issues #625, #629, #632)
         try:
             from pipeline_completion_state import record_agent_completion
-            record_agent_completion(
-                session_id=session_id,
-                agent_type=agent_name,
-                issue_number=_get_current_issue_number(),
-                success=success,
-            )
+            
+            # Issue #1414: Second-tier dedup — prevent duplicate record_agent_completion
+            # calls for phantom-then-real SubagentStop firings of the same agent.
+            # The first-tier #1176 guard keys on transcript_path (which differs between
+            # phantom and real), so both pass through. This second tier keys on agent
+            # identity within a time window.
+            phantom_key = (session_id, agent_name)
+            current_time = time.time()
+            
+            # Clean up old entries (opportunistic, prevents unbounded growth)
+            expired_keys = [
+                k for k, t in _PHANTOM_DEDUP_CACHE.items()
+                if current_time - t > PHANTOM_DEDUP_WINDOW_SECONDS * 2
+            ]
+            for k in expired_keys:
+                del _PHANTOM_DEDUP_CACHE[k]
+            
+            # Check if we've already recorded completion for this agent recently
+            if phantom_key in _PHANTOM_DEDUP_CACHE:
+                last_record_time = _PHANTOM_DEDUP_CACHE[phantom_key]
+                if current_time - last_record_time < PHANTOM_DEDUP_WINDOW_SECONDS:
+                    # Duplicate within window — skip record_agent_completion
+                    # but still write to activity log for audit trail
+                    try:
+                        _write_jsonl_entry(
+                            subagent_type=f"__phantom_dedup_skip__:{agent_name}",
+                            duration_ms=duration_ms,
+                            result_word_count=result_word_count,
+                            agent_transcript_path=agent_transcript_path,
+                            session_id=session_id,
+                            success=success,
+                        )
+                    except Exception:
+                        pass  # Non-blocking: audit entry is advisory only
+                else:
+                    # Outside window — record this as a new invocation
+                    record_agent_completion(
+                        session_id=session_id,
+                        agent_type=agent_name,
+                        issue_number=_get_current_issue_number(),
+                        success=success,
+                    )
+                    _PHANTOM_DEDUP_CACHE[phantom_key] = current_time
+            else:
+                # First time seeing this agent — record it
+                record_agent_completion(
+                    session_id=session_id,
+                    agent_type=agent_name,
+                    issue_number=_get_current_issue_number(),
+                    success=success,
+                )
+                _PHANTOM_DEDUP_CACHE[phantom_key] = current_time
         except Exception:
             pass  # Non-blocking: ordering state is advisory
 
