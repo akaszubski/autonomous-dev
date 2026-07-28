@@ -332,6 +332,14 @@ def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         if not isinstance(data, dict):
             return {}
+        # Issue #1413: refresh mtime on successful read so an active session
+        # that keeps reading its state file never crosses the 7200s staleness
+        # threshold and self-wipes mid-pipeline. Crash-recovery semantics are
+        # preserved: a truly abandoned file still ages past the threshold.
+        try:
+            path.touch()
+        except OSError:
+            pass  # mtime refresh is best-effort; do not fail the read
         return data
     except (json.JSONDecodeError, OSError, ValueError):
         return {}
