@@ -4587,6 +4587,83 @@ def _log_deviation(file_name: str, tool_name: str, reason: str) -> None:
         pass  # Never fail the hook for logging
 
 
+def check_plan_critic_revise_gate(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
+    """
+    Check plan-critic REVISE re-invocation gate (Issue #1417).
+    
+    Blocks implementer dispatch when plan_critic_verdict.json contains verdict=REVISE
+    and no second planner completion exists since the verdict timestamp.
+    
+    Args:
+        tool_name: Name of the tool being called
+        tool_input: Tool input parameters
+    
+    Returns:
+        Tuple of (decision, reason)
+    """
+    # Only check Agent/Task tool calls
+    if tool_name not in AGENT_TOOL_NAMES:
+        return ("allow", "Not an agent invocation")
+    
+    # Only check implementer dispatch
+    target_agent = tool_input.get("subagent_type", "").strip().lower()
+    if target_agent != "implementer":
+        return ("allow", "Not implementer dispatch")
+    
+    # Check for plan_critic_verdict.json
+    try:
+        verdict_file = Path(".claude/plan_critic_verdict.json")
+        if not verdict_file.exists():
+            return ("allow", "No plan-critic verdict file")
+        
+        with open(verdict_file, "r") as f:
+            verdict_data = json.loads(f.read())
+        
+        verdict = verdict_data.get("verdict", "").upper()
+        if verdict != "REVISE":
+            return ("allow", f"Plan-critic verdict is {verdict}, not REVISE")
+        
+        # Get the verdict timestamp
+        verdict_timestamp = verdict_data.get("timestamp")
+        if not verdict_timestamp:
+            return ("allow", "No timestamp in verdict file")
+        
+        # Parse timestamp to epoch
+        from datetime import datetime
+        try:
+            # Try ISO format first
+            if "T" in verdict_timestamp:
+                verdict_dt = datetime.fromisoformat(verdict_timestamp.replace("Z", "+00:00"))
+            else:
+                # Fallback to other formats
+                verdict_dt = datetime.strptime(verdict_timestamp, "%Y-%m-%d %H:%M:%S")
+            verdict_epoch = verdict_dt.timestamp()
+        except Exception:
+            return ("allow", "Could not parse verdict timestamp")
+        
+        # Check if planner was re-invoked after the verdict
+        from pipeline_completion_state import get_planner_completion_count
+        
+        session_id = _session_id or os.getenv("CLAUDE_SESSION_ID", "unknown")
+        planner_count = get_planner_completion_count(session_id, verdict_epoch)
+        
+        if planner_count > 0:
+            return ("allow", f"Planner re-invoked {planner_count} time(s) after REVISE verdict")
+        
+        # Block: REVISE verdict without planner re-invocation
+        return (
+            "deny",
+            "BLOCKED: plan-critic returned REVISE verdict but planner was not re-invoked. "
+            "The coordinator must pass the plan-critic feedback to the planner and re-invoke "
+            "it before dispatching the implementer. See implement.md STEP 5.5b."
+        )
+        
+    except Exception as e:
+        # Fail open on any errors
+        return ("allow", f"Error checking plan-critic gate: {str(e)}")
+
+
+
 def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     """
     Validate agent authorization for code changes.
@@ -5033,7 +5110,7 @@ def _update_deny_cache(file_path: str) -> None:
                     if not raw_line:
                         continue
                     try:
-                        parsed = _json.loads(raw_line)
+                        parsed = json.loads(raw_line)
                         if parsed.get("timestamp", 0) >= cutoff:
                             kept.append(raw_line)
                     except (ValueError, KeyError):
@@ -5073,7 +5150,7 @@ def _check_deny_cache(file_path: str, *, window_seconds: int = 60) -> bool:
                 if not line:
                     continue
                 try:
-                    entry = _json.loads(line)
+                    entry = json.loads(line)
                     if entry.get("timestamp", 0) < cutoff:
                         continue
                     cached_path = entry.get("path", "")
@@ -7580,6 +7657,18 @@ def main():
                                 pass  # Never fail the hook for cache writes
                             sys.exit(0)
 
+
+            # Layer 3.5: Plan-critic REVISE gate (Issue #1417)
+            # Blocks implementer dispatch when plan-critic returned REVISE but planner not re-invoked
+            if tool_name in AGENT_TOOL_NAMES:
+                revise_decision, revise_reason = check_plan_critic_revise_gate(tool_name, tool_input)
+                if revise_decision == "deny":
+                    _log_pretool_activity(tool_name, tool_input, "deny", revise_reason)
+                    output_decision(
+                        "deny", revise_reason,
+                        system_message="PLAN-CRITIC REVISE: Planner must be re-invoked first.",
+                    )
+                    sys.exit(0)
             # Layer 4: Pipeline ordering gate (Issues #625, #629, #632)
             # Only applies to Agent/Task tool calls during active pipeline.
             if tool_name in AGENT_TOOL_NAMES:

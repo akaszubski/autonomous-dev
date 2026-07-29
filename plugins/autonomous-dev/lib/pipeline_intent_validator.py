@@ -1153,6 +1153,9 @@ def _correlate_invocation_completion(
 def detect_doc_verdict_missing(events: List[PipelineEvent]) -> List[Finding]:
     """Detect doc-master invocations that produced no output or failed.
 
+    Issue #1417: Fixed to key off the LAST SubagentStop per invocation (or check
+    for agent_transcript_path existence) instead of any/first low-word snapshot.
+
     Correlates doc-master agent_invocation events with their matching
     agent_completion (SubagentStop) events to get actual result word counts.
     PostToolUse invocation events always have result_word_count=0, so this
@@ -1170,19 +1173,90 @@ def detect_doc_verdict_missing(events: List[PipelineEvent]) -> List[Finding]:
         List of findings for doc-master verdict issues.
     """
     findings: List[Finding] = []
-
-    # Get all correlated pairs
-    pairs = _correlate_invocation_completion(events)
-
-    # Filter to doc-master pairs
-    doc_pairs = [(inv, comp) for inv, comp in pairs if inv.subagent_type == "doc-master"]
-
-    for inv, comp in doc_pairs:
-        if comp is None:
-            # No completion event found via correlation — but correlation can fail
-            # due to session grouping, timestamp parsing, or window boundary issues.
-            # Fallback: check if ANY doc-master completion exists in the full event list
-            # with sufficient word count and success=True (Issue #650).
+    
+    invocations = [
+        e for e in events
+        if e.pipeline_action == "agent_invocation"
+        and e.subagent_type == "doc-master"
+    ]
+    
+    completions = [
+        e for e in events
+        if e.pipeline_action == "agent_completion"
+        and e.subagent_type == "doc-master"
+    ]
+    
+    # For each invocation, find all completions within window
+    for inv in invocations:
+        inv_dt = parse_timestamp(inv.timestamp)
+        if inv_dt is None:
+            continue
+            
+        matching_comps = []
+        for comp in completions:
+            comp_dt = parse_timestamp(comp.timestamp)
+            if comp_dt is None:
+                continue
+            
+            # Completion must be after invocation
+            if comp_dt <= inv_dt:
+                continue
+                
+            # Within 10 minute window
+            gap = (comp_dt - inv_dt).total_seconds()
+            if gap <= 600:
+                matching_comps.append(comp)
+        
+        # Use LAST completion if multiple exist (Issue #1417)
+        if matching_comps:
+            # Sort by timestamp and take the last one
+            matching_comps.sort(key=lambda e: parse_timestamp(e.timestamp))
+            final_comp = matching_comps[-1]
+            
+            # Check the final completion's quality
+            if not final_comp.success:
+                findings.append(Finding(
+                    finding_type="doc_verdict_missing",
+                    severity="CRITICAL",
+                    pattern_id="doc_verdict_missing",
+                    description=(
+                        f"[DOC-VERDICT-MISSING] doc-master failed (success=False) "
+                        f"at {final_comp.timestamp} — no DOC-DRIFT-VERDICT generated. "
+                        f"Documentation drift may go undetected."
+                    ),
+                    evidence=[
+                        f"subagent_type: {final_comp.subagent_type}",
+                        f"result_word_count: {final_comp.result_word_count}",
+                        f"invocation_timestamp: {inv.timestamp}",
+                        f"completion_timestamp: {final_comp.timestamp}",
+                        f"success: {final_comp.success}",
+                    ],
+                ))
+            elif final_comp.result_word_count < MIN_DOC_VERDICT_WORDS:
+                # Check if agent_transcript_path exists as alternative signal
+                if not final_comp.agent_transcript_path:
+                    findings.append(Finding(
+                        finding_type="doc_verdict_missing",
+                        severity="CRITICAL",
+                        pattern_id="doc_verdict_missing",
+                        description=(
+                            f"[DOC-VERDICT-MISSING] doc-master output too short "
+                            f"({final_comp.result_word_count} words < {MIN_DOC_VERDICT_WORDS} minimum) "
+                            f"— likely no meaningful DOC-DRIFT-VERDICT generated."
+                        ),
+                        evidence=[
+                            f"subagent_type: {final_comp.subagent_type}",
+                            f"result_word_count: {final_comp.result_word_count}",
+                            f"minimum_required: {MIN_DOC_VERDICT_WORDS}",
+                            f"invocation_timestamp: {inv.timestamp}",
+                            f"completion_timestamp: {final_comp.timestamp}",
+                            f"success: {final_comp.success}",
+                            f"agent_transcript_path: {final_comp.agent_transcript_path}",
+                        ],
+                    ))
+        else:
+            # No completion found for this invocation
+            # Fallback: check if ANY healthy doc-master completion exists
             any_healthy_completion = any(
                 e for e in events
                 if e.pipeline_action == "agent_completion"
@@ -1190,69 +1264,27 @@ def detect_doc_verdict_missing(events: List[PipelineEvent]) -> List[Finding]:
                 and e.success
                 and e.result_word_count >= MIN_DOC_VERDICT_WORDS
             )
-            if any_healthy_completion:
-                continue  # Skip this false positive
-
-            # No completion event found — doc-master may have timed out or crashed
-            findings.append(Finding(
-                finding_type="doc_verdict_missing",
-                severity="CRITICAL",
-                pattern_id="doc_verdict_missing",
-                description=(
-                    f"[DOC-VERDICT-MISSING] doc-master invocation at {inv.timestamp} "
-                    f"has no matching completion event — agent may have timed out or crashed. "
-                    f"Documentation drift may go undetected."
-                ),
-                evidence=[
-                    f"subagent_type: {inv.subagent_type}",
-                    f"invocation_timestamp: {inv.timestamp}",
-                    f"completion: not found",
-                    f"success: unknown",
-                ],
-            ))
-        elif not comp.success:
-            # Completion exists but failed
-            findings.append(Finding(
-                finding_type="doc_verdict_missing",
-                severity="CRITICAL",
-                pattern_id="doc_verdict_missing",
-                description=(
-                    f"[DOC-VERDICT-MISSING] doc-master failed (success=False) "
-                    f"at {comp.timestamp} — no DOC-DRIFT-VERDICT generated. "
-                    f"Documentation drift may go undetected."
-                ),
-                evidence=[
-                    f"subagent_type: {comp.subagent_type}",
-                    f"result_word_count: {comp.result_word_count}",
-                    f"invocation_timestamp: {inv.timestamp}",
-                    f"completion_timestamp: {comp.timestamp}",
-                    f"success: {comp.success}",
-                ],
-            ))
-        elif comp.result_word_count < MIN_DOC_VERDICT_WORDS:
-            # Completion exists but output too short for a meaningful verdict
-            findings.append(Finding(
-                finding_type="doc_verdict_missing",
-                severity="CRITICAL",
-                pattern_id="doc_verdict_missing",
-                description=(
-                    f"[DOC-VERDICT-MISSING] doc-master produced only "
-                    f"{comp.result_word_count} result words at {comp.timestamp} "
-                    f"(minimum: {MIN_DOC_VERDICT_WORDS}) — output too short for "
-                    f"meaningful DOC-DRIFT-VERDICT. Documentation drift may go undetected."
-                ),
-                evidence=[
-                    f"subagent_type: {comp.subagent_type}",
-                    f"result_word_count: {comp.result_word_count}",
-                    f"minimum_required: {MIN_DOC_VERDICT_WORDS}",
-                    f"invocation_timestamp: {inv.timestamp}",
-                    f"completion_timestamp: {comp.timestamp}",
-                    f"success: {comp.success}",
-                ],
-            ))
-        # else: completion has sufficient output and success=True — no finding
+            if not any_healthy_completion:
+                findings.append(Finding(
+                    finding_type="doc_verdict_missing",
+                    severity="CRITICAL",
+                    pattern_id="doc_verdict_missing",
+                    description=(
+                        f"[DOC-VERDICT-MISSING] doc-master invocation at {inv.timestamp} "
+                        f"has no matching completion event — agent may have timed out or crashed. "
+                        f"Documentation drift may go undetected."
+                    ),
+                    evidence=[
+                        f"subagent_type: {inv.subagent_type}",
+                        f"invocation_timestamp: {inv.timestamp}",
+                        f"completion: not found",
+                        f"success: unknown",
+                    ],
+                ))
 
     return findings
+
+
 
 def detect_doc_verdict_shallow(events: List[PipelineEvent]) -> List[Finding]:
     """Detect doc-master invocations that produced shallow output (Issue #672).

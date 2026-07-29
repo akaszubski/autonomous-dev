@@ -659,6 +659,65 @@ def get_completed_agents(
                     result |= fallback_result
 
     return result
+def get_planner_completion_count(session_id: str, since_timestamp: float) -> int:
+    """Count planner completions after a given epoch timestamp.
+    
+    Issue #1417: Used to verify planner was re-invoked after plan-critic REVISE verdict.
+    
+    Args:
+        session_id: The session ID to check
+        since_timestamp: Epoch timestamp to count completions after
+    
+    Returns:
+        Number of planner completions after the timestamp
+    """
+    try:
+        import time
+        
+        # Read completion state file
+        state = _read_state(session_id)
+        if not state:
+            # Try 'unknown' session fallback with TTL check
+            if session_id != "unknown":
+                unknown_path = _state_file_path("unknown")
+                if unknown_path.exists():
+                    try:
+                        mtime = unknown_path.stat().st_mtime
+                        if time.time() - mtime <= STALE_UNKNOWN_TTL_SECONDS:
+                            state = _read_state("unknown")
+                    except OSError:
+                        pass
+            
+            if not state:
+                return 0
+        
+        # Count planner completions after timestamp across all issue keys
+        count = 0
+        completions = state.get("completions", {})
+        
+        # Check all issue scopes (tri-scope pattern)
+        for issue_key in completions:
+            issue_completions = completions[issue_key]
+            if not isinstance(issue_completions, dict):
+                continue
+            
+            completed = issue_completions.get("completed", {})
+            if "planner" not in completed:
+                continue
+            
+            # Check completion timestamp
+            planner_data = completed["planner"]
+            if isinstance(planner_data, dict):
+                comp_timestamp = planner_data.get("timestamp")
+                if comp_timestamp and comp_timestamp > since_timestamp:
+                    count += 1
+            # Legacy bool format has no timestamp, skip
+        
+        return count
+    except Exception:
+        return 0  # Fail open
+
+
 
 
 def record_agent_launch(
