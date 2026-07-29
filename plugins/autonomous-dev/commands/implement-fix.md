@@ -679,7 +679,7 @@ CIA reports typically range 500-5000 words (3,000-30,000 bytes). A persisted fil
 
 ### STEP F6.5: Pipeline State Cleanup
 
-After STEP F6 has persisted the CIA report and verified the file size, cleanup: `rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"`
+After STEP F6 has persisted the CIA report and verified the file size, cleanup (Issue #1411: plain `rm` with no force flag, since the shipped deny rules hard-block the force-delete flags; `--` guards dash-prefixed names, `|| true` preserves force-remove semantics): `rm -- "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" 2>/dev/null || true`
 
 **FORBIDDEN** (Issue #559): Cleaning up pipeline state before STEP F5 + F6 complete. The analyst reads pipeline state — cleanup before launch loses context. The coordinator reads CIA output — cleanup before persist loses the report.
 

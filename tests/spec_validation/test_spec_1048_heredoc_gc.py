@@ -71,17 +71,25 @@ def test_spec_1048_2b_implement_fix_md_uses_env_var_form() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC3: rm -f cleanup commands migrated
+# AC3: rm -f cleanup commands migrated (env-var form), later superseded by
+# Issue #1411: the shipped safety deny list (`Bash(rm:-f*)`, `Bash(rm:-rf*)`)
+# hard-blocks `rm -f` outright, so the *correct* migrated form dropped the
+# `-f` flag entirely (`rm -- "$FILE" 2>/dev/null || true` or
+# `pathlib.Path(...).unlink(missing_ok=True)`) while keeping the env-var
+# fallback chain this AC introduced. Adjusted per Issue #1411 to assert the
+# non-denied form instead of literal `rm -f ...`.
 # ---------------------------------------------------------------------------
 def test_spec_1048_3_rm_f_cleanup_uses_env_var_form() -> None:
-    """AC3: every `rm -f` against the pipeline state file must use env-var form."""
+    """AC3 (Issue #1411 update): pipeline state cleanup uses env-var form
+    AND a non-denied deletion (no bare `rm -f`/`rm -rf`, which the shipped
+    deny list hard-blocks)."""
     bare_rm = re.compile(
-        r"rm\s+-f\s+\"?/tmp/implement_pipeline_state\.json\"?"
+        r"rm\s+-r?f\s+\"?/tmp/implement_pipeline_state\.json\"?"
     )
-    env_rm = re.compile(
-        r"rm\s+-f\s+\"?\$\{PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state\.json\}\"?"
+    denied_env_rm = re.compile(
+        r"rm\s+-r?f\s+\"?\$\{PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state\.json\}\"?"
     )
-    found_env_rm = False
+    found_force_free_form = False
     for md in ("implement.md", "implement-batch.md", "implement-fix.md"):
         text = (COMMANDS_DIR / md).read_text()
         # No bare literal `rm -f /tmp/implement_pipeline_state.json` allowed.
@@ -90,11 +98,25 @@ def test_spec_1048_3_rm_f_cleanup_uses_env_var_form() -> None:
             f"{md} contains un-migrated `rm -f /tmp/implement_pipeline_state.json` "
             f"({len(bare_matches)} occurrence(s))"
         )
-        if env_rm.search(text):
-            found_env_rm = True
-    assert found_env_rm, (
-        "At least one command file should contain a migrated "
-        "`rm -f \"${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}\"`"
+        # No denied `rm -f`/`rm -rf` against the env-var form either — #1411
+        # requires dropping the force flag entirely, not just adding the
+        # env-var fallback.
+        denied_matches = denied_env_rm.findall(text)
+        assert not denied_matches, (
+            f"{md} contains a denied `rm -f`/`rm -rf` invocation against the "
+            f"pipeline state file ({len(denied_matches)} occurrence(s)); "
+            "the shipped `Bash(rm:-f*)`/`Bash(rm:-rf*)` deny rules block this "
+            '(#1411) -- use `rm -- "$FILE" 2>/dev/null || true` or '
+            "`pathlib.Path(...).unlink(missing_ok=True)` instead."
+        )
+        if 'unlink(missing_ok=True)' in text or re.search(
+            r'rm\s+--\s+"?\$\{?(?:PIPELINE_STATE_FILE|CLEANUP_STATE_FILE)', text
+        ):
+            found_force_free_form = True
+    assert found_force_free_form, (
+        "At least one command file should contain a force-free pipeline "
+        'state cleanup: `rm -- "$FILE" 2>/dev/null || true` or '
+        "`pathlib.Path(...).unlink(missing_ok=True)` (Issue #1411)."
     )
 
 
