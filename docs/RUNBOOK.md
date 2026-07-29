@@ -75,7 +75,9 @@ git reset --hard origin/master
 git checkout master && git pull
 START_B=$(date +%s)
 for n in N1 N2 N3; do
-  rm -f "${PIPELINE_STATE_FILE:-$(python3 -c 'from pipeline_state import get_legacy_sentinel_path; print(get_legacy_sentinel_path())' 2>/dev/null || echo .claude/local/implement_pipeline_state.json)}" /tmp/implement_pipeline_state.json 2>/dev/null || true
+  # Issue #1411: plain `rm` (no -f/-rf) — the shipped `Bash(rm:-f*)`/`Bash(rm:-rf*)`
+  # deny rules hard-block force-delete flags. `--` guards dash-prefixed paths.
+  rm -- "${PIPELINE_STATE_FILE:-$(python3 -c 'from pipeline_state import get_legacy_sentinel_path; print(get_legacy_sentinel_path())' 2>/dev/null || echo .claude/local/implement_pipeline_state.json)}" /tmp/implement_pipeline_state.json 2>/dev/null || true
   claude --print --permission-mode acceptEdits "/implement $n"
 done
 END_B=$(date +%s)

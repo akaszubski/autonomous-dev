@@ -476,7 +476,10 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
    ```bash
    # CRITICAL: Only clean up AFTER STEP B3.5 CIA is confirmed launched
    # The CIA reads pipeline state — cleaning up before launch loses context
-   rm -f "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
+   # Issue #1411: plain `rm` (no force flag) — the shipped deny rules
+   # hard-block the force-delete flags. `--` guards dash-prefixed names,
+   # `|| true` preserves force-remove semantics (no error if already gone).
+   rm -- "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" 2>/dev/null || true
    ```
 
    **FORBIDDEN** (Issue #559):
