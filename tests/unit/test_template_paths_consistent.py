@@ -1,11 +1,14 @@
-"""Phase B: standardized hook command paths in settings templates. Issue: #996
+"""Phase B: standardized hook command paths in settings templates. Issue: #996, #1036
 
 These tests lock in the canonical pattern
-``$(git rev-parse --show-toplevel)/.claude/hooks/<NAME>.<py|sh>`` for every
-hook command in every settings template shipped by the plugin. Two legacy
-patterns are explicitly rejected: ``~/.claude/...`` (hardcodes the global
-cache path) and ``--git-common-dir`` (resolves to the main repo's git dir,
-breaking worktree-local hook deployments).
+``${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/<NAME>.<py|sh>``
+for every hook command in every settings template shipped by the plugin
+(Issue #1036 superseded the bare ``$(git rev-parse --show-toplevel)`` form so
+hooks resolve correctly inside git submodules, where the CLI-set
+``CLAUDE_PROJECT_DIR`` points at the superproject root). Two legacy patterns
+remain explicitly rejected: ``~/.claude/...`` (hardcodes the global cache
+path) and ``--git-common-dir`` (resolves to the main repo's git dir, breaking
+worktree-local hook deployments).
 
 Personal-data permission entries (``~/.ssh/**``, ``~/.aws/**``) are NOT hook
 commands and MUST be preserved verbatim in the ``permissions`` block.
@@ -28,7 +31,8 @@ TEMPLATE_NAMES = (
     "settings.strict-mode.json",
 )
 CANONICAL_RE = re.compile(
-    r"\$\(git rev-parse --show-toplevel\)/\.claude/hooks/[A-Za-z0-9_\-/]+\.(py|sh)"
+    r"\$\{CLAUDE_PROJECT_DIR:-\$\(git rev-parse --show-toplevel\)\}"
+    r"/\.claude/hooks/[A-Za-z0-9_\-/]+\.(py|sh)"
 )
 
 
@@ -84,7 +88,8 @@ def test_script_hook_commands_use_canonical_pattern():
             missing.append((name, cmd))
     assert not missing, (
         "Script hook commands must match "
-        "$(git rev-parse --show-toplevel)/.claude/hooks/<X>.<py|sh>. "
+        "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+        "/.claude/hooks/<X>.<py|sh>. "
         f"Offenders: {missing}"
     )
 

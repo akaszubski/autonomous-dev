@@ -42,6 +42,17 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+# The 7 canonical global hooks (Issue #944) live in ~/.claude/settings.json.
+# A copy in project-tier settings.local.json double-fires across tiers, so the
+# stale-local detector must flag them even though the per-repo template
+# (settings.default.json) intentionally omits them.
+_CANONICAL_GLOBAL_HOOK_BASENAMES = frozenset({
+    "unified_prompt_validator.py", "plan_gate.py", "plan_mode_exit_detector.py",
+    "stop_quality_gate.py", "task_completed_handler.py",
+    "unified_session_tracker.py", "conversation_archiver.py",
+})
+
+
 def _find_plugin_root() -> Path:
     """Find the plugin source directory relative to this script.
 
@@ -131,6 +142,14 @@ def _detect_stale_local_warnings(
     legacy ``settings.local.json`` on an upgrading repo is the only way
     this warning fires.
 
+    The per-repo template (``settings.default.json``, Issue #944) intentionally
+    OMITS the 7 canonical GLOBAL hooks — those live in the global tier
+    (``~/.claude/settings.json``). So the flag set is the UNION of the per-repo
+    template hooks AND the canonical global-hook basenames: a copy in
+    ``settings.local.json`` of a canonical global hook double-fires across
+    tiers even though it is absent from the per-repo template
+    (Issue #1036 / #944).
+
     Args:
         user_path: Path to the user's ``settings.json``. Sibling
             ``settings.local.json`` is inspected next to it.
@@ -138,9 +157,10 @@ def _detect_stale_local_warnings(
             ``settings.json`` (used to derive expected basenames).
 
     Returns:
-        Sorted list of hook basenames present in BOTH ``settings.local.json``
-        and the template's canonical hooks. Empty list when no overlap or
-        when ``settings.local.json`` is missing/malformed.
+        Sorted list of hook basenames present in ``settings.local.json`` that
+        duplicate EITHER the per-repo template hooks OR a canonical global
+        hook. Empty list when no overlap or when ``settings.local.json`` is
+        missing/malformed.
     """
     local_path = user_path.parent / "settings.local.json"
     if not local_path.exists():
@@ -161,9 +181,9 @@ def _detect_stale_local_warnings(
         return []
 
     canonical_settings = {"hooks": template_hooks}
-    canonical_refs = extract_hook_refs(canonical_settings)
+    flaggable = extract_hook_refs(canonical_settings) | _CANONICAL_GLOBAL_HOOK_BASENAMES
     local_refs = extract_hook_refs(local_data)
-    return sorted(canonical_refs & local_refs)
+    return sorted(flaggable & local_refs)
 
 
 def _replace_hooks(
@@ -329,7 +349,11 @@ def sync_repo(
         Result dict with success status and hook counts
     """
     plugin_root = _find_plugin_root()
-    template_path = plugin_root / "config" / "global_settings_template.json"
+    # Per-repo deploy must emit the PROJECT-LOCAL canonical hook paths
+    # (${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/...),
+    # NOT the global ~/.claude/ paths. The global template is reserved for
+    # sync_global(). (Issue #1036 / #996 AC7 / #648)
+    template_path = plugin_root / "templates" / "settings.default.json"
     repo = Path(repo_path)
     user_path = repo / ".claude" / "settings.json"
 

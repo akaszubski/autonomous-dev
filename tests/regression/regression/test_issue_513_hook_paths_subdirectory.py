@@ -108,8 +108,16 @@ class TestIssue513HookPathsSubdirectory:
         for cmd in commands:
             # If git rev-parse is used (either old or new pattern), the path should be in quotes
             if "$(git rev-parse" in cmd:
-                # Check that the outer $(...) or $(dirname ...) is inside quotes
-                if '"$(git rev-parse' not in cmd and '"$(dirname' not in cmd:
+                # Check that the outer $(...) / $(dirname ...) is inside quotes, OR the
+                # git rev-parse substitution sits inside a double-quoted
+                # ${CLAUDE_PROJECT_DIR:-...} expansion (Issue #1036 submodule-safe wrapped
+                # form: python3 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/...").
+                is_quoted = (
+                    '"$(git rev-parse' in cmd
+                    or '"$(dirname' in cmd
+                    or '"${CLAUDE_PROJECT_DIR:-$(git rev-parse' in cmd
+                )
+                if not is_quoted:
                     unquoted.append(cmd)
 
         assert not unquoted, (

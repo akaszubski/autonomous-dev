@@ -93,29 +93,85 @@ def test_spec_issue944_1_template_has_no_canonical_global_hooks(template_name):
     )
 
 
-def test_spec_issue944_1_dogfood_template_untouched():
-    """AC1-subtle: settings.autonomous-dev.json MUST be untouched.
+def _hook_basename(command: str) -> str | None:
+    """Extract the hook script basename (e.g. ``plan_gate.py``) from a command.
 
-    Dogfooding intentionally retains its hook configuration. The diff for
-    this batch must NOT modify this file.
+    Returns the first ``.py`` / ``.sh`` token's basename, ignoring the path
+    prefix (so the submodule-safe wrapped path and the bare ``$(git rev-parse``
+    path resolve to the same basename). Returns None if no script token found.
     """
-    result = subprocess.run(
+    for token in command.split():
+        # Strip a trailing quote and any path prefix.
+        candidate = token.strip('"').strip("'")
+        if candidate.endswith(".py") or candidate.endswith(".sh"):
+            return Path(candidate).name
+    return None
+
+
+def _config_signature(settings: dict) -> set[tuple[str, str]]:
+    """Return the set of (event, hook_basename) tuples for a settings dict.
+
+    This captures the hook *configuration* — which hooks run on which
+    lifecycle events — independent of the path-resolution prefix used to
+    locate each hook script.
+    """
+    signature: set[tuple[str, str]] = set()
+    for event, matchers in (settings.get("hooks") or {}).items():
+        if not isinstance(matchers, list):
+            continue
+        for matcher in matchers:
+            if not isinstance(matcher, dict):
+                continue
+            for entry in matcher.get("hooks") or []:
+                if isinstance(entry, dict) and isinstance(entry.get("command"), str):
+                    basename = _hook_basename(entry["command"])
+                    if basename is not None:
+                        signature.add((event, basename))
+    return signature
+
+
+def test_spec_issue944_1_dogfood_template_untouched():
+    """AC1-subtle: settings.autonomous-dev.json retains its hook configuration.
+
+    Dogfooding intentionally retains its hook configuration (the original
+    Issue #944 intent). This test originally asserted byte-identity against
+    HEAD, but Issue #1036 legitimately migrates this template's hook-PATH
+    format (bare ``$(git rev-parse --show-toplevel)`` -> submodule-safe wrapped
+    ``${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}``) to fix a
+    submodule resolution bug, WITHOUT changing which hooks fire on which
+    events. The byte-identity check is therefore relaxed (per #1036) to a
+    configuration-invariance check: the set of (event, hook_basename) tuples in
+    the working tree MUST equal the set at HEAD. Only the path-resolution
+    prefix may differ.
+    """
+    working_tree = _load_template("settings.autonomous-dev.json")
+
+    head_blob = subprocess.run(
         [
             "git",
-            "diff",
-            "--name-only",
-            "HEAD",
-            "--",
-            "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
+            "show",
+            "HEAD:plugins/autonomous-dev/templates/settings.autonomous-dev.json",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.stdout.strip() == "", (
-        "settings.autonomous-dev.json was modified — dogfooding template "
-        "must remain untouched per plan."
+    assert head_blob.returncode == 0, (
+        f"could not read HEAD version of settings.autonomous-dev.json: "
+        f"{head_blob.stderr}"
+    )
+    head_settings = json.loads(head_blob.stdout)
+
+    working_sig = _config_signature(working_tree)
+    head_sig = _config_signature(head_settings)
+
+    assert working_sig == head_sig, (
+        "settings.autonomous-dev.json hook CONFIGURATION changed — dogfooding "
+        "template must retain the same hooks on the same events (Issue #944). "
+        "Only the path-resolution prefix may differ (Issue #1036).\n"
+        f"  added:   {sorted(working_sig - head_sig)}\n"
+        f"  removed: {sorted(head_sig - working_sig)}"
     )
 
 
