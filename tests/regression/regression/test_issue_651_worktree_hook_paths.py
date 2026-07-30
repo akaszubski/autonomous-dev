@@ -1,16 +1,25 @@
-"""Regression test for Issue #651: session_activity_logger fails in all worktree sessions.
+"""Regression test for Issue #651: session_activity_logger hook path resolution.
 
-Bug: Hook commands in settings template files used $(git rev-parse --show-toplevel) to
-resolve the repo root. In a worktree, --show-toplevel returns the worktree path (e.g.,
-.worktrees/batch-XXX), NOT the main repo root where plugins/autonomous-dev/hooks/ lives.
-This caused "No such file or directory" for every hook invocation in worktree sessions.
+SUPERSEDED BY Issue #1036. The original #651 fix replaced
+``$(git rev-parse --show-toplevel)`` with
+``$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")`` to
+survive git worktrees. Issue #1036 converged all templates onto a single
+canonical that is both worktree-safe AND submodule-safe:
 
-Fix: Replaced $(git rev-parse --show-toplevel) with
-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)") which:
-- In normal repo: --git-common-dir returns /path/to/repo/.git -> dirname = /path/to/repo
-- In worktree: --git-common-dir returns /path/to/main/.git -> dirname = /path/to/main
+    ${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/<NAME>
 
-This correctly resolves to the main repo root in both cases.
+- Primary ``CLAUDE_PROJECT_DIR`` is the Claude-Code-set launch project root
+  (git-independent), so it resolves correctly inside submodules where
+  ``git rev-parse --show-toplevel`` would return the submodule root.
+- The ``$(git rev-parse --show-toplevel)`` fallback covers older CLIs that do
+  not set the variable; a worktree carries its own copied ``.claude/hooks/`` so
+  ``--show-toplevel`` still resolves to a working hook directory there.
+
+These tests now assert the shared #1036 canonical: no *bare* (unwrapped)
+``$(git rev-parse --show-toplevel)``, and every git-based hook command carries
+the ``${CLAUDE_PROJECT_DIR:-`` primary. The ``--git-common-dir`` requirement is
+intentionally dropped (it is banned by hook_path_validator because it resolves
+to the main repo's git dir).
 """
 
 import json
@@ -51,15 +60,23 @@ def _extract_hook_commands(settings: dict) -> list[str]:
     return commands
 
 
+# The #1036 canonical wrapper. Any bare occurrence of the git substitution
+# OUTSIDE this wrapper is a violation.
+_WRAPPED_CANONICAL = "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+_BARE_GIT_SUBST = "$(git rev-parse --show-toplevel)"
+_PRIMARY_PREFIX = "${CLAUDE_PROJECT_DIR:-"
+
+
 class TestIssue651WorktreeHookPaths:
-    """Ensure no settings template uses --show-toplevel (breaks in worktrees)."""
+    """Ensure every template uses the shared #1036 submodule/worktree canonical."""
 
     @pytest.mark.parametrize("template_name", TEMPLATE_FILES)
-    def test_no_show_toplevel_in_hook_commands(self, template_name: str) -> None:
-        """Hook commands must NOT use --show-toplevel (Issue #651).
+    def test_no_bare_show_toplevel_in_hook_commands(self, template_name: str) -> None:
+        """No hook command may use a *bare* $(git rev-parse --show-toplevel).
 
-        --show-toplevel returns the worktree root in worktree contexts, not
-        the main repo root. Hooks must use --git-common-dir + dirname instead.
+        The git substitution is permitted ONLY as the fallback inside the
+        ${CLAUDE_PROJECT_DIR:-...} wrapper (Issue #1036). A bare, unwrapped
+        occurrence breaks inside git submodules.
         """
         template_path = TEMPLATES_DIR / template_name
         if not template_path.exists():
@@ -70,23 +87,27 @@ class TestIssue651WorktreeHookPaths:
 
         violations = []
         for cmd in commands:
-            if "--show-toplevel" in cmd:
+            # Strip all legitimately-wrapped occurrences, then any remaining
+            # bare git substitution is a violation.
+            stripped = cmd.replace(_WRAPPED_CANONICAL, "")
+            if _BARE_GIT_SUBST in stripped:
                 violations.append(cmd)
 
         assert not violations, (
-            f"Template {template_name} still uses --show-toplevel which breaks "
-            f"in git worktrees (Issue #651). Use "
-            f'$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)") '
-            f"instead:\n"
+            f"Template {template_name} uses a bare (unwrapped) "
+            f"$(git rev-parse --show-toplevel) which breaks in git submodules "
+            f"(Issue #1036). Wrap it as {_WRAPPED_CANONICAL}:\n"
             + "\n".join(f"  - {v}" for v in violations)
         )
 
     @pytest.mark.parametrize("template_name", TEMPLATE_FILES)
-    def test_git_common_dir_uses_absolute_format(self, template_name: str) -> None:
-        """--git-common-dir must use --path-format=absolute to avoid relative paths.
+    def test_git_based_commands_carry_project_dir_primary(
+        self, template_name: str
+    ) -> None:
+        """Every git-based hook command must carry the ${CLAUDE_PROJECT_DIR:- primary.
 
-        Without --path-format=absolute, git rev-parse --git-common-dir returns
-        a relative path ('.git') in the main repo, which breaks dirname resolution.
+        This is the submodule-immune primary; the git substitution is only its
+        fallback (Issue #1036).
         """
         template_path = TEMPLATES_DIR / template_name
         if not template_path.exists():
@@ -97,25 +118,26 @@ class TestIssue651WorktreeHookPaths:
 
         violations = []
         for cmd in commands:
-            # If using --git-common-dir, must also use --path-format=absolute
-            if "--git-common-dir" in cmd and "--path-format=absolute" not in cmd:
+            if cmd.startswith("echo") or "git rev-parse" not in cmd:
+                continue
+            if _PRIMARY_PREFIX not in cmd:
                 violations.append(cmd)
 
         assert not violations, (
-            f"Template {template_name} uses --git-common-dir without "
-            f"--path-format=absolute (Issue #651). The relative path '.git' "
-            f"returned in normal repos breaks dirname resolution:\n"
+            f"Template {template_name} has git-based hook command(s) missing the "
+            f"{_PRIMARY_PREFIX}...}} primary (Issue #1036):\n"
             + "\n".join(f"  - {v}" for v in violations)
         )
 
     @pytest.mark.parametrize("template_name", TEMPLATE_FILES)
-    def test_worktree_safe_pattern_used(self, template_name: str) -> None:
-        """Commands using git rev-parse for paths must use the worktree-safe pattern.
+    def test_wrapped_canonical_pattern_used(self, template_name: str) -> None:
+        """Git-based commands must use the full #1036 wrapped canonical prefix.
 
         The correct pattern is:
-          $(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+          ${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/...
 
-        This resolves to the main repo root in both normal repos and worktrees.
+        This resolves correctly in normal repos, worktrees, AND submodules.
+        The legacy --git-common-dir requirement is intentionally dropped.
         """
         template_path = TEMPLATES_DIR / template_name
         if not template_path.exists():
@@ -124,9 +146,9 @@ class TestIssue651WorktreeHookPaths:
         settings = json.loads(template_path.read_text())
         commands = _extract_hook_commands(settings)
 
-        # Pattern: commands that reference plugin hooks (not ~/... paths or echo)
-        worktree_safe_pattern = re.compile(
-            r'\$\(dirname\s+.*\$\(git\s+rev-parse\s+--path-format=absolute\s+--git-common-dir\)'
+        wrapped_pattern = re.compile(
+            r"\$\{CLAUDE_PROJECT_DIR:-\$\(git rev-parse --show-toplevel\)\}"
+            r"/\.claude/hooks/"
         )
 
         for cmd in commands:
@@ -134,12 +156,11 @@ class TestIssue651WorktreeHookPaths:
             if cmd.startswith("echo") or "git rev-parse" not in cmd:
                 continue
 
-            assert worktree_safe_pattern.search(cmd), (
+            assert wrapped_pattern.search(cmd), (
                 f"Command in {template_name} uses git rev-parse but not the "
-                f"worktree-safe pattern (Issue #651):\n"
+                f"#1036 wrapped canonical pattern:\n"
                 f"  Got: {cmd}\n"
-                f"  Expected pattern: $(dirname \"$(git rev-parse "
-                f"--path-format=absolute --git-common-dir)\")/..."
+                f"  Expected prefix: {_WRAPPED_CANONICAL}/.claude/hooks/..."
             )
 
     def test_home_dir_paths_not_affected(self) -> None:

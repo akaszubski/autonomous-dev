@@ -519,8 +519,21 @@ class TestDeployValidation:
             for matcher in matchers:
                 for hook in matcher.get("hooks", []):
                     cmd = hook.get("command", "")
-                    cmd_resolved = cmd.replace("$(git rev-parse --show-toplevel)", repo)
+                    # Issue #1036: canonical path is now wrapped in
+                    # ${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}.
+                    # Resolve the full expression + bare $CLAUDE_PROJECT_DIR
+                    # forms to the repo root, then the legacy bare git form.
+                    cmd_resolved = cmd
+                    cmd_resolved = cmd_resolved.replace(
+                        "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}", repo
+                    )
+                    cmd_resolved = cmd_resolved.replace("${CLAUDE_PROJECT_DIR}", repo)
+                    cmd_resolved = cmd_resolved.replace("$CLAUDE_PROJECT_DIR", repo)
+                    cmd_resolved = cmd_resolved.replace(
+                        "$(git rev-parse --show-toplevel)", repo
+                    )
                     for word in cmd_resolved.split():
+                        word = word.strip("\"'")
                         if word.endswith(".py") or word.endswith(".sh"):
                             if word.startswith("~"):
                                 # Check expanded path first; fall back to plugin source dir

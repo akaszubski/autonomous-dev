@@ -124,6 +124,14 @@ def test_extract_script_path_picks_first_py_or_sh(tokens, expected):
         ("$CLAUDE_PROJECT_DIR/hooks/foo.py", "/hooks/foo.py", []),
         # CLAUDE_PROJECT_DIR substitution (braces)
         ("${CLAUDE_PROJECT_DIR}/hooks/foo.py", "/hooks/foo.py", []),
+        # Issue #1036: ${CLAUDE_PROJECT_DIR:-<default>} default-value form —
+        # the whole expression (incl. the $(git ...) fallback) collapses to
+        # project_root with NO unresolved vars left behind.
+        (
+            "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/hooks/foo.py",
+            "/hooks/foo.py",
+            [],
+        ),
         # CLAUDE_PLUGIN_ROOT substitution
         (
             "${CLAUDE_PLUGIN_ROOT}/hooks/foo.py",
@@ -144,6 +152,23 @@ def test_expand_path_substitutes_special_vars(
     path, unresolved = expand_path(raw, project_root)
     assert str(path).endswith(expected_suffix), f"Got: {path}"
     assert unresolved == expected_unresolved
+
+
+def test_expand_path_resolves_claude_project_dir_default_form(monkeypatch):
+    """Issue #1036: ``${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}``
+    expands to ``<project_root>/hooks/foo.py`` with an empty unresolved list.
+
+    Even when CLAUDE_PROJECT_DIR is unset in the ambient environment, the
+    validator substitutes the whole default-value expression with project_root
+    (the fallback resolves to the same project-local tree), so neither the var
+    nor the ``$(...)`` fallback survives to be flagged as unresolved.
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    project_root = Path("/proj")
+    raw = "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/hooks/foo.py"
+    path, unresolved = expand_path(raw, project_root)
+    assert str(path) == "/proj/hooks/foo.py", f"Got: {path}"
+    assert unresolved == []
 
 
 def test_expand_path_handles_home_tilde(monkeypatch, tmp_path):

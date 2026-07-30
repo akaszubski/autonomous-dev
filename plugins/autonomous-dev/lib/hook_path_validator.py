@@ -88,14 +88,19 @@ INTERPRETERS: tuple[str, ...] = (
 )
 
 # Path-style substrings that are no longer permitted in hook commands. The
-# canonical form (Issue #996, Phase B) is
-# ``"$(git rev-parse --show-toplevel)/.claude/hooks/<NAME>.<py|sh>"`` which
-# resolves to the project-local hook directory populated by
-# ``scripts/deploy-all.sh`` / ``sync_settings_hooks.py``. The two patterns
-# below are explicitly disallowed because they either bypass the worktree
-# (``--git-common-dir`` resolves to the main repo's git dir, breaking
-# project-local hook deployments) or hardcode the global cache path
-# (``~/.claude/`` was the v3.x default but cannot be project-scoped).
+# canonical form (Issue #1036, superseding Issue #996 Phase B) is
+# ``"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/<NAME>.<py|sh>"``
+# which resolves to the project-local hook directory populated by
+# ``scripts/deploy-all.sh`` / ``sync_settings_hooks.py``. The primary
+# ``CLAUDE_PROJECT_DIR`` is the Claude-Code-set launch project root (git-
+# independent, so it survives submodule checkouts where
+# ``git rev-parse --show-toplevel`` would return the submodule root); the
+# ``$(git rev-parse --show-toplevel)`` fallback covers older CLIs that do not
+# set the variable. The two patterns below remain explicitly disallowed because
+# they either bypass the worktree (``--git-common-dir`` resolves to the main
+# repo's git dir, breaking project-local hook deployments) or hardcode the
+# global cache path (``~/.claude/`` was the v3.x default but cannot be
+# project-scoped).
 DISALLOWED_PATH_SUBSTRINGS: tuple[tuple[str, str, str], ...] = (
     (
         "~/.claude/",
@@ -115,6 +120,18 @@ _ENV_PREFIX_RE = re.compile(r"^([A-Z_][A-Z0-9_]*)=(.*)$")
 # Pattern: any remaining ``$VAR`` or ``${VAR}`` token after expansion. If this
 # survives :func:`expand_path`, the variable was not defined anywhere.
 _UNRESOLVED_VAR_RE = re.compile(r"\$\{?([A-Z_][A-Z0-9_]*)\}?")
+
+# Pattern: the ``${CLAUDE_PROJECT_DIR:-<default>}`` shell default-value
+# expression (Issue #1036). The primary variable is the Claude-Code-set launch
+# project root (submodule-immune); the ``<default>`` fallback (typically
+# ``$(git rev-parse --show-toplevel)``) covers older CLIs where the var is
+# empty. The default value cannot itself contain a literal ``}`` (command
+# substitutions use parentheses), so ``[^}]*`` reliably captures it. Both the
+# primary and the fallback resolve to the same project-local hook directory, so
+# the validator substitutes the whole expression with ``project_root`` before
+# ``os.path.expandvars`` runs — otherwise ``_UNRESOLVED_VAR_RE`` would
+# false-flag ``CLAUDE_PROJECT_DIR`` as undefined.
+_CLAUDE_PROJECT_DIR_DEFAULT_RE = re.compile(r"\$\{CLAUDE_PROJECT_DIR:-[^}]*\}")
 
 
 # --------------------------------------------------------------------------
@@ -212,12 +229,16 @@ def expand_path(raw: str, project_root: Path) -> tuple[Path, list[str]]:
     """Expand env vars and home shorthand in a path string.
 
     Substitution order:
-        1. ``$CLAUDE_PROJECT_DIR`` / ``${CLAUDE_PROJECT_DIR}`` -> ``project_root``
-        2. ``$CLAUDE_PLUGIN_ROOT`` / ``${CLAUDE_PLUGIN_ROOT}`` ->
+        1. ``${CLAUDE_PROJECT_DIR:-<default>}`` (Issue #1036 canonical) ->
+           ``project_root`` — matched as a whole so the ``<default>`` fallback
+           (e.g. ``$(git rev-parse --show-toplevel)``) is discarded rather than
+           left as a stray ``$(...)`` token.
+        2. ``$CLAUDE_PROJECT_DIR`` / ``${CLAUDE_PROJECT_DIR}`` -> ``project_root``
+        3. ``$CLAUDE_PLUGIN_ROOT`` / ``${CLAUDE_PLUGIN_ROOT}`` ->
            ``project_root / 'plugins' / 'autonomous-dev'``
-        3. :func:`os.path.expanduser` (handles ``~``)
-        4. :func:`os.path.expandvars` (handles remaining ``$VAR`` references)
-        5. Re-scan for any surviving ``$VAR`` tokens — those are unresolved.
+        4. :func:`os.path.expanduser` (handles ``~``)
+        5. :func:`os.path.expandvars` (handles remaining ``$VAR`` references)
+        6. Re-scan for any surviving ``$VAR`` tokens — those are unresolved.
 
     Args:
         raw: Raw path string from a hook command.
@@ -235,6 +256,11 @@ def expand_path(raw: str, project_root: Path) -> tuple[Path, list[str]]:
     project_root_str = str(project_root)
     plugin_root_str = str(project_root / "plugins" / "autonomous-dev")
     expanded = raw
+    # Issue #1036: collapse ``${CLAUDE_PROJECT_DIR:-<default>}`` (and its
+    # embedded ``$(...)`` fallback) to project_root FIRST, before the bare-var
+    # replacements below. Both the primary var and the fallback resolve to the
+    # same project-local hook tree, so we discard the fallback outright.
+    expanded = _CLAUDE_PROJECT_DIR_DEFAULT_RE.sub(project_root_str, expanded)
     expanded = expanded.replace("${CLAUDE_PROJECT_DIR}", project_root_str)
     expanded = expanded.replace("$CLAUDE_PROJECT_DIR", project_root_str)
     expanded = expanded.replace("${CLAUDE_PLUGIN_ROOT}", plugin_root_str)

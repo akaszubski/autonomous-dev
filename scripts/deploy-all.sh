@@ -369,9 +369,18 @@ for event, matchers in s.get('hooks', {}).items():
     for matcher in matchers:
         for hook in matcher.get('hooks', []):
             cmd = hook.get('command', '')
-            # Substitute shell expansions that Python can't resolve
-            cmd_resolved = cmd.replace('\$(git rev-parse --show-toplevel)', repo)
+            # Substitute shell expansions that Python can't resolve.
+            # Issue #1036: the canonical path is now wrapped in
+            # \${CLAUDE_PROJECT_DIR:-\$(git rev-parse --show-toplevel)}. Resolve
+            # the full expression AND the bare \$CLAUDE_PROJECT_DIR forms to the
+            # repo root, then keep the legacy bare git-substitution replace.
+            cmd_resolved = cmd
+            cmd_resolved = cmd_resolved.replace('\${CLAUDE_PROJECT_DIR:-\$(git rev-parse --show-toplevel)}', repo)
+            cmd_resolved = cmd_resolved.replace('\${CLAUDE_PROJECT_DIR}', repo)
+            cmd_resolved = cmd_resolved.replace('\$CLAUDE_PROJECT_DIR', repo)
+            cmd_resolved = cmd_resolved.replace('\$(git rev-parse --show-toplevel)', repo)
             for word in cmd_resolved.split():
+                word = word.strip(chr(34) + chr(39))
                 if word.endswith('.py') or word.endswith('.sh'):
                     if word.startswith('~'):
                         path = os.path.expanduser(word)

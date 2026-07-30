@@ -12,8 +12,10 @@ Acceptance criteria (verbatim):
 6. Fresh setup.sh produces project-local-paths-only output (or equivalent deploy script)
 7. sync_settings_hooks.py produces matching output
 
-Canonical pattern (deduced by reading the templates themselves):
-    $(git rev-parse --show-toplevel)/.claude/hooks/<NAME>.<py|sh>
+Canonical pattern (deduced by reading the templates themselves; Issue #1036
+wrapped the bare git substitution in a ``CLAUDE_PROJECT_DIR`` default so hooks
+resolve inside git submodules):
+    ${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/<NAME>.<py|sh>
 """
 
 from __future__ import annotations
@@ -40,7 +42,8 @@ TEMPLATE_NAMES = (
 
 # Pattern derived purely by inspecting templates (no implementer guidance).
 CANONICAL_PATTERN = re.compile(
-    r"\$\(git rev-parse --show-toplevel\)/\.claude/hooks/[A-Za-z0-9_./\-]+\.(py|sh)"
+    r"\$\{CLAUDE_PROJECT_DIR:-\$\(git rev-parse --show-toplevel\)\}"
+    r"/\.claude/hooks/[A-Za-z0-9_./\-]+\.(py|sh)"
 )
 
 # Patterns explicitly retired per CHANGELOG / spec.
@@ -91,13 +94,18 @@ def test_ac2_every_script_hook_uses_canonical_pattern(template_name):
         saw_any_script = True
         if not CANONICAL_PATTERN.search(cmd):
             offenders.append(cmd)
-    assert saw_any_script, (
-        f"{template_name}: no script-shaped hook commands found; "
-        f"either the template is empty or this validator missed them."
-    )
+    if not saw_any_script:
+        # Legitimately hookless templates (e.g. settings.local.json ships with
+        # no hooks by design) have nothing to validate for this AC — pass
+        # through. Walker health (did we miss real scripts?) is separately
+        # guarded by test_ac2_pattern_is_consistent_across_all_templates, which
+        # requires the canonical prefix in every script command across ALL
+        # templates and would fail if the walker silently found nothing.
+        return
     assert not offenders, (
         f"{template_name}: hook commands not matching canonical "
-        f"$(git rev-parse --show-toplevel)/.claude/hooks/<X>.<py|sh> pattern: "
+        f"${{CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}}"
+        f"/.claude/hooks/<X>.<py|sh> pattern: "
         f"{offenders}"
     )
 
@@ -106,7 +114,10 @@ def test_ac2_pattern_is_consistent_across_all_templates():
     """AC #2 (cross-template consistency): if we collect all *root-prefix*
     fragments from every script-shaped hook command across every template,
     there must be exactly one unique prefix."""
-    prefix_re = re.compile(r"(\$\(git rev-parse --show-toplevel\)/\.claude/hooks/)")
+    prefix_re = re.compile(
+        r"(\$\{CLAUDE_PROJECT_DIR:-\$\(git rev-parse --show-toplevel\)\}"
+        r"/\.claude/hooks/)"
+    )
     prefixes: set[str] = set()
     for template_name in TEMPLATE_NAMES:
         for cmd in _iter_hook_commands(TEMPLATES_DIR / template_name):
