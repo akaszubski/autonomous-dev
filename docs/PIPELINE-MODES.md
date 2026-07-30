@@ -279,6 +279,38 @@ ordering was intentionally parallel.
 validator checks (context-dropping, hard-gate ordering, minimum agent count).
 The exemption is narrow: sequential *timestamp* ordering only.
 
+### Background Agents Never Fire Stop/SubagentStop (Anthropic #25147)
+
+Agents launched with `run_in_background=true` **never fire the `Stop` or
+`SubagentStop` hook events** — this is a Claude Code platform limitation
+(Anthropic #25147, marked won't-fix). No hook can auto-record a background
+agent's completion, because the hook that would record it never runs.
+
+**How background-agent completion is recorded**: coordinator-side. When a
+background agent returns, the coordinator (`commands/implement.md`) calls
+`record_agent_completion()` directly for that agent. This is the intended
+design, **not a bug** — the completeness gate reads those coordinator-written
+records exactly as it reads hook-written ones.
+
+**What the SubagentStop hook does instead** (`unified_session_tracker.py`):
+best-effort handling for the *foreground / internal* firings that DO reach the
+hook. Two #1396 behaviors apply only to those firings:
+
+1. **Agent-type recovery** — when the payload and the #1087 PreToolUse cache
+   both omit `agent_type`, `_resolve_agent_type_from_transcript()` scans the
+   subagent transcript's early entries for the agent identity (best-effort;
+   undocumented schema, Anthropic #27423 / #27755).
+2. **Heartbeat drop** — internal SubagentStop firings with no usable identity
+   (empty `agent_type`, zero duration, no cache hit, no transcript-resolved
+   identity) are dropped rather than recorded, cutting the bulk (~95 of ~113)
+   of noise events per run. The drop is ordered before the #1414 phantom-dedup
+   block so it never perturbs `_PHANTOM_DEDUP_CACHE`.
+
+Neither behavior touches background agents (they never reach the hook). For the
+complementary read-side recovery at the `git commit` completeness gate — where
+a Bash subprocess may evaluate the wrong session id — see the #1228 read-side
+session-id fallback in `unified_pre_tool.py::_check_pipeline_agent_completions`.
+
 ## Related
 
 - [commands/implement.md](../plugins/autonomous-dev/commands/implement.md) — authoritative pipeline definition

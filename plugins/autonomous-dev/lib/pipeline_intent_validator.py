@@ -1230,7 +1230,22 @@ def detect_doc_verdict_missing(events: List[PipelineEvent]) -> List[Finding]:
                 ],
             ))
         elif comp.result_word_count < MIN_DOC_VERDICT_WORDS:
-            # Completion exists but output too short for a meaningful verdict
+            # Completion exists but output too short for a meaningful verdict.
+            # Mirror the #650 fallback from the `comp is None` branch: correlation
+            # can pair the invocation with a truncated/heartbeat completion event
+            # even when a healthy full-length doc-master completion exists elsewhere
+            # in the event stream. Skip the false positive if ANY doc-master
+            # completion in the full event list is healthy (Issue #1387/#1412).
+            any_healthy_completion = any(
+                e for e in events
+                if e.pipeline_action == "agent_completion"
+                and e.subagent_type == "doc-master"
+                and e.success
+                and e.result_word_count >= MIN_DOC_VERDICT_WORDS
+            )
+            if any_healthy_completion:
+                continue  # Skip this false positive (Issue #1387/#1412)
+
             findings.append(Finding(
                 finding_type="doc_verdict_missing",
                 severity="CRITICAL",

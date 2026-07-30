@@ -330,6 +330,68 @@ def _validate_transcript_path(path_str: str) -> str:
         return ""
 
 
+def _resolve_agent_type_from_transcript(transcript_path: str) -> str:
+    """Best-effort recovery of the agent identity from a subagent transcript.
+
+    Issue #1396: Claude Code's SubagentStop payload frequently omits
+    ``agent_type``. When the #1087 PreToolUse cache also misses (cold or
+    racing PreToolUse write), this scans the first ~20 JSONL entries of the
+    subagent transcript for an agent-identity field.
+
+    The transcript JSONL schema is UNDOCUMENTED and may change between Claude
+    Code versions (Anthropic #27423 / #27755), so this is strictly
+    best-effort: any failure (missing/malformed file, unexpected schema)
+    returns ``""`` and callers fall through to their existing 'unknown'
+    handling. The path is validated with ``_validate_transcript_path`` first
+    so this never reads outside ``~/.claude``.
+
+    Args:
+        transcript_path: Raw agent_transcript_path from the hook payload.
+
+    Returns:
+        The resolved agent type, or ``""`` if it cannot be determined.
+    """
+    try:
+        validated = _validate_transcript_path(transcript_path)
+        if not validated:
+            return ""
+
+        top_keys = ("agent_type", "subagent_type", "agentType")
+        nested_containers = ("session_meta", "meta", "summary")
+        nested_keys = ("agent_type", "agentType", "name")
+
+        with open(validated, "r", encoding="utf-8") as f:
+            for _ in range(20):
+                line = f.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                # Top-level identity fields
+                for key in top_keys:
+                    val = entry.get(key)
+                    if isinstance(val, str) and val.strip():
+                        return val.strip()
+                # Nested identity fields
+                for container in nested_containers:
+                    nested = entry.get(container)
+                    if isinstance(nested, dict):
+                        for key in nested_keys:
+                            val = nested.get(key)
+                            if isinstance(val, str) and val.strip():
+                                return val.strip()
+        return ""
+    except Exception:
+        return ""
+
+
 def _compute_duration_ms() -> int:
     """Compute duration_ms by diffing against agent_tracker started_at.
 
@@ -837,6 +899,18 @@ _MARKER_SUFFIX = ".marker"
 _PHANTOM_DEDUP_CACHE: dict[tuple[str, str], float] = {}
 PHANTOM_DEDUP_WINDOW_SECONDS = 300  # 5 minutes
 
+# Issue #1396 (remediation): 4th survival signal for the heartbeat-drop.
+# _compute_duration_ms returns 0 for native Task invocations with a cold #1087
+# cache, and the transcript resolver is best-effort (can miss on a schema-variant
+# transcript). If BOTH miss for a GENUINE foreground agent that nonetheless
+# produced a SUBSTANTIVE last_assistant_message, dropping it would silently
+# discard a real completion and block a legit commit (#802 gate) — the exact
+# #1387/#1412-class false-negative this fix guards against. A genuine foreground
+# agent always emits a substantive final assistant message; pure heartbeat noise
+# does not. The word-count threshold (mirroring the result_word_count pattern)
+# filters trivial noise while a real agent completion easily clears it.
+HEARTBEAT_MIN_OUTPUT_WORDS = 5
+
 
 def _try_claim_subagent_stop_marker(
     key: str,
@@ -1162,9 +1236,22 @@ def main() -> int:
             if agent_name not in ("", "unknown")
             else "",
         )
+        cache_hit = bool(cached_invocation)
         if (not agent_name) or agent_name in ("", "unknown"):
             if cached_invocation and cached_invocation.get("subagent_type"):
                 agent_name = cached_invocation["subagent_type"]
+
+        # Issue #1396: transcript-based agent-type recovery tier. Runs AFTER the
+        # #1087 PreToolUse cache and BEFORE the 'unknown' fallback. When both the
+        # payload and the cache missed the agent identity (cold/racing PreToolUse
+        # write), best-effort parse the subagent transcript's early entries for
+        # the agent identity. Returns "" on any failure (undocumented schema).
+        resolved_from_transcript = False
+        if (not agent_name) or agent_name in ("", "unknown"):
+            recovered = _resolve_agent_type_from_transcript(agent_transcript_path_raw)
+            if recovered:
+                agent_name = recovered
+                resolved_from_transcript = True
 
         # Determine status with correct priority (Issue #541):
         # 1. CLAUDE_AGENT_STATUS env var (structural signal) — authoritative
@@ -1198,6 +1285,37 @@ def main() -> int:
                 duration_ms = 0
         if duration_ms == 0:
             duration_ms = _compute_duration_ms()
+
+        # Issue #1396: heartbeat-drop. Claude Code emits SubagentStop for
+        # internal/tool-level firings that carry NO usable identity: empty
+        # agent_type, zero duration, no #1087 cache hit, and no transcript-
+        # resolved identity. These are pure noise (~95 of ~113 SubagentStop
+        # events in a real run per Anthropic #27423) — recording them pollutes
+        # ghost-agent detection and the completeness gate. Drop them here so
+        # they are never recorded. ORDERING IS CRITICAL: this sits AFTER
+        # duration_ms is computed (so we can gate on duration_ms == 0) and
+        # BEFORE the #1414 phantom-dedup block, so a dropped event never
+        # perturbs _PHANTOM_DEDUP_CACHE. A real foreground agent that races
+        # ahead of its PreToolUse cache write is preserved because it will have
+        # EITHER a transcript-resolved identity OR a non-zero duration OR a
+        # substantive last_assistant_message (Issue #1396 remediation — 4th
+        # survival signal). The INTERSECTION case (cold cache + zero duration +
+        # unresolvable transcript) for a genuine agent with real output must NOT
+        # be dropped, or it silently reintroduces the #1387/#1412 false-negative
+        # that blocks a legit commit via the #802 completeness gate.
+        has_substantive_output = (
+            len(agent_output.split()) >= HEARTBEAT_MIN_OUTPUT_WORDS
+            if agent_output
+            else False
+        )
+        if (
+            ((not agent_name) or agent_name in ("", "unknown"))
+            and duration_ms == 0
+            and not cache_hit
+            and not resolved_from_transcript
+            and not has_substantive_output
+        ):
+            return 0
 
         # Compute word count
         # Prefer full transcript aggregation to capture multi-turn output (#872/#907)

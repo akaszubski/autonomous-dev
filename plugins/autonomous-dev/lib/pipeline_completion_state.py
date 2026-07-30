@@ -240,6 +240,80 @@ def resolve_session_id(
     return "unknown"
 
 
+def resolve_session_id_affine(
+    *,
+    sentinel_path: Optional[str] = None,
+    max_age_seconds: int = 3600,
+) -> Optional[str]:
+    """Resolve the current session id using ONLY session-affine sources.
+
+    Unlike :func:`resolve_session_id`, this resolver NEVER falls through to the
+    repo-wide activity-log scan (``_resolve_session_id_from_activity_log``).
+    That scan returns "today's most-recent real session id" with NO cwd / PID /
+    temporal scoping and can therefore return a *different concurrent session's*
+    id. In this repo, concurrent Claude Code sessions are a documented regular
+    occurrence, so trusting the broad scan in a security gate is unsafe: a second
+    idle session's completions could satisfy THIS session's git-commit
+    completeness gate (concurrent-session collision, Issue #1228 hardening).
+
+    Affinity sources, first match wins:
+
+        1. ``CLAUDE_SESSION_ID`` env var — THE current session, highest
+           affinity. (When set to the literal ``"unknown"`` it is ignored,
+           matching :func:`resolve_session_id` step-2 semantics.)
+        2. The STEP-0 sentinel file's ``session_id`` — a fresh, current-pipeline
+           marker written by the coordinator at STEP 0. Gated by
+           ``mtime <= max_age_seconds`` so a STALE sentinel from a prior/abandoned
+           run is ignored (temporal affinity). A ``"unknown"`` placeholder is
+           ignored.
+
+    Returns the resolved real session id, or ``None`` when neither affine source
+    yields a real (non-empty, non-``"unknown"``) id. Returning ``None`` (rather
+    than the broad activity-log scan's cross-session guess) lets the gate FAIL
+    SAFE toward "run the agents" instead of masking an incomplete pipeline with
+    an unrelated session's completions.
+
+    This preserves the legitimate Bash-subprocess-drops-``CLAUDE_SESSION_ID``
+    recovery case: the coordinator writes the sentinel with the REAL session id
+    at STEP 0, so the sentinel (step 2) still resolves it after the env var is
+    lost in a subshell. Only the ambiguous "env dropped AND sentinel is
+    'unknown'" case — which is precisely the concurrent-collision hole — is no
+    longer rescued via the broad scan.
+
+    NEVER raises. Catches ``OSError``, ``json.JSONDecodeError``, ``ValueError``.
+
+    Issue #1228 (concurrent-session hardening).
+    """
+    try:
+        env_sid = os.environ.get("CLAUDE_SESSION_ID", "")
+        if env_sid and env_sid != "unknown":
+            return env_sid
+
+        if sentinel_path is None:
+            sentinel_path = str(get_legacy_sentinel_path())
+
+        try:
+            st = os.stat(sentinel_path)
+        except OSError:
+            return None
+        if (time.time() - st.st_mtime) > max_age_seconds:
+            # Stale sentinel — not the current session. Ignore (temporal affinity).
+            return None
+        try:
+            with open(sentinel_path) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError, ValueError):
+            return None
+        if isinstance(data, dict):
+            candidate = data.get("session_id")
+            if isinstance(candidate, str) and candidate and candidate != "unknown":
+                return candidate
+        return None
+    except Exception:
+        # Fail-safe: never let the affine resolver raise into the gate.
+        return None
+
+
 def _check_file_bypass() -> bool:
     """Check and consume the file-based bypass for the agent completeness gate.
 

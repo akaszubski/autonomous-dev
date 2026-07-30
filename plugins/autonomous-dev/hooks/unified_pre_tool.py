@@ -4225,11 +4225,60 @@ def _check_pipeline_agent_completions(session_id: str) -> "Optional[str]":
         if passed:
             return None
 
+        # Issue #1228: read-side session-id fallback. When the payload session_id
+        # yielded ZERO completion records (not passed AND no completed AND some
+        # missing), the gate may be evaluating the WRONG session id -- e.g. the
+        # Bash git-commit subprocess dropped CLAUDE_SESSION_ID and fell back to a
+        # boot-time "unknown" sentinel while the real agent completions were
+        # recorded under a resolvable id. SCOPE-LOCK: this fallback fires ONLY on
+        # zero payload-sid records. A PARTIAL primary session (some completed,
+        # some missing) still blocks -- we never mask a genuinely incomplete
+        # pipeline. Fail-open (skip fallback) if no resolver is available.
+        #
+        # #1228 concurrent-session hardening: resolve via SESSION-AFFINE sources
+        # only (env var + fresh STEP-0 sentinel), NEVER the repo-wide
+        # activity-log scan. The broad scan returns "today's most-recent real
+        # session id" with no cwd/PID/temporal scoping, so a DIFFERENT concurrent
+        # session (a documented regular occurrence in this repo) could have its
+        # completions satisfy THIS session's commit gate. resolve_session_id_affine
+        # returns None when no affine source yields a real id, so the gate FAILS
+        # SAFE (still blocks) instead of trusting a cross-session guess. The
+        # legitimate CLAUDE_SESSION_ID-dropped-in-subshell recovery is preserved
+        # because the coordinator writes the real session id to the sentinel at
+        # STEP 0. Prefer the affine resolver; fall back to the legacy resolver
+        # only if the affine one is absent (older lib versions).
+        evaluated_sids = [session_id]
+        if (
+            (not passed)
+            and (not completed)
+            and missing
+            and (
+                hasattr(mod, "resolve_session_id_affine")
+                or hasattr(mod, "resolve_session_id")
+            )
+        ):
+            if hasattr(mod, "resolve_session_id_affine"):
+                resolved = mod.resolve_session_id_affine()
+            else:
+                resolved = mod.resolve_session_id()
+            if resolved and resolved != "unknown" and resolved != session_id:
+                evaluated_sids.append(resolved)
+                r_passed, r_completed, r_missing = mod.verify_pipeline_agent_completions(
+                    resolved, pipeline_mode, issue_number=issue_number
+                )
+                if r_passed:
+                    return None
+                # Prefer the better-informed result (more completed agents).
+                if len(r_completed) > len(completed):
+                    completed, missing = r_completed, r_missing
+
         missing_str = ", ".join(sorted(missing))
         completed_str = ", ".join(sorted(completed)) if completed else "(none)"
+        evaluated_str = ", ".join(evaluated_sids)
         return (
             f"BLOCKED: Agent completeness gate -- missing required agents: "
             f"{missing_str}. Completed: {completed_str}. "
+            f"Evaluated session id(s): {evaluated_str}. "
             f"All required pipeline agents MUST complete before git commit. "
             f"REQUIRED NEXT ACTION: Run the missing agents before committing. "
             f"BYPASS (in order of reliability): "
