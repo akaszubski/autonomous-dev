@@ -596,3 +596,4 @@
 {"fire_id": "20260731T100945Z", "fired_at": "2026-07-31T10:09:45Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260731T100945Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"timestamp": "2026-07-31T18:10:18.308168+00:00", "fire_type": "FIRE_END", "exit_reason": "no_drainable_cluster", "suppressed_commit": true, "fire_id": "20260731T180859Z"}
+{"fire_id": "20260731T200905Z", "fired_at": "2026-07-31T20:09:23Z", "selected_cluster": "none", "phase": "FIRE_START"}
