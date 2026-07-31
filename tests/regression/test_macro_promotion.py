@@ -528,3 +528,34 @@ def test_closed_lookback_days_constant_value():
     assert CLOSED_LOOKBACK_DAYS == 90, (
         f"CLOSED_LOOKBACK_DAYS must be 90, got {CLOSED_LOOKBACK_DAYS}"
     )
+
+
+def test_test_pruning_rate_limited():
+    """TEST-PRUNING signals should be suppressed (Issue #1432)."""
+    from plugins.autonomous_dev.lib.runtime_data_aggregator import AggregatedSignal
+    from plugins.autonomous_dev.lib.macro_promotion import decide_promotions
+    
+    # Create a TEST-PRUNING signal that would normally be promoted
+    test_pruning_signal = AggregatedSignal(
+        source="cia",
+        signal_type="TEST-PRUNING",
+        description="Test suite has 2394 prunable candidates (24x over threshold)",
+        frequency=5,  # Above PROMOTION_FREQUENCY_MIN (3)
+        severity=1.0,
+        raw_data={
+            "root_cause_tag": "TEST-PRUNING",
+            "distinct_sessions": 4,  # Above PROMOTION_DISTINCT_SESSIONS_MIN (2)
+            "file_refs_union": ["tests/"],
+            "max_severity_label": "warning"
+        }
+    )
+    
+    # Verify it gets held despite meeting normal promotion criteria
+    decisions = decide_promotions([test_pruning_signal], open_issues=[])
+    
+    assert len(decisions) == 1
+    decision = decisions[0]
+    assert decision.route == "hold"
+    assert "TEST-PRUNING rate-limited" in decision.rationale
+    assert "Issue #1432" in decision.rationale
+    assert decision.matched_open_issue is None

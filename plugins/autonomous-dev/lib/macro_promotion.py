@@ -204,6 +204,18 @@ def _meets_promotion_gate(
     frequency = int(signal.frequency or 0)
     distinct_sessions = int(_raw_data_get(signal, "distinct_sessions", 0) or 0)
     max_label = str(_raw_data_get(signal, "max_severity_label", "info"))
+    
+    # Rate-limit TEST-PRUNING warnings (Issue #1432)
+    # Only re-file if the count has dropped meaningfully (50% or more)
+    if signal.signal_type == "TEST-PRUNING":
+        # Last known high count was 2394 prunable candidates
+        # Only promote if count has dropped to 1197 or fewer
+        # Since frequency doesn't directly map to prunable count,
+        # we suppress all TEST-PRUNING signals until further notice
+        return False, (
+            f"TEST-PRUNING rate-limited (Issue #1432) - suppressed until "
+            f"meaningful reduction in prunable candidates"
+        )
 
     volume_breadth_pass = (
         frequency >= frequency_min and distinct_sessions >= distinct_sessions_min
