@@ -252,6 +252,20 @@ def main():
                 entry["priority"] = "high"
                 entry["agent_event"] = True
 
+            # Issue #1430: Cluster mode (BATCH_NO_WORKTREE=1) sub-issue visibility.
+            # When the coordinator runs a cluster in-place on master (no worktree),
+            # sub-issue Agent completions are otherwise indistinguishable from
+            # top-level activity in the session log, making CIA post-session
+            # analysis unable to attribute completions to specific issues.
+            # Tag every entry with the batch context so downstream analyzers can
+            # filter/group by cluster and current sub-issue.
+            _bnw = os.environ.get("BATCH_NO_WORKTREE", "").strip().lower()
+            if _bnw in ("1", "true", "yes"):
+                entry["batch_no_worktree"] = True
+                _cur_issue = _resolve_current_batch_issue()
+                if _cur_issue:
+                    entry["batch_issue_number"] = _cur_issue
+
         # Write to log file
         log_dir = _find_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -524,6 +538,46 @@ def _get_session_date(session_id: str) -> str:
         pass
     _SESSION_DATE_CACHE[session_id] = date_str
     return date_str
+
+
+def _resolve_current_batch_issue() -> int | None:
+    """Return the currently-processing issue number in BATCH_NO_WORKTREE mode.
+
+    Issue #1430: In cluster mode (`BATCH_NO_WORKTREE=1`) the orchestrator
+    persists batch state at ``<cwd>/.claude/batch_state.json`` with a
+    ``current_index`` cursor into ``issues[]``. Reading that lets us
+    attribute in-flight sub-issue activity in the session log so CIA
+    post-session analysis can group by issue.
+
+    Fallbacks (env-first for cheap resolution):
+    1. ``CURRENT_BATCH_ISSUE`` env var (set by coordinator per iteration).
+    2. ``<cwd>/.claude/batch_state.json`` — ``issues[current_index]``.
+
+    Returns None on any failure (missing state, invalid JSON, index out
+    of range). Non-blocking: never raises.
+    """
+    try:
+        env_val = os.environ.get("CURRENT_BATCH_ISSUE", "").strip()
+        if env_val.isdigit():
+            return int(env_val)
+    except Exception:
+        pass
+    try:
+        state_path = Path.cwd() / ".claude" / "batch_state.json"
+        if not state_path.exists():
+            return None
+        data = json.loads(state_path.read_text())
+        issues = data.get("issues") or []
+        idx = int(data.get("current_index", 0))
+        if 0 <= idx < len(issues):
+            candidate = issues[idx]
+            if isinstance(candidate, int):
+                return candidate
+            if isinstance(candidate, str) and candidate.isdigit():
+                return int(candidate)
+    except Exception:
+        return None
+    return None
 
 
 def _find_log_dir() -> Path:
