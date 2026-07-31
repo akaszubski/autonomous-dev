@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 
+### Fixed
+- **Suppress telemetry commits for no_drainable_cluster (Issue #1437)**: Cloud-drain fires exit with `no_drainable_cluster` 96% of the time while still emitting `FIRE_END` telemetry commits that drown out real activity. Modified drain-queue command to log these no-op exits to JSONL only, suppressing git commits for `no_drainable_cluster`, `queue_empty`, and `all_clusters_high_severity` exit reasons. Real events like `commit_landed` continue to emit telemetry commits.
+
 ### Security
 - **Batch worktree path boundary enforcement**: Blocks Write/Edit operations targeting paths outside active batch worktree; prevents main-repo writes during batch runs (#1390)
 ### Fixed

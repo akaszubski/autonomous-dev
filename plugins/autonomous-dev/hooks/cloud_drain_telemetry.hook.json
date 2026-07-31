@@ -1,0 +1,9 @@
+{
+  "name": "cloud_drain_telemetry",
+  "description": "Controls telemetry commit emission for cloud-drain fires (Issue #1437)",
+  "events": ["CloudSchedule"],
+  "enabled": true,
+  "priority": 10,
+  "retry": 0,
+  "timeout": 30
+}

@@ -197,6 +197,19 @@ else:
     
     if not clusters:
         append_stop_notification("STEP 3: queue drained completely", Path(".claude/local"))
+        # Issue #1437: Log to JSONL but suppress telemetry commit for queue_empty
+        from datetime import datetime, timezone
+        log_path = Path(".claude/logs/cloud-runs.jsonl")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fire_type": "FIRE_END",
+            "exit_reason": "queue_empty",
+            "suppressed_commit": True
+        }
+        with open(log_path, "a") as f:
+            json.dump(entry, f)
+            f.write("\n")
         print("STOP: queue drained completely", flush=True)
         sys.exit(0)
     
@@ -206,6 +219,19 @@ else:
     
     if selected is None:
         append_stop_notification("STEP 3: no drainable cluster found", Path(".claude/local"))
+        # Issue #1437: Log to JSONL but suppress telemetry commit for no_drainable_cluster
+        from datetime import datetime, timezone
+        log_path = Path(".claude/logs/cloud-runs.jsonl")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "fire_type": "FIRE_END",
+            "exit_reason": "no_drainable_cluster",
+            "suppressed_commit": True
+        }
+        with open(log_path, "a") as f:
+            json.dump(entry, f)
+            f.write("\n")
         print("STOP: no drainable cluster found (all filtered by gates)", flush=True)
         sys.exit(0)
     
@@ -650,6 +676,34 @@ after_metrics = None
 
 CircuitBreaker.load(repo).record_success()
 DrainBudget.load(repo).add(elapsed)
+
+# Issue #1437: Log successful drain with telemetry commit
+from datetime import datetime, timezone
+log_path = repo / ".claude/logs/cloud-runs.jsonl"
+log_path.parent.mkdir(parents=True, exist_ok=True)
+cluster_str = ",".join(map(str, cluster["issue_numbers"]))
+entry = {
+    "timestamp": datetime.now(timezone.utc).isoformat(),
+    "fire_type": "FIRE_END",
+    "cluster": cluster_str,
+    "exit_reason": "commit_landed",
+    "suppressed_commit": False
+}
+with open(log_path, "a") as f:
+    json.dump(entry, f)
+    f.write("\n")
+
+# Create telemetry commit for successful drain
+import subprocess
+timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+commit_msg = f"telemetry(cloud-drain): FIRE_END {timestamp} cluster={cluster_str}"
+try:
+    subprocess.run(["git", "add", str(log_path)], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", commit_msg], cwd=str(repo), check=True, capture_output=True)
+    print(f"Created telemetry commit: {commit_msg}", flush=True)
+except subprocess.CalledProcessError:
+    pass  # Ignore if already committed or nothing to commit
+
 # revert_status="pending" marks this drain as a candidate for the auto-revert checker (Issue #1292, gated on #1290 metrics)
 # Build record with optional metrics fields
 record = {
