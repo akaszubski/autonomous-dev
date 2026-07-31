@@ -261,6 +261,10 @@ Per-repo opt-out: touch .claude/.bypass && git commit.
    touch /tmp/skip_write_pipeline_gate
    # Now retry the Write/Edit — bypass is consumed and gate re-enables
    ```
+   Issue #1408: the consumed-bypass log entry now records a `reason` string.
+   Write one for a more auditable trail: `echo "hotfix for prod incident" >
+   /tmp/skip_write_pipeline_gate` (falls back to `$WRITE_GATE_BYPASS_REASON`,
+   else `"unspecified"`).
 
 3. **Durable per-repo opt-out** (consumer repo that does not want SDLC enforcement):
    ```bash
@@ -274,7 +278,9 @@ Per-repo opt-out: touch .claude/.bypass && git commit.
    AUTONOMOUS_DEV_BYPASS=1 <your command>
    ```
 
-**Not applicable when**: `.claude/.bypass` is present (gate skipped), or the pipeline is already active (gate is a no-op). Test files (`test_*.py`, files under `tests/` or `test/`) are always excluded from this gate. Bash commands writing to code files (`cat > X.py`, `sed -i X.py`, `tee X.py`, heredocs) are subject to the same gate; `git apply` and `patch < diff` are excluded as user-driven patch tooling.
+**Not applicable when**: `.claude/.bypass` is present (gate skipped), the pipeline is already active (gate is a no-op), the target is a test file (`test_*.py`, files under `tests/` or `test/`), or the target is a scratch/ephemeral path (`/tmp/`, `/private/tmp/`, `/var/tmp/`, `/var/folders/`, `~/tmp/`, `~/.cache/`, `$SCRATCHPAD`, `.claude/tmp/`) or outside a git worktree / gitignored (Issue #1408 — pipeline review adds no value for files that are never committed).
+
+**Bash writes to code files are now advisory, not blocking** (Issue #1408 Hybrid model): `cat > X.py`, `sed -i X.py`, `tee X.py`, heredocs, and similar patterns are detected but no longer denied — general bash-write detection is unsound (many forms evade the pattern set), so a hard block there gave a false sense of security. The command proceeds; a `[hook advisory]` line on stderr recommends the matching `/implement` variant. `git apply` and `patch < diff` remain excluded as user-driven patch tooling. Edit/Write to code files, protected-infrastructure Bash writes, and the Issue #803 cross-tool workaround check all remain hard-blocked.
 
 
 ## Coordinator Cannot Directly Edit Protected Path (Issue #1296)

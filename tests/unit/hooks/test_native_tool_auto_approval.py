@@ -507,6 +507,11 @@ class TestNativeToolMainBypass:
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "suggest")
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        # Issue #1408: /project/src/main.py is not in a git worktree; stub the
+        # new worktree-aware scoping so the TIER gate (not out-of-tree scoping)
+        # is exercised. Scoping is covered in
+        # tests/regression/test_issue_1408_write_gate_scoping.py.
+        monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
         tool_input = {
             "file_path": "/project/src/main.py",
             "old_string": "pass",
@@ -585,6 +590,10 @@ class TestNativeToolMainBypass:
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/nonexistent/state.json")
+        # Issue #1408: /project/src/handler.py is not in a git worktree; stub
+        # the worktree-aware scoping so the TIER gate is exercised (scoping is
+        # covered in tests/regression/test_issue_1408_write_gate_scoping.py).
+        monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
         tool_input = {
             "file_path": "/project/src/handler.py",
             "old_string": "pass",

@@ -658,6 +658,167 @@ CODE_EXTENSIONS = {
     '.kt', '.scala', '.sh', '.bash', '.zsh', '.vue', '.svelte',
 }
 
+# Ephemeral / scratch absolute prefixes exempt from the write-pipeline gate
+# (Issue #1408). Promoted from a function-local list in
+# ``_check_write_pipeline_required`` to a module-level constant so the
+# Bash-code gate and #803 cross-tool check share ONE definition (the repo
+# previously carried three inconsistent temp lists). Files at these locations
+# are never committed and never user-facing, so pipeline review adds no value.
+# Restricted to ABSOLUTE prefixes so ``/tmp/foo.sh`` is exempt but a project
+# dir literally named ``tmp`` is NOT. ``$SCRATCHPAD`` is handled dynamically in
+# ``_is_scratch_path`` (env is read per-call, not frozen at import).
+EPHEMERAL_PREFIXES: "tuple[str, ...]" = (
+    "/tmp/",
+    "/private/tmp/",      # macOS canonicalises /tmp -> /private/tmp
+    "/var/tmp/",
+    "/var/folders/",      # macOS pytest tmp_path / mkdtemp default
+    str(Path.home() / "tmp") + "/",
+    str(Path.home() / ".cache") + "/",
+)
+
+
+def _is_scratch_path(path: str) -> bool:
+    """Return True when ``path`` is an ephemeral/scratch location (Issue #1408).
+
+    A scratch path is never committed and never user-facing, so the
+    ``/implement`` write-pipeline gate must not fire on it. Recognises:
+
+    * any :data:`EPHEMERAL_PREFIXES` absolute prefix,
+    * the ``$SCRATCHPAD`` subtree (when the env var is set),
+    * per-session scratchpad roots ``/private/tmp/claude-*/`` (and the
+      ``/tmp/claude-*/`` uncanonicalised form),
+    * any ``.claude/tmp/`` segment (project-local scratch).
+
+    Pure helper: reads env only, uses ``.expanduser()`` (NOT ``.resolve()`` —
+    resolving would chase symlinks and could surprise on macOS ``/tmp`` ->
+    ``/private/tmp``). Never raises — any error returns False (fail-safe: an
+    unclassifiable path is treated as NON-scratch, i.e. still gated).
+
+    Args:
+        path: The candidate file path (absolute or relative).
+
+    Returns:
+        True if the path is an ephemeral/scratch location.
+    """
+    if not path:
+        return False
+    try:
+        p = path.strip().strip("'\"")
+        if not p:
+            return False
+        try:
+            expanded = str(Path(p).expanduser())
+        except Exception:
+            expanded = p
+
+        if any(expanded.startswith(prefix) for prefix in EPHEMERAL_PREFIXES):
+            return True
+
+        # Home-relative scratch (~/tmp, ~/.cache) recomputed per-call so it
+        # tracks the live $HOME even when a test monkeypatches Path.home — the
+        # module-level EPHEMERAL_PREFIXES froze Path.home() at import time.
+        try:
+            home = Path.home()
+            for sub in ("tmp", ".cache"):
+                if expanded.startswith(str(home / sub) + "/"):
+                    return True
+        except Exception:
+            pass
+
+        scratchpad = os.environ.get("SCRATCHPAD", "")
+        if scratchpad and expanded.startswith(scratchpad.rstrip("/") + "/"):
+            return True
+
+        # Per-session scratchpad roots: /private/tmp/claude-*/ and /tmp/claude-*/
+        for seg in ("/private/tmp/claude-", "/tmp/claude-"):
+            if expanded.startswith(seg):
+                return True
+
+        # Project-local scratch directory.
+        if "/.claude/tmp/" in expanded or expanded.startswith(".claude/tmp/"):
+            return True
+    except Exception:
+        return False
+
+    return False
+
+
+def _is_gated_repo_source(path: str) -> bool:
+    """Return True when ``path`` is in-worktree, non-ignored repo source (Issue #1408).
+
+    Git-worktree-aware scoping for the write-pipeline gate. A path is "gated
+    repo source" (i.e. the Edit/Write pipeline gate SHOULD apply) only when it
+    is a real, tracked-or-trackable source file inside a git worktree:
+
+    1. scratch paths are checked FIRST and are never gated (returns False),
+    2. paths outside any git worktree are not gated (returns False),
+    3. gitignored paths are not gated (returns False),
+    4. everything else in-worktree (including new-untracked source) STAYS gated
+       (returns True).
+
+    Runs ``git`` per-invocation FROM THE TARGET FILE'S DIRECTORY so submodules
+    and linked worktrees resolve to the correct repo (a single top-level
+    ``git -C repo_root`` would misclassify submodule files). Every subprocess is
+    timeout-bounded (1.0s) and wrapped.
+
+    FAIL-OPEN: any subprocess error / TimeoutExpired / FileNotFoundError (git
+    missing) falls back to :func:`_is_autonomous_dev_repo`. This function NEVER
+    raises — a raised exception inside PreToolUse breaks ALL tool use.
+
+    Args:
+        path: The candidate file path.
+
+    Returns:
+        True if the path is in-worktree, non-ignored repo source.
+    """
+    try:
+        if not path:
+            return False
+
+        # (1) scratch checked first — scratch is never gated.
+        if _is_scratch_path(path):
+            return False
+
+        try:
+            target = Path(path).expanduser()
+            work_dir = str(target.parent if target.parent != Path("") else Path.cwd())
+        except Exception:
+            return _is_autonomous_dev_repo(path)
+
+        import subprocess as _sp
+
+        # (2) inside a git worktree?
+        try:
+            _r = _sp.run(
+                ["git", "-C", work_dir, "rev-parse", "--is-inside-work-tree"],
+                capture_output=True, text=True, timeout=1.0,
+            )
+        except (OSError, ValueError, _sp.SubprocessError):
+            # git unavailable / timeout — fail open to the pre-#1408 scoping.
+            return _is_autonomous_dev_repo(path)
+        if _r.returncode != 0 or _r.stdout.strip() != "true":
+            return False  # outside a worktree — not gated repo source.
+
+        # (3) gitignored? check-ignore exit 0 == ignored.
+        try:
+            _ig = _sp.run(
+                ["git", "-C", work_dir, "check-ignore", "-q", str(target)],
+                capture_output=True, text=True, timeout=1.0,
+            )
+        except (OSError, ValueError, _sp.SubprocessError):
+            return _is_autonomous_dev_repo(path)
+        if _ig.returncode == 0:
+            return False  # gitignored — not gated.
+
+        # (4) in-worktree, non-ignored (incl. new-untracked source) — STAYS gated.
+        return True
+    except Exception:
+        # Absolute belt-and-braces: never raise out of PreToolUse.
+        try:
+            return _is_autonomous_dev_repo(path)
+        except Exception:
+            return False
+
 # Language-specific pattern groups for code significance detection
 PATTERN_GROUPS = {
     'python': {
@@ -2203,8 +2364,10 @@ def _check_write_pipeline_required(
         (block, tier_label, directive)
         - block: True means caller MUST emit a deny decision.
         - tier_label: one of "pipeline_active", "operator_bypass", "no_path",
-          "tier0_non_code", "tier0_test_file", "fix", "light", "full",
-          "wpg_check_error".
+          "tier0_non_code", "tier0_test_file", "tier0_scratch_path",
+          "tier0_out_of_tree", "fix", "light", "full", "wpg_check_error".
+          "tier0_scratch_path" = ephemeral/scratch location (Issue #1408).
+          "tier0_out_of_tree" = outside a git worktree or gitignored (#1408).
         - directive: human-readable REQUIRED NEXT ACTION (empty when block False).
 
     Phase 1 (Issue #1142+): default-on. The previous opt-IN check via
@@ -2268,19 +2431,18 @@ def _check_write_pipeline_required(
     # placing a look-alike ``/tmp/plugins/autonomous-dev/...`` tree to
     # be trusted as a plugin source). Pipeline gating is about review
     # discipline, not trust elevation; the two concerns don't overlap.
-    try:
-        resolved = str(Path(file_path).expanduser())
-    except Exception:
-        resolved = file_path
-    EPHEMERAL_PREFIXES = (
-        "/tmp/",
-        "/private/tmp/",      # macOS canonicalises /tmp -> /private/tmp
-        "/var/folders/",      # macOS pytest tmp_path / mkdtemp default
-        str(Path.home() / "tmp") + "/",
-        str(Path.home() / ".cache") + "/",
-    )
-    if any(resolved.startswith(p) for p in EPHEMERAL_PREFIXES):
-        return (False, "tier0_ephemeral_path", "")
+    # Uses the module-level EPHEMERAL_PREFIXES + $SCRATCHPAD/.claude/tmp/
+    # awareness via _is_scratch_path (Issue #1408).
+    if _is_scratch_path(file_path):
+        return (False, "tier0_scratch_path", "")
+
+    # Tier 0h: git-worktree-aware scoping (Issue #1408). Only in-worktree,
+    # non-ignored repo source stays gated. Out-of-tree files and gitignored
+    # paths are not gated (the pipeline review adds no value for files that are
+    # never committed). Fails open to _is_autonomous_dev_repo scoping on any
+    # git error — never raises.
+    if not _is_gated_repo_source(file_path):
+        return (False, "tier0_out_of_tree", "")
 
     # Tier classification via AST-based classifier (Phase 1, #1142+).
     tier, reason = _safe_classify_edit_tier(file_path, old_string or "", new_string or "")
@@ -2409,6 +2571,14 @@ def _check_bash_code_file_pipeline_required(
     basename = Path(target).name
     if basename.startswith("test_") or basename.endswith("_test.py"):
         return (False, "tier0_test_file", "", target)
+
+    # Scratch / out-of-tree scoping (Issue #1408) — mirror the Write/Edit gate
+    # so this (now advisory) path does not fire on scratch or out-of-tree
+    # targets. Scratch first (never gated), then git-worktree scoping.
+    if _is_scratch_path(target):
+        return (False, "tier0_scratch_path", "", target)
+    if not _is_gated_repo_source(target):
+        return (False, "tier0_out_of_tree", "", target)
 
     # Classify — for in-place edits like sed -i we cannot see the patch,
     # so we pass empty old/new and let the classifier return its safe
@@ -4976,17 +5146,34 @@ def _log_write_gate_bypass_consumed(file_path: str, skip_file: Path) -> None:
             sentinel_age_seconds = time.time() - sentinel_mtime
         except Exception:
             pass
-        
+
+        # Scoped-escape reason (Issue #1408): prefer the sentinel file's own
+        # contents (operator can `echo "why" > /tmp/skip_write_pipeline_gate`),
+        # then the $WRITE_GATE_BYPASS_REASON env var, else "unspecified". This
+        # makes each one-shot bypass auditable WITHOUT introducing any
+        # session-wide off switch (.claude/.bypass remains the blanket
+        # kill-switch). Logged unconditionally; the bypass stays one-shot.
+        reason = ""
+        try:
+            reason = skip_file.read_text(errors="replace").strip()[:500]
+        except Exception:
+            reason = ""
+        if not reason:
+            reason = os.environ.get("WRITE_GATE_BYPASS_REASON", "").strip()[:500]
+        if not reason:
+            reason = "unspecified"
+
         # Prepare log entry
         log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
         log_dir.mkdir(parents=True, exist_ok=True)
         date_str = _dt.now().strftime("%Y-%m-%d")
-        
+
         entry = {
             "timestamp": _dt.now(_tz.utc).isoformat(),
             "event": "write_gate_operator_bypass_consumed",
             "agent": agent_name,
             "file_path": file_path or "(bash context)",
+            "reason": reason,
             "sentinel_age_seconds": round(sentinel_age_seconds, 2) if sentinel_age_seconds >= 0 else -1,
             "session_id": _resolve_session_id_safe(_session_id) or "unknown",
         }
@@ -5873,6 +6060,65 @@ def _extract_bash_spec_test_targets(command: str) -> "list[str]":
     return targets
 
 
+def _extract_git_checkout_targets(command: str) -> "list":
+    """Extract file paths a ``git checkout``/``git restore`` would overwrite (Issue #1408).
+
+    ``git checkout [<ref>] [--] <paths>...`` and ``git restore [--source=<ref>]
+    [--] <paths>...`` overwrite working-tree files from a ref — a write path
+    that the existing infra gate (cp/mv/redirect/tee/dd/python3) does NOT
+    detect. This pure parser returns the candidate destination paths so the
+    caller can re-check them against protected infrastructure.
+
+    Conservative: false negatives are acceptable (a missed exotic form),
+    false positives are not (we only harvest tokens after an explicit
+    ``checkout``/``restore`` subcommand). Only regex/tokenisation — no fs or
+    subprocess. Never raises.
+
+    Args:
+        command: The raw Bash command string.
+
+    Returns:
+        List of candidate file-path tokens (may be empty).
+    """
+    import re
+
+    if not command:
+        return []
+    try:
+        targets: "list" = []
+        # Match `git ... checkout` or `git ... restore` (allow -C <dir> etc.
+        # between `git` and the subcommand).
+        for m in re.finditer(r"\bgit\b[^\n;&|]*?\b(checkout|restore)\b([^\n;&|]*)", command):
+            tail = m.group(2)
+            tokens = tail.split()
+            paths: "list" = []
+            seen_dd = False
+            for tok in tokens:
+                if tok == "--":
+                    seen_dd = True
+                    paths = []  # everything after `--` is authoritative paths
+                    continue
+                if tok.startswith("-"):
+                    # flag (e.g. -b, --source=, -f, --) — skip; --source=<ref>
+                    # names a ref, not a path.
+                    continue
+                paths.append(tok)
+            # Heuristic when no `--` seen: git checkout <ref> -- is the safe form,
+            # but `git checkout main -- a b` handled above. Without `--`, the
+            # first token MAY be a ref (`git checkout main`) OR a path
+            # (`git restore x`). We conservatively include ALL non-flag tokens:
+            # over-inclusion only means an extra _is_protected_infrastructure
+            # check that returns False for a ref like "main".
+            for tok in paths:
+                cleaned = tok.strip().strip("'\"")
+                if cleaned:
+                    targets.append(cleaned)
+            _ = seen_dd
+        return targets
+    except Exception:
+        return []
+
+
 def _check_bash_infra_writes(command: str) -> "Optional[Tuple[str, str]]":
     """Check if a Bash command writes to protected infrastructure paths.
 
@@ -5983,6 +6229,36 @@ def _check_bash_infra_writes(command: str) -> "Optional[Tuple[str, str]]":
             path_rename_pattern = r'(?:\w+)\s*\(\s*[\'"][^\'"]+[\'"]\s*\)\.(?:rename|replace)\s*\(\s*[\'"]([^\'"]+)[\'"]'
             for path_rename_match in re.finditer(path_rename_pattern, snippet):
                 target_paths.append(path_rename_match.group(1))
+
+    # 6. git checkout / git restore targets (Issue #1408) — these overwrite
+    # working-tree files from a ref and are NOT covered by cp/mv/redirect/tee.
+    try:
+        target_paths.extend(_extract_git_checkout_targets(command))
+    except Exception:
+        pass  # fail-open: never block on extraction errors
+
+    # 7. git apply / patch to protected infra (Issue #1408). The diff body is
+    # unparseable here (it may arrive via stdin/heredoc/file), so we mirror the
+    # existing conservative ``__suspicious_exec__`` style: if the command
+    # invokes `git apply` or `patch` AND a protected path segment appears
+    # anywhere in the command string, block. False negatives (segment hidden in
+    # a separate diff file) are acceptable; false positives are avoided because
+    # the segment must literally appear in the command.
+    try:
+        if re.search(r"\b(?:git\s+apply|patch)\b", command):
+            for seg in ("agents/", "hooks/", "lib/", "skills/", "commands/"):
+                if seg in command:
+                    return (
+                        f"__patch_apply__ ({seg})",
+                        f"BLOCKED: Bash command uses git apply/patch referencing protected "
+                        f"path '{seg}'. Patch tooling can overwrite infrastructure files, "
+                        f"which require the /implement pipeline. Run: /implement \"description\" "
+                        f"REQUIRED NEXT ACTION: Delegate file modifications to the "
+                        f"implementer agent via the Agent tool. Do NOT use git apply/patch to "
+                        f"write to infrastructure files."
+                    )
+    except Exception:
+        pass  # fail-open
 
     # Check each target path against protected infrastructure
     for fp in target_paths:
@@ -7093,30 +7369,41 @@ def main():
                         _b2b_directive = ""
                         _b2b_target = ""
                     if _b2b_block:
+                        # Issue #1408 (user-approved Hybrid): DOWNGRADED from a
+                        # hard decision:block to a NON-BLOCKING advisory. General
+                        # bash write-detection is UNSOUND — `git checkout`,
+                        # `python3 -c`, `dd`, `base64 | tee` and other forms
+                        # bypass the pattern set, so a hard gate here provides a
+                        # false sense of security while taxing legitimate one-off
+                        # scripting. The HARD gates remain: Edit/Write
+                        # (_check_write_pipeline_required), protected-infra Bash
+                        # (_check_bash_infra_writes, incl. git checkout/apply),
+                        # and the #803 cross-tool check below. This path is now
+                        # best-effort DETECTIVE, not preventive.
+                        #
+                        # IMPORTANT: do NOT call _update_deny_cache here — nothing
+                        # was denied, so poisoning the deny cache would make the
+                        # #803 cross-tool check fire spuriously on later commands.
                         _b2b_basename = Path(_b2b_target).name if _b2b_target else "unknown"
-                        _b2b_reason = (
-                            f"BLOCKED: Bash command writes to code file '{_b2b_basename}' "
-                            f"which requires the /implement pipeline. "
-                            f"File: {_b2b_target} "
-                            f"Tier: {_b2b_tier}. "
-                            f"REQUIRED NEXT ACTION: {_b2b_directive} "
-                            f"Per-repo opt-out: touch .claude/.bypass && git commit."
+                        _b2b_advisory = (
+                            f"ADVISORY (Issue #1408): Bash command writes to code file "
+                            f"'{_b2b_basename}' ({_b2b_target}, tier: {_b2b_tier}). "
+                            f"This is no longer blocked, but for reviewable changes prefer: "
+                            f"{_b2b_directive} "
+                            f"Edit/Write to this file and protected-infrastructure writes "
+                            f"remain hard-gated."
                         )
-                        _log_deviation(_b2b_basename, tool_name, f"bash_code_file_gate_block:{_b2b_tier}")
-                        _log_pretool_activity(tool_name, tool_input, "deny", _b2b_reason)
-                        output_decision(
-                            "deny", _b2b_reason,
-                            system_message=(
-                                f"BLOCKED: Bash write to code file '{_b2b_basename}' denied (tier: {_b2b_tier}). "
-                                f"Run /implement to make changes. "
-                                f"Per-repo opt-out: touch .claude/.bypass && git commit."
-                            ),
+                        _log_deviation(
+                            _b2b_basename, tool_name, f"bash_code_file_gate_advisory:{_b2b_tier}"
                         )
+                        _log_pretool_activity(tool_name, tool_input, "allow", _b2b_advisory)
+                        # Emit a user-visible advisory to stderr (same fall-through
+                        # pattern as the #953 downgrade sites) but FALL THROUGH (no
+                        # deny, no sys.exit) so the command proceeds.
                         try:
-                            _update_deny_cache(_b2b_target)
+                            print(f"[hook advisory] {_b2b_advisory}", file=sys.stderr)
                         except Exception:
                             pass
-                        sys.exit(0)
 
                     # Issue #803: Cross-tool workaround detection.
                     # If a Write/Edit was recently denied, check if this Bash command
@@ -7129,7 +7416,19 @@ def main():
                         _pipeline_active_803 = False
                     if not _pipeline_active_803:
                         try:
-                            _write_targets_803 = _extract_bash_file_writes(command)
+                            # #803 STAYS HARD. write_targets already covers
+                            # cp/mv (via tool_intent.write_targets) + redirects/
+                            # tee/dd/python. Issue #1408: additionally union
+                            # git checkout/restore targets so a denied-Edit ->
+                            # `git checkout -- same/path` workaround is still
+                            # blocked (git checkout is otherwise undetected).
+                            _write_targets_803 = list(_extract_bash_file_writes(command))
+                            try:
+                                _write_targets_803.extend(
+                                    _extract_git_checkout_targets(command)
+                                )
+                            except Exception:
+                                pass  # fail-open: never block on extraction errors
                             for _wt in _write_targets_803:
                                 _wt_clean = _wt.strip().strip("'\"")
                                 if not _wt_clean:

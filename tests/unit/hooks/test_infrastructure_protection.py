@@ -300,6 +300,12 @@ class TestInfraProtectionInMainFlow:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
+        # Issue #1408: the tmp_path is not a git worktree, so the new
+        # worktree-aware scoping would classify src/app.py as out-of-tree and
+        # skip the gate. This test verifies the TIER gate fires on real
+        # in-tree source, so stub the scoping to True. Out-of-tree/scratch
+        # scoping is covered in tests/regression/test_issue_1408_write_gate_scoping.py.
+        monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
 
         result = self._run_hook(
             "Write",
@@ -575,6 +581,56 @@ class TestBashInfrastructureProtection:
 
         decision = result["hookSpecificOutput"]["permissionDecision"]
         assert decision == "allow"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1408 — git checkout / apply / patch to protected infra stays HARD.
+# Direct-function tests (no _run_hook) so they do not depend on the pipeline
+# state / network path exercised by the _run_hook-based tests above.
+# ---------------------------------------------------------------------------
+
+
+class TestGitCheckoutApplyInfraProtection:
+    """_check_bash_infra_writes blocks git checkout/restore/apply/patch to infra."""
+
+    def test_git_checkout_double_dash_lib_blocked(self, monkeypatch):
+        monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+        monkeypatch.setattr(hook, "_is_protected_infrastructure", lambda _p: True)
+        result = hook._check_bash_infra_writes(
+            "git checkout -- plugins/autonomous-dev/lib/pipeline_state.py"
+        )
+        assert result is not None
+        assert "BLOCKED" in result[1]
+
+    def test_git_restore_hooks_blocked(self, monkeypatch):
+        monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+        monkeypatch.setattr(hook, "_is_protected_infrastructure", lambda _p: True)
+        result = hook._check_bash_infra_writes(
+            "git restore -- hooks/unified_pre_tool.py"
+        )
+        assert result is not None
+        assert "BLOCKED" in result[1]
+
+    def test_git_apply_with_hooks_segment_blocked(self, monkeypatch):
+        monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+        result = hook._check_bash_infra_writes(
+            "git apply /tmp/patch.diff  # modifies hooks/foo.py"
+        )
+        assert result is not None
+        assert "BLOCKED" in result[1]
+
+    def test_patch_with_commands_segment_blocked(self, monkeypatch):
+        monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+        result = hook._check_bash_infra_writes(
+            "patch commands/implement.md < /tmp/p.diff"
+        )
+        assert result is not None
+        assert "BLOCKED" in result[1]
+
+    def test_git_checkout_branch_no_infra_allowed(self, monkeypatch):
+        monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+        # Switching branches, no protected segment -> not blocked.
+        assert hook._check_bash_infra_writes("git checkout main") is None
 
 
 # ---------------------------------------------------------------------------

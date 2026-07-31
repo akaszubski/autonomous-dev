@@ -99,8 +99,17 @@ def _make_pipeline_inactive(monkeypatch) -> None:
 def default_state(monkeypatch):
     """Each test starts with the pipeline NOT active and the one-shot skip
     file absent. .bypass is NOT installed (callers use it explicitly).
+
+    Issue #1408: the synthetic ``/repo/src/*.py`` paths used throughout this
+    module are not inside a git worktree, so the new worktree-aware scoping in
+    ``_check_write_pipeline_required`` would short-circuit to
+    ``tier0_out_of_tree`` before tier classification. Stub
+    ``_is_gated_repo_source`` -> True so these tests continue to exercise tier
+    logic. Scoping itself is covered in
+    ``tests/regression/test_issue_1408_write_gate_scoping.py``.
     """
     _make_pipeline_inactive(monkeypatch)
+    monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     if skip_file.exists():
         try:
@@ -205,19 +214,29 @@ class TestBashDispatchIntegration:
     chain that the runtime hook actually walks.
     """
 
-    def test_bash_cat_redirect_blocked_with_tier_directive(
+    def test_bash_cat_redirect_is_advisory_not_denied(
         self, tmp_path, monkeypatch, capsys,
     ):
-        """AC5: heredoc cat-redirect to a code file blocks with a tier
-        directive that points at /implement.
+        """Issue #1408 (Hybrid): heredoc cat-redirect to a GENERAL (non-infra)
+        code file is now a NON-BLOCKING advisory, not a hard deny.
+
+        General bash write-detection is unsound (git checkout / python3 -c / dd
+        / base64|tee bypass it), so per the user-approved Hybrid the general
+        bash-code path is best-effort detective, NOT preventive. Edit/Write and
+        protected-infra bash writes remain hard-gated (covered in
+        test_infrastructure_protection.py and
+        tests/regression/test_issue_1408_write_gate_scoping.py).
         """
         # Run from a directory that has NO `.claude/.bypass` marker installed
         # so the gate is allowed to fire. Also clear the env-var bypass.
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("AUTONOMOUS_DEV_BYPASS", raising=False)
 
+        # Use a non-scratch code path (default_state stubs _is_gated_repo_source
+        # -> True) so we exercise the advisory-downgrade path, not the
+        # scratch/out-of-tree early return.
         cat_heredoc = (
-            "cat > /tmp/foo.py <<EOF\n"
+            "cat > /repo/src/foo.py <<EOF\n"
             "class X:\n"
             "    pass\n"
             "EOF"
@@ -225,14 +244,9 @@ class TestBashDispatchIntegration:
         result = _run_main_with_tool(
             "Bash", {"command": cat_heredoc}, monkeypatch, capsys,
         )
-        assert result["permissionDecision"] == "deny", (
-            f"Bash heredoc redirect into a .py file with a new class MUST "
-            f"deny via the hook entrypoint (AC5 end-to-end). "
-            f"Got: {result!r}"
-        )
-        assert "/implement" in result["permissionDecisionReason"], (
-            f"Deny reason MUST include the /implement tier directive. "
-            f"Got reason: {result['permissionDecisionReason']!r}"
+        assert result["permissionDecision"] != "deny", (
+            f"Bash heredoc redirect into a general (non-infra) .py file MUST "
+            f"NOT be hard-denied post-#1408 (Hybrid downgrade). Got: {result!r}"
         )
 
 

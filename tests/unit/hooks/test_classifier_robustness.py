@@ -158,6 +158,12 @@ def session_id() -> str:
 def pipeline_inactive(monkeypatch):
     """Default: pipeline is NOT active, so the gate actually runs."""
     monkeypatch.setattr(hook, "_is_pipeline_active", lambda: False)
+    # Issue #1408: the sliding-window tests use synthetic /home/user/app/*.py
+    # paths that are NOT inside a git worktree. Without this stub the new
+    # worktree-aware scoping would short-circuit to tier0_out_of_tree before
+    # tier classification. Scoping itself is covered in
+    # tests/regression/test_issue_1408_write_gate_scoping.py.
+    monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
     # Also drop any leftover skip-bypass file across test runs.
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     if skip_file.exists():
