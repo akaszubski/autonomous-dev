@@ -20,7 +20,9 @@ Coverage:
   ``./.cache/foo.py``)
 
 Filed alongside the realign session that discovered the pain point
-(2026-06-15).
+(2026-06-15). Issue #1408: the tier label is now ``tier0_scratch_path``
+(EPHEMERAL_PREFIXES promoted to a module-level constant + $SCRATCHPAD /
+.claude/tmp/ awareness via ``_is_scratch_path``).
 """
 
 from __future__ import annotations
@@ -81,7 +83,7 @@ class TestEphemeralPathExemption:
     def test_absolute_ephemeral_prefixes_skip_gate(self, path):
         blocked, tier, directive = _gate(path)
         assert not blocked, f"{path} should bypass the pipeline gate"
-        assert tier == "tier0_ephemeral_path"
+        assert tier == "tier0_scratch_path"
         assert directive == ""
 
     def test_home_tmp_subtree_is_exempt(self, tmp_path, monkeypatch):
@@ -91,14 +93,14 @@ class TestEphemeralPathExemption:
         path = str(tmp_path / "tmp" / "helper.sh")
         blocked, tier, _ = _gate(path)
         assert not blocked
-        assert tier == "tier0_ephemeral_path"
+        assert tier == "tier0_scratch_path"
 
     def test_home_cache_subtree_is_exempt(self, tmp_path, monkeypatch):
         monkeypatch.setattr(upt.Path, "home", lambda: tmp_path)
         path = str(tmp_path / ".cache" / "foo.py")
         blocked, tier, _ = _gate(path)
         assert not blocked
-        assert tier == "tier0_ephemeral_path"
+        assert tier == "tier0_scratch_path"
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +130,7 @@ class TestEphemeralPathBoundaries:
     )
     def test_non_prefix_tmp_paths_do_not_bypass(self, path):
         blocked, tier, _ = _gate(path)
-        assert tier != "tier0_ephemeral_path", (
+        assert tier != "tier0_scratch_path", (
             f"{path} must NOT match Tier 0g (project subdir named tmp/"
             " or relative path)"
         )

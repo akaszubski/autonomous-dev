@@ -330,10 +330,27 @@ returns one of three tiers:
 - `full` (new class / ≥100 lines) → directive `/implement`
 
 Test files (`test_*.py`, files under `tests/` or `test/`) are always exempt.
+Scratch/ephemeral paths (`/tmp/`, `/private/tmp/`, `/var/folders/`,
+`$SCRATCHPAD`, `~/tmp/`, `~/.cache/`, `.claude/tmp/`) and any path outside a
+git worktree or covered by `.gitignore` are also exempt — pipeline review adds
+no value for files that are never committed (Issue #1408).
+
 One-shot operator bypass: `touch /tmp/skip_write_pipeline_gate` (consumed on
-first check). Bash commands writing to code files (`cat > X.py`, `sed -i X.py`,
-`tee X.py`, heredocs) are subject to the same gate; `git apply` and
-`patch < diff` are excluded as user-driven patch tooling.
+first check). The sentinel file's contents (or `$WRITE_GATE_BYPASS_REASON`)
+are captured as a reason string in the activity log when the bypass is
+consumed (Issue #1408) — `echo "why" > /tmp/skip_write_pipeline_gate` records
+the reason.
+
+**Edit/Write to code files remains a hard block.** Bash commands that write to
+code files (`cat > X.py`, `sed -i X.py`, `tee X.py`, heredocs) were downgraded
+from a hard block to a non-blocking **advisory** (Issue #1408) — general
+bash-write detection is unsound (many forms bypass the pattern set), so a hard
+gate there gave a false sense of security. The command still runs; a
+`[hook advisory]` note on stderr recommends the matching `/implement` variant.
+Protected-infrastructure Bash writes (`agents/*.md`, `hooks/*.py`, `lib/*.py`,
+etc.), Edit/Write, and the Issue #803 cross-tool workaround check remain hard
+gates; `git apply` and `patch < diff` are excluded as user-driven patch
+tooling.
 
 ### Uninstalling autonomous-dev
 

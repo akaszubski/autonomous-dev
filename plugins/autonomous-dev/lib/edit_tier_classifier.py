@@ -540,26 +540,49 @@ def _resolve_chained_assignments(command: str) -> str:
 
 
 def _is_temp_path(path: str) -> bool:
-    """Check if a path is in a temporary directory (Issue #1355).
-    
-    Returns True if the path starts with /tmp/, /var/tmp/, or $TMPDIR.
+    """Check if a path is in a temporary directory (Issue #1355, #1408).
+
+    Returns True if the path is under a recognised temp/scratch root:
+    ``/tmp/``, ``/var/tmp/``, ``/private/tmp/`` (macOS canonicalises
+    ``/tmp`` -> ``/private/tmp``), ``/var/folders/`` (macOS ``mkdtemp`` /
+    pytest ``tmp_path`` default), ``$TMPDIR``, or ``$SCRATCHPAD`` (the
+    session scratchpad root). Issue #1408: the pre-#1408 list omitted
+    ``/private/tmp/``, ``/var/folders/`` and ``$SCRATCHPAD``, so the
+    bash-code gate fired on scratchpad writes even though the Edit/Write
+    gate already exempted them.
+
+    Pure function: reads env vars only, never raises.
     """
     if not path:
         return False
-    # Strip quotes if present
-    p = path.strip().strip('\'"')
-    if not p:
+    try:
+        # Strip quotes if present
+        p = path.strip().strip('\'"')
+        if not p:
+            return False
+
+        # Check for absolute temp paths (Issue #1408: added /private/tmp/,
+        # /var/folders/).
+        if (
+            p.startswith('/tmp/')
+            or p.startswith('/var/tmp/')
+            or p.startswith('/private/tmp/')
+            or p.startswith('/var/folders/')
+        ):
+            return True
+
+        # Check for TMPDIR environment variable
+        tmpdir = os.environ.get('TMPDIR', '/tmp')
+        if tmpdir and p.startswith(tmpdir.rstrip('/') + '/'):
+            return True
+
+        # Check for SCRATCHPAD environment variable (Issue #1408)
+        scratchpad = os.environ.get('SCRATCHPAD', '')
+        if scratchpad and p.startswith(scratchpad.rstrip('/') + '/'):
+            return True
+    except Exception:
         return False
-    
-    # Check for absolute temp paths
-    if p.startswith('/tmp/') or p.startswith('/var/tmp/'):
-        return True
-    
-    # Check for TMPDIR environment variable
-    tmpdir = os.environ.get('TMPDIR', '/tmp')
-    if tmpdir and p.startswith(tmpdir + '/'):
-        return True
-    
+
     return False
 
 

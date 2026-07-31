@@ -53,8 +53,19 @@ def default_state(monkeypatch, tmp_path):
     """Default state for each test:
     - pipeline NOT active
     - no /tmp/skip_write_pipeline_gate file
+    - synthetic in-app paths treated as gated repo source (Issue #1408).
+
+    Issue #1408 added git-worktree-aware scoping to
+    ``_check_write_pipeline_required``: only in-worktree, non-ignored source is
+    gated. These tier-classification tests use synthetic paths like
+    ``/home/user/app/models.py`` that are NOT inside any git worktree, so
+    without this stub every tier test would short-circuit to
+    ``tier0_out_of_tree``. Stubbing ``_is_gated_repo_source`` to True keeps the
+    tests focused on tier logic. Scratch/scoping behavior is covered separately
+    in ``tests/regression/test_issue_1408_write_gate_scoping.py``.
     """
     _make_pipeline_inactive(monkeypatch)
+    monkeypatch.setattr(hook, "_is_gated_repo_source", lambda _p: True)
     skip_file = Path("/tmp/skip_write_pipeline_gate")
     if skip_file.exists():
         skip_file.unlink()

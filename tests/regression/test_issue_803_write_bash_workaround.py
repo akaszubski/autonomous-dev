@@ -53,6 +53,32 @@ class TestWriteDeniedThenBashHeredocBlocked:
             assert unified_pre_tool._check_deny_cache(test_path) is True
 
 
+class TestWriteDeniedThenGitCheckoutBlocked:
+    """Issue #1408: denied Write/Edit, then `git checkout` to same path.
+
+    git checkout overwrites working-tree files from a ref — a write vector the
+    pre-#1408 #803 union (redirect/tee/cp/mv/python) did not cover. The
+    extractor must surface the checkout target so the deny cache still matches.
+    """
+
+    def test_write_denied_then_git_checkout_same_file_blocked(self, tmp_path):
+        cache_file = tmp_path / "deny_cache.jsonl"
+        test_path = "plugins/autonomous-dev/lib/pipeline_state.py"
+
+        with patch.object(unified_pre_tool, "DENY_CACHE_PATH", str(cache_file)):
+            unified_pre_tool._update_deny_cache(test_path)
+
+            # The git-checkout extractor surfaces the same path (feeds the #803
+            # union at the wired call site).
+            targets = unified_pre_tool._extract_git_checkout_targets(
+                f"git checkout -- {test_path}"
+            )
+            assert test_path in targets
+
+            # Deny cache still catches the same path via the union.
+            assert unified_pre_tool._check_deny_cache(test_path) is True
+
+
 class TestWriteDeniedDifferentFileAllowed:
     """Write denied to file A, Bash to file B should not be blocked."""
 
