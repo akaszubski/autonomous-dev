@@ -30,6 +30,8 @@ Both are settable from OUTSIDE Claude Code so a deadlocked harness cannot preven
 
 **Why**: A hook that requires the harness's own machinery to be healthy is not a hook — it's a deadlock waiting to happen. The bypass mechanism MUST be reachable when every other gate is broken.
 
+**Declared exception (Issue #1435 — hard floor beats bypass)**: this invariant is deliberately violated for one check. `unified_pre_tool.py`'s protected-infrastructure Write/Edit gate (`_is_protected_infrastructure`, registered in `config/hard_floor_hooks.json`) checks whether the target path is protected infrastructure BEFORE honoring `is_bypassed()`; if it is, the bypass allow is withheld and control falls through to the normal deny gate. Rationale: the universal bypass exists so a broken *pipeline* cannot deadlock recovery, but it must not become a mechanism for silently rewriting the enforcement infrastructure itself (`agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md`). Any new hard-floor function registered in `hard_floor_hooks.json` should follow this same pattern — consult `is_hard_floor()` before granting a bypass allow, not after.
+
 ---
 
 ## 2. The Recoverability Invariant (#942-B — shipped #970)

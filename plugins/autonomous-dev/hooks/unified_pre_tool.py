@@ -6901,7 +6901,25 @@ def main():
                     command = tool_input.get("command", "")
                     if "git commit" in command or ("git -c" in command and "commit" in command):
                         _skip_bypass_exit = True
-                
+
+                # Issue #1435: Hard-floor infrastructure protection must survive the
+                # universal bypass. _is_protected_infrastructure is a hard-floor function
+                # (config/hard_floor_hooks.json); bypass must NOT allow protected-infra
+                # Write/Edit. Fall through to the existing deny gate at ~line 6997.
+                if not _skip_bypass_exit and tool_name in ("Write", "Edit"):
+                    try:
+                        from hard_floor import is_hard_floor
+                        file_path = tool_input.get("file_path", "")
+                        if _is_protected_infrastructure(file_path) and is_hard_floor(
+                            "unified_pre_tool.py", "_is_protected_infrastructure"
+                        ):
+                            _skip_bypass_exit = True
+                    except Exception:
+                        # Fail CLOSED: if the hard-floor/protection check errors on a
+                        # Write/Edit under bypass, do NOT grant the bypass allow — fall
+                        # through so the deny gate can evaluate.
+                        _skip_bypass_exit = True
+
                 if not _skip_bypass_exit:
                     output_decision("allow", "Universal bypass active (#969)")
                     sys.exit(0)

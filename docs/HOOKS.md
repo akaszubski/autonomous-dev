@@ -134,6 +134,7 @@ This distinction is fundamental: nudges in `systemMessage` are user-readable but
 - Per-file protection (`PROTECTED_INFRA_FILES`, Issue #980): `plugins/autonomous-dev/config/install_manifest.json` (deployment manifest) is also protected; direct Edit/Write outside the pipeline is blocked. Matched via `endswith` to prevent partial-basename false positives.
 - Scoped to autonomous-dev repos (detected via `_is_autonomous_dev_repo()`) — does not affect user projects
 - User-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`) and most config files (`.json`/`.yaml`) are unaffected; deployment manifests (`install_manifest.json`), policy files, and settings templates are protected
+- **Non-bypassable hard floor (Issue #1435)**: `_is_protected_infrastructure` is a registered hard-floor function (`config/hard_floor_hooks.json`). Unlike most other gates, the universal `.claude/.bypass` / `AUTONOMOUS_DEV_BYPASS=1` bypass does NOT waive this check — the bypass block in `unified_pre_tool.py::main()` explicitly falls through to the protected-infra deny gate (including the Issue #1296 coordinator-dispatch-sentinel sub-check) whenever the target path is protected infrastructure and `is_hard_floor()` returns true. `/implement` remains the sole sanctioned path for these edits, with no operator override.
 
 **Production-Code Write/Edit Gate — Default-On, Tier-Aware** (Issue #1142 + Phase 1 polarity flip — `_check_write_pipeline_required`):
 - Phase 1 (Issue #1142+) flipped the polarity from opt-IN via `.claude/.enforce` to default-ON subject to `.claude/.bypass` opt-out. The previous `.enforce` marker has been removed.
@@ -322,6 +323,7 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 
 | Hook | Purpose |
 |------|---------|
+| **cloud_drain_telemetry.py** | Cloud-drain telemetry controller (Issue #1437). Decides whether a cloud-drain fire emits a `FIRE_START`/`FIRE_END` telemetry commit or only JSONL logging. `should_emit_telemetry_commit(exit_reason)` returns `False` for `no_drainable_cluster` (no real work — ~96% of fires) and `True` for genuine events, suppressing the commit churn that previously landed on every no-op fire. Invoked by the `/drain-queue` workflow, not a standard lifecycle event. Pure Python stdlib, non-blocking. |
 | **genai_prompts.py** | Prompt templates for GenAI-enhanced hooks |
 | **genai_utils.py** | Anthropic SDK wrapper with graceful fallback. Also exports `_wrap_user_input(text) -> str` — wraps user-controlled text in `<user_input>…</user_input>` XML delimiters with `html.escape(quote=False)` to prevent prompt-injection (Issue #960 Phase 2). Phase 3 (Issue #1007) adds `_safe_wrap(text) -> str` — never-raises convenience wrapper around `_wrap_user_input`; adopted by 8 `GenAIAnalyzer` callers (10 sites) for cross-codebase prompt-injection defense. |
 | **setup.py** | Interactive setup wizard for plugin configuration |
@@ -352,7 +354,16 @@ ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
 
 ## Universal Hook Bypass (Issue #969)
 
-Every hook honors a universal bypass that can be set from outside Claude Code, so a deadlocked harness cannot prevent recovery.
+Almost every hook honors a universal bypass that can be set from outside Claude Code, so a deadlocked harness cannot prevent recovery.
+
+**Exception (Issue #1435 — hard floor)**: Write/Edit to protected
+infrastructure (`agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`,
+`skills/*/SKILL.md`) inside an autonomous-dev repo is **not** waived by this
+bypass. `_is_protected_infrastructure` is a registered hard-floor function
+(`config/hard_floor_hooks.json`); `unified_pre_tool.py`'s bypass block
+detects protected-infra Write/Edit targets before granting the bypass allow
+and instead falls through to the normal deny gate, fail-closed on any error
+in that check. `/implement` remains the only sanctioned path for such edits.
 
 **Two equivalent signals — either one is sufficient:**
 
@@ -361,7 +372,7 @@ Every hook honors a universal bypass that can be set from outside Claude Code, s
 | `AUTONOMOUS_DEV_BYPASS=1` (env var) | Process-scoped | `AUTONOMOUS_DEV_BYPASS=1 git commit -m "..."` or `export AUTONOMOUS_DEV_BYPASS=1` |
 | `.claude/.bypass` (file flag) | Project-scoped | `touch .claude/.bypass` from the repo root |
 
-When either signal is active, every hook falls through to `allow` and appends one JSONL line to `.claude/logs/hook-bypass.jsonl` for later audit. Telemetry failures never block the bypass itself.
+When either signal is active, every hook falls through to `allow` and appends one JSONL line to `.claude/logs/hook-bypass.jsonl` for later audit — EXCEPT the protected-infrastructure Write/Edit hard floor described above (Issue #1435), which remains enforced regardless of the bypass. Telemetry failures never block the bypass itself.
 
 **Truthy env var values**: any non-empty string NOT in `{"0", "false", "no", "off"}` (case-insensitive). Explicitly falsy values do NOT trigger bypass.
 

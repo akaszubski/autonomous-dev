@@ -282,9 +282,9 @@ only, leaving all other hooks in effect):
   lost on `git clean -fdx` or fresh clone. Use the env var for cross-session
   persistence.
 
-For a whole-hook stack opt-out (turns off plan-exit AND every other hook), use
-the universal Issue #969 bypass documented below (`.claude/.bypass` or
-`AUTONOMOUS_DEV_BYPASS=1`).
+For a whole-hook stack opt-out (turns off plan-exit AND almost every other
+hook — see the Issue #1435 exception below), use the universal Issue #969
+bypass documented below (`.claude/.bypass` or `AUTONOMOUS_DEV_BYPASS=1`).
 
 `AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT` is **deprecated** (#1361) — enforcement is
 now the default. Setting the var emits a stderr deprecation notice; it is
@@ -292,8 +292,17 @@ otherwise a no-op. Remove it to silence the notice.
 
 **Universal hook bypass** (Issue #969): if any hook is blocking and you cannot run
 a slash command to unstick it, set `AUTONOMOUS_DEV_BYPASS=1` or `touch .claude/.bypass`
-— every hook honors this and falls through to allow with a logged audit trail.
+— almost every hook honors this and falls through to allow with a logged audit trail.
 See [docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969).
+
+**Exception (Issue #1435 — non-bypassable hard floor)**: Write/Edit to
+protected infrastructure inside an autonomous-dev repo (`agents/*.md`,
+`commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md`) is **not**
+waived by `.claude/.bypass` or `AUTONOMOUS_DEV_BYPASS=1`. `_is_protected_infrastructure`
+is a registered hard-floor function (`config/hard_floor_hooks.json`) and the
+universal bypass now falls through to the normal protected-infra deny gate
+instead of short-circuiting it. `/implement` remains the sole sanctioned path
+for editing these files; there is no bypass override for this specific gate.
 
 ### Per-repo enforcement control
 
@@ -304,7 +313,7 @@ enforcement, in order of precedence:
 
 | State | How | Enforcement |
 |---|---|---|
-| Bypass (highest priority) | `touch .claude/.bypass` OR `AUTONOMOUS_DEV_BYPASS=1` | OFF — all hooks fall through (Issue #969). Also the supported durable per-repo opt-out. |
+| Bypass (highest priority) | `touch .claude/.bypass` OR `AUTONOMOUS_DEV_BYPASS=1` | OFF — almost all hooks fall through (Issue #969). Also the supported durable per-repo opt-out. **Exception (Issue #1435)**: protected-infrastructure Write/Edit (`agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md`) remains a hard-blocking floor and is NOT waived by this bypass. |
 | Plugin source auto-detect | Repo contains `plugins/autonomous-dev/.claude-plugin/marketplace.json` | ON — autonomous-dev itself (self-maintenance mode relaxes only state-deletion). |
 | Default | None of the above | ON — default-on production-code Write/Edit gate. |
 

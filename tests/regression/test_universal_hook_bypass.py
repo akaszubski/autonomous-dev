@@ -292,12 +292,19 @@ class TestLogBypassUsed:
 class TestEnvVarBypassEndToEnd:
     """Env var bypass causes unified_pre_tool to fall through to allow."""
 
-    def test_env_var_makes_blocked_write_fall_through(self, project_dir):
-        """Writing to plugins/autonomous-dev/agents/x.md is normally blocked
-        outside the pipeline; with the bypass, it falls through to allow.
+    def test_env_var_does_not_bypass_protected_infra_write(self, project_dir):
+        """Post-#1435 invariant: the universal env-var bypass MUST NOT allow a
+        Write to protected infrastructure (agents/, commands/, hooks/, lib/,
+        skills/). _is_protected_infrastructure is a hard-floor function, so the
+        bypass falls through to the deny gate and the write is DENIED.
         """
-        # Construct a path that would normally be blocked: an agent file edit.
-        # The hook checks file_path against protected infrastructure.
+        # _is_protected_infrastructure only fires in an autonomous-dev repo,
+        # detected by the presence of .claude/commands/implement.md.
+        (project_dir / ".claude" / "commands" / "implement.md").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (project_dir / ".claude" / "commands" / "implement.md").write_text("marker")
+        # Construct a path that is protected infrastructure: an agent file edit.
         agents_dir = project_dir / "plugins" / "autonomous-dev" / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
         target = agents_dir / "evil.md"
@@ -314,13 +321,14 @@ class TestEnvVarBypassEndToEnd:
 
         assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
         decision, reason = _decision_from_stdout(result.stdout)
-        # With bypass, decision should be allow (not deny/block).
-        assert decision == "allow", (
-            f"expected allow under bypass, got {decision!r} (reason={reason!r})\n"
+        # Hard-floor protection survives the bypass: the write is denied.
+        assert decision == "deny", (
+            f"expected deny for protected-infra write under bypass, got "
+            f"{decision!r} (reason={reason!r})\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
-        # Reason should reference the bypass.
-        assert "bypass" in reason.lower() or "#969" in reason
+        # Reason should point at the infrastructure protection / /implement.
+        assert "infrastructure" in reason.lower() or "/implement" in reason.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +339,15 @@ class TestEnvVarBypassEndToEnd:
 class TestFileFlagBypassEndToEnd:
     """``.claude/.bypass`` causes the same fall-through as the env var."""
 
-    def test_flag_file_makes_blocked_write_fall_through(self, project_dir):
+    def test_flag_file_does_not_bypass_protected_infra_write(self, project_dir):
+        """Post-#1435 invariant: the .claude/.bypass flag file MUST NOT allow a
+        Write to protected infrastructure. Hard-floor protection survives the
+        universal bypass, so the write falls through to the deny gate.
+        """
+        # _is_protected_infrastructure only fires in an autonomous-dev repo,
+        # detected by the presence of .claude/commands/implement.md.
+        (project_dir / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
+        (project_dir / ".claude" / "commands" / "implement.md").write_text("marker")
         flag = project_dir / ".claude" / ".bypass"
         flag.touch()
 
@@ -345,10 +361,12 @@ class TestFileFlagBypassEndToEnd:
 
         result = _run_unified_pre_tool(payload, cwd=project_dir)
         decision, reason = _decision_from_stdout(result.stdout)
-        assert decision == "allow", (
-            f"expected allow with flag file, got {decision!r} reason={reason!r}\n"
-            f"stdout={result.stdout!r}"
+        assert decision == "deny", (
+            f"expected deny for protected-infra write with flag file, got "
+            f"{decision!r} reason={reason!r}\nstdout={result.stdout!r}"
         )
+        # Reason should point at the infrastructure protection / /implement.
+        assert "infrastructure" in reason.lower() or "/implement" in reason.lower()
 
     def test_removing_flag_file_restores_normal_behavior(self, project_dir):
         """After removing the flag, the hook should behave normally again."""

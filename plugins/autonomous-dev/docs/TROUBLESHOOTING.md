@@ -273,10 +273,14 @@ Per-repo opt-out: touch .claude/.bypass && git commit.
    git commit -m "chore: opt out of autonomous-dev SDLC enforcement"
    ```
 
-4. **Emergency universal bypass** (disables ALL hook enforcement):
+4. **Emergency universal bypass** (disables almost ALL hook enforcement):
    ```bash
    AUTONOMOUS_DEV_BYPASS=1 <your command>
    ```
+   **Exception (Issue #1435)**: this does NOT waive the protected-infrastructure
+   hard floor for Write/Edit to `agents/*.md`, `commands/*.md`, `hooks/*.py`,
+   `lib/*.py`, `skills/*/SKILL.md` — those remain blocked even under this
+   bypass; `/implement` is the only sanctioned path.
 
 **Not applicable when**: `.claude/.bypass` is present (gate skipped), the pipeline is already active (gate is a no-op), the target is a test file (`test_*.py`, files under `tests/` or `test/`), or the target is a scratch/ephemeral path (`/tmp/`, `/private/tmp/`, `/var/tmp/`, `/var/folders/`, `~/tmp/`, `~/.cache/`, `$SCRATCHPAD`, `.claude/tmp/`) or outside a git worktree / gitignored (Issue #1408 — pipeline review adds no value for files that are never committed).
 
@@ -307,10 +311,19 @@ Re-dispatch the implementer agent with this change as a remediation cycle. (Issu
    - Expires after 30 seconds (TTL safety)
 
 **When this doesn't apply**: 
-- Outside `/implement` pipeline (no pipeline active)
+- Outside `/implement` pipeline (no pipeline active) — note: a direct edit
+  outside the pipeline is still blocked, just by the plain infrastructure
+  protection gate instead of this coordinator-dispatch check
 - When editing user-facing docs (`README.md`, `CHANGELOG.md`, `docs/*.md`)
-- When `.claude/.bypass` is present (universal escape hatch)
 - When the sentinel is active (agent-dispatched edit in progress)
+
+**Not exempted by `.claude/.bypass` (Issue #1435)**: the universal bypass
+previously short-circuited this gate along with everything else. As of Issue
+#1435, protected-infrastructure Write/Edit — including this coordinator-
+dispatch-sentinel sub-check — is a non-bypassable hard floor
+(`_is_protected_infrastructure`, registered in `hard_floor_hooks.json`).
+`.claude/.bypass` / `AUTONOMOUS_DEV_BYPASS=1` no longer allow a coordinator to
+directly edit protected paths, mid-pipeline or otherwise.
 
 **Debug**: Check if a sentinel is active:
 ```bash
@@ -391,8 +404,17 @@ broken, or you are in a project where autonomous-dev is not installed but
 its global hooks fire anyway).
 
 **Two equivalent signals — either one is sufficient.** Both fall through to
-`allow` for every hook in the harness, with a structured bypass event written
-to `.claude/logs/hook-bypass.jsonl` for later audit.
+`allow` for almost every hook in the harness, with a structured bypass event
+written to `.claude/logs/hook-bypass.jsonl` for later audit.
+
+**Exception — protected-infrastructure hard floor (Issue #1435)**: Write/Edit
+to `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md`
+inside an autonomous-dev repo is NOT waived by either signal.
+`_is_protected_infrastructure` is a registered hard-floor function
+(`config/hard_floor_hooks.json`); `unified_pre_tool.py` checks this before
+granting the bypass allow and falls through to the normal deny gate instead
+(fail-closed if the check itself errors). `/implement` is the only sanctioned
+path for these edits — there is no operator override for this specific gate.
 
 ### Option A — Env var (process-scoped, recommended for one-shot use)
 
@@ -445,8 +467,9 @@ bypass itself never fails on telemetry errors.
   cwd or env can disable enforcement. Use it as a developer convenience, not
   a permission boundary.
 - **Re-enable enforcement when done.** A forgotten `export
-  AUTONOMOUS_DEV_BYPASS=1` in your `~/.zshrc` will silently disable every
-  hook for every session.
+  AUTONOMOUS_DEV_BYPASS=1` in your `~/.zshrc` will silently disable almost
+  every hook for every session (protected-infrastructure Write/Edit excepted,
+  Issue #1435).
 - **Coexists with per-hook env vars.** `SKIP_PLAN_CHECK`,
   `AUTONOMOUS_DEV_SKIP_PLAN_REVIEW`, `MCP_AUTO_APPROVE`, etc. continue to
   work as additional independent paths.
