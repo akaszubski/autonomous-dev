@@ -461,6 +461,33 @@ If `.claude/logs/` cannot be created (read-only filesystem, permission
 denied), the line is written to stderr prefixed with `[hook-bypass]`. The
 bypass itself never fails on telemetry errors.
 
+### Staleness warning for a forgotten `.claude/.bypass` (Issue #1434)
+
+If you `touch .claude/.bypass` for an emergency and forget to remove it,
+`SessionStart-batch-recovery.sh` now prints a non-blocking warning at the
+start of every session (not just after `/clear`/compaction — the hook's
+`SessionStart` matcher was broadened from `compact`-only to `*` to enable
+this):
+
+```
+WARNING: Uncommitted hook-bypass file .claude/.bypass is 31.2h old
+(threshold 24h) — autonomous-dev hook enforcement is DISABLED in this repo.
+If you forgot it, remove it: rm .claude/.bypass . For a durable opt-out that
+won't warn, commit it: git add -f .claude/.bypass && git commit.
+```
+
+The warning only fires when the file is **both**:
+- **uncommitted** (not tracked by git — a committed `.claude/.bypass` is
+  the supported durable per-repo opt-out and never warns), and
+- **older than the threshold** (default 24 hours; override with
+  `AUTONOMOUS_DEV_BYPASS_STALE_HOURS=<hours>`; unparseable/blank/non-positive
+  values silently fall back to the 24h default).
+
+The `AUTONOMOUS_DEV_BYPASS=1` env-var form never warns — it is
+process-scoped and disappears when the shell exits. This check is purely a
+session-start reaper; it does not change `is_bypassed()` or the bypass
+behavior itself in any way.
+
 ### Important caveats
 
 - **The bypass is not a security control.** Anyone with write access to your
@@ -469,7 +496,9 @@ bypass itself never fails on telemetry errors.
 - **Re-enable enforcement when done.** A forgotten `export
   AUTONOMOUS_DEV_BYPASS=1` in your `~/.zshrc` will silently disable almost
   every hook for every session (protected-infrastructure Write/Edit excepted,
-  Issue #1435).
+  Issue #1435). An uncommitted `.claude/.bypass` file left in a repo now
+  surfaces a SessionStart warning after 24h (Issue #1434, see above) — but
+  the env-var form has no equivalent reminder, so `unset` it when done.
 - **Coexists with per-hook env vars.** `SKIP_PLAN_CHECK`,
   `AUTONOMOUS_DEV_SKIP_PLAN_REVIEW`, `MCP_AUTO_APPROVE`, etc. continue to
   work as additional independent paths.

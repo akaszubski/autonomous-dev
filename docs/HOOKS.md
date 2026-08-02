@@ -392,6 +392,8 @@ def main():
 
 See [TROUBLESHOOTING.md](../plugins/autonomous-dev/docs/TROUBLESHOOTING.md#universal-escape-unstick-any-blocked-hook-issue-969) for operator usage.
 
+**Staleness warning for a forgotten `.claude/.bypass` (Issue #1434)**: `SessionStart-batch-recovery.sh` now runs `hook_bypass.check_bypass_staleness()` on every session start (the hook's `SessionStart` matcher was broadened from `compact`-only to `*` to make this possible). If a `.claude/.bypass` file exists, is **not** git-tracked (uncommitted), and is older than `AUTONOMOUS_DEV_BYPASS_STALE_HOURS` (default `24`), a non-blocking `WARNING:` line is printed naming the file, its age, and remediation (`rm` it, or `git add -f && git commit` to make it a durable, silent opt-out). Env-var bypass (`AUTONOMOUS_DEV_BYPASS=1`) never warns — it is process-scoped and expires with the shell. A **committed** `.claude/.bypass` never warns either, since that is the supported durable per-repo opt-out described above. `is_bypassed()` itself is unaffected — this is a separate reaper-style check consulted only at `SessionStart`, never on the hot path.
+
 ---
 
 ## Safe Failure Behavior

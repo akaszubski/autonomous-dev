@@ -9,6 +9,22 @@ set -e
 input=$(cat)
 source=$(echo "$input" | jq -r '.source // ""')
 
+# Issue #1434: Non-blocking WARNING when an UNCOMMITTED .claude/.bypass file is
+# stale (older than the threshold, default 24h). Committed (.bypass tracked by
+# git) and env-var bypass produce NO warning. Runs on ALL session sources —
+# placed above the compact-only gate below. Must be set -e-safe: every failure
+# path is swallowed (2>/dev/null || true) so session start is NEVER broken.
+_ssb_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# "$_ssb_dir/../lib" is the correct sibling for BOTH layouts: dev
+# (plugins/autonomous-dev/lib) and installed (.claude/lib) — in each the
+# hook lives one level below its lib/ sibling, so a single "../lib" covers both.
+_ssb_lib="$_ssb_dir/../lib"
+_ssb_warn=$(PYTHONPATH="$_ssb_lib:${PYTHONPATH:-}" python3 -c 'import sys
+from hook_bypass import check_bypass_staleness
+m = check_bypass_staleness()
+sys.stdout.write(m or "")' 2>/dev/null || true)
+[ -n "$_ssb_warn" ] && printf '%s\n' "$_ssb_warn"
+
 # Only fire after compaction (not normal session start)
 if [ "$source" != "compact" ]; then
   exit 0

@@ -314,6 +314,7 @@ All environment variables with default values:
 | Variable | Default | Controls | Description |
 |----------|---------|----------|-------------|
 | `AUTONOMOUS_DEV_BYPASS` | (unset) | All hooks | Set to any truthy value (`1`, `true`, `yes`, `on`) to bypass every hook in the harness. Bypass events logged to `.claude/logs/hook-bypass.jsonl`. Equivalent to `touch .claude/.bypass` file flag. File flag walk: `.claude/.bypass` in cwd or any ancestor (up to 30 levels, symlinks not followed). Last-resort recovery when a hook deadlocks and no per-hook escape hatch is available. **Exception (Issue #1435)**: does NOT waive the protected-infrastructure Write/Edit hard floor (`unified_pre_tool.py::_is_protected_infrastructure`, registered in `hard_floor_hooks.json`) — `/implement` remains the only sanctioned path for `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` edits even under this bypass. (Issue #969) |
+| `AUTONOMOUS_DEV_BYPASS_STALE_HOURS` | `24` | SessionStart-batch-recovery (`hook_bypass.check_bypass_staleness()`) | Overrides the staleness threshold (in hours) for the SessionStart WARNING about a forgotten, **uncommitted** `.claude/.bypass` file. Unparseable, blank, or non-positive values fall back to the `24`-hour default (never raises). Only fires when the `.bypass` file is not git-tracked and older than the threshold; a committed `.bypass` or the `AUTONOMOUS_DEV_BYPASS` env var never warn. Consulted only by the SessionStart reaper, never by the hot-path `is_bypassed()` check. (Issue #1434) |
 
 ### Hook Recovery Telemetry
 

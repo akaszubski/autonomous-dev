@@ -8,7 +8,9 @@ Library-level coverage of :func:`hook_bypass.is_bypassed` and
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -398,3 +400,144 @@ class TestCommandHeadAndWindowMarkers:
         finally:
             # Restore write permissions for cleanup
             os.chmod(log_path.parent, 0o755)
+
+
+# ---------------------------------------------------------------------------
+# Issue #1434: SessionStart staleness warning for uncommitted .claude/.bypass
+# ---------------------------------------------------------------------------
+
+
+def _make_bypass(project: Path, *, age_seconds: float) -> Path:
+    """Create ``<project>/.claude/.bypass`` aged ``age_seconds`` in the past.
+
+    Args:
+        project: Project root directory.
+        age_seconds: How far in the past to set the file's mtime.
+
+    Returns:
+        Path to the created ``.bypass`` file.
+    """
+    claude = project / ".claude"
+    claude.mkdir(parents=True, exist_ok=True)
+    flag = claude / ".bypass"
+    flag.touch()
+    past = time.time() - age_seconds
+    os.utime(flag, (past, past))
+    return flag
+
+
+class TestCheckBypassStaleness:
+    """Issue #1434: non-blocking warning for a stale, uncommitted .bypass."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_stale_hours_env(self, monkeypatch):
+        """Ensure the stale-hours override is unset unless a test sets it."""
+        monkeypatch.delenv(hook_bypass.STALE_HOURS_ENV_VAR, raising=False)
+
+    def test_env_var_active_suppresses_warning(self, tmp_path, monkeypatch):
+        """1. Env-var bypass active + stale uncommitted file → None."""
+        flag = _make_bypass(tmp_path, age_seconds=25 * 3600)
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        monkeypatch.setenv(hook_bypass.ENV_VAR_NAME, "1")
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+        assert flag.exists()
+
+    def test_no_bypass_file_returns_none(self, tmp_path):
+        """2. No .bypass file anywhere up the chain → None."""
+        (tmp_path / ".claude").mkdir(parents=True, exist_ok=True)
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+
+    def test_committed_file_returns_none(self, tmp_path, monkeypatch):
+        """3. Committed (git-tracked) + old mtime → None (durable opt-out)."""
+        _make_bypass(tmp_path, age_seconds=100 * 3600)
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: True)
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+
+    def test_uncommitted_fresh_returns_none(self, tmp_path, monkeypatch):
+        """4. Uncommitted + fresh mtime → None (below threshold)."""
+        _make_bypass(tmp_path, age_seconds=60)  # 1 minute old
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+
+    def test_uncommitted_stale_warns(self, tmp_path, monkeypatch):
+        """5. Uncommitted + stale (25h) → warning naming the file path."""
+        flag = _make_bypass(tmp_path, age_seconds=25 * 3600)
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        result = hook_bypass.check_bypass_staleness(start_dir=tmp_path)
+        assert result is not None
+        assert result != ""
+        assert str(flag) in result
+
+    def test_env_override_shortens_threshold_warns(self, tmp_path, monkeypatch):
+        """6. STALE_HOURS=1 + 90-minute-old uncommitted file → warns."""
+        _make_bypass(tmp_path, age_seconds=90 * 60)  # 90 minutes
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        monkeypatch.setenv(hook_bypass.STALE_HOURS_ENV_VAR, "1")
+        result = hook_bypass.check_bypass_staleness(start_dir=tmp_path)
+        assert result is not None and result != ""
+
+    def test_env_override_below_threshold_returns_none(self, tmp_path, monkeypatch):
+        """7. STALE_HOURS=1 + 30-minute-old file → None (below threshold)."""
+        _make_bypass(tmp_path, age_seconds=30 * 60)  # 30 minutes
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        monkeypatch.setenv(hook_bypass.STALE_HOURS_ENV_VAR, "1")
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+
+    def test_bad_env_override_falls_back_to_default(self, tmp_path, monkeypatch):
+        """8. Unparseable STALE_HOURS='abc' → falls back to 24h, no raise.
+
+        A 25h-old file is stale under the 24h default, so a warning proves the
+        fallback took effect (and that no exception was raised).
+        """
+        _make_bypass(tmp_path, age_seconds=25 * 3600)
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+        monkeypatch.setenv(hook_bypass.STALE_HOURS_ENV_VAR, "abc")
+        # Threshold helper itself must not raise and must return the default.
+        assert hook_bypass._stale_hours_threshold() == float(
+            hook_bypass.STALE_HOURS_DEFAULT
+        )
+        result = hook_bypass.check_bypass_staleness(start_dir=tmp_path)
+        assert result is not None and result != ""
+
+    def test_git_missing_fail_safe_warns(self, tmp_path, monkeypatch):
+        """9. git binary missing (subprocess raises) → uncommitted → warns."""
+        _make_bypass(tmp_path, age_seconds=25 * 3600)
+
+        def _raise_fnf(*args, **kwargs):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr(hook_bypass.subprocess, "run", _raise_fnf)
+        result = hook_bypass.check_bypass_staleness(start_dir=tmp_path)
+        assert result is not None and result != ""
+
+    def test_stat_error_returns_none(self, tmp_path, monkeypatch):
+        """10. stat() unreadable → None, no raise."""
+        flag = _make_bypass(tmp_path, age_seconds=25 * 3600)
+        monkeypatch.setattr(hook_bypass, "_find_flag_file_in_chain", lambda d: flag)
+        monkeypatch.setattr(hook_bypass, "_is_git_tracked", lambda p: False)
+
+        def _raise_stat(*args, **kwargs):
+            raise OSError("stat boom")
+
+        monkeypatch.setattr(Path, "stat", _raise_stat)
+        assert hook_bypass.check_bypass_staleness(start_dir=tmp_path) is None
+
+    def test_dry_equivalence_shim_matches_finder(self, tmp_path):
+        """11. _flag_file_in_chain bool == (_find_flag_file_in_chain is not None)."""
+        # Directory WITHOUT any .claude/.bypass up the chain.
+        without = tmp_path / "no_bypass" / "sub"
+        without.mkdir(parents=True, exist_ok=True)
+        bool_without = hook_bypass._flag_file_in_chain(without)
+        found_without = hook_bypass._find_flag_file_in_chain(without)
+        assert bool_without == (found_without is not None)
+        assert bool_without is False  # old semantics: no file → False
+
+        # Directory WITH a .claude/.bypass present.
+        with_dir = tmp_path / "has_bypass"
+        (with_dir / ".claude").mkdir(parents=True, exist_ok=True)
+        (with_dir / ".claude" / ".bypass").touch()
+        bool_with = hook_bypass._flag_file_in_chain(with_dir)
+        found_with = hook_bypass._find_flag_file_in_chain(with_dir)
+        assert bool_with == (found_with is not None)
+        assert bool_with is True  # old semantics: file present → True
+        assert found_with == (with_dir / ".claude" / ".bypass").resolve()

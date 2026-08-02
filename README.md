@@ -329,6 +329,13 @@ git commit -m "chore: opt out of autonomous-dev SDLC enforcement"
 
 To temporarily re-enable in a bypassed repo: `rm .claude/.bypass`.
 
+**Forgot to remove an emergency bypass?** If `.claude/.bypass` is left in
+place *uncommitted* for more than 24h (override via
+`AUTONOMOUS_DEV_BYPASS_STALE_HOURS`), every session start prints a
+non-blocking warning naming the file and its age (Issue #1434). Committing
+the file (as shown above) is the supported durable opt-out and never warns;
+the warning exists specifically to catch a forgotten one-off bypass.
+
 The default-on production-code gate (Phase 1, Issue #1142+) blocks Write/Edit
 to code-file extensions (`.py`, `.ts`, `.js`, `.go`, `.rs`, etc.) when no
 `/implement` pipeline is active and the edit is non-trivial. The classifier

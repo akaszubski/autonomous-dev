@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -34,6 +36,17 @@ BYPASS_FILE_RELATIVE = Path(".claude") / ".bypass"
 LOG_FILE_RELATIVE = Path(".claude") / "logs" / "hook-bypass.jsonl"
 STATE_FILE_RELATIVE = Path(".claude") / "state" / "bypass_window.json"
 WALK_DEPTH_LIMIT = 30  # safety cap for parent walk
+
+# Staleness threshold for an UNCOMMITTED ``.claude/.bypass`` file (Issue #1434).
+# A bypass file that is not git-tracked AND older than this many hours triggers
+# a non-blocking SessionStart WARNING. Overridable via the
+# ``AUTONOMOUS_DEV_BYPASS_STALE_HOURS`` env var (unparseable/blank/non-positive
+# values fall back to this default — never raises). This threshold is consulted
+# ONLY by ``check_bypass_staleness`` (a SessionStart reaper). The hot path
+# ``is_bypassed()`` NEVER consults it — mirrors ``drain_pending.is_stale``.
+STALE_HOURS_DEFAULT = 24
+STALE_HOURS_ENV_VAR = "AUTONOMOUS_DEV_BYPASS_STALE_HOURS"
+_GIT_TRACK_CHECK_TIMEOUT_SECONDS = 5
 
 # Values that count as "explicitly off" when set as the env var.
 _FALSY_ENV_VALUES = frozenset({"", "0", "false", "no", "off"})
@@ -53,8 +66,8 @@ def _env_var_active() -> bool:
     return normalized not in _FALSY_ENV_VALUES
 
 
-def _flag_file_in_chain(start_dir: Path) -> bool:
-    """Return True if ``.claude/.bypass`` exists in ``start_dir`` or any ancestor.
+def _find_flag_file_in_chain(start_dir: Path) -> Optional[Path]:
+    """Return the ``.claude/.bypass`` path in ``start_dir`` or nearest ancestor.
 
     Walks parent directories up to ``WALK_DEPTH_LIMIT`` levels. Terminates at
     the filesystem root (when ``parent == current``). Does NOT follow symlinks
@@ -64,7 +77,8 @@ def _flag_file_in_chain(start_dir: Path) -> bool:
         start_dir: Directory to begin the walk from.
 
     Returns:
-        True if ``.claude/.bypass`` is found anywhere up the chain.
+        The resolved ``.claude/.bypass`` path if found anywhere up the chain,
+        otherwise ``None``.
     """
     try:
         # Resolve only the starting directory; subsequent traversal uses
@@ -78,7 +92,7 @@ def _flag_file_in_chain(start_dir: Path) -> bool:
         candidate = current / BYPASS_FILE_RELATIVE
         try:
             if candidate.exists():
-                return True
+                return candidate
         except OSError:
             # Permission errors etc. — keep walking up.
             pass
@@ -89,7 +103,22 @@ def _flag_file_in_chain(start_dir: Path) -> bool:
             break
         current = parent
 
-    return False
+    return None
+
+
+def _flag_file_in_chain(start_dir: Path) -> bool:
+    """Return True if ``.claude/.bypass`` exists in ``start_dir`` or any ancestor.
+
+    Thin boolean shim over :func:`_find_flag_file_in_chain` — preserves the
+    exact hot-path semantics used by :func:`is_bypassed`.
+
+    Args:
+        start_dir: Directory to begin the walk from.
+
+    Returns:
+        True if ``.claude/.bypass`` is found anywhere up the chain.
+    """
+    return _find_flag_file_in_chain(start_dir) is not None
 
 
 def is_bypassed(start_dir: Path | None = None) -> bool:
@@ -118,6 +147,136 @@ def is_bypassed(start_dir: Path | None = None) -> bool:
             return False
 
     return _flag_file_in_chain(start_dir)
+
+
+def _stale_hours_threshold() -> float:
+    """Resolve the staleness threshold in hours (Issue #1434).
+
+    Reads ``AUTONOMOUS_DEV_BYPASS_STALE_HOURS`` at call time. Unparseable,
+    blank, or non-positive values fall back to ``STALE_HOURS_DEFAULT``. NEVER
+    raises.
+
+    Returns:
+        A positive number of hours.
+    """
+    raw = os.environ.get(STALE_HOURS_ENV_VAR)
+    if raw is None:
+        return float(STALE_HOURS_DEFAULT)
+    try:
+        value = float(raw.strip())
+    except (ValueError, AttributeError):
+        return float(STALE_HOURS_DEFAULT)
+    if value <= 0:
+        return float(STALE_HOURS_DEFAULT)
+    return value
+
+
+def _is_git_tracked(path: Path) -> bool:
+    """Return True iff ``path`` is tracked by git (committed / staged).
+
+    Runs ``git ls-files --error-unmatch <path>`` with ``cwd`` set to the
+    directory containing the file, so git discovers the enclosing repository by
+    walking upward regardless of how many ancestors up the ``.bypass`` was
+    found.
+
+    FAIL-SAFE: any exception (git missing, timeout, subprocess error) or a
+    non-zero return code yields ``False`` — an untracked file is treated as a
+    candidate for the staleness warning. NEVER raises.
+
+    Args:
+        path: The ``.claude/.bypass`` path to test.
+
+    Returns:
+        True if git reports the path as tracked, False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", str(path)],
+            cwd=str(path.parent),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=_GIT_TRACK_CHECK_TIMEOUT_SECONDS,
+        )
+        return result.returncode == 0
+    except Exception as exc:
+        # git missing, timeout, or any other failure → fail-safe (untracked).
+        # Low-noise stderr diagnostic (stdout stays warning-free) so a broken
+        # check still surfaces one signal — mirrors log_bypass_used's fallback.
+        try:
+            sys.stderr.write(f"[hook-bypass] git-tracked check failed: {exc}\n")
+        except Exception:
+            pass
+        return False
+
+
+def check_bypass_staleness(start_dir: Path | None = None) -> Optional[str]:
+    """Return a WARNING string for a stale, uncommitted ``.claude/.bypass``.
+
+    SessionStart entry point (Issue #1434). Emits a non-blocking warning when a
+    ``.claude/.bypass`` file is BOTH uncommitted (not git-tracked) AND older
+    than the staleness threshold (default 24h, override via
+    ``AUTONOMOUS_DEV_BYPASS_STALE_HOURS``). Returns ``None`` in every other
+    case:
+
+    - env-var bypass active (transient, process-scoped — nothing to warn about)
+    - no ``.bypass`` file found up the chain
+    - the ``.bypass`` file is git-tracked (a legitimate durable opt-out)
+    - the ``.bypass`` file is younger than the threshold
+
+    This is a reaper-style helper — the hot path :func:`is_bypassed` NEVER
+    consults it (mirrors ``drain_pending.is_stale``). The whole body is wrapped
+    in a broad guard: this function NEVER raises.
+
+    Args:
+        start_dir: Directory to begin the walk from. Defaults to cwd.
+
+    Returns:
+        A one-line-ish warning string naming the file, its age, and remediation
+        steps — or ``None`` when no warning is warranted.
+    """
+    try:
+        # 1. Env-var bypass is transient/process-scoped — never warn.
+        if _env_var_active():
+            return None
+
+        # 2. Locate the flag file up the chain.
+        flag = _find_flag_file_in_chain(start_dir or Path.cwd())
+        if flag is None:
+            return None
+
+        # 3. A committed opt-out is legitimate — never warn.
+        if _is_git_tracked(flag):
+            return None
+
+        # 4. Compute age; younger than threshold → no warning.
+        try:
+            mtime = flag.stat().st_mtime
+        except OSError:
+            return None
+        age_seconds = time.time() - mtime
+        threshold_hours = _stale_hours_threshold()
+        if age_seconds < threshold_hours * 3600:
+            return None
+
+        # 5. Stale + uncommitted → emit the warning.
+        age_hours = age_seconds / 3600
+        return (
+            f"WARNING: Uncommitted hook-bypass file {flag} is "
+            f"{age_hours:.1f}h old (threshold {threshold_hours:.0f}h) — "
+            f"autonomous-dev hook enforcement is DISABLED in this repo. "
+            f"If you forgot it, remove it: rm {flag} . "
+            f"For a durable opt-out that won't warn, commit it: "
+            f"git add -f {flag} && git commit."
+        )
+    except Exception as exc:
+        # Staleness telemetry must NEVER break session start.
+        # Low-noise stderr diagnostic (stdout stays warning-free) so a broken
+        # staleness check still surfaces one signal — mirrors log_bypass_used.
+        try:
+            sys.stderr.write(f"[hook-bypass] staleness check failed: {exc}\n")
+        except Exception:
+            pass
+        return None
 
 
 def _resolve_log_path(start_dir: Path | None = None) -> Path:
