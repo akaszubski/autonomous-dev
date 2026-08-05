@@ -71,12 +71,18 @@ def _get_agent_completions(events: List[PipelineEvent]) -> List[PipelineEvent]:
     Issue #1266: also exclude internal `__dedup_skip__:*` hook markers —
     these are dedup-tracking events, not real agent invocations, and they
     produce false-positive zero_word_agent_output findings.
+    Issue #1436: broadened to exclude ALL internal double-underscore sentinel
+    markers (the `__`-prefixed convention: `__dedup_skip__`,
+    `__phantom_dedup_skip__`, `__unattributable__`). These are internal hook
+    markers, not real agent invocations; no legitimate agent name in
+    FULL_PIPELINE_AGENTS begins with `__`, so the broad prefix solves the
+    class without over-excluding real agents.
     """
     return [
         e for e in events
         if e.tool in AGENT_TOOL_NAMES
         and e.subagent_type
-        and not e.subagent_type.startswith("__dedup_skip__")
+        and not e.subagent_type.startswith("__")
         and e.pipeline_action == "agent_completion"
     ]
 

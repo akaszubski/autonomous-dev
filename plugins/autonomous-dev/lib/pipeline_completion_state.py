@@ -61,6 +61,21 @@ SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 STALE_UNKNOWN_TTL_SECONDS = 3600
 
 
+def _is_gate_countable_agent(agent_type: Optional[str]) -> bool:
+    """Issue #1436: an agent_type is gate-countable only if it is a real,
+    attributable identity. Empty / whitespace-only / "unknown" identities are
+    unattributable SubagentStop noise and MUST NOT enter the completeness-gate
+    completions set (they can never satisfy a NAMED-agent requirement, and
+    storing them pollutes ghost-agent detection).
+
+    Sibling (negated mirror): unified_session_tracker._is_unattributable (#1436).
+    Kept independent (not delegated) so the hook stays import-robust."""
+    if not agent_type:
+        return False
+    normalized = str(agent_type).strip().lower()
+    return bool(normalized) and normalized != "unknown"
+
+
 def _sanitize_bypass_reason(bypass_reason: Optional[str]) -> Optional[str]:
     """Sanitize bypass_reason by stripping control chars and truncating.
     
@@ -533,6 +548,10 @@ def record_agent_completion(
 
     Issues: #1046
     """
+    # Issue #1436: fail-closed — never store an unattributable identity.
+    if not _is_gate_countable_agent(agent_type):
+        return
+
     # Build the completion entry (plain bool or remediation dict).
     if is_remediation:
         entry = {
@@ -679,7 +698,7 @@ def get_completed_agents(
         if isinstance(issue_completions, dict):
             result = {
                 k for k, v in issue_completions.items()
-                if _completion_is_success(v)
+                if _completion_is_success(v) and _is_gate_countable_agent(k)
             }
 
     # Skip the unknown-session fallback merge when run_id is set.
@@ -719,7 +738,7 @@ def get_completed_agents(
             if isinstance(issue_completions, dict):
                 fallback_result = {
                     k for k, v in issue_completions.items()
-                    if _completion_is_success(v)
+                    if _completion_is_success(v) and _is_gate_countable_agent(k)
                 }
                 if fallback_result - result:
                     import logging

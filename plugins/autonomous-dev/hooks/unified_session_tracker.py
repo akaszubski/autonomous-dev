@@ -912,6 +912,22 @@ PHANTOM_DEDUP_WINDOW_SECONDS = 300  # 5 minutes
 HEARTBEAT_MIN_OUTPUT_WORDS = 5
 
 
+def _is_unattributable(agent_name: Optional[str]) -> bool:
+    """Issue #1436: True when a SubagentStop carries no usable identity
+    (None / empty / whitespace-only / "unknown") after the #1087 cache and
+    #1396 transcript-resolver recovery attempts have already run.
+
+    Sibling (negated mirror): pipeline_completion_state._is_gate_countable_agent
+    (#1436). Kept independent (not delegated via a module-level import) because
+    pipeline_completion_state is imported function-scoped inside main() to keep
+    this hook import-robust — a module-level import here would risk load-order
+    fragility."""
+    if not agent_name:
+        return True
+    normalized = str(agent_name).strip().lower()
+    return (not normalized) or normalized == "unknown"
+
+
 def _try_claim_subagent_stop_marker(
     key: str,
     ttl_seconds: int = 300,
@@ -1354,41 +1370,80 @@ def main() -> int:
         try:
             from pipeline_completion_state import record_agent_completion
             
-            # Issue #1414: Second-tier dedup — prevent duplicate record_agent_completion
-            # calls for phantom-then-real SubagentStop firings of the same agent.
-            # The first-tier #1176 guard keys on transcript_path (which differs between
-            # phantom and real), so both pass through. This second tier keys on agent
-            # identity within a time window.
-            phantom_key = (session_id, agent_name)
-            current_time = time.time()
-            
-            # Clean up old entries (opportunistic, prevents unbounded growth)
-            expired_keys = [
-                k for k, t in _PHANTOM_DEDUP_CACHE.items()
-                if current_time - t > PHANTOM_DEDUP_WINDOW_SECONDS * 2
-            ]
-            for k in expired_keys:
-                del _PHANTOM_DEDUP_CACHE[k]
-            
-            # Check if we've already recorded completion for this agent recently
-            if phantom_key in _PHANTOM_DEDUP_CACHE:
-                last_record_time = _PHANTOM_DEDUP_CACHE[phantom_key]
-                if current_time - last_record_time < PHANTOM_DEDUP_WINDOW_SECONDS:
-                    # Duplicate within window — skip record_agent_completion
-                    # but still write to activity log for audit trail
-                    try:
-                        _write_jsonl_entry(
-                            subagent_type=f"__phantom_dedup_skip__:{agent_name}",
-                            duration_ms=duration_ms,
-                            result_word_count=result_word_count,
-                            agent_transcript_path=agent_transcript_path,
+            # Issue #1436: unattributable SubagentStop firings carry no usable
+            # identity (None / empty / whitespace-only / "unknown") even after the
+            # #1087 cache and #1396 transcript-resolver recovery. They MUST NOT
+            # enter _PHANTOM_DEDUP_CACHE: keying on (session_id, "") collapses
+            # distinct empty-identity firings (the #1414 collision) and can suppress
+            # a genuine empty-identity completion (#1387/#1412 class). This check
+            # runs BEFORE phantom_key is ever computed.
+            if _is_unattributable(agent_name):
+                # Emit a log-only audit entry and DO NOT enter _PHANTOM_DEDUP_CACHE.
+                # We STILL call record_agent_completion for backward-compat with the
+                # #1396 contract; the Layer-1 guard in pipeline_completion_state
+                # makes it a no-op (never stored).
+                try:
+                    _write_jsonl_entry(
+                        subagent_type=f"__unattributable__:{agent_name or ''}",
+                        duration_ms=duration_ms,
+                        result_word_count=result_word_count,
+                        agent_transcript_path=agent_transcript_path,
+                        session_id=session_id,
+                        success=success,
+                    )
+                except Exception:
+                    pass
+                record_agent_completion(
+                    session_id=session_id,
+                    agent_type=agent_name,
+                    issue_number=_get_current_issue_number(),
+                    success=success,
+                )
+            else:
+                # Issue #1414: Second-tier dedup — prevent duplicate record_agent_completion
+                # calls for phantom-then-real SubagentStop firings of the same agent.
+                # The first-tier #1176 guard keys on transcript_path (which differs between
+                # phantom and real), so both pass through. This second tier keys on agent
+                # identity within a time window.
+                phantom_key = (session_id, agent_name)
+                current_time = time.time()
+
+                # Clean up old entries (opportunistic, prevents unbounded growth)
+                expired_keys = [
+                    k for k, t in _PHANTOM_DEDUP_CACHE.items()
+                    if current_time - t > PHANTOM_DEDUP_WINDOW_SECONDS * 2
+                ]
+                for k in expired_keys:
+                    del _PHANTOM_DEDUP_CACHE[k]
+
+                # Check if we've already recorded completion for this agent recently
+                if phantom_key in _PHANTOM_DEDUP_CACHE:
+                    last_record_time = _PHANTOM_DEDUP_CACHE[phantom_key]
+                    if current_time - last_record_time < PHANTOM_DEDUP_WINDOW_SECONDS:
+                        # Duplicate within window — skip record_agent_completion
+                        # but still write to activity log for audit trail
+                        try:
+                            _write_jsonl_entry(
+                                subagent_type=f"__phantom_dedup_skip__:{agent_name}",
+                                duration_ms=duration_ms,
+                                result_word_count=result_word_count,
+                                agent_transcript_path=agent_transcript_path,
+                                session_id=session_id,
+                                success=success,
+                            )
+                        except Exception:
+                            pass  # Non-blocking: audit entry is advisory only
+                    else:
+                        # Outside window — record this as a new invocation
+                        record_agent_completion(
                             session_id=session_id,
+                            agent_type=agent_name,
+                            issue_number=_get_current_issue_number(),
                             success=success,
                         )
-                    except Exception:
-                        pass  # Non-blocking: audit entry is advisory only
+                        _PHANTOM_DEDUP_CACHE[phantom_key] = current_time
                 else:
-                    # Outside window — record this as a new invocation
+                    # First time seeing this agent — record it
                     record_agent_completion(
                         session_id=session_id,
                         agent_type=agent_name,
@@ -1396,15 +1451,6 @@ def main() -> int:
                         success=success,
                     )
                     _PHANTOM_DEDUP_CACHE[phantom_key] = current_time
-            else:
-                # First time seeing this agent — record it
-                record_agent_completion(
-                    session_id=session_id,
-                    agent_type=agent_name,
-                    issue_number=_get_current_issue_number(),
-                    success=success,
-                )
-                _PHANTOM_DEDUP_CACHE[phantom_key] = current_time
         except Exception:
             pass  # Non-blocking: ordering state is advisory
 

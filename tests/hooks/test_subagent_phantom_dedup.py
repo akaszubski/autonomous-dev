@@ -245,3 +245,141 @@ def test_different_agents_same_session_both_record(tmp_path, monkeypatch):
     assert len(completion_calls) == 2, f"Expected 2 completion calls, got {len(completion_calls)}: {completion_calls}"
     assert completion_calls[0]["agent_type"] == "researcher"
     assert completion_calls[1]["agent_type"] == "planner"
+
+
+def test_empty_type_phantom_not_gate_counted(tmp_path, monkeypatch):
+    """Issue #1436: an empty-agent_type SubagentStop takes the unattributable
+    branch — it STILL calls record_agent_completion (preserving the #1396
+    contract) but MUST NOT enter _PHANTOM_DEDUP_CACHE (the #1414 collision
+    keyed on (session_id, "") is bypassed).
+    """
+    hook_path = Path(__file__).resolve().parents[2] / "plugins/autonomous-dev/hooks"
+    lib_path = Path(__file__).resolve().parents[2] / "plugins/autonomous-dev/lib"
+    sys.path.insert(0, str(hook_path))
+    sys.path.insert(0, str(lib_path))
+
+    monkeypatch.setenv("TRACK_SESSIONS", "false")
+    monkeypatch.setenv("TRACK_PIPELINE", "true")
+    monkeypatch.setenv("AUTO_UPDATE_PROGRESS", "false")
+
+    session_id = "test-session-unattributable-1"
+
+    completion_calls = []
+
+    def mock_record_agent_completion(**kwargs):
+        completion_calls.append(kwargs)
+
+    # Empty agent_type, zero duration, nonexistent transcript, but a 6-word
+    # last_assistant_message so the #1396 heartbeat-drop is survived and the
+    # event reaches the record block (where the unattributable branch fires).
+    empty_data = {
+        "hook_event_name": "SubagentStop",
+        "agent_type": "",
+        "session_id": session_id,
+        "agent_transcript_path": str(tmp_path / "nonexistent_empty.md"),
+        "last_assistant_message": "one two three four five six",
+        "duration_ms": 0,
+        "result_word_count": 6,
+    }
+
+    with patch("sys.stdin.read") as mock_stdin, \
+         patch("pipeline_completion_state.record_agent_completion", mock_record_agent_completion), \
+         patch("unified_session_tracker._write_jsonl_entry", MagicMock()):
+
+        import unified_session_tracker
+
+        unified_session_tracker._PHANTOM_DEDUP_CACHE.clear()
+
+        mock_stdin.return_value = json.dumps(empty_data)
+        monkeypatch.setattr("sys.argv", ["unified_session_tracker.py"])
+        result = unified_session_tracker.main()
+        assert result == 0
+
+        # The unattributable branch STILL records (backward-compat #1396 contract).
+        assert len(completion_calls) == 1, (
+            f"Expected 1 completion call, got {len(completion_calls)}: {completion_calls}"
+        )
+        assert completion_calls[0]["agent_type"] == ""
+
+        # The phantom-dedup cache MUST remain empty — the collision key
+        # (session_id, "") was never inserted.
+        assert unified_session_tracker._PHANTOM_DEDUP_CACHE == {}, (
+            f"Expected empty phantom cache, got {unified_session_tracker._PHANTOM_DEDUP_CACHE}"
+        )
+
+
+def test_two_distinct_empty_type_phantoms_do_not_collide(tmp_path, monkeypatch):
+    """Issue #1436: two distinct empty-agent_type firings within the dedup
+    window must NOT suppress each other — the (session_id, "") collision that
+    #1414's cache would create is avoided. Both record, cache stays empty.
+    """
+    hook_path = Path(__file__).resolve().parents[2] / "plugins/autonomous-dev/hooks"
+    lib_path = Path(__file__).resolve().parents[2] / "plugins/autonomous-dev/lib"
+    sys.path.insert(0, str(hook_path))
+    sys.path.insert(0, str(lib_path))
+
+    monkeypatch.setenv("TRACK_SESSIONS", "false")
+    monkeypatch.setenv("TRACK_PIPELINE", "true")
+    monkeypatch.setenv("AUTO_UPDATE_PROGRESS", "false")
+
+    session_id = "test-session-unattributable-2"
+
+    completion_calls = []
+
+    def mock_record_agent_completion(**kwargs):
+        completion_calls.append(kwargs)
+
+    # Two distinct transcript paths (so the #1176 first-tier marker does not
+    # dedup them), both empty agent_type, both with a 6-word message so they
+    # survive the #1396 heartbeat-drop.
+    first_data = {
+        "hook_event_name": "SubagentStop",
+        "agent_type": "",
+        "session_id": session_id,
+        "agent_transcript_path": str(tmp_path / "empty_first.md"),
+        "last_assistant_message": "alpha beta gamma delta epsilon zeta",
+        "duration_ms": 0,
+        "result_word_count": 6,
+    }
+    second_data = {
+        "hook_event_name": "SubagentStop",
+        "agent_type": "",
+        "session_id": session_id,
+        "agent_transcript_path": str(tmp_path / "empty_second.md"),
+        "last_assistant_message": "eta theta iota kappa lambda mu",
+        "duration_ms": 0,
+        "result_word_count": 6,
+    }
+
+    with patch("sys.stdin.read") as mock_stdin, \
+         patch("pipeline_completion_state.record_agent_completion", mock_record_agent_completion), \
+         patch("unified_session_tracker._write_jsonl_entry", MagicMock()), \
+         patch("time.time") as mock_time:
+
+        import unified_session_tracker
+
+        unified_session_tracker._PHANTOM_DEDUP_CACHE.clear()
+
+        # First event at t=1000.
+        mock_time.return_value = 1000.0
+        mock_stdin.return_value = json.dumps(first_data)
+        monkeypatch.setattr("sys.argv", ["unified_session_tracker.py"])
+        result1 = unified_session_tracker.main()
+        assert result1 == 0
+
+        # Second event 20 seconds later — well within the 300s window.
+        mock_time.return_value = 1020.0
+        mock_stdin.return_value = json.dumps(second_data)
+        result2 = unified_session_tracker.main()
+        assert result2 == 0
+
+    # Neither suppressed the other: both recorded.
+    assert len(completion_calls) == 2, (
+        f"Expected 2 completion calls, got {len(completion_calls)}: {completion_calls}"
+    )
+    assert all(c["agent_type"] == "" for c in completion_calls)
+
+    # The collision cache was never populated for the empty identity.
+    assert unified_session_tracker._PHANTOM_DEDUP_CACHE == {}, (
+        f"Expected empty phantom cache, got {unified_session_tracker._PHANTOM_DEDUP_CACHE}"
+    )

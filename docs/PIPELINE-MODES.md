@@ -294,7 +294,8 @@ records exactly as it reads hook-written ones.
 
 **What the SubagentStop hook does instead** (`unified_session_tracker.py`):
 best-effort handling for the *foreground / internal* firings that DO reach the
-hook. Two #1396 behaviors apply only to those firings:
+hook. Three behaviors (two from #1396, one from #1436) apply only to those
+firings:
 
 1. **Agent-type recovery** — when the payload and the #1087 PreToolUse cache
    both omit `agent_type`, `_resolve_agent_type_from_transcript()` scans the
@@ -305,8 +306,25 @@ hook. Two #1396 behaviors apply only to those firings:
    identity) are dropped rather than recorded, cutting the bulk (~95 of ~113)
    of noise events per run. The drop is ordered before the #1414 phantom-dedup
    block so it never perturbs `_PHANTOM_DEDUP_CACHE`.
+3. **Unattributable-firing guard** (Issue #1436) — a firing with a non-zero
+   duration or substantive output survives the heartbeat drop above but can
+   still lack a real identity (`agent_type` empty, whitespace-only, or the
+   literal `"unknown"`). `_is_unattributable()` checks for this class BEFORE
+   the #1414 `phantom_key` is computed, so it never enters
+   `_PHANTOM_DEDUP_CACHE` — keying on `(session_id, "")` would otherwise
+   collapse two distinct empty-identity firings into one and silently
+   suppress a genuine completion. The firing is still logged as a
+   `__unattributable__:<agent_name>` JSONL audit entry, and
+   `record_agent_completion()` is still called for #1396 backward-compat, but
+   `_is_gate_countable_agent()` in `pipeline_completion_state.py` makes that
+   call a no-op — unattributable identities are never persisted into
+   completion state and can never satisfy the agent-completeness gate
+   (fail-closed). `get_completed_agents()` and `agent_output_health.py`'s
+   `_get_agent_completions()` apply the equivalent filter on read, so
+   pre-existing empty/`"unknown"` completion-state keys and `__`-prefixed
+   sentinel markers in the activity log are both excluded.
 
-Neither behavior touches background agents (they never reach the hook). For the
+None of these behaviors touches background agents (they never reach the hook). For the
 complementary read-side recovery at the `git commit` completeness gate — where
 a Bash subprocess may evaluate the wrong session id — see the #1228 read-side
 session-id fallback in `unified_pre_tool.py::_check_pipeline_agent_completions`.

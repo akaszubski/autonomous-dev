@@ -408,3 +408,60 @@ class TestSentinelHeartbeat:
         assert result is True
         # Content must be unchanged
         assert sentinel.read_text() == original_content
+
+
+class TestIssue1436UnattributableIdentityRejection:
+    """Issue #1436: unattributable agent identities (empty / whitespace /
+    'unknown' / None) must never enter the completeness-gate completions set.
+
+    Layer 1 guards ``record_agent_completion`` (fail-closed on write) and
+    ``get_completed_agents`` (filters legacy-polluted state on read).
+    """
+
+    def test_record_agent_completion_rejects_empty_agent_type(self, session_id):
+        """Recording an empty agent_type must be a no-op (never stored)."""
+        record_agent_completion(session_id, "", issue_number=0)
+        assert get_completed_agents(session_id, issue_number=0) == set()
+
+    @pytest.mark.parametrize("bad_agent", ["   ", "unknown", "UNKNOWN", None])
+    def test_record_agent_completion_rejects_whitespace_none_and_unknown(
+        self, session_id, bad_agent
+    ):
+        """Whitespace-only, None, and any-case 'unknown' identities are dropped."""
+        record_agent_completion(session_id, bad_agent, issue_number=0)
+        assert get_completed_agents(session_id, issue_number=0) == set()
+
+    def test_get_completed_agents_filters_preexisting_empty_and_unknown_keys(
+        self, session_id
+    ):
+        """Legacy on-disk state polluted with '', 'unknown' keys is cleaned on read.
+
+        Hand-writes a state file mirroring the real on-disk schema (as produced
+        by record_agent_completion / _ensure_state) with a completions dict whose
+        keys include the two unattributable identities plus one real agent.
+        """
+        path = _state_file_path(session_id)
+        state = {
+            "session_id": session_id,
+            "created_at": "2026-08-02T00:00:00+00:00",
+            "validation_mode": "sequential",
+            "completions": {
+                "0": {
+                    "": True,
+                    "unknown": True,
+                    "planner": True,
+                },
+            },
+            "prompt_baselines": {},
+        }
+        path.write_text(json.dumps(state, indent=2))
+
+        assert get_completed_agents(session_id, issue_number=0) == {"planner"}
+
+    def test_named_agents_still_recorded(self, session_id):
+        """Real, attributable agent identities are recorded normally."""
+        record_agent_completion(session_id, "planner", issue_number=0)
+        record_agent_completion(session_id, "reviewer", issue_number=0)
+        completed = get_completed_agents(session_id, issue_number=0)
+        assert "planner" in completed
+        assert "reviewer" in completed
