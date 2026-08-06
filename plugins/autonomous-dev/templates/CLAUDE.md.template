@@ -30,6 +30,16 @@ TODO: One-paragraph summary. Components, layers, key counts. Deep diagrams live 
 
 Full diagram: [`docs/architecture/OVERVIEW.md`](docs/architecture/OVERVIEW.md).
 
+## Code Navigation (LSP > grep when available)
+
+**When a Serena LSP MCP server is configured (`.mcp.json` contains a `serena` server), prefer its symbol tools over `grep` for anything about code STRUCTURE:**
+- `find_symbol` / go-to-definition — where a symbol is defined
+- `find_referencing_symbols` / find-references — who calls a symbol (**zero references = a stale/dead unconnected function**; grep matches text, not symbol bindings, so it cannot tell you this reliably)
+- call hierarchy (incoming/outgoing calls) — real dependency chains
+- `get_symbols_overview` — a file's structure
+
+Use `grep`/`Glob` only for text patterns, file names, comments, strings, and single-file reads. LSP answers are always-fresh (live-queried, no stale index). Improves dependency understanding and dead-code detection. **If no `serena` server is configured, ignore this section and use grep.**
+
 ## Commands
 
 {COMMAND_INVENTORY}
