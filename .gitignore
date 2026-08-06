@@ -160,3 +160,7 @@ DOCUMENTATION_*.md
 \private*
 *\private*
 .hypothesis/
+
+# Serena LSP MCP (#1451): regenerable symbol cache + local project config.
+# Regenerate with: uvx --from git+https://github.com/oraios/serena serena project index --language python .
+.serena/

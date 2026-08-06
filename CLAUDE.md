@@ -35,6 +35,16 @@ Self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.b
 
 Component counts: 16 agents, 20 skills, 23 user-facing commands, 27 hooks, 241 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
 
+## Code Navigation (LSP > grep when available)
+
+**When the Serena LSP MCP is configured (`.mcp.json` has a `serena` server; Issue #1451), prefer its symbol tools over `grep` for anything about code STRUCTURE:**
+- `find_symbol` / go-to-definition — where a function/class is defined
+- `find_referencing_symbols` / find-references — **who calls this** (a symbol with **zero references is a stale, unconnected/dead function** — grep cannot tell you this reliably, it matches text not symbol bindings)
+- call hierarchy (incoming/outgoing calls) — real **dependency** chains, not text guesses
+- `get_symbols_overview` / document-symbol — a file's structure
+
+Use `grep`/`Glob` only for text patterns, file names, comments, strings, and single-file reads. LSP answers are always-fresh (live-queried, no index to go stale). This directly improves dependency understanding and dead-code detection (feeds `/refactor --code`, `/sweep`). If no Serena server is configured, fall back to grep.
+
 ## Commands
 
 `/plan` | `/implement` (full, --light, --batch, --issues, --resume, --fix) | `/create-issue` (--quick) | `/plan-to-issues` (--quick) | `/align` (--project, --docs, --retrofit, --content) | `/audit` (--quick, --security, --docs, --code, --tests) | `/setup` | `/sync` (--github, --env, --all, --uninstall) | `/health-check` | `/advise` | `/worktree` (--list, --status, --merge, --discard) | `/scaffold-genai-uat` | `/status` | `/refactor` (--tests, --docs, --docs-redundancy, --code, --fix, --quick) | `/sweep` | `/improve` (--auto-file) | `/retrospective` | `/mem-search` | `/skill-eval` (--quick, --skill, --update) | `/autoresearch` (--target, --metric, --iterations, --min-improvement, --dry-run) | `/triage` (--auto-improvement, --repo, --limit, --include-fp-acknowledged, --json) | `/drain-queue` | `/goa` (start, stop, status)
