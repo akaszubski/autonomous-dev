@@ -647,3 +647,4 @@
 {"fire_id": "20260806T181331Z", "fired_at": "2026-08-06T18:14:02Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260806T181331Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260806T221540Z", "fired_at": "2026-08-06T22:16:37Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "urllib GitHub API returned 403 (github app not connected for org); used MCP github tools to list issues; zero open auto-improvement issues"}
+{"fire_id": "20260806T221540Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "zero open issues with auto-improvement label"}
