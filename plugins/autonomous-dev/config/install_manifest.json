@@ -237,6 +237,7 @@
         "plugins/autonomous-dev/lib/enforcement_decision.py",
         "plugins/autonomous-dev/lib/error_analyzer.py",
         "plugins/autonomous-dev/lib/error_messages.py",
+        "plugins/autonomous-dev/lib/eval_metrics.py",
         "plugins/autonomous-dev/lib/exceptions.py",
         "plugins/autonomous-dev/lib/failure_analyzer.py",
         "plugins/autonomous-dev/lib/failure_classifier.py",

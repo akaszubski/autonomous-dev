@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-07-27 (settings_generator.py DEFAULT_DENY_LIST migrated from Write(path) to Edit(path) rules + double-slash system-path anchoring — Issue #1409)
+**Last Updated**: 2026-08-07 (eval_metrics.py — new stdlib-only eval-metrics primitives library: pass@k/pass^k reliability, Wilson-interval statistical gating, Cohen's kappa judge calibration, CapBencher contamination detection — Issue #1453)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -16977,3 +16977,18 @@ GOA CLI entry point providing the argparse interface for the `/goa` slash comman
 ### Testing
 
 - `tests/unit/commands/test_goa_command.py` — Unit tests covering all subcommands, frequency gate enforcement, and issue filing
+
+## eval_metrics.py (v1.0.0 — Issue #1453)
+
+CORE, dependency-free eval-metrics primitives for scoring non-deterministic agent/model evaluations. Stdlib-only (`math`, `statistics`, `dataclasses`, `typing`) — no file I/O, no network, no subprocess; every function is a pure computation over its arguments. Four families of primitives:
+
+1. **Reliability** — `pass_at_k(n, c, k)` returns the Chen et al. unbiased pass@k estimator (any-of-k success probability, numerically stable product form). `pass_hat_k(success_rate, k)` returns `success_rate ** k`, the pass^k CONSISTENCY metric (all-of-k success under resampling) — distinct from pass@k and used as THE gating metric for reliability. `pass_hat_k_dataset(per_task, k)` returns the dataset-level pass^k as the mean of per-task `(c_i/n_i) ** k` values (averaging the powers per task, not raising the pooled rate to the k-th power, to avoid Jensen's-inequality understatement bias).
+2. **Statistical gating** — `wilson_interval(successes, n, confidence=0.95)` / `WilsonInterval` dataclass return the Wilson score confidence interval (well-behaved at extreme rates and small samples, z-critical value derived from `statistics.NormalDist` rather than a hardcoded table). `gate_decision(successes, n, baseline, margin=0.05, confidence=0.95)` returns `(passed, message)` — a non-flaky pass/fail gate using the Wilson lower bound vs. `baseline - margin`, robust to a lucky run whose point estimate clears the bar but whose lower bound does not.
+3. **Judge calibration** — `cohens_kappa(a, b, c, d)` returns chance-corrected inter-rater agreement for a 2x2 confusion matrix (degenerate `p_e == 1.0` case returns `0.0` rather than raising). `agreement_report(a, b, c, d)` / `AgreementReport` dataclass report BOTH raw agreement and kappa plus the `overstatement_gap` (raw agreement minus kappa) and a Landis-Koch interpretation band, so raw agreement's chance inflation is never the unqualified headline metric.
+4. **Contamination detection (CapBencher)** — `capbencher_binomial_test(n, k, bayes_cap, alpha=0.05)` / `CapBencherResult` dataclass run a one-sided exact binomial test (Karlin-Rubin UMP) testing `H0: true accuracy <= bayes_cap`; a small p-value (`flagged=True`) suggests the observed accuracy is implausibly high under the Bayes cap, indicating benchmark contamination (memorized test items).
+
+Deferred / explicitly NOT implemented here (per module docstring): judge-panel aggregation (ships with the #1452 judge wiring), DeepEval integration, trajectory/span evals, Krippendorff's alpha for >2 raters, and sealed-holdout plumbing into `/autoresearch` / `/improve`. This module has no command-level integration yet — it is a CORE primitives library consumed by future eval-gating work.
+
+### Testing
+
+- `tests/unit/lib/test_eval_metrics.py` — 51 unit tests covering golden values for all four families (pass@k boundary cases, pass^k Jensen's-inequality averaging, Wilson interval clamping/degenerate n, gate_decision n==0 short-circuit, Cohen's kappa degenerate p_e==1.0 case and Landis-Koch bands, CapBencher one-sided p-value and flagging threshold)
