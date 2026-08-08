@@ -783,6 +783,11 @@ def detect_issue_research(issue_body: str) -> Dict[str, Any]:
         "proposed values",
         "references",
         "results",
+        "root cause",
+        "proof",
+        "reproduction",
+        "mechanism",
+        "impact",
     }
 
     # Strip fenced code blocks to avoid false positive heading matches
