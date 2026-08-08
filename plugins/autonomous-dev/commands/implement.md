@@ -1112,6 +1112,17 @@ For EACH failure, you MUST choose one:
 - ❌ You MUST NOT proceed to STEP 10 when `step5_quality_gate.run_quality_gate()` returns `passed=False`
 - ❌ You MUST NOT proceed when test count drops significantly from baseline (enforced by `coverage_baseline.check_test_count_regression()`)
 
+**HARD GATE: No Wholesale Reformats of Drifted Files** (Issue #1464) — When applying formatters (`ruff format`, `black`, `prettier`, etc.) to files you touched, you MUST NOT wholesale-reformat a file that has pre-existing format drift. Wholesale reformats of drifted files bloat the diff with unrelated changes and add zero CI benefit when the file lives outside a CI-format-gated path (real regressions: `scripts/weekly_report.py` reformatted wholesale in commit de70307e3; `scripts/daily_trade_watchdog.py` grew 29→344 lines in PR #1885, both in a non-format-gated `scripts/` tree). For each Python file you touched, apply this decision tree BEFORE running any formatter:
+
+1. **NEW in this commit** (not present at `HEAD`) → run the formatter on it.
+2. **Modified but was already clean at `HEAD`** (verify via `ruff format --check <file>` against `git show HEAD:<file>`, i.e. exit 0) → run the formatter on your working-tree version. This does not introduce drift because there was none.
+3. **Modified AND had pre-existing format drift at `HEAD`** → do NOT run the formatter on the whole file. Skip formatting for that file and let the pre-existing drift ride. Exception: if the file lives inside a path the consumer repo's CI format-gates (i.e. CI runs `ruff format --check <that_path>` and would fail on drift), the wholesale reformat IS worth the diff noise — run the formatter on it. When in doubt about CI gating, DO NOT reformat.
+
+**FORBIDDEN** — You MUST NOT (Issue #1464):
+- ❌ You MUST NOT run `ruff format`/`black`/any wholesale formatter on a touched file without first checking whether that file was already clean at `HEAD`.
+- ❌ You MUST NOT wholesale-reformat a drifted file in a non-CI-format-gated path just because you edited a few lines in it — the diff bloat is pure review noise and the coordinator will revert the reformat post-hoc.
+- ❌ You MUST NOT invoke `ruff format .` or `ruff format <directory>` — always target only the specific files you touched, and only after the decision tree above says it is safe.
+
 Loop until **0 failures, 0 errors**. Do NOT proceed to STEP 10 with any failures.
 
 After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP 8.5 spec-validator can dispatch without manual recording. (#1238)
