@@ -168,7 +168,7 @@ else:
 "
 ```
 
-Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `implementer`). Replace `ISSUE_NUMBER_OR_0` with the current issue number or `0`. Replace `MODE` with the pipeline mode (`full`, `light`, `fix`, or `tdd-first`).
+Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `implementer`). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket where completions are recorded (single-issue mode always records under bucket `0` because `PIPELINE_ISSUE_NUMBER` is unset; picking a real issue number here creates spurious ORDERING VIOLATION blocks — Issue #1460). Replace `MODE` with the pipeline mode (`full`, `light`, `fix`, or `tdd-first`).
 
 **Session-ID propagation contract** (Issue #904): The helper above implements the fallback chain `env → sentinel → 'unknown'`. Coordinator subshells inherit `CLAUDE_SESSION_ID` in-process, but some exec contexts (nested heredocs, pipe subshells) drop the env var — the sentinel written at STEP 0 provides a recovery path. See [docs/PIPELINE-MODES.md](../../../docs/PIPELINE-MODES.md#session-id-propagation-contract) for the full contract.
 
@@ -226,7 +226,7 @@ print(f'POST-DISPATCH OK: recorded <AGENT_TYPE>')
 "
 ```
 
-Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with the current issue number or `0`. The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
+Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket used in the corresponding Pre-Dispatch check (Issue #1460). The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
 
 **Idempotency note**: Safe to call when SubagentStop also fires asynchronously for the same agent — `record_agent_completion` is fcntl-locked, tri-scope, last-write-wins per Issue #1046. Both writes converge to the same final state.
 
