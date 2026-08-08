@@ -65,6 +65,18 @@ from pathlib import Path
 # In-process cache for session date (avoids repeated file reads within same invocation)
 _SESSION_DATE_CACHE: dict = {}
 
+# Issue #1461: Phantom-then-real dedup for Task/Agent PostToolUse writes.
+# Mirrors the guard at plugins/autonomous-dev/hooks/unified_session_tracker.py:1403-1453
+# (which protects the SubagentStop code path). Claude Code sometimes fires a
+# phantom Task PostToolUse entry ~31-32s after the Agent-tool start with low
+# word count and a transcript_path that never exists on disk, followed by the
+# real completion later. Both used to be written to .claude/logs/activity/*.jsonl,
+# producing false [GHOST] findings in pipeline_intent_validator.
+# Keys: (session_id, subagent_type) -> timestamp of first observed entry.
+_PHANTOM_DEDUP_CACHE: dict[tuple[str, str], float] = {}
+PHANTOM_DEDUP_WINDOW_SECONDS = 300  # 5 minutes; matches unified_session_tracker.py
+PHANTOM_MIN_WORD_COUNT = 10  # Below this + missing transcript => classify phantom
+
 # ============================================================================
 # Subagent Invocation Cache helpers (Issue #1087)
 # ============================================================================
@@ -84,6 +96,101 @@ except ImportError:
     # pre-#1087 behavior (empty subagent_type, duration_ms=0) — no crash.
     def _sic_cache_invocation(*_args, **_kwargs):
         return False
+
+
+def _classify_task_agent_phantom(
+    subagent_type: str,
+    session_id: str,
+    result_word_count: int,
+    agent_transcript_path: str,
+) -> tuple[str, dict]:
+    """Issue #1461: Classify a Task/Agent PostToolUse entry against the
+    phantom-then-real dedup gate.
+
+    Two tiers, mirroring unified_session_tracker.py:1403-1453 semantics:
+
+    * Tier 1 (transcript-existence): a low-word-count entry (< PHANTOM_MIN_WORD_COUNT)
+      whose ``agent_transcript_path`` is set but does NOT exist on disk is
+      classified ``phantom``. Real completions either have substantive output
+      or a transcript that actually exists.
+    * Tier 2 (phantom-then-real cache): keyed on ``(session_id, subagent_type)``,
+      remembers the first observed timestamp. A second observation of the same
+      key inside ``PHANTOM_DEDUP_WINDOW_SECONDS`` returns ``dedup_skip``.
+
+    Fails OPEN: on missing/empty inputs or unexpected errors, returns
+    ``("write", {})`` so a legit entry is never silently dropped.
+
+    Returns:
+        Tuple ``(verdict, extra_fields)``:
+          * ``verdict="write"``: caller writes the normal PostToolUse entry.
+          * ``verdict="phantom_skip"``: caller writes an audit-only entry
+            ``__phantom_skip__:<agent>`` (or skips entirely).
+          * ``verdict="dedup_skip"``: caller writes an audit-only entry
+            ``__phantom_dedup_skip__:<agent>``.
+        ``extra_fields`` carries diagnostic metadata for the audit entry.
+    """
+    try:
+        agent = (subagent_type or "").strip()
+        # Empty subagent_type => cannot dedup by identity; write and move on.
+        if not agent:
+            return ("write", {})
+
+        # Tier 1: transcript-existence guard.
+        transcript_missing = False
+        if agent_transcript_path:
+            try:
+                transcript_missing = not Path(agent_transcript_path).exists()
+            except Exception:
+                transcript_missing = False  # fail open
+        if (
+            result_word_count < PHANTOM_MIN_WORD_COUNT
+            and agent_transcript_path
+            and transcript_missing
+        ):
+            return (
+                "phantom_skip",
+                {
+                    "phantom_reason": "transcript_missing_low_words",
+                    "phantom_word_count": result_word_count,
+                    "phantom_transcript": agent_transcript_path,
+                },
+            )
+
+        # Tier 2: phantom-then-real cache.
+        key = (session_id or "unknown", agent)
+        now = time.time()
+
+        # Opportunistic cleanup (prevents unbounded growth).
+        expired = [
+            k for k, t in _PHANTOM_DEDUP_CACHE.items()
+            if now - t > PHANTOM_DEDUP_WINDOW_SECONDS * 2
+        ]
+        for k in expired:
+            del _PHANTOM_DEDUP_CACHE[k]
+
+        if key in _PHANTOM_DEDUP_CACHE:
+            last = _PHANTOM_DEDUP_CACHE[key]
+            if now - last < PHANTOM_DEDUP_WINDOW_SECONDS:
+                # Duplicate within window — refresh window and signal skip.
+                _PHANTOM_DEDUP_CACHE[key] = now
+                return (
+                    "dedup_skip",
+                    {
+                        "phantom_reason": "duplicate_within_window",
+                        "phantom_prev_ts": last,
+                        "phantom_delta_s": round(now - last, 3),
+                    },
+                )
+            # Outside window — treat as new invocation.
+            _PHANTOM_DEDUP_CACHE[key] = now
+            return ("write", {})
+
+        # First observation for this key.
+        _PHANTOM_DEDUP_CACHE[key] = now
+        return ("write", {})
+    except Exception:
+        # Fail open on any error.
+        return ("write", {})
 
 
 def main():
@@ -272,6 +379,62 @@ def main():
 
         date_str = _get_session_date(session_id)
         log_file = log_dir / f"{date_str}.jsonl"
+
+        # Issue #1461: phantom-then-real dedup for Task/Agent PostToolUse writes.
+        # Runs BEFORE the write so phantom entries never land in the JSONL log
+        # that pipeline_intent_validator + CIA consume. Only applies to Task/Agent;
+        # every other tool call takes the fast path unchanged.
+        if tool_name in ("Task", "Agent") and log_level != "debug":
+            try:
+                _out_summary = entry.get("output_summary") or {}
+                _in_summary = entry.get("input_summary") or {}
+                _subagent = _in_summary.get("subagent_type", "") or ""
+                _rwc = int(_out_summary.get("result_word_count", 0) or 0)
+                # transcript_path lives on the raw tool_output payload, not the
+                # summary. Fall back to output_summary in case future refactors
+                # promote it there.
+                _tpath = ""
+                if isinstance(tool_output, dict):
+                    _tpath = (
+                        tool_output.get("agent_transcript_path")
+                        or tool_output.get("transcript_path")
+                        or ""
+                    )
+                if not _tpath:
+                    _tpath = _out_summary.get("agent_transcript_path", "") or ""
+                _verdict, _extra = _classify_task_agent_phantom(
+                    subagent_type=_subagent,
+                    session_id=session_id,
+                    result_word_count=_rwc,
+                    agent_transcript_path=_tpath,
+                )
+            except Exception:
+                _verdict, _extra = "write", {}
+
+            if _verdict != "write":
+                # Convert to audit-only entry.
+                _audit_prefix = (
+                    "__phantom_skip__" if _verdict == "phantom_skip"
+                    else "__phantom_dedup_skip__"
+                )
+                _audit_entry = {
+                    "timestamp": entry.get("timestamp"),
+                    "hook": "PostToolUse",
+                    "tool": tool_name,
+                    "session_id": session_id,
+                    "agent": entry.get("agent", "main"),
+                    "phantom_verdict": _verdict,
+                    "subagent_type_flag": f"{_audit_prefix}:{_subagent or 'unknown'}",
+                    **_extra,
+                }
+                try:
+                    with open(log_file, "a") as f:
+                        f.write(json.dumps(_audit_entry, separators=(",", ":")) + "\n")
+                except Exception:
+                    pass  # non-blocking
+                # Skip the normal write + downstream heartbeat/budget checks
+                # (this entry was phantom noise, not a real agent completion).
+                sys.exit(0)
 
         with open(log_file, "a") as f:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
