@@ -1353,6 +1353,165 @@ class TestEvidenceManifestGate1055:
         )
 
 
+class TestEvidenceManifestPreDispatchGate1458:
+    """STEP 10 must verify the Evidence Manifest survived into the reviewer prompt (#1458).
+
+    Issue #1458: The STEP 8 Evidence Manifest gate (#1055) only checks the
+    implementer's RAW output for the manifest marker. Nothing verifies the
+    marker survives VERBATIM PASSING into the CONSTRUCTED reviewer prompt at
+    STEP 10. In spektiv session 449ab2eb (2026-08-08) the implementer emitted
+    a proper manifest, but the coordinator dropped it when building the
+    reviewer prompt; the reviewer returned REQUEST_CHANGES with SOLE finding
+    'missing Evidence Manifest', consuming a full remediation cycle
+    (implementer re-run + security-auditor re-run) to re-emit an unchanged
+    manifest. Matches known bypass pattern `context_dropping` (#367).
+
+    Fix #1458: Add a pre-dispatch HARD GATE at STEP 10 that mechanically
+    verifies the marker substring `| File | State | Verification Signal |`
+    is present in the constructed reviewer prompt (before dispatching the
+    reviewer Agent tool call) when it was present in the raw STEP 8 output.
+    BLOCK-on-failure semantics identical to the #1055 raw-output gate.
+
+    These tests lock the corrected spec text so the gate cannot be silently
+    re-downgraded to advisory or removed.
+    """
+
+    def _step_10_section_text(self, implement_lines: list[str]) -> str:
+        """Return the STEP 10 section bounded by the STEP 10 header and STEP 10a/11."""
+        start_idx = _find_header_line(implement_lines, "### STEP 10:")
+        end_idx = len(implement_lines)
+        for idx in range(start_idx, len(implement_lines)):
+            line = implement_lines[idx]
+            if (
+                line.startswith("### STEP 11:")
+                or line.startswith("### STEP 10a:")
+            ) and idx + 1 != start_idx:
+                end_idx = idx
+                break
+        return "\n".join(implement_lines[start_idx - 1:end_idx])
+
+    def test_step_10_has_evidence_manifest_pre_dispatch_gate_for_1458(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 10 must contain the Evidence Manifest Pre-Dispatch gate (#1458)."""
+        section = self._step_10_section_text(implement_lines)
+
+        # 1. Gate header must appear inside STEP 10
+        assert "Evidence Manifest Pre-Dispatch" in section, (
+            "STEP 10 must contain an 'Evidence Manifest Pre-Dispatch' HARD "
+            "GATE subsection per Issue #1458 — closes the coordinator "
+            "VERBATIM PASSING fidelity gap for the Evidence Manifest."
+        )
+
+        # 2. The literal marker substring the gate searches for must appear
+        assert "| File | State | Verification Signal |" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must specify the "
+            "exact marker substring `| File | State | Verification Signal |` "
+            "per Issue #1458 — this is the literal table header the gate "
+            "searches for in the constructed reviewer prompt."
+        )
+
+        # 3. Issue #1458 must be referenced inline
+        assert "#1458" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must reference "
+            "Issue #1458 inline so the motivation for the gate is "
+            "discoverable when reading the spec."
+        )
+
+    def test_step_10_pre_dispatch_gate_has_block_path_for_1458(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 10 Evidence Manifest Pre-Dispatch gate must document the BLOCK path (#1458)."""
+        section = self._step_10_section_text(implement_lines)
+
+        # BLOCK-on-failure semantics must be explicit
+        assert "BLOCK" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must include a "
+            "BLOCK handling clause per Issue #1458 — the gate is HARD, "
+            "not advisory."
+        )
+
+        # The exact BLOCKED message substring must appear so a future edit
+        # cannot silently soften the failure outcome to a warning
+        assert "BLOCKED: Coordinator dropped the implementer's Evidence Manifest" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must contain the "
+            "exact BLOCK message string ('BLOCKED: Coordinator dropped the "
+            "implementer's Evidence Manifest...') per Issue #1458 so the "
+            "failure outcome cannot be silently softened."
+        )
+
+    def test_step_10_pre_dispatch_gate_is_full_pipeline_only_for_1458(
+        self, implement_lines: list[str]
+    ) -> None:
+        """STEP 10 Evidence Manifest Pre-Dispatch gate must be full-pipeline-only (#1458).
+
+        Per the #1055 activation contract, the Evidence Manifest gates apply
+        in full pipeline mode only — `--light` and `--fix` modes treat the
+        manifest as RECOMMENDED rather than REQUIRED. The pre-dispatch gate
+        must match this activation contract or the modes will diverge.
+        """
+        section = self._step_10_section_text(implement_lines)
+
+        # Must explicitly declare full-pipeline-only activation
+        lowered = section.lower()
+        assert (
+            "full pipeline mode only" in lowered
+            or "full pipeline mode" in lowered
+        ), (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must explicitly "
+            "state that it activates in 'full pipeline mode only' per "
+            "Issue #1458 (matching the #1055 activation contract)."
+        )
+
+        # Both --light and --fix must be explicitly named as non-applicable
+        assert "--light" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must explicitly "
+            "reference --light as a non-applicable mode per Issue #1458."
+        )
+        assert "--fix" in section, (
+            "STEP 10 Evidence Manifest Pre-Dispatch gate must explicitly "
+            "reference --fix as a non-applicable mode per Issue #1458."
+        )
+
+    def test_step_10_pre_dispatch_gate_precedes_reviewer_dispatch_for_1458(
+        self, implement_lines: list[str]
+    ) -> None:
+        """The pre-dispatch gate header must appear BEFORE the parallel-mode reviewer dispatch (#1458).
+
+        Ordering matters: if the gate is described AFTER the Agent(reviewer)
+        dispatch instructions, the check runs too late and the fidelity slip
+        can still happen. The gate header must precede the first parallel-mode
+        Agent tool dispatch line for reviewer inside STEP 10.
+        """
+        gate_line = _find_header_line(
+            implement_lines,
+            "### HARD GATE: Evidence Manifest Pre-Dispatch Preservation",
+        )
+
+        # Find the first parallel-mode reviewer Agent dispatch line after
+        # the STEP 10 header
+        step_10_line = _find_header_line(implement_lines, "### STEP 10:")
+        first_reviewer_dispatch = None
+        for idx in range(step_10_line, len(implement_lines)):
+            line = implement_lines[idx]
+            if 'subagent_type="reviewer"' in line:
+                first_reviewer_dispatch = idx + 1  # 1-indexed
+                break
+
+        assert first_reviewer_dispatch is not None, (
+            "Expected to find a `subagent_type=\"reviewer\"` Agent dispatch "
+            "line after STEP 10 header for Issue #1458 ordering assertion."
+        )
+        assert gate_line < first_reviewer_dispatch, (
+            f"STEP 10 Evidence Manifest Pre-Dispatch gate (line {gate_line}) "
+            f"must precede the first reviewer Agent dispatch (line "
+            f"{first_reviewer_dispatch}) per Issue #1458 — the gate is "
+            f"pre-dispatch, not post-dispatch. If the gate is described "
+            f"after the reviewer dispatch, the check runs too late to "
+            f"prevent the fidelity slip."
+        )
+
+
 class TestPromptIntegrityResearchSkipContext1002:
     """Issue #1002 regression: STEP 3.5 must set PIPELINE_INVOCATION_CONTEXT
     when research is skipped, and STEP 15 cleanup must unset it.

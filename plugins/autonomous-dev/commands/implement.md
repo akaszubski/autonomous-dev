@@ -1528,6 +1528,55 @@ In parallel mode, all three validation agents (reviewer, security-auditor, doc-m
 
 Sequential emission is a NOVEL BYPASS that violates the parallel execution contract. The routing decision (parallel vs sequential) is meaningless if the dispatch itself is sequential.
 
+### HARD GATE: Evidence Manifest Pre-Dispatch Preservation (#1458)
+
+Immediately before dispatching the reviewer Agent tool call — in BOTH parallel mode and sequential mode — you MUST mechanically verify that the Evidence Manifest survived VERBATIM PASSING into the constructed reviewer prompt. This is the pre-dispatch complement to the STEP 8 raw-output gate (#1055): #1055 checks the implementer's raw output contains the manifest; this gate checks the coordinator did not drop it while constructing the reviewer prompt. Without this gate, the coordinator's paraphrase / truncation / summarization slip causes an avoidable remediation cycle (session 449ab2eb, spektiv #1867, 2026-08-08 — reviewer BLOCKED on "missing Evidence Manifest" when the implementer had emitted one). This closes the `context_dropping` bypass class (#367).
+
+**Mode activation** — this gate is REQUIRED in **full pipeline mode only**. Skip in `--light` and `--fix` modes (matching the #1055 activation contract). Log the skip: "Evidence Manifest Pre-Dispatch gate: SKIP (#1458) — mode=light" or "Evidence Manifest Pre-Dispatch gate: SKIP (#1458) — mode=fix".
+
+**Step 1 — Locate manifest in STEP 8 implementer output**
+
+Search the STEP 8 raw implementer output for the marker substring (identical to #1055 Step 1):
+
+```
+| File | State | Verification Signal |
+```
+
+If the marker is ABSENT from the raw STEP 8 output, this gate is inapplicable — the #1055 STEP 8 gate is the authority and MUST have already blocked or completed remediation. Log: "Evidence Manifest Pre-Dispatch gate: N/A (#1458) — raw STEP 8 output has no manifest; #1055 authority" and proceed to Validation mode routing.
+
+**Step 2 — Locate manifest in constructed reviewer prompt**
+
+Search the FULL text you are about to pass to the reviewer Agent tool `prompt` parameter (the "constructed reviewer prompt") for the same marker substring `| File | State | Verification Signal |`.
+
+**Step 3 — Decide pass/block**
+
+- If the marker IS present in the constructed reviewer prompt → PASS. Log: "Evidence Manifest Pre-Dispatch gate: PASS (#1458) — marker preserved into reviewer prompt, mode=full". Proceed to Validation mode routing.
+- If the marker is ABSENT from the constructed reviewer prompt (but was present in the raw STEP 8 output — Step 1 confirmed it) → BLOCK. This is a coordinator VERBATIM PASSING fidelity violation.
+
+**Step 4 — BLOCK path**
+
+Emit the exact BLOCK message:
+
+```
+BLOCKED: Coordinator dropped the implementer's Evidence Manifest when constructing the reviewer prompt (#1458). The raw STEP 8 implementer output contains the manifest marker `| File | State | Verification Signal |`, but the constructed reviewer prompt does not. This is a VERBATIM PASSING fidelity violation (STEP 10 VERBATIM PASSING REQUIRED) that would cause an avoidable remediation cycle. Reconstruct the reviewer prompt to include the Evidence Manifest section verbatim before dispatching the reviewer Agent call.
+```
+
+Also emit the structured log: "Evidence Manifest Pre-Dispatch gate: BLOCKED (#1458) — marker preserved in raw output but dropped from reviewer prompt, mode=full".
+
+You MUST NOT dispatch the reviewer (or any parallel-mode sibling: security-auditor, doc-master) until you rebuild the reviewer prompt to re-include the Evidence Manifest section verbatim from the STEP 8 output. After rebuilding, re-run Step 2 → if the marker is now present, PASS with log "Evidence Manifest Pre-Dispatch gate: PASS-AFTER-REBUILD (#1458) — marker restored to reviewer prompt, mode=full" and proceed.
+
+**Step 5 — Output gate report**
+
+```
+Evidence Manifest Pre-Dispatch Gate (#1458):
+  Mode: full | light (skipped) | fix (skipped)
+  Raw STEP 8 output has manifest: yes | no (→ N/A)
+  Constructed reviewer prompt has manifest: yes | no | yes-after-rebuild
+  Verdict: PASS | PASS-AFTER-REBUILD | BLOCKED | N/A
+```
+
+**FORBIDDEN** — In full pipeline mode you MUST NOT dispatch the reviewer without confirming (via mechanical substring search on the outgoing prompt text) that the Evidence Manifest marker survived from the raw STEP 8 output into the reviewer prompt (#1458). You MUST NOT rely on the reviewer's independent flag as a substitute (that was the original failure mode — reviewer returned REQUEST_CHANGES, a full remediation cycle was consumed re-emitting a manifest the implementer had already produced). You MUST NOT synthesize the manifest yourself — if the marker was in the raw output but is missing from the reviewer prompt, the fix is to REBUILD the prompt with a verbatim copy of the manifest section from the raw STEP 8 output, not to author a new one.
+
 **Validation mode routing**: Before launching any validator, check if any changed files match security-sensitive patterns:
 
 - Security-sensitive patterns: `hooks/*.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `*.env*`, `*secret*`, `config/auto_approve_policy.json`, `templates/settings.*.json`, `*trading*`, `*payment*`, `*billing*`, `*financial*`, `*transaction*`, `*wallet*`, `*crypto*`, `*permission*`, `*session*`, `*credential*`, `*password*`, `*oauth*`, `*sso*`, `*jwt*`, `*rbac*`, `migrations/`, `*migrate*`, `alembic/`
