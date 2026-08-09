@@ -73,12 +73,21 @@ class TestIssue747ShrinkageGateTestFix:
         assert "shrank" in reason
 
     def test_shrinkage_gate_passes_when_above_threshold(self):
-        """A 300-word prompt is allowed with a 396-word baseline (shrinkage = 24.2%, < 25%).
+        """A 330-word prompt is allowed with a 396-word baseline (shrinkage = 16.7%, < 20%).
 
-        Verifies that the shrinkage threshold (25%) is a soft boundary that allows
+        Verifies that the shrinkage threshold (20%, per hook's max_shrinkage=0.20 in
+        unified_pre_tool.py validate_prompt_integrity) is a soft boundary that allows
         natural variation while blocking catastrophic compression.
+
+        Issue #1471: recalibrated from 300 words (24.2% shrinkage) to 330 words
+        (16.7% shrinkage). The original 300-word fixture was written when the
+        shrinkage gate was silently fail-open (dead code path), so its arithmetic
+        was never actually exercised — 24.2% exceeds the 20% threshold and an
+        enforcing gate correctly denies it. 330 words keeps this test's INTENT
+        (a prompt within the shrinkage threshold must be allowed) while giving
+        genuinely-under-threshold math: (396 - 330) / 396 = 16.7% < 20%.
         """
-        prompt = _make_prompt(300)
+        prompt = _make_prompt(330)
         with (
             patch.object(hook, "_is_pipeline_active", return_value=True),
             patch("prompt_integrity.get_prompt_baseline", return_value=396),
