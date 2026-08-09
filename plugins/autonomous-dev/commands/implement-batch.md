@@ -164,6 +164,18 @@ Starting batch processing in worktree: .worktrees/$BATCH_ID
 
 **CRITICAL**: Batch must auto-continue through ALL features without manual intervention.
 
+**REQUIRED — cluster mode (BATCH_NO_WORKTREE=1) sub-issue attribution** (Issue #1477):
+Before executing the pipeline for each sub-issue in cluster mode, the coordinator MUST call `advance_batch_state(issue_number)` from `plugins/autonomous-dev/lib/batch_orchestrator.py`. This sets the `CURRENT_BATCH_ISSUE` env var AND advances `<cwd>/.claude/batch_state.json`'s `current_index` so the `session_activity_logger.py` hook can stamp every downstream Agent PostToolUse entry with the correct `batch_issue_number`. Without this call every sub-issue's completions are tagged with the FIRST issue number, making per-sub-issue attribution invisible in `.claude/logs/activity/*.jsonl` (the failure mode observed across 4 distinct sessions in July 2026).
+
+```python
+import sys
+sys.path.insert(0, "plugins/autonomous-dev/lib")
+from batch_orchestrator import advance_batch_state
+advance_batch_state(issue_number)  # sets env + advances state file
+```
+
+The helper is a no-op outside cluster mode (batch_state.json will be absent in single-issue runs).
+
 For each feature in the list:
 
 1. Display progress using per-feature header: `Feature M/N — "feature description" [mode]` (see Batch Mode Progress Protocol). The `[mode]` suffix shows the detected pipeline mode (full/--fix/--light) from STEP I1.5. After each feature completes, output per-feature footer with elapsed time and running total.
