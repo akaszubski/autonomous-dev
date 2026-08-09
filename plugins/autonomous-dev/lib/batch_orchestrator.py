@@ -1059,6 +1059,86 @@ def run_batch_no_worktree_mode(flags: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def advance_batch_state(issue_number: int, cwd: Optional[Path] = None) -> Dict[str, Any]:
+    """Advance cluster-mode (BATCH_NO_WORKTREE=1) sub-issue attribution state.
+
+    Issue #1477: In cluster mode the coordinator processes issues serially on
+    the current branch but never advances the ``current_index`` cursor written
+    to ``<cwd>/.claude/batch_state.json`` by :func:`run_batch_no_worktree_mode`.
+    As a result, :func:`session_activity_logger._resolve_current_batch_issue`
+    always returns ``issues[0]`` and every sub-issue's agent PostToolUse entry
+    is tagged with the FIRST issue number rather than the in-flight one,
+    making per-sub-issue attribution invisible to CIA post-session analysis
+    (Issue #1430 fixed the logger side; #1477 fixes the coordinator side).
+
+    This helper is the single source of truth for advancing that state and
+    MUST be called by ``implement-batch.md`` at the START of each sub-issue
+    iteration in cluster mode. It performs two independent writes so either
+    fallback path in the hook resolves correctly:
+
+    1. Sets ``os.environ["CURRENT_BATCH_ISSUE"]`` (env-first, cheap resolution).
+    2. Updates ``<cwd>/.claude/batch_state.json`` ``current_index`` to the
+       position of ``issue_number`` in the persisted ``issues[]`` list.
+
+    Args:
+        issue_number: The GitHub issue number now being processed.
+        cwd: Optional working directory root (defaults to ``Path.cwd()``).
+
+    Returns:
+        Dict summarising what was updated::
+
+            {
+                "issue_number": <int>,
+                "env_set": True,
+                "state_updated": <bool>,   # False if batch_state.json missing/malformed
+                "current_index": <int|None>,
+            }
+
+    Non-blocking: writes to batch_state.json are best-effort. The env-var
+    write is unconditional so the hook's env-first fallback always works
+    even if the state file is unreadable.
+    """
+    if not isinstance(issue_number, int) or issue_number <= 0:
+        raise InvalidArgumentError(
+            f"advance_batch_state requires a positive issue number (got: {issue_number!r})"
+        )
+
+    os.environ["CURRENT_BATCH_ISSUE"] = str(issue_number)
+
+    result: Dict[str, Any] = {
+        "issue_number": issue_number,
+        "env_set": True,
+        "state_updated": False,
+        "current_index": None,
+    }
+
+    root = Path(cwd) if cwd is not None else Path.cwd()
+    state_path = root / ".claude" / "batch_state.json"
+    if not state_path.exists():
+        return result
+
+    try:
+        state = json.loads(state_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return result
+
+    issues = state.get("issues") or []
+    try:
+        idx = [int(n) for n in issues].index(int(issue_number))
+    except (ValueError, TypeError):
+        return result
+
+    state["current_index"] = idx
+    try:
+        state_path.write_text(json.dumps(state, indent=2))
+    except OSError:
+        return result
+
+    result["state_updated"] = True
+    result["current_index"] = idx
+    return result
+
+
 # =============================================================================
 # Deprecation Shim Support
 # =============================================================================

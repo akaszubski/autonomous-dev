@@ -693,3 +693,9 @@
 {"fire_id": "20260809T041206Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260809T081245Z", "fired_at": "2026-08-09T08:13:01.216121Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260809T081245Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260809T101220Z", "fired_at": "2026-08-09T10:12:39Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260809T101220Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260809T121804Z", "fired_at": "2026-08-09T12:18:23Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260809T121804Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260809T141430Z", "fired_at": "2026-08-09T14:14:48Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260809T141430Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
