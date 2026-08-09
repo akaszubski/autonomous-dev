@@ -197,3 +197,115 @@ class TestAgentDispatchSentinel:
 
         # Should be active with default TTL
         assert ads.is_active(repo_root=self.test_root)
+
+
+class FakeClock:
+    """Controllable monotonic-ish wall clock for TTL tests (no real sleeping)."""
+
+    def __init__(self, start: float = 1_700_000_000.0) -> None:
+        self.now = start
+
+    def time(self) -> float:
+        """Return the current fake wall-clock time."""
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        """Move the fake clock forward."""
+        self.now += seconds
+
+
+class TestRefreshSlidingTTL:
+    """Unit tests for refresh() — the sliding-TTL half of Issue #1448.
+
+    The sentinel used to carry a single timestamp written at dispatch time, so any
+    dispatched implementer whose protected-path edit landed after the TTL window was
+    blocked mid-run. refresh() slides the timestamp forward on observed tool activity.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path, monkeypatch):
+        """Set up a temp repo and a fake clock injected into the sentinel module."""
+        self.test_root = tmp_path / "test_repo"
+        (self.test_root / ".claude/local").mkdir(parents=True)
+        self.sentinel_path = self.test_root / ".claude/local/active_agent_dispatch.json"
+        self.clock = FakeClock()
+        monkeypatch.setattr(ads, "time", self.clock)
+
+    def test_refresh_slides_timestamp_forward(self):
+        """refresh() moves an existing sentinel's timestamp to now."""
+        ads.write("implementer", self.test_root)
+        original_ts = json.loads(self.sentinel_path.read_text())["timestamp"]
+
+        self.clock.advance(120)
+        assert ads.refresh(repo_root=self.test_root) is True
+
+        new_ts = json.loads(self.sentinel_path.read_text())["timestamp"]
+        assert new_ts == pytest.approx(original_ts + 120)
+
+    def test_refresh_on_missing_sentinel_is_noop(self):
+        """refresh() must never create a sentinel from nothing (no gate self-arming)."""
+        assert not self.sentinel_path.exists()
+
+        assert ads.refresh(repo_root=self.test_root) is False
+
+        assert not self.sentinel_path.exists()
+        assert not ads.is_active(repo_root=self.test_root)
+
+    def test_refresh_preserves_agent_and_pid_payload(self):
+        """refresh() rewrites only the timestamp; identity fields survive."""
+        ads.write("implementer", self.test_root)
+        self.clock.advance(30)
+
+        ads.refresh(repo_root=self.test_root)
+
+        data = json.loads(self.sentinel_path.read_text())
+        assert data["agent"] == "implementer"
+        assert data["pid"] == os.getpid()
+
+    def test_refresh_does_not_resurrect_stale_sentinel(self):
+        """A sentinel already past TTL is not revived — crash backstop preserved."""
+        ads.write("implementer", self.test_root)
+        stale_ts = json.loads(self.sentinel_path.read_text())["timestamp"]
+
+        self.clock.advance(ads.DEFAULT_TTL_SECONDS + 1)
+        assert ads.refresh(repo_root=self.test_root) is False
+
+        assert json.loads(self.sentinel_path.read_text())["timestamp"] == stale_ts
+        assert not ads.is_active(repo_root=self.test_root)
+
+    def test_refresh_handles_malformed_json(self):
+        """Malformed sentinel payload is a no-op, not a crash."""
+        self.sentinel_path.write_text("{invalid json}")
+
+        assert ads.refresh(repo_root=self.test_root) is False
+
+    def test_refresh_handles_non_dict_payload(self):
+        """A JSON payload that is not an object is a no-op, not a crash."""
+        self.sentinel_path.write_text("[1, 2, 3]")
+
+        assert ads.refresh(repo_root=self.test_root) is False
+
+    def test_dispatch_stays_active_far_beyond_original_ttl(self):
+        """Regression for #1448: periodic refresh keeps a long dispatch active.
+
+        Total elapsed time is 3x the TTL, but each interval between tool uses is
+        below it — the exact shape of a multi-file implementer run.
+        """
+        ads.write("implementer", self.test_root)
+
+        for _ in range(6):
+            self.clock.advance(ads.DEFAULT_TTL_SECONDS // 2)
+            assert ads.refresh(repo_root=self.test_root) is True
+            assert ads.is_active(repo_root=self.test_root)
+
+        self.clock.advance(1)
+        assert ads.is_active(repo_root=self.test_root)
+
+    def test_idle_dispatch_still_expires_without_refresh(self):
+        """Without refresh activity, the TTL backstop still expires the sentinel."""
+        ads.write("implementer", self.test_root)
+
+        self.clock.advance(ads.DEFAULT_TTL_SECONDS + 1)
+
+        assert not ads.is_active(repo_root=self.test_root)
+        assert not self.sentinel_path.exists()

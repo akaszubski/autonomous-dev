@@ -318,6 +318,21 @@ def main():
         tool_input = hook_input.get("tool_input", {})
         tool_output = hook_input.get("tool_output", {})
 
+        # Issue #1448: slide the agent-dispatch sentinel TTL forward. Every tool use
+        # while a dispatched agent is in flight is evidence the agent is still alive,
+        # so the sentinel written at dispatch time (PreToolUse, above) stays valid for
+        # the whole dispatch instead of expiring mid-run and blocking the implementer's
+        # later protected-path edits (Issue #1296 gate in unified_pre_tool.py).
+        # refresh() is a no-op when no sentinel exists (outside a dispatch window) and
+        # when the sentinel is already stale, so it can never arm the gate on its own.
+        # Note: with ACTIVITY_LOGGING=false this hook exits early and the gate falls
+        # back to the fixed DEFAULT_TTL_SECONDS crash backstop.
+        try:
+            from agent_dispatch_sentinel import refresh as _ads_refresh
+            _ads_refresh()
+        except Exception:
+            pass  # never block on sentinel refresh failure
+
         # Session ID: prefer env var, fall back to hook stdin JSON
         session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
         if session_id == "unknown":

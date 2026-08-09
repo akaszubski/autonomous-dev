@@ -305,10 +305,19 @@ Re-dispatch the implementer agent with this change as a remediation cycle. (Issu
    "Re-dispatch the implementer agent to add the missing import/function/etc."
    ```
 
-2. **Sentinel lifecycle** — the sentinel is automatically:
-   - Written when an agent is dispatched (via Task tool)
-   - Cleared after the agent completes (PostToolUse hook)
-   - Expires after 30 seconds (TTL safety)
+2. **Sentinel lifecycle (sliding TTL, Issue #1448/#1475)** — the sentinel is automatically:
+   - Written once when an agent is dispatched (via Task tool, `PreToolUse`)
+   - Refreshed (timestamp slid forward) on every observed tool use while the
+     dispatched agent is running (`PostToolUse` in `session_activity_logger.py`) —
+     this is what makes a long-running, multi-file implementer session stay
+     continuously "active" instead of expiring mid-dispatch
+   - Cleared on `SubagentStop` (normal dispatch completion)
+   - `DEFAULT_TTL_SECONDS = 600` is only the *idle*/crash backstop — how long
+     the sentinel survives with **no** tool activity at all (crashed agent, or
+     a `SubagentStop` that never fired). It is no longer a fixed window
+     anchored at dispatch time (that fixed-window design previously caused
+     false BLOCKED denials for long-running multi-file implementer sessions
+     even at the raised 30s→600s value, Issue #1447/#1471).
 
 **When this doesn't apply**: 
 - Outside `/implement` pipeline (no pipeline active) — note: a direct edit

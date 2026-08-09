@@ -4,8 +4,22 @@ Issue #1296: distinguishes coordinator direct edits from agent-dispatched edits 
 protected infrastructure paths.
 
 Sentinel file: <repo>/.claude/local/active_agent_dispatch.json (per-repo isolation,
-Issue #1206 pattern). TTL 30s — beyond this, treat as stale (crashed agent or
-forgotten PostToolUse clear).
+Issue #1206 pattern).
+
+Lifecycle (Issue #1448 — sliding TTL):
+    write()   — armed once when a Task/Agent dispatch starts (PreToolUse).
+    refresh() — slides the timestamp forward on every observed tool use while the
+                dispatched agent is still running (PostToolUse). This is what makes
+                the TTL a *sliding* window rather than a fixed one: a dispatched
+                implementer doing reads, test runs and multi-file edits over many
+                minutes stays continuously active as long as it keeps using tools.
+                refresh() never creates a sentinel and never resurrects one that has
+                already gone stale.
+    clear()   — disarmed on SubagentStop (dispatch completion).
+
+DEFAULT_TTL_SECONDS is therefore only the *idle*/crash backstop: how long the
+sentinel survives with no tool activity at all (crashed agent, or a SubagentStop
+that never fired).
 """
 from __future__ import annotations
 
@@ -21,7 +35,8 @@ _SENTINEL_REL = ".claude/local/active_agent_dispatch.json"
 # real implementer dispatch latency — system-prompt/skill loading + one Read +
 # streaming a multi-line Edit call reliably exceeds it, structurally denying
 # every large protected-path edit. SubagentStop still clears the sentinel on
-# agent completion; the TTL is only the crash backstop, so 600s is safe.
+# agent completion; combined with refresh()-on-tool-use (Issue #1448) the TTL is
+# only the idle/crash backstop, so 600s is safe.
 DEFAULT_TTL_SECONDS = 600
 
 
@@ -66,6 +81,52 @@ def clear(repo_root: Optional[Path] = None) -> None:
         p.unlink()
     except FileNotFoundError:
         pass
+
+
+def refresh(
+    ttl_seconds: int = DEFAULT_TTL_SECONDS, repo_root: Optional[Path] = None
+) -> bool:
+    """Slide an existing sentinel's TTL forward (Issue #1448).
+
+    Called from the hook that observes ongoing tool activity while a dispatched
+    agent is running. Each tool use is evidence the agent is still alive, so the
+    sentinel's timestamp is moved to now — turning the fixed TTL window into a
+    sliding one.
+
+    Deliberately conservative:
+        - No sentinel file  -> no-op (never creates one). Otherwise the coordinator
+          could arm the protected-path gate without a real dispatch.
+        - Already stale     -> no-op (never resurrects a dead dispatch), preserving
+          the crash backstop.
+        - Malformed payload -> no-op.
+        - Existing payload (agent name, pid) is preserved; only the timestamp moves.
+
+    Args:
+        ttl_seconds: Staleness threshold. Sentinels older than this are not refreshed.
+        repo_root: Repository root directory. If None, uses cwd.
+
+    Returns:
+        True if an existing, non-stale sentinel was refreshed; False otherwise.
+    """
+    p = _path(repo_root)
+    if not p.exists():
+        return False
+    try:
+        data = json.loads(p.read_text())
+        if not isinstance(data, dict):
+            return False
+        ts = float(data.get("timestamp", 0))
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        return False
+    if time.time() - ts > ttl_seconds:
+        # Stale → refusing to resurrect. is_active() cleans it up.
+        return False
+    data["timestamp"] = time.time()
+    try:
+        p.write_text(json.dumps(data))
+    except OSError:
+        return False
+    return True
 
 
 def is_active(ttl_seconds: int = DEFAULT_TTL_SECONDS, repo_root: Optional[Path] = None) -> bool:

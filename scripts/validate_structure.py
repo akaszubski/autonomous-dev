@@ -134,6 +134,7 @@ def check_root_cleanliness() -> List[str]:
         "README.md",
         "CHANGELOG.md",
         "CLAUDE.md",
+        "AGENTS.md",  # Codex-convention agent instructions (analogous to CLAUDE.md)
         "CONTRIBUTING.md",
         "PROJECT.md",  # Project-level strategic direction (not tool-specific)
     }

@@ -28,6 +28,13 @@ sys.path.insert(0, str(repo_root / "plugins/autonomous-dev/hooks"))
 import agent_dispatch_sentinel as ads
 import unified_pre_tool as hook
 
+# Test-ordering note: decision capture below uses patch.object(hook, "output_decision")
+# rather than patch("unified_pre_tool.output_decision"). Another test module in the
+# session may importlib.reload() the hook; the string form then patches the reloaded
+# module in sys.modules while `hook.main` still resolves output_decision from this
+# (stale) module's globals, so the deny is emitted but never captured and the
+# deny-expecting tests fail purely on collection order.
+
 
 class TestIssue1296CoordinatorBypass:
     """Test suite for Issue #1296 coordinator bypass protection."""
@@ -113,7 +120,7 @@ class TestIssue1296CoordinatorBypass:
                         # Simulate sys.exit after our deny
                         raise SystemExit(0)
                 
-                with patch("unified_pre_tool.output_decision", side_effect=capture_output):
+                with patch.object(hook, "output_decision", side_effect=capture_output):
                     with patch("sys.exit", side_effect=SystemExit):
                         try:
                             hook.main()
@@ -150,7 +157,7 @@ class TestIssue1296CoordinatorBypass:
                 def capture_output(decision, reason, **kwargs):
                     output_calls.append((decision, reason))
                 
-                with patch("unified_pre_tool.output_decision", side_effect=capture_output):
+                with patch.object(hook, "output_decision", side_effect=capture_output):
                     with patch("sys.exit"):
                         hook.main()
                         
@@ -182,7 +189,7 @@ class TestIssue1296CoordinatorBypass:
                         # Simulate sys.exit after infrastructure block
                         raise SystemExit(0)
                 
-                with patch("unified_pre_tool.output_decision", side_effect=capture_output):
+                with patch.object(hook, "output_decision", side_effect=capture_output):
                     with patch("sys.exit", side_effect=SystemExit):
                         try:
                             hook.main()
@@ -222,7 +229,7 @@ class TestIssue1296CoordinatorBypass:
                 def capture_output(decision, reason, **kwargs):
                     output_calls.append((decision, reason))
                 
-                with patch("unified_pre_tool.output_decision", side_effect=capture_output):
+                with patch.object(hook, "output_decision", side_effect=capture_output):
                     with patch("sys.exit"):
                         hook.main()
                         
@@ -320,7 +327,7 @@ class TestIssue1296CoordinatorBypass:
                     return original_import(name, *args, **kwargs)
                 
                 with patch("sys.exit", side_effect=SystemExit):
-                    with patch("unified_pre_tool.output_decision", side_effect=capture_output):
+                    with patch.object(hook, "output_decision", side_effect=capture_output):
                         with patch("builtins.__import__", side_effect=mock_import):
                             try:
                                 hook.main()

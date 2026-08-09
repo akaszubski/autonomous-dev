@@ -1077,6 +1077,13 @@ class TestUnifiedSessionTrackerSubagentStopCorrelation:
         else:
             ust = importlib.import_module("unified_session_tracker")
         monkeypatch.setattr(ust, "_pop_cached_subagent_invocation", sic.pop_invocation)
+        # Consecutive-run isolation (Issue #1184 class, same shape as #1176): these
+        # tests use fixed session_ids, so the SubagentStop dedup marker they claim in
+        # /tmp survives the pytest process and makes every later run see a duplicate
+        # (`__dedup_skip__` entries instead of real writes). Route markers to tmp_path
+        # — the hermeticity hook the marker API already exposes — instead of deleting
+        # shared /tmp state that a concurrent live session may be relying on.
+        monkeypatch.setattr(ust, "_DEFAULT_MARKER_DIR", tmp_path)
         self.ust = ust
         self.sic = sic
 

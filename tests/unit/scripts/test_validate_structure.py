@@ -209,6 +209,54 @@ class TestComponentCountDriftCheck:
         )
 
 
+class TestRootCleanliness:
+    """Tests for check_root_cleanliness() root .md allowlist.
+
+    Regression: AGENTS.md is the industry-standard agent-instructions root file
+    (Codex convention, analogous to the already-allowlisted CLAUDE.md) and is
+    intentional in this repo — there is an active Codex plugin port
+    (docs/plans/codex-plugin-port.md, .codex/). Before the fix, its presence in
+    root produced "Unexpected .md in root: AGENTS.md" and blocked every commit.
+    """
+
+    def test_agents_md_in_root_is_allowed(
+        self, validate_module: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AGENTS.md alongside the other essential root docs produces no errors."""
+        for name in ("README.md", "CHANGELOG.md", "CLAUDE.md", "AGENTS.md"):
+            (tmp_path / name).write_text("x")
+        monkeypatch.setattr(validate_module, "ROOT", tmp_path)
+
+        errors = validate_module.check_root_cleanliness()
+
+        assert errors == [], f"Expected no errors for AGENTS.md in root, got: {errors}"
+
+    def test_unexpected_root_md_still_reported(
+        self, validate_module: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A genuinely unexpected root .md still errors — the allowlist is not a blanket pass."""
+        (tmp_path / "README.md").write_text("x")
+        (tmp_path / "AGENTS.md").write_text("x")
+        (tmp_path / "RANDOM_NOTES.md").write_text("x")
+        monkeypatch.setattr(validate_module, "ROOT", tmp_path)
+
+        errors = validate_module.check_root_cleanliness()
+
+        assert len(errors) == 1, f"Expected exactly 1 error, got {len(errors)}: {errors}"
+        assert "RANDOM_NOTES.md" in errors[0], (
+            f"Error should name the unexpected file, got: {errors[0]}"
+        )
+        assert "AGENTS.md" not in errors[0], (
+            f"AGENTS.md must not be flagged as unexpected, got: {errors[0]}"
+        )
+
+    def test_actual_repo_root_is_clean(self, validate_module: Any) -> None:
+        """End-to-end: the real repo root passes the check (this is the commit gate)."""
+        errors = validate_module.check_root_cleanliness()
+
+        assert errors == [], f"Real repo root failed cleanliness check: {errors}"
+
+
 class TestUserFacingCommandCount:
     """Tests for _count_user_facing_commands() and its dispatch in check_component_count_drift().
 
