@@ -158,7 +158,20 @@ DEFAULT_DENY_LIST = [
 
     # Dangerous git operations
     "Bash(*git *--force*)",
-    "Bash(*git *push*-f*)",
+    # Issue #1405: the old `*git *push*-f*` glob matched the bare "-f"
+    # substring anywhere after "push", denying any branch name containing
+    # "-f" (e.g. `git push origin my-feature`).  The fix keys on a literal
+    # " -f" (space-dash-f) flag boundary instead.  The `*` between "git" and
+    # "push" is retained deliberately so global options and whitespace stay
+    # covered (`git -c k=v push -f`, `git -C /repo push -f`,
+    # `git --no-pager push -f`, `git  push -f`) — security audit showed the
+    # contiguous "git push" form opened those as full bypasses.  Under
+    # Python's fnmatch the second rule is redundant (a trailing `*` matches
+    # empty), but it is kept as defense-in-depth: these rules are evaluated
+    # by Claude Code's closed-source native matcher, whose empty-match
+    # semantics for a trailing `*` are unverified.
+    "Bash(*git *push* -f*)",
+    "Bash(*git *push* -f)",
     "Bash(*git *reset*--hard*)",
     "Bash(*git *clean*-fd*)",
 

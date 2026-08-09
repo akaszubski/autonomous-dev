@@ -41,20 +41,23 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
 from dataclasses import asdict
 
-# Add plugins directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "plugins"))
+# The installed package directory is "autonomous-dev" (hyphenated), which is
+# not a valid Python package name/import path — "autonomous_dev.lib..." never
+# resolves. The repo's convention (see
+# tests/regression/regression/test_regression_issue_1409_permission_anchor.py)
+# is to add plugins/autonomous-dev/lib directly to sys.path and import the
+# module by its bare name.
+LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "lib"
+if str(LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(LIB_DIR))
 
-# Import will fail until implementation exists
-try:
-    from autonomous_dev.lib.settings_generator import (
-        SettingsGenerator,
-        GeneratorResult,
-        SettingsGeneratorError,
-        DEFAULT_DENY_LIST,
-        SAFE_COMMAND_PATTERNS,
-    )
-except ImportError:
-    pytest.skip("settings_generator.py not implemented yet", allow_module_level=True)
+from settings_generator import (  # noqa: E402
+    SettingsGenerator,
+    GeneratorResult,
+    SettingsGeneratorError,
+    DEFAULT_DENY_LIST,
+    SAFE_COMMAND_PATTERNS,
+)
 
 
 # =============================================================================
@@ -552,13 +555,19 @@ def test_build_deny_list_includes_git_force_operations():
     # Note: uses glob syntax (not command:pattern) to avoid ":* must be at end" constraint
     git_dangerous = [
         "Bash(*git *--force*)",
-        "Bash(*git *push*-f*)",
+        "Bash(*git *push* -f*)",
+        "Bash(*git *push* -f)",
         "Bash(*git *reset*--hard*)",
         "Bash(*git *clean*-fd*)",
     ]
 
     for pattern in git_dangerous:
         assert pattern in deny_list
+
+    assert "Bash(*git *push*-f*)" not in deny_list, (
+        "Issue #1405: the over-broad force-push glob must not be reintroduced — "
+        "it denies any branch name containing '-f' (e.g. `git push origin my-feature`)."
+    )
 
 
 def test_build_deny_list_includes_package_operations():
@@ -1046,7 +1055,7 @@ def test_uses_security_utils_for_path_validation(temp_plugin_dir, temp_project_r
     output_path = temp_project_root / ".claude" / "settings.local.json"
 
     # Mock security validation
-    with patch('autonomous_dev.lib.settings_generator.validate_path') as mock_validate:
+    with patch('settings_generator.validate_path') as mock_validate:
         mock_validate.return_value = output_path  # Allow the path
 
         generator.write_settings(output_path)
@@ -1078,7 +1087,7 @@ def test_audit_logs_all_file_operations(temp_plugin_dir, temp_project_root):
     output_path = temp_project_root / ".claude" / "settings.local.json"
 
     # Mock audit logging
-    with patch('autonomous_dev.lib.settings_generator.audit_log') as mock_audit:
+    with patch('settings_generator.audit_log') as mock_audit:
         generator.write_settings(output_path)
 
         # Should have logged the operation

