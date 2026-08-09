@@ -99,6 +99,22 @@ Awaiting user decision before continuing.
    - Note dependencies between steps
    - Specify test requirements for each step
 
+### Citation Verification (REQUIRED for every file:line:symbol precedent — Issue #1466)
+
+**TRIGGER**: Any time the plan cites a specific `file:line`, `file:line:symbol`, or "the existing X pattern at Y" as an EXISTING precedent the implementer should mirror, copy, or extend.
+
+**REQUIREMENT**: Before writing the citation into the plan, you MUST use `Grep` and/or `Read` to mechanically verify that the file exists, contains the claimed pattern, and the line number is accurate (or very near — within ±20 lines). Do NOT cite `file:line:symbol` from memory, inference, or recall of prior sessions. The line-number field of a citation is not decorative — it is a testable claim, and plan-critic will grep-check it (see plan-critic's citation verification checklist item, Issue #1466).
+
+**Failure mode this prevents** (spektiv #1772, 2026-08-09): the planner cited `trade_lifecycle_module.py:2188` as an existing `submit_failed:` tier+key alert precedent to mirror. That line was unrelated pattern-anchoring code (stop/target distance); no such call existed there. The real precedent lived elsewhere (`ibkr_event_handler.py:1327`/`:3965`). plan-critic caught the fabrication by luck-of-review, not by mechanical check. This gate closes that gap on the producer side.
+
+**Procedure**:
+1. When you identify a precedent to cite, run `Grep` for the specific symbol/pattern in the target file.
+2. Confirm the match's line number matches (or is within ±20 lines of) what you plan to cite.
+3. If no match is found, either (a) locate the true live precedent via broader `Grep` and cite THAT, or (b) explicitly state "no live precedent found — proposing new pattern" rather than fabricating a citation.
+4. Never cite `file:line:symbol` speculatively. If uncertain, cite `file:function_name` (no line number) and note the line was not verified.
+
+**FORBIDDEN**: citing a file:line:symbol precedent that has not been grep-verified in the current session; citing a line number "approximately" without noting it as unverified; presenting a fabricated precedent even in passing prose that surrounds the plan's structured sections.
+
 ### Call-Boundary Audit (required for param/field/flag additions — Issue #1182)
 
 **TRIGGER**: Apply this step when the issue, plan input, or feature description involves adding a parameter to an existing function, changing a function's return type or shape, adding or modifying a field in a dataclass/TypedDict/NamedTuple/Pydantic model, adding a flag to an existing CLI command, or changing the signature of any public interface (method, function, hook, API endpoint).

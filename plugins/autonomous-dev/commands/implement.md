@@ -487,18 +487,43 @@ Options:
 
 If `FORCE_FLAG` is set, emit a notice (`STEP 0a: --force bypassed closed-issue BLOCK for #{N}`) and continue. The merge-status check (b) still runs.
 
-(b) **Merge-status check** — Issue #936. Search recent commits for issue references:
+(b) **Merge-status check** — Issue #936 (initial) + Issue #1465 (strengthened to ALREADY-MERGED HARD BLOCK). Search ALL branches for merged commits referencing the issue, then also scan recent (30d) commits on the current branch:
 
 ```bash
+# Issue #1465: BEFORE the planner runs, hard-check whether ANY commit in git
+# history references this issue via #NNN, "Closes #NNN", or "Fixes #NNN". If
+# such a commit exists on the default branch (origin/master by default), the
+# work has ALREADY been merged and the pipeline MUST abort — spawning the
+# planner in this state wastes a full opus run (spektiv session 449ab2eb: a
+# planner run was consumed on already-merged #1809 before the stale-OPEN
+# state was discovered). This is an ALREADY-MERGED verdict, not a WARNING.
+MERGED_TO_DEFAULT=$(git log origin/master --oneline --grep "#${ISSUE_NUMBER}" 2>/dev/null | head -5)
 MERGE_HITS=$(git log --oneline --grep "#${ISSUE_NUMBER}" -10 2>/dev/null)
 ```
 
-If `MERGE_HITS` is non-empty AND any matching commit is within 30 days (`git log --since='30 days ago' --oneline --grep "#${ISSUE_NUMBER}"`), emit a **WARNING** (not BLOCK by default):
+**If `MERGED_TO_DEFAULT` is non-empty AND `FORCE_FLAG` is unset**, emit an **ALREADY-MERGED BLOCK** (Issue #1465):
 
 ```
-WARNING (STEP 0a, Issue #936): Issue #{N} appears in N recent commit(s):
+BLOCKED (STEP 0a, Issue #1465): ALREADY-MERGED — Issue #{N} has commit(s) on origin/master:
+  [list commit SHAs and subjects from MERGED_TO_DEFAULT]
+
+The requested work appears to already be merged to the default branch. Spawning the
+planner in this state would waste a full opus run and produce a duplicate/no-op change.
+
+Options:
+  A) Close as stale: gh issue close {N} --comment "already merged in <SHA>"
+  B) Force (rare — only if the issue is a legitimate re-open on a new surface): re-run with --force
+  C) Cancel
+```
+
+The coordinator MUST NOT proceed to STEP 1 (i.e., MUST NOT spawn any downstream agent — planner, researcher, or otherwise) until either (A) the user confirms `continue` after inspecting the merged commits, or (B) `--force` is passed. This is a HARD GATE: no planner opus run, no researcher dispatch, no plan-critic — the pipeline halts here.
+
+If `MERGED_TO_DEFAULT` is empty but `MERGE_HITS` is non-empty (issue referenced only on other branches, not yet merged to master), fall back to the Issue #936 WARNING:
+
+```
+WARNING (STEP 0a, Issue #936): Issue #{N} appears in N recent commit(s) on non-default branches:
   [list commit SHAs and subjects]
-The work may already be merged. Options:
+The work may already be in progress on another branch. Options:
   A) Continue pipeline (--force or explicit "continue")
   B) Cancel
 ```
