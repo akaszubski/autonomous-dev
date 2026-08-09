@@ -998,9 +998,30 @@ If the retry (2nd invocation) also returns `word_count < 80`, retry ONCE MORE (3
 
 **Security-sensitive escalation (Issue #1145)**: If the plan references any of `hooks/*.py`, `lib/quality_persistence_enforcer.py`, `lib/*security*`, `lib/*auth*`, `lib/*token*`, `config/auto_approve_policy.json`, or `templates/settings.*.json`, increase the maximum rounds from 3 to 5 rounds. The additional rounds fire ONLY if the critic continues to return REVISE — a clean PROCEED at any round still terminates the loop normally. Rationale: security-enforcement files (#1142 was a hook modification to `unified_pre_tool.py`) carry higher cost when a revision addresses one finding but re-introduces another under pressure to satisfy the critic's checklist; the extra two rounds amortize against catching that regression. Cost: one or two additional Sonnet invocations (~165s, ~$0.10 each).
 
+**Coordinator-owned verdict persistence (Issue #1468)**: After the plan-critic agent returns its structured chat response, the coordinator (this command — `main`, `Write`-capable) MUST persist the verdict to `.claude/plan_critic_verdict.json` by calling the lib helper. The agent is read-only and MUST NOT write the file itself (its previous Bash-heredoc write path fell through to a live user permission prompt mid-pipeline — Issue #1468 root cause). Persist with:
+
+```python
+from plan_critic_verdict import write_verdict_from_output, PlanCriticVerdictError
+
+try:
+    path = write_verdict_from_output(
+        <plan_critic_chat_response_body>,
+        fallback_reasoning=<plan_critic_chat_response_body>,
+    )
+    if path is None:
+        # No verdict line parsed → treat as ghost-output retry (see above).
+        ...
+except PlanCriticVerdictError as exc:
+    # Payload parsed but failed field-level validation.
+    # BLOCK with MISSING_VERDICT_FILE per #1234 handling below.
+    ...
+```
+
+`write_verdict_from_output()` performs atomic write (tmp + rename), enforces the same field validation the hooks enforce (verdict enum, composite_score numeric, reasoning >= 100 chars, axis_scores >= 3 entries — Issue #1264), and returns the resolved path on success.
+
 **Parse verdict from `plan_critic_verdict.json` (#1234 — file is authoritative; do NOT infer from chat output)**:
 
-The plan-critic agent writes `plan_critic_verdict.json` with at least `{verdict, composite_score, timestamp}`. Read this file and use the `verdict` field as the decision — chat-output language ("looks good", "PROCEED", absence of an explicit verdict) MUST NOT override the file. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` rather than inferring PROCEED from chat (#1234).
+The coordinator writes `plan_critic_verdict.json` with at least `{verdict, composite_score, timestamp, reasoning, axis_scores}` via the helper above. Read this file and use the `verdict` field as the decision — chat-output language ("looks good", "PROCEED", absence of an explicit verdict) MUST NOT override the file. If the file is absent or malformed, BLOCK with `MISSING_VERDICT_FILE` rather than inferring PROCEED from chat (#1234).
 
 **Hook enforcement (Issue #1264)**: The `plan_mode_exit_detector.py` and `unified_session_tracker.py` hooks both validate that `plan_critic_verdict.json` contains all required fields (`verdict`, `composite_score`, `timestamp`, `reasoning`, `axis_scores`) with `reasoning` >= 100 chars and `axis_scores` containing >= 3 entries. If any field is missing or invalid, the gate stays closed regardless of the verdict value — preventing ghost outputs from advancing the pipeline.
 

@@ -359,19 +359,29 @@ class TestSentinelHeartbeat:
             "Recreated sentinel must include recovered_at ISO timestamp"
         )
 
-    def test_sentinel_recreated_when_session_id_mismatched(self, tmp_path):
-        """Sentinel exists but belongs to a different session → recreate for current owner."""
+    def test_sentinel_preserved_when_owned_by_different_real_session(self, tmp_path):
+        """Issue #1481: sentinel with a valid non-synthetic owner MUST NOT be
+        clobbered by heartbeat called with a different session id.
+
+        Previous behavior (pre-#1481) recreated the file with the caller's
+        session_id. That was the root cause of the sentinel getting stamped
+        with synthetic ids like ``stop-N`` mid-pipeline, poisoning the
+        resolve_session_id fallback chain. New behavior: preserve the
+        existing sentinel and return False without writing.
+        """
         sentinel = tmp_path / "sentinel.json"
-        sentinel.write_text('{"session_id": "OLD_SESSION", "step": "STEP3"}')
+        original_content = '{"session_id": "OLD_SESSION", "step": "STEP3"}'
+        sentinel.write_text(original_content)
 
         result = ensure_sentinel_heartbeat("NEW_SESSION", state_path=str(sentinel))
 
         assert result is False, "Must return False when session_id does not match"
-        assert sentinel.exists(), "Sentinel must be recreated"
-
-        data = json.loads(sentinel.read_text())
-        assert data.get("session_id") == "NEW_SESSION"
-        assert data.get("recovered") is True
+        assert sentinel.exists(), "Sentinel must be preserved"
+        # Content must be UNCHANGED — existing real owner wins.
+        assert sentinel.read_text() == original_content, (
+            "Existing sentinel with real non-synthetic owner must not be "
+            "clobbered by heartbeat (Issue #1481)"
+        )
 
     def test_sentinel_recreated_when_corrupt(self, tmp_path):
         """Corrupt sentinel (invalid JSON) → recreate."""
@@ -408,6 +418,104 @@ class TestSentinelHeartbeat:
         assert result is True
         # Content must be unchanged
         assert sentinel.read_text() == original_content
+
+
+class TestIssue1481SyntheticSessionIdGuard:
+    """Issue #1481: SubagentStop heartbeat must never stamp a synthetic id
+    (``stop-N``, ``test-*``, ``unknown``, empty) into the sentinel and must
+    never clobber an existing real owner.
+
+    Root cause: ``ensure_sentinel_heartbeat()`` was invoked from
+    ``unified_session_tracker.py`` with whatever ``session_id`` the hook
+    could resolve. When that fell back to a synthetic id, the sentinel
+    got overwritten with the synthetic value, poisoning
+    ``resolve_session_id``'s fallback chain (Issue #904) and breaking
+    downstream agent-ordering gates (false ORDERING VIOLATION on
+    reviewer/security-auditor dispatch).
+    """
+
+    @pytest.mark.parametrize(
+        "synthetic_id",
+        [
+            "stop-4",
+            "stop-1",
+            "STOP-99",
+            "stop-",
+            "test-918",
+            "test-",
+            "TEST-abc",
+            "unknown",
+            "UNKNOWN",
+            "",
+            "   ",
+        ],
+    )
+    def test_refuses_to_write_synthetic_id_when_sentinel_missing(
+        self, tmp_path, synthetic_id
+    ):
+        """Synthetic ids MUST NOT be written even when sentinel does not exist."""
+        sentinel = tmp_path / "sentinel.json"
+        assert not sentinel.exists()
+
+        result = ensure_sentinel_heartbeat(synthetic_id, state_path=str(sentinel))
+
+        assert result is False, (
+            f"heartbeat must return False for synthetic id {synthetic_id!r}"
+        )
+        assert not sentinel.exists(), (
+            f"heartbeat must NOT create a sentinel with synthetic id "
+            f"{synthetic_id!r} (Issue #1481)"
+        )
+
+    @pytest.mark.parametrize("synthetic_id", ["stop-4", "test-918", "unknown", ""])
+    def test_refuses_to_overwrite_real_owner_with_synthetic_id(
+        self, tmp_path, synthetic_id
+    ):
+        """Existing real owner MUST NOT be overwritten by a synthetic id call."""
+        sentinel = tmp_path / "sentinel.json"
+        original_content = '{"session_id": "REAL_SESSION_abc123", "step": "STEP4"}'
+        sentinel.write_text(original_content)
+
+        result = ensure_sentinel_heartbeat(synthetic_id, state_path=str(sentinel))
+
+        assert result is False
+        assert sentinel.read_text() == original_content, (
+            f"real owner must be preserved when heartbeat called with "
+            f"synthetic id {synthetic_id!r} (Issue #1481)"
+        )
+
+    def test_synthetic_existing_owner_may_be_replaced_by_real_id(self, tmp_path):
+        """A sentinel poisoned by an earlier synthetic write CAN be recovered
+        by a subsequent call with a real session id.
+
+        This is the deliberate escape hatch: if the file previously got
+        stamped with ``stop-4`` (older code path or a race), a later
+        heartbeat carrying a real id should heal the sentinel, not
+        preserve the synthetic value forever.
+        """
+        sentinel = tmp_path / "sentinel.json"
+        sentinel.write_text('{"session_id": "stop-4", "recovered": true}')
+
+        result = ensure_sentinel_heartbeat(
+            "REAL_SESSION_xyz789", state_path=str(sentinel)
+        )
+
+        assert result is False
+        data = json.loads(sentinel.read_text())
+        assert data.get("session_id") == "REAL_SESSION_xyz789", (
+            "real id must be able to overwrite a synthetic-owner sentinel"
+        )
+        assert data.get("recovered") is True
+
+    def test_non_string_session_id_refused(self, tmp_path):
+        """Non-string session_ids (None, int, etc.) MUST be refused."""
+        sentinel = tmp_path / "sentinel.json"
+        for bad in (None, 0, 12345, [], {}):
+            result = ensure_sentinel_heartbeat(bad, state_path=str(sentinel))  # type: ignore[arg-type]
+            assert result is False
+            assert not sentinel.exists(), (
+                f"heartbeat must not write for non-string session_id {bad!r}"
+            )
 
 
 class TestIssue1436UnattributableIdentityRejection:

@@ -1939,6 +1939,39 @@ def clear_tier1_ring_buffer(
     _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
+# Issue #1481: Synthetic session-id patterns that must never be written to the
+# sentinel. If ensure_sentinel_heartbeat is called with one of these shapes,
+# refuse to overwrite the sentinel — the heartbeat is a recovery guard and
+# recording a synthetic/test/unknown id poisons resolve_session_id()'s
+# fallback chain (Issue #904).
+_SYNTHETIC_SESSION_ID_PREFIXES = ("stop-", "test-", "unknown")
+
+
+def _is_synthetic_session_id(session_id: str) -> bool:
+    """Return True when ``session_id`` looks like a synthetic/derived id.
+
+    Synthetic ids include:
+    - ``stop-N`` — emitted by SubagentStop heartbeat when the real id was
+      not resolvable (Issue #1481 root cause)
+    - ``test-*`` — leaked in from hook-subprocess tests running against the
+      live repo cwd (Issue #1481 secondary vector)
+    - ``unknown`` — sentinel default when neither stdin nor env carried an id
+    - empty / whitespace — malformed input
+
+    Issue: #1481
+    """
+    if not isinstance(session_id, str):
+        return True
+    stripped = session_id.strip()
+    if not stripped:
+        return True
+    lower = stripped.lower()
+    for prefix in _SYNTHETIC_SESSION_ID_PREFIXES:
+        if lower == prefix or lower.startswith(prefix):
+            return True
+    return False
+
+
 def ensure_sentinel_heartbeat(
     session_id: str,
     state_path: Optional[str] = None,
@@ -1951,10 +1984,19 @@ def ensure_sentinel_heartbeat(
     created the file.
 
     Behaviour:
+    - If ``session_id`` is synthetic (``stop-N``, ``test-*``, ``unknown``,
+      or empty), refuse to write and return ``False`` without touching the
+      sentinel — writing a synthetic id would poison the resolve_session_id
+      fallback chain (Issue #1481).
+    - If ``state_path`` exists with a valid non-synthetic ``session_id``
+      that differs from the argument, preserve the existing sentinel and
+      return ``False`` — the heartbeat MUST NOT clobber a real owner
+      (Issue #1481).
     - If ``state_path`` exists, is parseable JSON, and its ``session_id``
       field matches ``session_id`` → sentinel is healthy, return ``True``.
-    - Otherwise (missing, corrupt, or session_id mismatch) → emit a structured
-      log line to stderr, recreate a minimal sentinel, and return ``False``.
+    - Otherwise (missing, corrupt, or existing-owner is synthetic) → emit a
+      structured log line to stderr, recreate a minimal sentinel, and
+      return ``False``.
 
     The function NEVER raises.  All failure modes degrade gracefully.
 
@@ -1967,9 +2009,10 @@ def ensure_sentinel_heartbeat(
 
     Returns:
         ``True`` when the sentinel was already healthy.
-        ``False`` when the sentinel was absent or mismatched and was recreated.
+        ``False`` when the sentinel was absent, mismatched, or the caller
+        supplied a synthetic id (in which case NO write occurred).
 
-    Issues: #989, #1206
+    Issues: #989, #1206, #1481
     """
     if state_path is None:
         state_path = os.environ.get(
@@ -1977,6 +2020,20 @@ def ensure_sentinel_heartbeat(
         )
 
     sentinel = Path(state_path)
+
+    # Issue #1481 guard #1: refuse to write synthetic session_ids at all.
+    if _is_synthetic_session_id(session_id):
+        try:
+            import sys as _sys_hb
+
+            _sys_hb.stderr.write(
+                f"[SENTINEL-HEARTBEAT-SYNTHETIC-REFUSED] state_path={state_path}"
+                f" refused_session={session_id!r} (Issue #1481)\n"
+            )
+            _sys_hb.stderr.flush()
+        except Exception:
+            pass
+        return False
 
     try:
         if sentinel.exists():
@@ -1986,13 +2043,38 @@ def ensure_sentinel_heartbeat(
             except (OSError, json.JSONDecodeError, ValueError):
                 data = None
 
-            if isinstance(data, dict) and data.get("session_id") == session_id:
-                return True  # Sentinel healthy.
+            if isinstance(data, dict):
+                existing = data.get("session_id")
+                if existing == session_id:
+                    return True  # Sentinel healthy.
+                # Issue #1481 guard #2: existing sentinel with a valid
+                # non-synthetic owner MUST NOT be clobbered by heartbeat.
+                # The heartbeat is a recovery guard, not a takeover
+                # mechanism — a different real owner means either two
+                # sessions are racing or the caller is confused, and in
+                # either case the safe action is to leave the sentinel
+                # alone and let downstream error handling surface the
+                # divergence.
+                if isinstance(existing, str) and not _is_synthetic_session_id(existing):
+                    try:
+                        import sys as _sys_hb
+
+                        _sys_hb.stderr.write(
+                            f"[SENTINEL-HEARTBEAT-PRESERVED] state_path={state_path}"
+                            f" existing_owner={existing!r}"
+                            f" caller_session={session_id!r} (Issue #1481)\n"
+                        )
+                        _sys_hb.stderr.flush()
+                    except Exception:
+                        pass
+                    return False
     except Exception:
         # Defensive: any unexpected error falls through to recreation.
         pass
 
-    # Sentinel is missing, corrupt, or owned by a different session.
+    # Sentinel is missing, corrupt, or the existing owner was synthetic
+    # (safe to overwrite in that case — synthetic ids are always
+    # replaceable by a real id).
     try:
         import sys as _sys_hb
 
