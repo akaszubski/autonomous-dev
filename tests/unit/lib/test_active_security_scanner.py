@@ -306,6 +306,35 @@ class TestFullScan:
             report = full_scan(tmp_path)
         assert isinstance(report, ActiveScanReport)
 
+    def test_accepts_str_project_root(self, tmp_path: Path):
+        """full_scan must not crash when project_root is a str (Issue #1463).
+
+        Regression: security-auditor callers on some platforms pass a plain
+        str path. Previously this crashed on ``project_root / ".git"`` with
+        ``unsupported operand type(s) for /: 'str' and 'str'`` and on
+        ``project_root.rglob("*.py")`` with ``'str' object has no attribute
+        'rglob'``. The public entrypoints must coerce to Path defensively.
+        """
+        (tmp_path / ".git").mkdir()
+        with patch("active_security_scanner.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="")
+            # Pass a str, not a Path — must not raise
+            report = full_scan(str(tmp_path))
+        assert isinstance(report, ActiveScanReport)
+        # And it must have actually attempted the scans (not silently no-op)
+        assert len(report.scans_completed) >= 1
+
+    def test_dependency_audit_accepts_str(self, tmp_path: Path):
+        """dependency_audit must accept str project_root (Issue #1463)."""
+        (tmp_path / "requirements.txt").write_text("django==3.2.0\n")
+        findings = dependency_audit(str(tmp_path))
+        assert isinstance(findings, list)
+
+    def test_credential_history_scan_accepts_str(self, tmp_path: Path):
+        """credential_history_scan must accept str project_root (Issue #1463)."""
+        findings = credential_history_scan(str(tmp_path))
+        assert isinstance(findings, list)
+
 
 # ---------------------------------------------------------------------------
 # TestFormatReport

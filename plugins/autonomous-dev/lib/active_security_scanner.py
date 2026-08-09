@@ -252,11 +252,13 @@ def dependency_audit(project_root: Path) -> List[Finding]:
     DEPENDENCY_ADVISORIES, and optionally runs pip-audit if available.
 
     Args:
-        project_root: Path to the project root directory.
+        project_root: Path to the project root directory. Accepts str for
+            defensive interop (Issue #1463) — coerced to Path internally.
 
     Returns:
         List of Finding objects for vulnerable dependencies.
     """
+    project_root = Path(project_root)
     findings: List[Finding] = []
 
     # Collect installed package versions from requirements files
@@ -321,13 +323,15 @@ def credential_history_scan(
     Runs ``git log --all -p`` and checks each diff line against SECRET_PATTERNS.
 
     Args:
-        project_root: Path to the git repository root.
+        project_root: Path to the git repository root. Accepts str for
+            defensive interop (Issue #1463) — coerced to Path internally.
         patterns: Optional list of (regex, description) tuples. Defaults to SECRET_PATTERNS.
         max_commits: Maximum number of commits to scan (default 1000).
 
     Returns:
         List of Finding objects for credentials found in git history.
     """
+    project_root = Path(project_root)
     findings: List[Finding] = []
     scan_patterns = patterns if patterns is not None else COMPILED_SECRET_PATTERNS
 
@@ -504,13 +508,16 @@ def full_scan(
     then returns a unified report sorted by severity.
 
     Args:
-        project_root: Path to the project root directory.
+        project_root: Path to the project root directory. Accepts str for
+            defensive interop (Issue #1463) — coerced to Path internally so
+            downstream ``/`` and ``.rglob`` operations don't crash.
         changed_files: Optional list of specific files to scan for OWASP patterns.
             If None, scans all .py files under project_root.
 
     Returns:
         ActiveScanReport with aggregated findings and scan metadata.
     """
+    project_root = Path(project_root)
     start_time = time.monotonic()
     all_findings: List[Finding] = []
     scans_completed: List[str] = []

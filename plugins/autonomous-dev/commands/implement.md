@@ -168,7 +168,7 @@ else:
 "
 ```
 
-Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `implementer`). Replace `ISSUE_NUMBER_OR_0` with the current issue number or `0`. Replace `MODE` with the pipeline mode (`full`, `light`, `fix`, or `tdd-first`).
+Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `implementer`). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket where completions are recorded (single-issue mode always records under bucket `0` because `PIPELINE_ISSUE_NUMBER` is unset; picking a real issue number here creates spurious ORDERING VIOLATION blocks — Issue #1460). Replace `MODE` with the pipeline mode (`full`, `light`, `fix`, or `tdd-first`).
 
 **Session-ID propagation contract** (Issue #904): The helper above implements the fallback chain `env → sentinel → 'unknown'`. Coordinator subshells inherit `CLAUDE_SESSION_ID` in-process, but some exec contexts (nested heredocs, pipe subshells) drop the env var — the sentinel written at STEP 0 provides a recovery path. See [docs/PIPELINE-MODES.md](../../../docs/PIPELINE-MODES.md#session-id-propagation-contract) for the full contract.
 
@@ -226,7 +226,7 @@ print(f'POST-DISPATCH OK: recorded <AGENT_TYPE>')
 "
 ```
 
-Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with the current issue number or `0`. The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
+Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket used in the corresponding Pre-Dispatch check (Issue #1460). The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
 
 **Idempotency note**: Safe to call when SubagentStop also fires asynchronously for the same agent — `record_agent_completion` is fcntl-locked, tri-scope, last-write-wins per Issue #1046. Both writes converge to the same final state.
 
@@ -487,18 +487,43 @@ Options:
 
 If `FORCE_FLAG` is set, emit a notice (`STEP 0a: --force bypassed closed-issue BLOCK for #{N}`) and continue. The merge-status check (b) still runs.
 
-(b) **Merge-status check** — Issue #936. Search recent commits for issue references:
+(b) **Merge-status check** — Issue #936 (initial) + Issue #1465 (strengthened to ALREADY-MERGED HARD BLOCK). Search ALL branches for merged commits referencing the issue, then also scan recent (30d) commits on the current branch:
 
 ```bash
+# Issue #1465: BEFORE the planner runs, hard-check whether ANY commit in git
+# history references this issue via #NNN, "Closes #NNN", or "Fixes #NNN". If
+# such a commit exists on the default branch (origin/master by default), the
+# work has ALREADY been merged and the pipeline MUST abort — spawning the
+# planner in this state wastes a full opus run (spektiv session 449ab2eb: a
+# planner run was consumed on already-merged #1809 before the stale-OPEN
+# state was discovered). This is an ALREADY-MERGED verdict, not a WARNING.
+MERGED_TO_DEFAULT=$(git log origin/master --oneline --grep "#${ISSUE_NUMBER}" 2>/dev/null | head -5)
 MERGE_HITS=$(git log --oneline --grep "#${ISSUE_NUMBER}" -10 2>/dev/null)
 ```
 
-If `MERGE_HITS` is non-empty AND any matching commit is within 30 days (`git log --since='30 days ago' --oneline --grep "#${ISSUE_NUMBER}"`), emit a **WARNING** (not BLOCK by default):
+**If `MERGED_TO_DEFAULT` is non-empty AND `FORCE_FLAG` is unset**, emit an **ALREADY-MERGED BLOCK** (Issue #1465):
 
 ```
-WARNING (STEP 0a, Issue #936): Issue #{N} appears in N recent commit(s):
+BLOCKED (STEP 0a, Issue #1465): ALREADY-MERGED — Issue #{N} has commit(s) on origin/master:
+  [list commit SHAs and subjects from MERGED_TO_DEFAULT]
+
+The requested work appears to already be merged to the default branch. Spawning the
+planner in this state would waste a full opus run and produce a duplicate/no-op change.
+
+Options:
+  A) Close as stale: gh issue close {N} --comment "already merged in <SHA>"
+  B) Force (rare — only if the issue is a legitimate re-open on a new surface): re-run with --force
+  C) Cancel
+```
+
+The coordinator MUST NOT proceed to STEP 1 (i.e., MUST NOT spawn any downstream agent — planner, researcher, or otherwise) until either (A) the user confirms `continue` after inspecting the merged commits, or (B) `--force` is passed. This is a HARD GATE: no planner opus run, no researcher dispatch, no plan-critic — the pipeline halts here.
+
+If `MERGED_TO_DEFAULT` is empty but `MERGE_HITS` is non-empty (issue referenced only on other branches, not yet merged to master), fall back to the Issue #936 WARNING:
+
+```
+WARNING (STEP 0a, Issue #936): Issue #{N} appears in N recent commit(s) on non-default branches:
   [list commit SHAs and subjects]
-The work may already be merged. Options:
+The work may already be in progress on another branch. Options:
   A) Continue pipeline (--force or explicit "continue")
   B) Cancel
 ```
@@ -1112,6 +1137,17 @@ For EACH failure, you MUST choose one:
 - ❌ You MUST NOT proceed to STEP 10 when `step5_quality_gate.run_quality_gate()` returns `passed=False`
 - ❌ You MUST NOT proceed when test count drops significantly from baseline (enforced by `coverage_baseline.check_test_count_regression()`)
 
+**HARD GATE: No Wholesale Reformats of Drifted Files** (Issue #1464) — When applying formatters (`ruff format`, `black`, `prettier`, etc.) to files you touched, you MUST NOT wholesale-reformat a file that has pre-existing format drift. Wholesale reformats of drifted files bloat the diff with unrelated changes and add zero CI benefit when the file lives outside a CI-format-gated path (real regressions: `scripts/weekly_report.py` reformatted wholesale in commit de70307e3; `scripts/daily_trade_watchdog.py` grew 29→344 lines in PR #1885, both in a non-format-gated `scripts/` tree). For each Python file you touched, apply this decision tree BEFORE running any formatter:
+
+1. **NEW in this commit** (not present at `HEAD`) → run the formatter on it.
+2. **Modified but was already clean at `HEAD`** (verify via `ruff format --check <file>` against `git show HEAD:<file>`, i.e. exit 0) → run the formatter on your working-tree version. This does not introduce drift because there was none.
+3. **Modified AND had pre-existing format drift at `HEAD`** → do NOT run the formatter on the whole file. Skip formatting for that file and let the pre-existing drift ride. Exception: if the file lives inside a path the consumer repo's CI format-gates (i.e. CI runs `ruff format --check <that_path>` and would fail on drift), the wholesale reformat IS worth the diff noise — run the formatter on it. When in doubt about CI gating, DO NOT reformat.
+
+**FORBIDDEN** — You MUST NOT (Issue #1464):
+- ❌ You MUST NOT run `ruff format`/`black`/any wholesale formatter on a touched file without first checking whether that file was already clean at `HEAD`.
+- ❌ You MUST NOT wholesale-reformat a drifted file in a non-CI-format-gated path just because you edited a few lines in it — the diff bloat is pure review noise and the coordinator will revert the reformat post-hoc.
+- ❌ You MUST NOT invoke `ruff format .` or `ruff format <directory>` — always target only the specific files you touched, and only after the decision tree above says it is safe.
+
 Loop until **0 failures, 0 errors**. Do NOT proceed to STEP 10 with any failures.
 
 After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP 8.5 spec-validator can dispatch without manual recording. (#1238)
@@ -1527,6 +1563,55 @@ In parallel mode, all three validation agents (reviewer, security-auditor, doc-m
 - Any sequential emission pattern that defeats the purpose of parallel mode
 
 Sequential emission is a NOVEL BYPASS that violates the parallel execution contract. The routing decision (parallel vs sequential) is meaningless if the dispatch itself is sequential.
+
+### HARD GATE: Evidence Manifest Pre-Dispatch Preservation (#1458)
+
+Immediately before dispatching the reviewer Agent tool call — in BOTH parallel mode and sequential mode — you MUST mechanically verify that the Evidence Manifest survived VERBATIM PASSING into the constructed reviewer prompt. This is the pre-dispatch complement to the STEP 8 raw-output gate (#1055): #1055 checks the implementer's raw output contains the manifest; this gate checks the coordinator did not drop it while constructing the reviewer prompt. Without this gate, the coordinator's paraphrase / truncation / summarization slip causes an avoidable remediation cycle (session 449ab2eb, spektiv #1867, 2026-08-08 — reviewer BLOCKED on "missing Evidence Manifest" when the implementer had emitted one). This closes the `context_dropping` bypass class (#367).
+
+**Mode activation** — this gate is REQUIRED in **full pipeline mode only**. Skip in `--light` and `--fix` modes (matching the #1055 activation contract). Log the skip: "Evidence Manifest Pre-Dispatch gate: SKIP (#1458) — mode=light" or "Evidence Manifest Pre-Dispatch gate: SKIP (#1458) — mode=fix".
+
+**Step 1 — Locate manifest in STEP 8 implementer output**
+
+Search the STEP 8 raw implementer output for the marker substring (identical to #1055 Step 1):
+
+```
+| File | State | Verification Signal |
+```
+
+If the marker is ABSENT from the raw STEP 8 output, this gate is inapplicable — the #1055 STEP 8 gate is the authority and MUST have already blocked or completed remediation. Log: "Evidence Manifest Pre-Dispatch gate: N/A (#1458) — raw STEP 8 output has no manifest; #1055 authority" and proceed to Validation mode routing.
+
+**Step 2 — Locate manifest in constructed reviewer prompt**
+
+Search the FULL text you are about to pass to the reviewer Agent tool `prompt` parameter (the "constructed reviewer prompt") for the same marker substring `| File | State | Verification Signal |`.
+
+**Step 3 — Decide pass/block**
+
+- If the marker IS present in the constructed reviewer prompt → PASS. Log: "Evidence Manifest Pre-Dispatch gate: PASS (#1458) — marker preserved into reviewer prompt, mode=full". Proceed to Validation mode routing.
+- If the marker is ABSENT from the constructed reviewer prompt (but was present in the raw STEP 8 output — Step 1 confirmed it) → BLOCK. This is a coordinator VERBATIM PASSING fidelity violation.
+
+**Step 4 — BLOCK path**
+
+Emit the exact BLOCK message:
+
+```
+BLOCKED: Coordinator dropped the implementer's Evidence Manifest when constructing the reviewer prompt (#1458). The raw STEP 8 implementer output contains the manifest marker `| File | State | Verification Signal |`, but the constructed reviewer prompt does not. This is a VERBATIM PASSING fidelity violation (STEP 10 VERBATIM PASSING REQUIRED) that would cause an avoidable remediation cycle. Reconstruct the reviewer prompt to include the Evidence Manifest section verbatim before dispatching the reviewer Agent call.
+```
+
+Also emit the structured log: "Evidence Manifest Pre-Dispatch gate: BLOCKED (#1458) — marker preserved in raw output but dropped from reviewer prompt, mode=full".
+
+You MUST NOT dispatch the reviewer (or any parallel-mode sibling: security-auditor, doc-master) until you rebuild the reviewer prompt to re-include the Evidence Manifest section verbatim from the STEP 8 output. After rebuilding, re-run Step 2 → if the marker is now present, PASS with log "Evidence Manifest Pre-Dispatch gate: PASS-AFTER-REBUILD (#1458) — marker restored to reviewer prompt, mode=full" and proceed.
+
+**Step 5 — Output gate report**
+
+```
+Evidence Manifest Pre-Dispatch Gate (#1458):
+  Mode: full | light (skipped) | fix (skipped)
+  Raw STEP 8 output has manifest: yes | no (→ N/A)
+  Constructed reviewer prompt has manifest: yes | no | yes-after-rebuild
+  Verdict: PASS | PASS-AFTER-REBUILD | BLOCKED | N/A
+```
+
+**FORBIDDEN** — In full pipeline mode you MUST NOT dispatch the reviewer without confirming (via mechanical substring search on the outgoing prompt text) that the Evidence Manifest marker survived from the raw STEP 8 output into the reviewer prompt (#1458). You MUST NOT rely on the reviewer's independent flag as a substitute (that was the original failure mode — reviewer returned REQUEST_CHANGES, a full remediation cycle was consumed re-emitting a manifest the implementer had already produced). You MUST NOT synthesize the manifest yourself — if the marker was in the raw output but is missing from the reviewer prompt, the fix is to REBUILD the prompt with a verbatim copy of the manifest section from the raw STEP 8 output, not to author a new one.
 
 **Validation mode routing**: Before launching any validator, check if any changed files match security-sensitive patterns:
 

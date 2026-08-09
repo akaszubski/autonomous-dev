@@ -522,3 +522,151 @@ The fix reduced error rate from 5% to 0.5%.
         result = detect_issue_research(body)
         assert result["is_research_rich"] is False
         assert result["section_count"] == 2
+
+
+class TestDebuggingSections:
+    """Regression tests for Issue #1459 — debugging-issue vocabulary allowlist.
+
+    Well-researched bug-fix issues frequently use headings like 'Root Cause',
+    'Proof', 'Reproduction', 'Mechanism', and 'Impact'. Before the fix these
+    were absent from RESEARCH_SECTIONS, so pipeline paths relying on
+    detect_issue_research() would force redundant research on genuinely
+    pre-researched debug issues.
+    """
+
+    def test_root_cause_section_recognised(self) -> None:
+        """'root cause' is a recognised research section."""
+        body = """\
+## Background
+
+The rate limiter under-sized worker pools during traffic spikes.
+
+## Context
+
+Observed in production during Black Friday 2024.
+
+## Root Cause
+
+Pool sizing formula used avg RPS instead of p99 RPS, causing 2.6x
+under-sizing at spike boundaries.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_proof_section_recognised(self) -> None:
+        """'proof' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context of the auth bug.
+
+## Context
+
+Reproduces on production traffic only.
+
+## Proof
+
+Attached tcpdump capture shows the malformed TLS handshake at frame 12.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_reproduction_section_recognised(self) -> None:
+        """'reproduction' is a recognised research section."""
+        body = """\
+## Background
+
+Historical context of the failure mode.
+
+## Context
+
+Only reproduces under high concurrency.
+
+## Reproduction
+
+Run `pytest -x tests/regression/test_race.py::test_concurrent_write`
+with `--count=100` to see the failure at iteration ~40.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_mechanism_section_recognised(self) -> None:
+        """'mechanism' is a recognised research section."""
+        body = """\
+## Background
+
+Cache invalidation is dropping entries early.
+
+## Context
+
+Affects all read-heavy workloads.
+
+## Mechanism
+
+TTL is computed from the write timestamp rather than the read timestamp,
+so cold reads inherit an already-expired TTL.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_impact_section_recognised(self) -> None:
+        """'impact' is a recognised research section."""
+        body = """\
+## Background
+
+Metric collection is missing samples.
+
+## Context
+
+Observed across all edge PoPs.
+
+## Impact
+
+12% of p99 latency samples are silently dropped, causing SLO alerts
+to under-report tail latency regressions.
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        assert result["section_count"] >= 3
+
+    def test_realistic_debug_issue_body_is_rich(self) -> None:
+        """End-to-end: a realistic debug-issue body with root cause + proof + impact is rich."""
+        body = """\
+## Summary
+
+Rate limiter under-sizes pools by ~2.6x on traffic spikes.
+
+## Root Cause
+
+Pool sizing uses avg RPS. Peak p99 RPS is 2.6x higher, so the pool is
+starved during spikes and drops connections.
+
+## Proof
+
+Grafana panel `rate-limiter/pool_utilization` shows sustained 100%
+utilization during the 14:00-14:15 UTC window on 2026-06-15, matching
+the drop-count spike in `rate-limiter/dropped_connections`.
+
+## Reproduction
+
+Replay production traffic from `s3://traffic-replay/2026-06-15/` at 1x
+speed against staging: pool exhaustion reproduces at t+7min.
+
+## Impact
+
+~40k dropped API requests per spike event, ~3 events/day → 120k
+dropped requests/day.
+
+## Acceptance Criteria
+
+- [ ] Pool sized on p99 RPS
+- [ ] Regression test covers spike replay
+"""
+        result = detect_issue_research(body)
+        assert result["is_research_rich"] is True
+        # Summary + Acceptance Criteria excluded; Root Cause + Proof + Reproduction + Impact counted
+        assert result["section_count"] == 4
