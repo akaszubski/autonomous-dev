@@ -397,6 +397,7 @@ def _compute_state_hmac(state: dict, secret: str) -> str:
         state.get("run_id", ""),
         str(state.get("explicitly_invoked", False)),
         str(state.get("alignment_passed", False)),
+        str(state.get("alignment_verdict", "")),   # Issue #1467: verdict co-signed; default "" keeps legacy states byte-identical
         nonce,
     ]
     message = "|".join(parts).encode("utf-8")

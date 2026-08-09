@@ -78,6 +78,13 @@ The detected mode determines which pipeline runs for each issue:
 
 Label overrides ("bug" → --fix, "documentation" → --light) take highest priority. User overrides are accepted before processing begins. Final modes are stored in `BatchState.feature_modes` (maps feature index to mode string). See `lib/batch_mode_detector.py` for signal definitions and detection logic.
 
+**STEP I1.6 — Per-Issue Alignment Verdict (NEW in Issue #1467)**: After mode detection and before worktree creation, each remaining issue runs the same two-stage alignment gate as the full pipeline's STEP 2 (deterministic Stage 0 pre-check, then an `alignment-classifier` Haiku dispatch with a verified PROJECT.md citation) using the issue title + body as the feature text. Because batch and `--issues` runs are non-interactive (`is_autonomous_context()` returns true — batch worktree creation sets `AUTONOMOUS_DEV_NONINTERACTIVE=1`), routing differs from the interactive `AskUserQuestion` flow used in a single-issue `/implement`:
+- `auto_pass` → the issue proceeds into its detected pipeline mode as normal.
+- `escalate` → the issue is labeled `needs-scope-decision`, a verdict-summary comment is posted, any cross-machine claim already acquired is released, and the issue is dropped from the current cluster/batch — the rest of the batch continues.
+- If every remaining issue escalates, the batch exits cleanly with reason `no_alignable_issues` rather than as a failure.
+
+Interactive `--issues` runs MAY use the `AskUserQuestion` path from STEP 2d instead of labeling, since a human is present to answer.
+
 ### 3. Resume Interrupted Batch
 
 Continue a batch that was interrupted:

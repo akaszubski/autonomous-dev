@@ -30,10 +30,10 @@ Self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.b
 
 - **Pipeline**: 8-step SDLC (15 internal steps) — alignment → research → plan → acceptance tests → implement → validate → verify → git
 - **Enforcement**: 27 hooks with JSON `{"decision": "block"}` hard gates (not prompt-level nudges)
-- **Agents**: 16 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
+- **Agents**: 17 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
 - **Skills**: 20 domain packages, progressively injected per-step to prevent context bloat
 
-Component counts: 16 agents, 20 skills, 23 user-facing commands, 27 hooks, 242 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
+Component counts: 17 agents, 20 skills, 23 user-facing commands, 27 hooks, 243 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
 
 ## Code Navigation (LSP > grep when available)
 

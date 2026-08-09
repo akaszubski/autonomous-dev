@@ -6,6 +6,10 @@
 #   selector-stall  — drain-watchdog files this when the selector returns
 #                     no_drainable_cluster for K consecutive fires (Issue #1303).
 #   high-priority   — generic operator-triage marker; paired with selector-stall.
+#   needs-scope-decision — the two-stage alignment gate returned ESCALATE while
+#                     running non-interactively (autonomous drain / batch), so
+#                     no human was available to answer. The issue is parked for
+#                     an operator scope decision (Issue #1467).
 set -euo pipefail
 
 # Preflight: ensure gh CLI is authenticated (Issue #1314 LOW-3)
@@ -25,5 +29,10 @@ gh label create high-priority \
   --color "ff0000" \
   --description "Operator triage needed" \
   2>/dev/null || echo "  high-priority: exists"
+
+gh label create needs-scope-decision \
+  --color "5319e7" \
+  --description "Alignment gate escalated with no human available (Issue #1467)" \
+  2>/dev/null || echo "  needs-scope-decision: exists"
 
 echo "Done."

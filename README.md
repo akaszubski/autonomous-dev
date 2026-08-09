@@ -30,7 +30,7 @@ When you type `/implement "#72"`, Claude coordinates specialist agents through a
 
 | Step | Stage | What It Does |
 |------|-------|--------------|
-| 1–2 | **pre-flight + alignment** | Blocks pre-staged files; checks the feature against PROJECT.md goals/scope. Out of scope → blocked before any code. |
+| 1–2 | **pre-flight + alignment** | Blocks pre-staged files; a two-stage gate checks the feature against PROJECT.md — a deterministic pre-check, then the `alignment-classifier` agent (Haiku) classifies and cites the governing PROJECT.md clause (verified verbatim). Out of scope or ambiguous → blocked/escalated before any code, not decided by the coordinator itself. |
 | 3–4 | **researcher** (×2, parallel) | `researcher-local` (Haiku, codebase) + `researcher` (Sonnet, web) find patterns, best practices, existing solutions |
 | 5 | **planner** (Opus) | Designs the architecture and a file-by-file implementation plan |
 | 5.5 | **plan-critic** (Sonnet) | Adversarial single-pass review across **4 axes** (assumption audit, existing-solution search, minimalism, operational-integration test). Verdict PROCEED / REVISE / BLOCKED; REVISE re-invokes the planner. Plus structural validation of the plan. |
@@ -584,7 +584,7 @@ pipeline runs → session logs → /improve detects drift → files GitHub issue
 
 ### Prompt & Agent Design
 - [Prompt Engineering](docs/PROMPT-ENGINEERING.md) - Constraint budgets (MOSAIC), register shifting, HARD GATE patterns
-- [Agents Reference](docs/AGENTS.md) - All 16 specialist agents with model tiers
+- [Agents Reference](docs/AGENTS.md) - All 17 specialist agents with model tiers
 - [Skills Reference](docs/SKILLS.md) - All 20 progressive skill packages with trigger conditions
 
 ### Testing

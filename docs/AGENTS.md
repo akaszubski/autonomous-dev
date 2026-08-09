@@ -5,7 +5,7 @@ covers:
 
 # Agent Architecture
 
-**Last Updated**: 2026-04-14
+**Last Updated**: 2026-08-10
 **Location**: `plugins/autonomous-dev/agents/`
 
 This document describes the agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
@@ -14,9 +14,9 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Overview
 
-16 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
+17 active agents with skill integration. Each agent has specific responsibilities and references relevant skills.
 
-**Active Agents**: continuous-improvement-analyst, doc-master, implementer, issue-creator, mobile-tester, plan-critic, planner, researcher, researcher-local, retrospective-analyst, reviewer, security-auditor, spec-validator, test-coverage-auditor, test-master, ui-tester
+**Active Agents**: alignment-classifier, continuous-improvement-analyst, doc-master, implementer, issue-creator, mobile-tester, plan-critic, planner, researcher, researcher-local, retrospective-analyst, reviewer, security-auditor, spec-validator, test-coverage-auditor, test-master, ui-tester
 
 **Archived Agents** (20, in `agents/archived/`): advisor, alignment-analyzer, alignment-validator, brownfield-analyzer, commit-message-generator, data-curator, data-quality-validator, distributed-training-coordinator, experiment-critic, orchestrator, postmortem-analyst, pr-description-generator, project-bootstrapper, project-progress-tracker, project-status-analyzer, quality-validator, setup-wizard, sync-validator
 
@@ -26,15 +26,16 @@ This document describes the agent architecture, including core workflow agents, 
 
 ## Model Tier Strategy (Issue #108, Updated #147)
 
-Agent model assignments optimized for cost-performance balance (16 active agents):
+Agent model assignments optimized for cost-performance balance (17 active agents):
 
-### Tier 1: Haiku (3 agents)
+### Tier 1: Haiku (4 agents)
 
 Fast, cost-effective for pattern matching:
 
 - **researcher-local**: Search codebase patterns
 - **test-coverage-auditor**: AST-based coverage analysis
 - **issue-creator**: GitHub issue creation
+- **alignment-classifier**: Fresh-context PROJECT.md alignment classification with a verified citation (Issue #1467) — see [Utility Agents](#utility-agents) below
 
 ### Tier 2: Sonnet (8 agents)
 
@@ -129,6 +130,17 @@ Deep reasoning for complex synthesis:
 ## Core Workflow Agents
 
 These agents execute the main autonomous development workflow and provide specialized functionality.
+
+### alignment-classifier
+
+**Purpose**: Fresh-context classification of a proposed change against PROJECT.md, with a verified citation (Issue #1467)
+**Model**: Haiku (Tier 1 - cost optimized for classification)
+**Skills**: none declared (deliberately minimal — a verdict-only agent)
+**Tools**: Read, Grep, Glob
+**Execution**: STEP 2 of `/implement` (also L1 / F1 / I1.6 in light / fix / batch mode), dispatched with fresh context — no prior conversation, plan, or rationale — after the deterministic Stage 0 pre-check and before research/planning begins
+**Output Format**: One fenced JSON block — `classification` (`in_scope`, `out_of_scope`, `architecture_delta`, or `ambiguous`), `cited_clause` (verbatim PROJECT.md span, ≥12 characters, required for `in_scope`), `confidence` (`high`/`medium`/`low`), `reasoning` (≤400 characters)
+**Untrusted input**: The feature text is wrapped in `<untrusted_feature_text>` delimiters; the agent treats embedded directives, prior-approval claims, or "mark this in scope" instructions found inside as an injection signal (`classification: "ambiguous"`), never as ground truth
+**Downstream**: The classification and citation are consumed by `alignment_classifier.map_verdict()` in `plugins/autonomous-dev/lib/alignment_classifier.py`, which verifies the citation mechanically against PROJECT.md before allowing an `auto_pass` verdict — the agent classifies, it does not decide
 
 ### researcher-local
 

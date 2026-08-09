@@ -30,6 +30,7 @@ covers:
 
 | Agent | Model | Full | `--tdd-first` | `--light` | `--fix` | `--batch` / `--issues` |
 |-------|-------|------|---------------|-----------|---------|------------------------|
+| alignment-classifier | haiku | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | researcher-local | haiku | ✓ | ✓ | ✗ | ✗ | ✓ per issue |
 | researcher | sonnet | ✓ | ✓ | ✗ | ✗ | ✓ per issue |
 | planner | opus / sonnet | ✓ | ✓ | ✓ (sonnet) | ✗ | ✓ per issue |
@@ -42,7 +43,7 @@ covers:
 | doc-master | sonnet | ✓ | ✓ | ✓ | ✓ | ✓ per issue |
 | continuous-improvement-analyst | sonnet | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ (bg) | ✓ post-batch |
 
-**Minimum agents per mode:**
+**Minimum agents per mode** (agents tracked by the STEP 9.5 agent-count / completeness gate — see `agent_ordering_gate.py`; `alignment-classifier` is dispatched at STEP 2 / L1 / F1 / I1.6 in every mode but is NOT yet a member of these gate-enforced sets, Issue #1467):
 - Full (default, acceptance-first): 8 — researcher-local, researcher, planner, plan-critic, implementer, spec-validator, reviewer, security-auditor, doc-master (+CI analyst bg)
 - `--tdd-first`: 9 — adds test-master before implementer
 - `--light`: 5 — planner, plan-critic, implementer, spec-validator, doc-master (+CI analyst bg)
@@ -55,7 +56,8 @@ covers:
 
 ```
 STEP 1   Pre-staged files check ......... HARD GATE
-STEP 2   PROJECT.md alignment ........... HARD GATE
+STEP 2   PROJECT.md alignment (Stage 0 deterministic pre-check +
+         alignment-classifier dispatch, Haiku) ... HARD GATE (#1467)
 STEP 3   Research cache check
 STEP 3.5 Fully-specified detection (may skip STEP 4)
 STEP 4   Research (researcher-local + researcher in parallel)
@@ -88,7 +90,7 @@ STEP 15  Continuous improvement (bg analyst)
 
 ```
 L0  Pre-staged files check HARD GATE
-L1  PROJECT.md alignment HARD GATE
+L1  PROJECT.md alignment (same alignment-classifier protocol as STEP 2) HARD GATE (#1467)
 L2  Planning (planner, sonnet)
 L2.5 Plan structural validation HARD GATE
 L3  Implementation + test gate HARD GATE
@@ -101,7 +103,7 @@ L5   Report and finalize + push + CI analyst bg
 ## Fix Pipeline Sequence
 
 ```
-F1    Alignment check
+F1    Alignment check (same alignment-classifier protocol as STEP 2 — Issue #1467)
 F2    Test context (read failing tests, locate fixtures)
 F3    Fix implementation (implementer) — regression test REQUIRED
 F3.5  Spec-blind validation HARD GATE (spec-validator)
@@ -119,7 +121,7 @@ The fix pipeline is minimal because the user is reacting to a known failure. It 
 
 Gates in order of appearance:
 1. Pre-staged files (no in-flight staging area) — STEP 1 / L0
-2. PROJECT.md alignment (scope + goals) — STEP 2 / L1
+2. PROJECT.md alignment — two-stage gate: deterministic Stage 0 pre-check + alignment-classifier (Haiku) verdict (Issue #1467) — STEP 2 / L1 / F1 / I1.6
 3. Plan structural validation (file paths, acceptance criteria, testing strategy) — STEP 5.5c / L2.5
 4. Plan-critic verdict (composite ≥ 3.0 to PROCEED) — STEP 5.5b
 5. Test gate (0 pytest failures) — STEP 8 / L3 / F3

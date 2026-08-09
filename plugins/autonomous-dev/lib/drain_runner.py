@@ -344,6 +344,7 @@ def _build_env(repo_root: Path) -> Dict[str, str]:
     ``.claude/`` is gitignored and worktree creation would fail.
     """
     env = dict(os.environ)
+    env["AUTONOMOUS_DEV_NONINTERACTIVE"] = "1"   # Issue #1467: alignment gate ask-vs-block routing
     # autonomous-dev self-maintenance: gitignored .claude/ blocks worktree
     # creation. Force the no-worktree branch.
     if _is_autonomous_dev_repo(repo_root):

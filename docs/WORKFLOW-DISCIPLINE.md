@@ -123,15 +123,16 @@ ENFORCE_WORKFLOW_STRICT=true    # Maps to BLOCK (strictest)
 
 **Precedence**: `ENFORCEMENT_LEVEL` takes precedence over `ENFORCE_WORKFLOW_STRICT`
 
-### Alignment Gate (Issue #585)
+### Alignment Gate (Issue #585, extended Issue #1467)
 
-When `/implement` is active, `unified_pre_tool.py` enforces that STEP 2 (PROJECT.md alignment) must complete before any code writes are allowed:
+When `/implement` is active, `unified_pre_tool.py` enforces that STEP 2 (PROJECT.md alignment) must complete before any code writes are allowed. As of Issue #1467, STEP 2 is a **hard two-stage gate, not coordinator self-attestation**: a deterministic Stage 0 pre-check (injection markers, PROJECT.md OUT-of-scope overlap, architecture-invariant deltas — its ESCALATE/BLOCK outcome is final) followed by a fresh-context `alignment-classifier` (Haiku) dispatch that must cite a clause verified verbatim against PROJECT.md before the gate can auto-pass. The coordinator never decides this itself.
 
-- **Detection**: `_has_alignment_passed()` reads the pipeline state file and checks `alignment_passed: true`.
-- **Behavior**: If `/implement` is active and `alignment_passed` is not yet set, coordinator Write/Edit/Bash to code files are denied with the message "ALIGNMENT GATE: /implement is active but STEP 2 (PROJECT.md alignment) has not passed yet."
-- **HMAC**: `alignment_passed` is included in the HMAC-signed pipeline state to prevent tampering. The gate fails closed on any HMAC failure or missing state.
+- **Detection**: `_has_alignment_passed()` reads the pipeline state file and checks `alignment_passed: true`, AND — when `alignment_verdict` is present and `alignment_classifier.py` is importable — that the verdict is in `ALLOWED_VERDICTS` (`auto_pass`, `user_approved`). Legacy states with no `alignment_verdict` field, and consumer installs without the classifier library, fall back to the pre-#1467 boolean-only check.
+- **Behavior**: If `/implement` is active and `alignment_passed` is not yet set (or the co-signed verdict is `escalate`/`block`), coordinator Write/Edit/Bash to code files are denied with the message "ALIGNMENT GATE: /implement is active but STEP 2 (PROJECT.md alignment) has not passed yet." An explicit `escalate`/`block` verdict also blocks `implementer`, `test-master`, and `doc-master` agent dispatches, not just the coordinator.
+- **HMAC**: `alignment_passed` AND `alignment_verdict` are both included in the HMAC-signed pipeline state to prevent tampering. The gate fails closed on any HMAC failure or missing state.
 - **Scope**: Code files only (`.py`, `.js`, `.ts`, etc.). Config files and docs are exempt.
-- **Purpose**: Guarantees alignment validation is never skipped under time or context pressure — the hook enforces it at the tool level, not just as a prompt instruction.
+- **Escalation routing**: Interactively, an `escalate` verdict surfaces via `AskUserQuestion` (approve / update PROJECT.md / narrow the change / cancel). In autonomous/batch contexts (`is_autonomous_context()` true), `escalate` BLOCKs and labels the issue `needs-scope-decision` instead of prompting. The `escalate -> user_approved` upgrade is enforced exclusively inside `record_alignment_verdict()`: in an autonomous context the upgrade is REFUSED (verdict stays `escalate`, recorded as `user_approved_refused: "autonomous_context"` in the audit artifact) even if `user_approved=True` was somehow passed in, so a spoofed or pre-set approval flag cannot bypass a human decision. An applied interactive approval instead records an `approval` sub-object (source, timestamp, Stage 0 reason, citation status) as evidence of the real `AskUserQuestion` round-trip.
+- **Purpose**: Guarantees alignment validation is never skipped under time or context pressure, and is never a judgment the coordinator makes about its own work — the hook enforces a specialist-classified, citation-verified decision at the tool level, not just as a prompt instruction.
 
 ### Explicit /implement Hard Block (Issue #528)
 

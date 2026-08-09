@@ -656,64 +656,64 @@ else
 fi
 ```
 
-### STEP 2: Validate PROJECT.md Alignment — HARD GATE
+### STEP 2: Validate PROJECT.md Alignment — HARD GATE (Issue #1467)
+**Progress**: Output step banner (STEP 2/15 — Alignment, Agent: alignment-classifier (Haiku)). Output the verdict after.
 
-**Progress**: Output step banner (STEP 2/15 — Alignment). Output gate result after.
+Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofit`").
 
-Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofit`"). Check feature against GOALS, SCOPE, CONSTRAINTS. If misaligned: BLOCK with reason and options.
-
-**After alignment passes**, update the pipeline state to record that STEP 2 completed:
-
+Persist the feature text for gate use, from the STEP 0 variables (when `ISSUE_BODY` is empty — no-issue mode — write the user's raw feature request into that file instead):
+```bash
+printf '%s\n\n%s' "$ISSUE_TITLE" "$ISSUE_BODY" > /tmp/implement_feature_$RUN_ID.txt
+```
+**2a. Stage 0 — deterministic pre-check** (runs FIRST; its ESCALATE is FINAL and cannot be overridden by the classifier):
 ```bash
 python3 -c "
-import sys, os, json, time
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import sign_state
-
-# Session-ID fallback chain (Issue #904): env → sentinel → 'unknown'.
-# In a subshell that lost CLAUDE_SESSION_ID (e.g., nested heredoc in a
-# pipe), recover the real session_id from the STEP-0 sentinel instead of
-# re-signing the state as 'unknown' (which would break HMAC verification).
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    from pipeline_state import get_legacy_sentinel_path
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
-
-from pipeline_state import get_legacy_sentinel_path
-state_path = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-if os.path.exists(state_path):
-    with open(state_path) as f:
-        state = json.load(f)
-    state['alignment_passed'] = True
-    sid = _resolve_session_id()
-    state = sign_state(state, sid)
-    with open(state_path, 'w') as f:
-        json.dump(state, f)
-    print('Alignment gate passed — state updated')
+import sys, os, json
+for _p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p): sys.path.insert(0,_p); break
+from alignment_classifier import parse_project_md, run_stage0
+from pathlib import Path
+doc = parse_project_md(Path('.claude/PROJECT.md'))
+feature = open('/tmp/implement_feature_$RUN_ID.txt').read()
+r = run_stage0(feature, doc)
+print(json.dumps({'outcome': r.outcome.value, 'reason': r.reason, 'has_invariants': doc.has_invariants}))
 "
 ```
+If `has_invariants` is false, print the one-line advisory: `PROJECT.md has no ### INVARIANTS — architecture-delta checking disabled. Add one via /align --project.` Do NOT block on that.
+
+**2b. Stage 1 — fresh-context classification** (ALWAYS dispatch, even when Stage 0 says ESCALATE — the classification is recorded for telemetry; it can never rescue a Stage 0 ESCALATE):
+
+**Agent**(subagent_type="alignment-classifier", model="haiku") — pass: the feature description wrapped in `<untrusted_feature_text>` ... `</untrusted_feature_text>` delimiters, plus PROJECT.md GOALS, SCOPE, CONSTRAINTS, and the ARCHITECTURE `### INVARIANTS` subsection (when present). Then record completion per the Post-Dispatch protocol (`record_agent_completion(sid, 'alignment-classifier', ...)`). Save the agent's fenced JSON to `/tmp/alignment_classifier_$RUN_ID.json`.
+
+**2c. Deterministic verdict + state update** — the ONLY supported way to set `alignment_passed`:
+```bash
+python3 -c "
+import sys, os, json
+for _p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p): sys.path.insert(0,_p); break
+from alignment_classifier import evaluate_and_record
+try:
+    with open('/tmp/alignment_classifier_$RUN_ID.json') as f: cj = json.load(f)
+except Exception: cj = None
+out = evaluate_and_record(open('/tmp/implement_feature_$RUN_ID.txt').read(), cj,
+        state_path=os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'),
+        session_id=os.environ.get('CLAUDE_SESSION_ID','unknown'),
+        issue_number=os.environ.get('ISSUE_NUMBER',''),
+        user_approved=os.environ.get('ALIGNMENT_USER_APPROVED','') == '1')
+print(json.dumps(out))
+"
+```
+**2d. Verdict routing**:
+- `auto_pass` → print `ALIGNMENT: auto_pass — cited "<clause>"` and proceed to STEP 3.
+- `escalate` **interactive** (`is_autonomous_context()` false) → **AskUserQuestion** with the escalation_reason, Stage 0 reasons, and the classifier's reasoning; exactly four options: (A) Approve — this IS in scope, proceed (re-run the 2c snippet with `user_approved=True` substituted for the env lookup: `ALIGNMENT_USER_APPROVED` is inline-spoofing-protected, and the upgrade records an `approval` trail); (B) Update PROJECT.md scope first, then re-run STEP 2; (C) Narrow the change to stay in scope; (D) Cancel. On (B)/(C)/(D) STOP the pipeline.
+- `escalate` **autonomous** → BLOCK. If `ISSUE_NUMBER` is set: `gh issue edit $ISSUE_NUMBER --add-label needs-scope-decision` and `gh issue comment $ISSUE_NUMBER --body "<verdict summary>"`. Blocking must not depend on gh succeeding. Then STOP.
 
 **FORBIDDEN**:
-- ❌ Proceeding to STEP 3 without updating `alignment_passed` in the pipeline state
-- ❌ Declaring alignment "obvious" without reading PROJECT.md
-- ❌ Skipping STEP 2 under time or context pressure
+1. ❌ Writing `alignment_passed` into pipeline state by any means other than `record_alignment_verdict()` — hand-rolled `state['alignment_passed'] = True` bypasses the co-signed verdict check entirely (it is read as a legacy pre-#1467 state) — always go through `record_alignment_verdict()` so `alignment_verdict` is set and the disallowed-verdict check has something to enforce against.
+2. ❌ Skipping the alignment-classifier dispatch because the change "obviously" fits — that is the self-attestation this gate replaces.
+3. ❌ Treating an `escalate` verdict as advisory, or re-running Stage 1 with a reworded prompt to shop for a different classification.
+4. ❌ Auto-approving in autonomous mode. Autonomous mode blocks; it never approves.
+5. ❌ Proceeding to STEP 3 with any verdict other than `auto_pass` / `user_approved`.
 
 ### STEP 3: Check Research Cache
 
@@ -2420,7 +2420,7 @@ Same as STEP 1 in full pipeline.
 
 **Progress**: Output step banner (STEP 1/5 — Alignment).
 
-Same as STEP 2 in full pipeline.
+Same as STEP 2 in full pipeline. The alignment-classifier dispatch and verdict protocol (Issue #1467) applies in light mode exactly as in STEP 2.
 
 ### STEP L2: Planner (1 agent)
 
