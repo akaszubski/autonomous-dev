@@ -17,7 +17,12 @@ from typing import Optional
 
 
 _SENTINEL_REL = ".claude/local/active_agent_dispatch.json"
-DEFAULT_TTL_SECONDS = 30
+# Issue #1447/#1448 (recurrence 2026-08-09, during #1471): 30s was shorter than
+# real implementer dispatch latency — system-prompt/skill loading + one Read +
+# streaming a multi-line Edit call reliably exceeds it, structurally denying
+# every large protected-path edit. SubagentStop still clears the sentinel on
+# agent completion; the TTL is only the crash backstop, so 600s is safe.
+DEFAULT_TTL_SECONDS = 600
 
 
 def _path(repo_root: Optional[Path] = None) -> Path:

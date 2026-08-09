@@ -110,7 +110,27 @@ class PromptIntegrityResult:
     baseline_word_count: Optional[int]
     passed: bool
     reason: str = ""
-    shrinkage_percent: Optional[float] = None
+    shrinkage_pct: float = 0.0
+    should_reload: bool = False
+
+
+# Required content slots for critical agents (Issue #844).
+# Each agent maps to a list of (slot_name, marker_substring) tuples.
+# The marker_substring is case-insensitive and checked via `in` on the prompt.
+# (Restored in #1471 — dropped by d29c3163; tests/unit/lib/test_prompt_integrity.py
+# and the #844 slot-validation contract import it.)
+REQUIRED_PROMPT_SLOTS: Dict[str, List[Tuple[str, str]]] = {
+    "security-auditor": [
+        ("implementer output", "implementer"),
+        ("changed files", "changed file"),
+        ("test results", "test"),
+    ],
+    "reviewer": [
+        ("implementer output", "implementer"),
+        ("changed files", "changed file"),
+        ("test results", "test"),
+    ],
+}
 
 
 @dataclass
@@ -167,6 +187,8 @@ def validate_prompt_word_count(
             baseline_word_count=baseline_word_count,
             passed=False,
             reason="Empty prompt",
+            shrinkage_pct=100.0 if (baseline_word_count and baseline_word_count > 0) else 0.0,
+            should_reload=True,
         )
 
     word_count = len(prompt.split())
@@ -179,13 +201,23 @@ def validate_prompt_word_count(
                 word_count=word_count,
                 baseline_word_count=baseline_word_count,
                 passed=False,
-                reason=f"Critical agent prompt too short: {word_count} words < {MIN_CRITICAL_AGENT_PROMPT_WORDS} minimum",
+                # Issue #1471: reason must name the agent (test contract)
+                reason=(
+                    f"{agent_type}: critical agent prompt too short: "
+                    f"{word_count} words < {MIN_CRITICAL_AGENT_PROMPT_WORDS} minimum"
+                ),
+                shrinkage_pct=(
+                    round((1.0 - word_count / baseline_word_count) * 100, 1)
+                    if baseline_word_count and baseline_word_count > 0
+                    else 0.0
+                ),
+                should_reload=True,
             )
 
     # Check 2: Shrinkage from baseline (if baseline provided)
     if baseline_word_count and baseline_word_count > 0:
         shrinkage = 1.0 - (word_count / baseline_word_count)
-        shrinkage_percent = shrinkage * 100
+        shrinkage_pct = shrinkage * 100
 
         # Adjust threshold for reinvocation contexts (Issue #789/#791)
         # Issue #1358: Use 3.0x multiplier for "fix" mode, 2.0x for others
@@ -215,8 +247,13 @@ def validate_prompt_word_count(
                 word_count=word_count,
                 baseline_word_count=baseline_word_count,
                 passed=False,
-                reason=f"Prompt shrinkage {shrinkage:.0%} exceeds {effective_max_shrinkage:.0%} threshold{threshold_note}",
-                shrinkage_percent=shrinkage_percent,
+                # Issue #1471: "shrank" + one-decimal pct are test contract
+                reason=(
+                    f"Prompt shrank {shrinkage_pct:.1f}% — exceeds "
+                    f"{effective_max_shrinkage:.0%} threshold{threshold_note}"
+                ),
+                shrinkage_pct=round(shrinkage_pct, 1),
+                should_reload=True,
             )
 
     return PromptIntegrityResult(
@@ -224,11 +261,12 @@ def validate_prompt_word_count(
         word_count=word_count,
         baseline_word_count=baseline_word_count,
         passed=True,
-        shrinkage_percent=(
-            (1.0 - word_count / baseline_word_count) * 100
+        shrinkage_pct=(
+            round((1.0 - word_count / baseline_word_count) * 100, 1)
             if baseline_word_count and baseline_word_count > 0
-            else None
+            else 0.0
         ),
+        should_reload=False,
     )
 
 
@@ -539,20 +577,40 @@ def clear_prompt_baselines(*, state_dir: Optional[Path] = None) -> None:
             logger.error("Failed to clear baselines: %s", e)
 
 
-def get_agent_prompt_template(agent_type: str) -> Optional[str]:
-    """Get the prompt template for an agent type.
+def get_agent_prompt_template(
+    agent_type: str,
+    *,
+    agents_dir: Optional[Path] = None,
+) -> str:
+    """Read an agent's prompt template from its source file on disk.
 
-    This would normally load from agent definitions, but for now returns None.
-    Future implementation would load from agents/*.md files.
+    Restored from commit b7face59 (Issue #1471) — regressed to a stub
+    returning None, breaking the coordinator's reload-from-disk path.
 
     Args:
-        agent_type: The agent type (e.g., "reviewer")
+        agent_type: Agent name (e.g., 'reviewer').
+        agents_dir: Optional override for agents directory path.
 
     Returns:
-        Prompt template string if found, None otherwise
+        Full text content of the agent's .md file.
+
+    Raises:
+        FileNotFoundError: If agent file does not exist.
     """
-    # TODO: Implement loading from agent definitions
-    return None
+    if agents_dir is None:
+        root = _find_project_root()
+        agents_dir = root / "plugins" / "autonomous-dev" / "agents"
+        if not agents_dir.exists():
+            agents_dir = root / ".claude" / "agents"
+
+    agent_file = agents_dir / f"{agent_type}.md"
+    if not agent_file.exists():
+        raise FileNotFoundError(
+            f"Agent prompt template not found: {agent_file}\n"
+            f"Expected .md file in {agents_dir}/"
+        )
+
+    return agent_file.read_text(encoding="utf-8")
 
 
 def construct_revision_prompt(
@@ -667,3 +725,357 @@ def analyze_prompt_structure(prompt: str) -> Dict[str, int]:
         'word_count': len(prompt.split()),
         'char_count': len(prompt),
     }
+
+
+def _find_project_root(start: Optional[Path] = None) -> Path:
+    """Walk up from start directory looking for project root markers.
+
+    Args:
+        start: Directory to start searching from. Defaults to CWD.
+
+    Returns:
+        Path to project root.
+
+    Raises:
+        FileNotFoundError: If no project root can be found.
+    """
+    current = start or Path.cwd()
+    while current != current.parent:
+        if (current / "plugins" / "autonomous-dev" / "agents").is_dir():
+            return current
+        if (current / ".git").exists() or (current / ".claude").exists():
+            return current
+        current = current.parent
+    raise FileNotFoundError(
+        f"Could not find project root from {start or Path.cwd()}.\n"
+        f"Expected a directory containing plugins/autonomous-dev/agents/ or .git/"
+    )
+
+
+def _get_observations_path(state_dir: Optional[Path] = None) -> Path:
+    """Resolve the path to the batch observations JSON file.
+
+    Args:
+        state_dir: Optional override directory. If None, uses project root.
+
+    Returns:
+        Absolute path to prompt_batch_observations.json.
+    """
+    if state_dir is not None:
+        return state_dir / "prompt_batch_observations.json"
+    root = _find_project_root()
+    return root / ".claude" / "logs" / "prompt_batch_observations.json"
+
+
+def record_batch_observation(
+    agent_type: str,
+    issue_number: int,
+    word_count: int,
+    *,
+    state_dir: Optional[Path] = None,
+) -> None:
+    """Record a prompt word count observation for cumulative drift tracking.
+
+    Appends to prompt_batch_observations.json file. Each agent_type gets a list
+    of observations recording the word count at each issue in the batch.
+
+    Args:
+        agent_type: Agent name (e.g., 'reviewer').
+        issue_number: GitHub issue number being processed.
+        word_count: Word count of the prompt sent to this agent.
+        state_dir: Optional override for state directory.
+    """
+    obs_path = _get_observations_path(state_dir)
+    obs_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data: dict = {}
+    if obs_path.exists():
+        try:
+            data = json.loads(obs_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            logger.warning(
+                "Could not read batch observations file, starting fresh: %s", obs_path
+            )
+            data = {}
+
+    if agent_type not in data:
+        data[agent_type] = []
+
+    data[agent_type].append({"issue": issue_number, "word_count": word_count})
+
+    obs_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    logger.debug(
+        "Recorded batch observation: %s issue #%d = %d words",
+        agent_type,
+        issue_number,
+        word_count,
+    )
+
+
+def get_cumulative_shrinkage(
+    agent_type: str,
+    *,
+    state_dir: Optional[Path] = None,
+) -> Optional[float]:
+    """Get cumulative shrinkage percentage for an agent across the batch.
+
+    Computes drift from the first observation to the latest observation for
+    the specified agent_type.
+
+    Args:
+        agent_type: Agent name to look up.
+        state_dir: Optional override for state directory.
+
+    Returns:
+        Shrinkage percentage (e.g., 20.0 for 20%), or None if fewer than
+        2 observations exist for this agent. Returns 0.0 if latest >= first.
+    """
+    obs_path = _get_observations_path(state_dir)
+
+    if not obs_path.exists():
+        return None
+
+    try:
+        data = json.loads(obs_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Could not read batch observations file: %s", obs_path)
+        return None
+
+    observations = data.get(agent_type)
+    if not observations or len(observations) < 2:
+        return None
+
+    # Issue #934: skip drift check for single-issue remediation loops.
+    distinct_issues = {obs.get("issue", obs.get("issue_number")) for obs in observations}
+    distinct_issues.discard(None)
+    if len(distinct_issues) < 2:
+        return None
+
+    first_wc = observations[0]["word_count"]
+    latest_wc = observations[-1]["word_count"]
+
+    if first_wc <= 0:
+        return None
+
+    shrinkage = (first_wc - latest_wc) / first_wc * 100
+    return max(0.0, round(shrinkage, 1))
+
+
+def clear_batch_observations(*, state_dir: Optional[Path] = None) -> None:
+    """Clear all batch observations. Call at batch start.
+
+    Args:
+        state_dir: Optional override for state directory.
+    """
+    obs_path = _get_observations_path(state_dir)
+    obs_path.unlink(missing_ok=True)
+    logger.debug("Cleared batch observations: %s", obs_path)
+
+
+def compute_template_baselines(*, agents_dir: Optional[Path] = None) -> dict:
+    """Compute word counts for each critical agent's prompt template.
+
+    Restored verbatim from commit b7face59 (Issue #1471).
+
+    Args:
+        agents_dir: Optional override for agents directory path.
+
+    Returns:
+        Mapping of {agent_type: word_count} for agents with found templates.
+    """
+    if agents_dir is None:
+        root = _find_project_root()
+        agents_dir = root / "plugins" / "autonomous-dev" / "agents"
+
+    baselines: dict = {}
+    for agent_type in COMPRESSION_CRITICAL_AGENTS:
+        agent_file = agents_dir / f"{agent_type}.md"
+        if not agent_file.exists():
+            logger.warning(
+                "Template baseline: agent file not found, skipping: %s", agent_file
+            )
+            continue
+        try:
+            template = agent_file.read_text(encoding="utf-8")
+            baselines[agent_type] = len(template.split())
+        except OSError as exc:
+            logger.warning("Template baseline: could not read %s: %s", agent_file, exc)
+
+    return baselines
+
+
+def seed_baselines_from_templates(
+    *,
+    agents_dir: Optional[Path] = None,
+    state_dir: Optional[Path] = None,
+) -> dict:
+    """No-op: template-based baseline seeding is deprecated (Issue #810).
+
+    Restored verbatim from commit b7face59 (Issue #1471). Previously seeded
+    baselines at 0.70x template word count, causing a systematic 25-50% false
+    positive block rate. The hook's else-branch correctly seeds from the
+    first observed prompt when no baseline exists.
+
+    Args:
+        agents_dir: Ignored (kept for backwards-compatible signature).
+        state_dir: Ignored (kept for backwards-compatible signature).
+
+    Returns:
+        Empty dict — no baselines are written.
+    """
+    logger.warning(
+        "seed_baselines_from_templates() is deprecated (Issue #810). "
+        "Baselines are now established automatically from the first observed prompt."
+    )
+    return {}
+
+
+def set_redispatch_flag(agent_type: str, *, state_dir: Optional[Path] = None) -> None:
+    """Set a one-shot redispatch flag for an agent.
+
+    Restored verbatim from commit b7face59 (Issue #1471, originally #1227).
+    Called when an agent invocation is denied (e.g., by agent_ordering_gate).
+    The flag indicates the coordinator will re-dispatch the agent with the
+    canonical template, so prompt shrinkage check should be skipped.
+
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        state_dir: Optional override for state directory.
+    """
+    del state_dir  # reserved; resolved via sentinel
+    try:
+        from pipeline_state import load_pipeline, save_pipeline, get_legacy_sentinel_path
+        sentinel = get_legacy_sentinel_path()
+        if not sentinel.exists():
+            logger.debug(
+                "No active pipeline sentinel - skipping redispatch flag set for '%s'",
+                agent_type,
+            )
+            return
+        try:
+            sentinel_data = json.loads(sentinel.read_text(encoding="utf-8"))
+            run_id = sentinel_data.get("run_id")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug("Could not read sentinel for redispatch flag set: %s", e)
+            return
+        if not run_id:
+            return
+        state = load_pipeline(run_id)
+        if state is None:
+            logger.debug("No pipeline state for run_id %s - skipping redispatch flag set", run_id)
+            return
+        if not hasattr(state, "redispatch_agents") or state.redispatch_agents is None:
+            state.redispatch_agents = {}
+        state.redispatch_agents[agent_type] = True
+        save_pipeline(state)
+        logger.debug("Set redispatch flag for agent '%s' on run %s", agent_type, run_id)
+    except Exception as e:
+        logger.debug("Could not set redispatch flag for '%s': %s", agent_type, e)
+
+
+def consume_redispatch_flag(agent_type: str, *, state_dir: Optional[Path] = None) -> bool:
+    """Consume and clear a one-shot redispatch flag for an agent.
+
+    Restored verbatim from commit b7face59 (Issue #1471, originally #1227).
+    Returns True if the flag was set (and clears it), False otherwise.
+    This is a one-shot mechanism: the flag is deleted after being read.
+
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        state_dir: Optional override for state directory.
+
+    Returns:
+        True if redispatch flag was set for this agent, False otherwise.
+    """
+    del state_dir  # reserved; resolved via sentinel
+    try:
+        from pipeline_state import load_pipeline, save_pipeline, get_legacy_sentinel_path
+        sentinel = get_legacy_sentinel_path()
+        if not sentinel.exists():
+            return False
+        try:
+            sentinel_data = json.loads(sentinel.read_text(encoding="utf-8"))
+            run_id = sentinel_data.get("run_id")
+        except (json.JSONDecodeError, OSError):
+            return False
+        if not run_id:
+            return False
+        state = load_pipeline(run_id)
+        if state is None:
+            return False
+        if not hasattr(state, "redispatch_agents") or state.redispatch_agents is None:
+            return False
+        if agent_type in state.redispatch_agents and state.redispatch_agents[agent_type]:
+            del state.redispatch_agents[agent_type]
+            save_pipeline(state)
+            logger.debug("Consumed redispatch flag for agent '%s' on run %s", agent_type, run_id)
+            return True
+        return False
+    except Exception as e:
+        logger.debug("Could not consume redispatch flag for '%s': %s", agent_type, e)
+        return False
+
+
+def is_canonical_template_match(
+    agent_type: str,
+    content: str,
+    *,
+    tolerance: float = 0.10,
+    agents_dir: Optional[Path] = None,
+) -> bool:
+    """Check if content matches canonical template word count within tolerance.
+
+    Restored verbatim from commit b7face59 (Issue #1471, originally #1227).
+
+    Args:
+        agent_type: Agent name (e.g., 'reviewer', 'security-auditor').
+        content: The prompt content to check.
+        tolerance: Maximum relative difference (0.10 = 10% tolerance).
+        agents_dir: Optional override for agents directory path.
+
+    Returns:
+        True if word count is within tolerance of canonical template.
+    """
+    try:
+        template = get_agent_prompt_template(agent_type, agents_dir=agents_dir)
+        canonical_wc = len(template.split())
+        actual_wc = len(content.split())
+        if canonical_wc == 0:
+            return False
+
+        rel_diff = abs(actual_wc - canonical_wc) / canonical_wc
+        is_match = rel_diff <= tolerance
+
+        if is_match:
+            logger.debug(
+                "Canonical template match for %s: actual=%d, canonical=%d, diff=%.1f%%",
+                agent_type, actual_wc, canonical_wc, rel_diff * 100
+            )
+
+        return is_match
+    except Exception as e:
+        logger.debug("Could not check canonical match for '%s': %s", agent_type, e)
+        return False
+
+
+@dataclass
+class ValidateAndReloadResult:
+    """Result of validate_and_reload operation.
+
+    Attributes:
+        prompt: The best available prompt (original if passed, or reloaded).
+        validation: The final PromptIntegrityResult after all attempts.
+        reload_count: Number of reload attempts made.
+        reload_succeeded: True if a reload produced a passing prompt.
+
+    Restored in #1471 (dropped by d29c3163). NOTE: the current module also has
+    PromptReloadResult (the #1358-era rewrite's equivalent); reconciling the two
+    result types is tracked in the validate_prompt_word_count-divergence
+    follow-up issue — this restoration only unblocks module collection for
+    tests/unit/lib/test_prompt_integrity.py (63 tests dark since d29c3163).
+    """
+
+    prompt: str
+    validation: PromptIntegrityResult
+    reload_count: int
+    reload_succeeded: bool

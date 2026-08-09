@@ -168,25 +168,32 @@ class TestAgentDispatchSentinel:
         assert self.sentinel_path.exists()
     
     def test_default_ttl_value(self):
-        """Test that default TTL is 30 seconds."""
-        # Write sentinel 31 seconds ago
+        """Test that default TTL is 600 seconds (Issue #1447/#1471).
+
+        30s was shorter than real implementer dispatch latency —
+        system-prompt/skill loading + one Read + streaming a multi-line
+        Edit call reliably exceeds it, structurally denying every large
+        protected-path edit. Bumped to 600s; SubagentStop still clears the
+        sentinel on agent completion, so the TTL is only the crash backstop.
+        """
+        # Write sentinel 601 seconds ago
         old_data = {
             "agent": "test-agent",
             "pid": os.getpid(),
-            "timestamp": time.time() - 31
+            "timestamp": time.time() - 601
         }
         self.sentinel_path.write_text(json.dumps(old_data))
-        
-        # Without specifying TTL, should use default (30s)
+
+        # Without specifying TTL, should use default (600s)
         assert not ads.is_active(repo_root=self.test_root)
-        
-        # Write sentinel 29 seconds ago
+
+        # Write sentinel 599 seconds ago
         recent_data = {
             "agent": "test-agent",
             "pid": os.getpid(),
-            "timestamp": time.time() - 29
+            "timestamp": time.time() - 599
         }
         self.sentinel_path.write_text(json.dumps(recent_data))
-        
+
         # Should be active with default TTL
         assert ads.is_active(repo_root=self.test_root)

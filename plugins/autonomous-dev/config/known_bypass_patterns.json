@@ -23,13 +23,13 @@
       "issue": "#1390",
       "hard_gate": "_check_worktree_path_boundary in unified_pre_tool.py",
       "detection": {
-        "type": "activity_log_pattern",
+        "type": "log_pattern",
         "indicators": [
           "worktree_path_boundary_violation in deviation logs",
           "Write/Edit file_path outside .worktrees/batch-* when CWD is inside"
         ]
       },
-      "severity": "high"
+      "severity": "critical"
     },
     {
       "id": "anti_stubbing",

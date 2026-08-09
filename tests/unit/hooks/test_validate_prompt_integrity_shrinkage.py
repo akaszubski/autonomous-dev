@@ -11,7 +11,7 @@ Validates that the hook-level baseline shrinkage check (Issue #723):
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 import pytest
 
@@ -80,8 +80,17 @@ class TestBaselineShrinkageEnforcement:
             )
 
         assert decision == "allow"
-        # record_prompt_baseline seeded at observed word count (Issue #759)
-        mock_record.assert_called_once_with("reviewer", issue_number=0, word_count=expected_baseline)
+        # record_prompt_baseline seeded at observed word count (Issue #759).
+        # Issue #1471 (landmine 1): the hook also passes pipeline_mode= (added in
+        # Issue #1358, unified_pre_tool.py:~1308). The assertion is TIGHTENED to
+        # include it rather than weakened — mock.ANY is used because the value is
+        # environment-dependent (_get_pipeline_mode_from_state reads live pipeline state).
+        mock_record.assert_called_once_with(
+            "reviewer",
+            issue_number=0,
+            word_count=expected_baseline,
+            pipeline_mode=ANY,
+        )
         # validate_prompt_word_count should NOT be called when baseline is None
         mock_validate.assert_not_called()
 

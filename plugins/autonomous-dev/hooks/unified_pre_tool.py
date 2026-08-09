@@ -1249,102 +1249,129 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
     # Issue #764: Use PIPELINE_ISSUE_NUMBER for per-issue baseline isolation.
     # In batch mode, each issue gets its own baseline so cross-issue context
     # pressure doesn't trigger false-positive shrinkage blocks.
+    import logging as _pi_logging
+    _pi_logger = _pi_logging.getLogger("unified_pre_tool.prompt_integrity")
     try:
         from prompt_integrity import (
             get_prompt_baseline,
             record_prompt_baseline,
             validate_prompt_word_count,
         )
-
-        # Per-issue isolation (Issue #764): use current issue number for
-        # baseline lookup and seeding. When not in batch mode (no issue context),
-        # issue_number=None preserves backward-compatible behavior (lowest issue).
-        # Issue #779: Use file-based fallback when env var is missing.
-        current_issue_num_raw = _get_current_issue_number()
-        current_issue_num = current_issue_num_raw if current_issue_num_raw > 0 else None
-        current_issue_str = str(current_issue_num) if current_issue_num else None
-
-        baseline_word_count = get_prompt_baseline(
-            agent_type, issue_number=current_issue_num
+    except ImportError as exc:
+        _pi_logger.warning(
+            "prompt_integrity unavailable — baseline gate skipped (fail-open): %s", exc
         )
+    else:
+        try:
+            # Per-issue isolation (Issue #764): use current issue number for
+            # baseline lookup and seeding. When not in batch mode (no issue context),
+            # issue_number=None preserves backward-compatible behavior (lowest issue).
+            # Issue #779: Use file-based fallback when env var is missing.
+            current_issue_num_raw = _get_current_issue_number()
+            current_issue_num = current_issue_num_raw if current_issue_num_raw > 0 else None
+            current_issue_str = str(current_issue_num) if current_issue_num else None
 
-        # Detect reinvocation context for relaxed thresholds (Issue #789, #791)
-        invocation_ctx = _detect_invocation_context(prompt)
-        # Issue #1358: Get pipeline mode to pass to prompt integrity functions
-        pipeline_mode = _get_pipeline_mode_from_state()
-
-
-        if baseline_word_count is not None:
-            result = validate_prompt_word_count(
-                agent_type, prompt, baseline_word_count,
-                max_shrinkage=0.20, invocation_context=invocation_ctx,
-                pipeline_mode=pipeline_mode,  # Issue #1358
+            baseline_word_count = get_prompt_baseline(
+                agent_type, issue_number=current_issue_num
             )
-            if not result.passed:
-                issue_ctx = f" (issue #{current_issue_str})" if current_issue_str else ""
-                return (
-                    "deny",
-                    f"BLOCKED: Prompt for '{agent_type}'{issue_ctx} shrank {result.shrinkage_pct:.1f}% "
-                    f"from baseline ({baseline_word_count} words → {word_count} words, "
-                    f"threshold: 20%). "
-                    f"The agent prompt is being compressed across invocations. "
-                    f"REQUIRED NEXT ACTION: Use get_agent_prompt_template('{agent_type}') "
-                    f"to reload the full agent prompt from disk and reconstruct with complete context.",
+
+            # Detect reinvocation context for relaxed thresholds (Issue #789, #791)
+            invocation_ctx = _detect_invocation_context(prompt)
+            # Issue #1358: Get pipeline mode to pass to prompt integrity functions
+            pipeline_mode = _get_pipeline_mode_from_state()
+
+
+            if baseline_word_count is not None:
+                result = validate_prompt_word_count(
+                    agent_type, prompt, baseline_word_count,
+                    max_shrinkage=0.20, invocation_context=invocation_ctx,
+                    pipeline_mode=pipeline_mode,  # Issue #1358
                 )
-        else:
-            # No baseline yet — seed from OBSERVED word count (Issue #759, #810).
-            # Template files (~2500 words) are far larger than task-specific
-            # prompts (~200-600 words) because templates contain the full agent
-            # definition while the coordinator sends focused task context.
-            # Template-based seeding (even at 0.70 slack) produced baselines of
-            # ~1700 words, causing 25-50% false positive block rate in batch mode.
-            # The observed word count is the correct baseline for cross-issue
-            # shrinkage detection. seed_baselines_from_templates() is deprecated.
-            #
-            # Issue #764: Use current issue number instead of hardcoded 0.
-            seed_issue = int(current_issue_str) if current_issue_str else 0
-            record_prompt_baseline(
-                agent_type, issue_number=seed_issue, word_count=word_count,
-                pipeline_mode=pipeline_mode,  # Issue #1358
-            )
-            import logging
-            _pi_logger = logging.getLogger("unified_pre_tool.prompt_integrity")
-            _pi_logger.debug(
-                "Seeded baseline from observation: %s issue #%d = %d words",
-                agent_type, seed_issue, word_count,
-            )
-            # Also record as batch observation for cumulative drift tracking (Issue #794)
-            try:
+                if not result.passed:
+                    issue_ctx = f" (issue #{current_issue_str})" if current_issue_str else ""
+                    return (
+                        "deny",
+                        f"BLOCKED: Prompt for '{agent_type}'{issue_ctx} shrank {result.shrinkage_pct:.1f}% "
+                        f"from baseline ({baseline_word_count} words → {word_count} words, "
+                        f"threshold: 20%). "
+                        f"The agent prompt is being compressed across invocations. "
+                        f"REQUIRED NEXT ACTION: Use get_agent_prompt_template('{agent_type}') "
+                        f"to reload the full agent prompt from disk and reconstruct with complete context.",
+                    )
+            else:
+                # No baseline yet — seed from OBSERVED word count (Issue #759, #810).
+                # Template files (~2500 words) are far larger than task-specific
+                # prompts (~200-600 words) because templates contain the full agent
+                # definition while the coordinator sends focused task context.
+                # Template-based seeding (even at 0.70 slack) produced baselines of
+                # ~1700 words, causing 25-50% false positive block rate in batch mode.
+                # The observed word count is the correct baseline for cross-issue
+                # shrinkage detection. seed_baselines_from_templates() is deprecated.
+                #
+                # Issue #764: Use current issue number instead of hardcoded 0.
+                seed_issue = int(current_issue_str) if current_issue_str else 0
+                record_prompt_baseline(
+                    agent_type, issue_number=seed_issue, word_count=word_count,
+                    pipeline_mode=pipeline_mode,  # Issue #1358
+                )
+                _pi_logger.debug(
+                    "Seeded baseline from observation: %s issue #%d = %d words",
+                    agent_type, seed_issue, word_count,
+                )
+                # Also record as batch observation for cumulative drift tracking (Issue #794)
                 from prompt_integrity import record_batch_observation as _record_obs
                 _record_obs(agent_type, seed_issue, word_count)
-            except Exception:
-                pass  # fail-open
+        except (IOError, OSError, json.JSONDecodeError) as exc:
+            # Baseline-file I/O problems must not block agents (documented fail-open)
+            _pi_logger.warning("Prompt-integrity baseline I/O error — fail-open: %s", exc)
+        except Exception as exc:
+            _pi_logger.error(
+                "Prompt-integrity gate-internal error — FAIL-CLOSED: %s", exc, exc_info=True
+            )
+            return (
+                "deny",
+                f"BLOCKED: prompt-integrity gate failed internally "
+                f"({type(exc).__name__}: {exc}). REQUIRED NEXT ACTION: report this as "
+                f"an autonomous-dev bug via /create-issue; do not retry blind.",
+            )
 
-    except Exception:
-        # Fail open: any error in baseline check must not block the agent
-        pass
-
-    # Cumulative drift check (Issue #794) — wrapped in try/except (fail-open)
+    # Cumulative drift check (Issue #794) — same fail-open/fail-closed split (Issue #1471)
     try:
         from prompt_integrity import (
             record_batch_observation,
             get_cumulative_shrinkage,
             MAX_CUMULATIVE_SHRINKAGE,
         )
-        issue_for_obs = _get_current_issue_number()
-        record_batch_observation(agent_type, issue_for_obs, word_count)
-        cumulative = get_cumulative_shrinkage(agent_type)
-        if cumulative is not None and cumulative >= MAX_CUMULATIVE_SHRINKAGE * 100:
+    except ImportError as exc:
+        _pi_logger.warning(
+            "prompt_integrity unavailable — cumulative check skipped (fail-open): %s", exc
+        )
+    else:
+        try:
+            issue_for_obs = _get_current_issue_number()
+            record_batch_observation(agent_type, issue_for_obs, word_count)
+            cumulative = get_cumulative_shrinkage(agent_type)
+            if cumulative is not None and cumulative >= MAX_CUMULATIVE_SHRINKAGE * 100:
+                return (
+                    "deny",
+                    f"BLOCKED: Cumulative prompt drift for '{agent_type}' is {cumulative:.1f}% "
+                    f"across this batch (threshold: {MAX_CUMULATIVE_SHRINKAGE:.0%}). "
+                    f"Individual issues pass but the overall trend shows progressive compression. "
+                    f"REQUIRED NEXT ACTION: Use get_agent_prompt_template('{agent_type}') "
+                    f"to reload the full agent prompt from disk and reconstruct with complete context.",
+                )
+        except (IOError, OSError, json.JSONDecodeError) as exc:
+            _pi_logger.warning("Cumulative-drift I/O error — fail-open: %s", exc)
+        except Exception as exc:
+            _pi_logger.error(
+                "Cumulative-drift gate-internal error — FAIL-CLOSED: %s", exc, exc_info=True
+            )
             return (
                 "deny",
-                f"BLOCKED: Cumulative prompt drift for '{agent_type}' is {cumulative:.1f}% "
-                f"across this batch (threshold: {MAX_CUMULATIVE_SHRINKAGE:.0%}). "
-                f"Individual issues pass but the overall trend shows progressive compression. "
-                f"REQUIRED NEXT ACTION: Use get_agent_prompt_template('{agent_type}') "
-                f"to reload the full agent prompt from disk and reconstruct with complete context.",
+                f"BLOCKED: prompt-integrity cumulative gate failed internally "
+                f"({type(exc).__name__}: {exc}). REQUIRED NEXT ACTION: report this as "
+                f"an autonomous-dev bug via /create-issue; do not retry blind.",
             )
-    except Exception:
-        pass  # fail-open — cumulative tracking failure must not block agents
 
     return ("allow", f"Prompt integrity OK: {agent_type} has {word_count} words (>= {MIN_CRITICAL_AGENT_PROMPT_WORDS})")
 

@@ -461,10 +461,16 @@ class TestHeredocFalsePositive:
         )
 
     def test_classifier_still_matches_actual_cat_redirect(self):
-        """Regression: the real outside-heredoc redirect still classifies."""
-        cmd = "cat > /tmp/real.py <<EOF\nclass X: pass\nEOF\n"
+        """Regression: the real outside-heredoc redirect still classifies.
+
+        Issue #1471: fixture moved off /tmp — the #1408 write-gate temp exemption
+        (test_issue_1408_write_gate_scoping.py:90-96) deliberately returns ("","")
+        for /tmp paths; this test's intent (outside-heredoc redirect still
+        classifies) is orthogonal to temp scoping.
+        """
+        cmd = "cat > src/real.py <<EOF\nclass X: pass\nEOF\n"
         target, pattern = etc.detect_bash_code_file_write(cmd)
-        assert target == "/tmp/real.py", (
+        assert target == "src/real.py", (
             f"Lost detection of actual cat>: target={target!r}"
         )
 
