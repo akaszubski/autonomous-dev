@@ -99,6 +99,11 @@ git commit -m "docs: update scope to GraphQL architecture"
 - Current architecture decisions
 - Technology stack
 - Design patterns
+
+### INVARIANTS (Issue #1467)
+- Load-bearing properties that a proposed change may not silently contradict
+- A change touching one of these is an architecture delta, not routine scope — it requires explicit sign-off, not a routine SCOPE edit
+- Optional: repos with no INVARIANTS subsection are never architecture-delta-blocked by the alignment gate
 ```
 
 #### 2. **orchestrator.md** (Gatekeeper Behavior)

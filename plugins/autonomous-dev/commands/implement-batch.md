@@ -691,6 +691,14 @@ Each issue's detected mode determines which pipeline variant runs in STEP B3:
 - `fix` → fix pipeline (implement-fix.md)
 - `light` → light pipeline (implement.md --light)
 
+**STEP I1.6: Per-Issue Alignment Verdict (Issue #1467)**
+
+For each remaining issue, run the STEP 2 alignment gate protocol (implement.md) — Stage 0 pre-check, alignment-classifier dispatch, `record_alignment_verdict` — with the issue title+body as feature text. Routing in batch/autonomous context (`is_autonomous_context()` true):
+- `auto_pass` → proceed normally.
+- `escalate` → label the issue `needs-scope-decision`, comment the verdict summary, RELEASE the cross-machine claim acquired in STEP I1.4 (`release_issue(n, actor, reason="alignment_escalated")`), drop the issue from the cluster, continue with the rest.
+- If the cluster becomes empty → exit cleanly with reason `no_alignable_issues` (not a failure).
+Interactive `--issues` runs MAY use the AskUserQuestion path from implement.md STEP 2d instead of labeling.
+
 **STEP I2: Create Worktree and Process**
 
 Same as BATCH FILE MODE:

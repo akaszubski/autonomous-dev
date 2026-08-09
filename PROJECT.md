@@ -84,7 +84,7 @@ autonomous-dev provides **macro alignment with micro flexibility**: PROJECT.md d
 
 ---
 
-## ARCHITECTURE (high level)
+## ARCHITECTURE (Solution-on-a-Page)
 
 autonomous-dev is a **harness** — the software layer that wraps an AI model to keep it on deterministic rails. Reliability in multi-step AI workflows compounds multiplicatively: a 10-step process with 90% accuracy per step fails over 60% of the time. Prompt-level instructions produce unreliable compliance (research-confirmed: "LLM Agents Are Hypersensitive to Nudges", 2025). The harness implements all 12 elements of harness engineering: state machine, validation loops, isolated sub-agents, virtual file system, human-in-the-loop, hook enforcement, state persistence, context management, deterministic ordering, output validation, observability, error recovery.
 
@@ -100,6 +100,19 @@ autonomous-dev is a **harness** — the software layer that wraps an AI model to
 **Key distinctions:** hooks = enforcement (always active, blocking); agents = intelligence (conditional, advisory); continuous improvement = learning (post-hoc analysis, issue filing); self-improvement = evolution (autonomous closed loop); periodic-aggregation = visibility (cross-event sweeps).
 
 Full diagram (pipeline flow, model tiers, hook lifecycle events, repository structure) lives in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md). Diamond Testing Model details in [`docs/TESTING-STRATEGY.md`](docs/TESTING-STRATEGY.md).
+
+### INVARIANTS
+
+These are the load-bearing properties of the harness. A proposed change that contradicts one is an **architecture delta** and requires explicit user sign-off before implementation (Issue #1467). Volatile detail — component counts, hook lists, model tiers, step sub-numbering — lives in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md) and is explicitly NOT invariant.
+
+- **INV-1 — Enforcement is hooks, not nudges.** Anything that must hold is enforced by a hook returning `{"decision": "block"}`. Prompt-level "should" text is advisory and never counts as enforcement.
+- **INV-2 — Specialists run in fresh context.** Each pipeline agent is invoked with a clean context window and a single responsibility. The coordinator never self-attests a judgment that a specialist exists to make.
+- **INV-3 — The pipeline shape is fixed.** Eight steps: alignment → research → plan → acceptance tests → implement → validate → verify → git. Internal sub-steps may be added; the top-level set and their order do not change without sign-off.
+- **INV-4 — Protected infrastructure is implementer-only.** `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` are never edited outside `/implement`; the hard floor holds even under `.claude/.bypass`.
+- **INV-5 — One topic, one home.** Every piece of content has exactly one canonical location; everything else links to it rather than restating it.
+- **INV-6 — Deterministic before probabilistic.** Where a check can be made mechanically (path match, keyword list, signature verification), the mechanical check runs first, and its BLOCK/ESCALATE outcome cannot be overridden by an LLM judgment.
+- **INV-7 — Gating state is signed and fails closed.** State that gates enforcement is HMAC-signed. Any verification failure, missing field, or missing file is treated as "not passed" — never as "passed".
+- **INV-8 — Local-first and free.** No gate requires a paid API, a network call, or a hosted service to function. Gates degrade to deterministic-only rather than demanding a key.
 
 ---
 

@@ -633,9 +633,13 @@ GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'r
 
 # Environment variables protected from inline spoofing in Bash commands (Issue #557)
 # Non-prefix vars that don't start with CLAUDE_ are listed individually
+# Issue #1467: ALIGNMENT_USER_APPROVED gates the ESCALATE -> USER_APPROVED
+# upgrade in the alignment gate. Inline-spoofing it (ALIGNMENT_USER_APPROVED=1
+# python3 -c ...) would fake a human approval, so it is protected like the other
+# gate-controlling variables.
 PROTECTED_ENV_VARS = {
     'PIPELINE_STATE_FILE', 'ENFORCEMENT_LEVEL', 'AUTONOMOUS_DEV_COMMAND',
-    'INTENT_CLASSIFIER_ENFORCE',
+    'INTENT_CLASSIFIER_ENFORCE', 'ALIGNMENT_USER_APPROVED',
 }
 
 # Prefix-based protection: any env var starting with these prefixes is protected (Issue #606)
@@ -2248,15 +2252,56 @@ def _is_explicit_implement_active() -> bool:
         return False
 
 
-def _has_alignment_passed() -> bool:
-    """Check if STEP 2 alignment has passed in the pipeline state (Issue #585).
+def _alignment_strict_available() -> bool:
+    """True when alignment_classifier (Issue #1467) is importable next to this hook."""
+    try:
+        import alignment_classifier  # noqa: F401
+        return True
+    except Exception:
+        # Record WHY strict enforcement degraded — could be a legitimate
+        # consumer install (library absent) or a broken deploy (library
+        # present but raising on import). Never let the logging call itself
+        # break the fail-open path.
+        try:
+            _log_deviation("alignment_classifier_import", "hook", "alignment_strict_unavailable")
+        except Exception:
+            pass
+        return False
 
-    Reads the pipeline state file and verifies that alignment_passed is True.
-    HMAC integrity is verified to prevent tampering. On any error (file missing,
-    JSON invalid, HMAC fails), returns False (fail closed).
+
+def _allowed_alignment_verdicts() -> frozenset:
+    """Verdicts that count as "alignment passed" (Issue #1467).
+
+    Sourced from ``alignment_classifier.ALLOWED_VERDICTS`` so the hook and the
+    library cannot drift. The literal fallback keeps consumer installs that ship
+    the hook without the classifier library working.
 
     Returns:
-        True if alignment has passed and HMAC is valid
+        Frozenset of allowed verdict strings ("auto_pass", "user_approved").
+    """
+    try:
+        from alignment_classifier import ALLOWED_VERDICTS
+        return frozenset(ALLOWED_VERDICTS)
+    except Exception:
+        # Same rationale as _alignment_strict_available(): record why the
+        # literal fallback was used so an operator can distinguish "library
+        # legitimately absent" from "library present but broken."
+        try:
+            _log_deviation("alignment_classifier_import", "hook", "allowed_verdicts_fallback")
+        except Exception:
+            pass
+        return frozenset({"auto_pass", "user_approved"})
+
+
+def _load_pipeline_state_verified() -> Optional[dict]:
+    """Load the pipeline state, returning it only when fresh and HMAC-valid.
+
+    Shared loader for the alignment gates (Issues #585, #592, #1171, #1467).
+    On any error (file missing, JSON invalid, stale session, HMAC failure) this
+    returns None so callers can fail closed.
+
+    Returns:
+        The verified pipeline state dict, or None when it cannot be trusted.
     """
     pipeline_state_file = os.getenv(
         "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
@@ -2264,7 +2309,7 @@ def _has_alignment_passed() -> bool:
     try:
         state_path = Path(pipeline_state_file)
         if not state_path.exists():
-            return False
+            return None
         import json as _json
 
         with open(state_path) as f:
@@ -2272,7 +2317,7 @@ def _has_alignment_passed() -> bool:
 
         # Session staleness check (Issue #592)
         if _is_stale_session(state, state_path):
-            return False
+            return None
 
         # HMAC integrity check — fail closed on any verification failure
         if state.get("hmac") is not None:
@@ -2284,13 +2329,63 @@ def _has_alignment_passed() -> bool:
                     _log_deviation(
                         "pipeline_state", "hmac_check", "alignment_gate_hmac_invalid"
                     )
-                    return False
+                    return None
             except ImportError:
-                return False  # Fail closed: HMAC present but verify library unavailable
+                return None  # Fail closed: HMAC present but verify library unavailable
 
-        return state.get("alignment_passed", False) is True
+        return state
     except (Exception,):
-        return False  # Fail closed on any error
+        return None  # Fail closed on any error
+
+
+def _explicit_alignment_verdict_block() -> Optional[str]:
+    """Return the verdict when verified state carries a present-but-disallowed one.
+
+    Returns:
+        The offending verdict string, or None when there is nothing to block on
+        (no state, no verdict field, allowed verdict, or strict mode unavailable).
+    """
+    state = _load_pipeline_state_verified()
+    if not state:
+        return None
+    verdict = state.get("alignment_verdict")
+    if verdict is None or not _alignment_strict_available():
+        return None
+    return None if verdict in _allowed_alignment_verdicts() else verdict
+
+
+def _has_alignment_passed() -> bool:
+    """Check if STEP 2 alignment has passed in the pipeline state (Issue #585).
+
+    Reads the pipeline state file and verifies that alignment_passed is True.
+    HMAC integrity is verified to prevent tampering. On any error (file missing,
+    JSON invalid, HMAC fails), returns False (fail closed).
+
+    Issue #1467 extends the boolean with a co-signed ``alignment_verdict``. When
+    the field is present AND the classifier library ships alongside this hook,
+    the verdict must be in ALLOWED_VERDICTS. Legacy states (field absent) and
+    consumer installs without the library keep the pre-#1467 boolean behavior.
+
+    Returns:
+        True if alignment has passed and HMAC is valid
+    """
+    state = _load_pipeline_state_verified()
+    if state is None:
+        return False
+
+    if state.get("alignment_passed", False) is not True:
+        return False
+
+    verdict = state.get("alignment_verdict")
+    if verdict is None:
+        return True  # Legacy / pre-#1467 state: boolean is the whole contract
+    if not _alignment_strict_available():
+        return True  # Graceful degradation: no library, no verdict enforcement
+    if verdict in _allowed_alignment_verdicts():
+        return True
+
+    _log_deviation("pipeline_state", "alignment_verdict", "alignment_verdict_disallowed")
+    return False
 
 
 # Non-code file extensions exempt from explicit /implement coordinator blocking
@@ -4956,6 +5051,21 @@ def validate_agent_authorization(tool_name: str, tool_input: Dict) -> Tuple[str,
     # Check if pipeline is active (agent name or state file)
     if _is_pipeline_active():
         agent_name = _get_active_agent_name()
+        # Issue #1467: an EXPLICIT escalated/blocked alignment verdict stops
+        # pipeline agents too. Only the new STEP 2 path can produce a
+        # present-but-disallowed verdict, so legacy/batch states (field absent)
+        # are untouched. Do NOT "fix" this into a blanket reorder — batch
+        # per-issue states lack explicitly_invoked and would all false-block.
+        if agent_name in PIPELINE_AGENTS and tool_name in ("Write", "Edit"):
+            _bad = _explicit_alignment_verdict_block()
+            if _bad:
+                _log_deviation(tool_input.get("file_path", "unknown"),
+                               tool_name, "alignment_verdict_escalated")
+                return ("deny", (
+                    "ALIGNMENT GATE (Issue #1467): STEP 2 produced verdict "
+                    f"'{_bad}'. Work is blocked until the scope/architecture "
+                    "delta is resolved — answer the alignment question, update "
+                    "PROJECT.md, or narrow the change."))
         if agent_name in PIPELINE_AGENTS:
             return ("allow", f"Pipeline agent '{agent_name}' authorized")
         impl_active = _is_explicit_implement_active()

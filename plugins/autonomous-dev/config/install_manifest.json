@@ -24,6 +24,7 @@
   "components": {
     "agents": {
       "files": [
+        "plugins/autonomous-dev/agents/alignment-classifier.md",
         "plugins/autonomous-dev/agents/continuous-improvement-analyst.md",
         "plugins/autonomous-dev/agents/doc-master.md",
         "plugins/autonomous-dev/agents/implementer.md",
@@ -179,6 +180,7 @@
         "plugins/autonomous-dev/lib/agent_pool.py",
         "plugins/autonomous-dev/lib/agent_tracker.py",
         "plugins/autonomous-dev/lib/alignment_assessor.py",
+        "plugins/autonomous-dev/lib/alignment_classifier.py",
         "plugins/autonomous-dev/lib/alignment_fixer.py",
         "plugins/autonomous-dev/lib/alignment_gate.py",
         "plugins/autonomous-dev/lib/already_done_detector.py",

@@ -11,9 +11,9 @@ covers:
 
 Complete technical architecture for the autonomous-dev plugin, including agents, skills, libraries, hooks, and model tier strategy.
 
-**Component Counts**: 16 agents (18 archived), 20 skills, 26 active commands (23 user-facing), 242 libraries, 27 active hooks (62 archived).
+**Component Counts**: 17 agents (18 archived), 20 skills, 26 active commands (23 user-facing), 243 libraries, 27 active hooks (62 archived).
 
-**Last Updated**: 2026-06-25
+**Last Updated**: 2026-08-10
 
 ---
 
@@ -30,12 +30,13 @@ Specialized agents with skill integration for autonomous development. See [AGENT
 
 ## Model Tier Strategy
 
-Agent model assignments optimized for cost-performance balance (16 active agents):
+Agent model assignments optimized for cost-performance balance (17 active agents):
 
 **Tier 1 (Haiku)** - Fast, cost-effective for pattern matching
 - researcher-local - Search codebase patterns
 - test-coverage-auditor - AST-based coverage analysis
 - issue-creator - GitHub issue creation
+- alignment-classifier - Fresh-context PROJECT.md alignment classification with verified citation (STEP 2/L1/F1/I1.6 of `/implement`; Issue #1467)
 
 **Tier 2 (Sonnet)** - Balanced reasoning for judgment tasks
 - researcher - Web research and synthesis

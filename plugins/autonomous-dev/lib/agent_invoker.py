@@ -30,6 +30,12 @@ class AgentInvoker:
 
     # Agent configuration mapping
     AGENT_CONFIGS = {
+        'alignment-classifier': {
+            'progress_pct': 10,
+            'artifacts_required': [],
+            'description_template': 'Classify PROJECT.md alignment for: {request}',
+            'mission': 'Classify a proposed change against PROJECT.md SCOPE and INVARIANTS and cite the governing clause'
+        },
         'researcher': {
             'progress_pct': 20,
             'artifacts_required': ['manifest'],

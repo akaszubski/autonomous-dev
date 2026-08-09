@@ -83,7 +83,24 @@ Total: 4:02 | Tests: N passed, M failed | Files changed: N | CIA: .claude/local/
 **Progress**: Output step banner (STEP F1/5 — Alignment). Capture FIX_START. Output gate result.
 
 Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofit`").
-Verify the fix is within project scope. If misaligned: BLOCK with reason.
+
+#### Pipeline State Initialization (Before Alignment Verdict)
+
+Initialize the fix-mode pipeline state file BEFORE running the alignment gate protocol below, so that `record_alignment_verdict` (Issue #1467) writes `alignment_passed` and `alignment_verdict` into an existing state file. This also ensures hook enforcement (prompt integrity, pipeline ordering) is active during fix mode:
+
+```bash
+python3 -c "
+import json, os, time
+state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time())}
+with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
+    json.dump(state, f)
+print('Pipeline state initialized for fix mode')
+"
+```
+
+This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
+
+Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. Initialize the fix-mode pipeline state BEFORE the verdict step so record_alignment_verdict writes alignment_passed and alignment_verdict into it.
 
 This is the same alignment gate as the full pipeline STEP 1.
 
@@ -103,22 +120,6 @@ print('Prompt baselines cleared for fix mode')
 ```
 
 Note: This step becomes unnecessary once #1082 Phase 1a (per-issue baseline split) lands. Until then, /fix mode SHOULD clear baselines defensively at pipeline start.
-
-#### Pipeline State Initialization
-
-After alignment validation passes, initialize the pipeline state file so that hook enforcement (prompt integrity, pipeline ordering) is active during fix mode:
-
-```bash
-python3 -c "
-import json, os, time
-state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time())}
-with open(os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'), 'w') as f:
-    json.dump(state, f)
-print('Pipeline state initialized for fix mode')
-"
-```
-
-This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
 
 #### PIPELINE_BASE_COMMIT Capture (Issue #1069)
 
