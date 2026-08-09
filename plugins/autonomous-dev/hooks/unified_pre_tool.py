@@ -875,6 +875,12 @@ _GIT_VERIFY_SUBCOMMANDS = {"push", "commit", "merge"}
 # Git subcommands where -f means --force (not something else)
 _GIT_FORCE_PUSH_SUBCOMMANDS = {"push"}
 
+# Git global flags that consume the next token as their value (Issue #1470).
+# When these precede the subcommand (e.g. "git -c foo=bar push --force"), the
+# naive "first non-dash token" scan would misidentify the value as the
+# subcommand and silently skip force/verify detection.
+_GIT_VALUE_FLAGS = {"-c", "-C", "--git-dir", "--work-tree", "--namespace"}
+
 
 def _detect_git_bypass(command: str) -> Tuple[bool, str]:
     """Detect git bypass patterns in a command string.
@@ -918,12 +924,26 @@ def _detect_git_bypass(command: str) -> Tuple[bool, str]:
     if git_idx is None:
         return (False, "")
 
-    # Extract subcommand (first non-flag token after "git")
+    # Extract subcommand (first non-flag token after "git"), skipping over
+    # value-taking global flags like "-c foo=bar" or "-C /path" so their value
+    # tokens are not misidentified as the subcommand (Issue #1470).
     subcommand = ""
-    for token in tokens[git_idx + 1:]:
+    tokens_after_git = tokens[git_idx + 1:]
+    i = 0
+    while i < len(tokens_after_git):
+        token = tokens_after_git[i]
+        if token in _GIT_VALUE_FLAGS:
+            # Skip the flag and its value token (if present).
+            i += 2
+            continue
+        if token.startswith("--") and "=" in token:
+            # Combined form like "--git-dir=/path" — single token, no separate value.
+            i += 1
+            continue
         if not token.startswith("-"):
             subcommand = token
             break
+        i += 1
 
     remaining_tokens = tokens[git_idx + 1:]
 
