@@ -7,19 +7,27 @@ Sentinel file: <repo>/.claude/local/active_agent_dispatch.json (per-repo isolati
 Issue #1206 pattern).
 
 Lifecycle (Issue #1448 — sliding TTL):
-    write()   — armed once when a Task/Agent dispatch starts (PreToolUse).
+    write()   — armed once when a Task/Agent dispatch starts (PreToolUse). Records
+                both ``timestamp`` (slid by refresh()) and ``armed_at`` (fixed;
+                anchors the absolute-ceiling backstop from Issue #1479).
     refresh() — slides the timestamp forward on every observed tool use while the
                 dispatched agent is still running (PostToolUse). This is what makes
                 the TTL a *sliding* window rather than a fixed one: a dispatched
                 implementer doing reads, test runs and multi-file edits over many
                 minutes stays continuously active as long as it keeps using tools.
                 refresh() never creates a sentinel and never resurrects one that has
-                already gone stale.
+                already gone stale, and never slides past the absolute ceiling
+                (MAX_LIFETIME_SECONDS) anchored on ``armed_at``.
     clear()   — disarmed on SubagentStop (dispatch completion).
 
 DEFAULT_TTL_SECONDS is therefore only the *idle*/crash backstop: how long the
 sentinel survives with no tool activity at all (crashed agent, or a SubagentStop
 that never fired).
+
+MAX_LIFETIME_SECONDS (Issue #1479) is the absolute ceiling: total time from
+``armed_at`` regardless of refresh activity. This prevents an unrelated
+coordinator's continued tool use from indefinitely keeping the #1296 gate armed
+when a background-dispatched agent crashes/hangs without SubagentStop firing.
 """
 from __future__ import annotations
 
@@ -38,6 +46,15 @@ _SENTINEL_REL = ".claude/local/active_agent_dispatch.json"
 # agent completion; combined with refresh()-on-tool-use (Issue #1448) the TTL is
 # only the idle/crash backstop, so 600s is safe.
 DEFAULT_TTL_SECONDS = 600
+# Issue #1479: Absolute ceiling on total sentinel lifetime, anchored on the
+# initial ``armed_at`` timestamp written by write(). refresh() cannot slide the
+# effective active window past this bound, so an unrelated coordinator's tool
+# activity cannot indefinitely keep the #1296 protected-path gate armed when a
+# background-dispatched agent crashes/hangs without SubagentStop firing.
+# Chosen to be larger than any observed legitimate implementer dispatch (up to
+# ~2h in production), while still bounding worst-case exposure to a coordinator
+# misattribution window.
+MAX_LIFETIME_SECONDS = 4 * 3600
 
 
 def _path(repo_root: Optional[Path] = None) -> Path:
@@ -62,10 +79,14 @@ def write(agent_name: str, repo_root: Optional[Path] = None) -> None:
     """
     p = _path(repo_root)
     p.parent.mkdir(parents=True, exist_ok=True)
+    now = time.time()
     payload = {
         "agent": agent_name,
         "pid": os.getpid(),
-        "timestamp": time.time(),
+        "timestamp": now,
+        # Issue #1479: fixed anchor for the absolute-lifetime ceiling. Never
+        # updated by refresh().
+        "armed_at": now,
     }
     p.write_text(json.dumps(payload))
 
@@ -84,7 +105,9 @@ def clear(repo_root: Optional[Path] = None) -> None:
 
 
 def refresh(
-    ttl_seconds: int = DEFAULT_TTL_SECONDS, repo_root: Optional[Path] = None
+    ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    repo_root: Optional[Path] = None,
+    max_lifetime_seconds: int = MAX_LIFETIME_SECONDS,
 ) -> bool:
     """Slide an existing sentinel's TTL forward (Issue #1448).
 
@@ -98,15 +121,23 @@ def refresh(
           could arm the protected-path gate without a real dispatch.
         - Already stale     -> no-op (never resurrects a dead dispatch), preserving
           the crash backstop.
+        - Past absolute ceiling (Issue #1479) -> no-op. The sentinel's total lifetime
+          from ``armed_at`` cannot be extended past ``max_lifetime_seconds`` by
+          unrelated coordinator tool activity.
         - Malformed payload -> no-op.
-        - Existing payload (agent name, pid) is preserved; only the timestamp moves.
+        - Existing payload (agent name, pid, armed_at) is preserved; only ``timestamp``
+          moves.
 
     Args:
         ttl_seconds: Staleness threshold. Sentinels older than this are not refreshed.
         repo_root: Repository root directory. If None, uses cwd.
+        max_lifetime_seconds: Absolute ceiling on total sentinel lifetime measured
+            from the initial ``armed_at``. Once exceeded, refresh() becomes a no-op
+            even for actively-refreshed sentinels (Issue #1479).
 
     Returns:
-        True if an existing, non-stale sentinel was refreshed; False otherwise.
+        True if an existing, non-stale, within-ceiling sentinel was refreshed;
+        False otherwise.
     """
     p = _path(repo_root)
     if not p.exists():
@@ -118,10 +149,16 @@ def refresh(
         ts = float(data.get("timestamp", 0))
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         return False
-    if time.time() - ts > ttl_seconds:
+    now = time.time()
+    if now - ts > ttl_seconds:
         # Stale → refusing to resurrect. is_active() cleans it up.
         return False
-    data["timestamp"] = time.time()
+    # Issue #1479: absolute-ceiling backstop. armed_at defaults to ts for
+    # sentinels written before this field was introduced (graceful upgrade).
+    armed_at = float(data.get("armed_at", ts))
+    if now - armed_at > max_lifetime_seconds:
+        return False
+    data["timestamp"] = now
     try:
         p.write_text(json.dumps(data))
     except OSError:
@@ -129,27 +166,44 @@ def refresh(
     return True
 
 
-def is_active(ttl_seconds: int = DEFAULT_TTL_SECONDS, repo_root: Optional[Path] = None) -> bool:
+def is_active(
+    ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    repo_root: Optional[Path] = None,
+    max_lifetime_seconds: int = MAX_LIFETIME_SECONDS,
+) -> bool:
     """Check if an agent dispatch is currently active.
-    
+
     Args:
         ttl_seconds: Time-to-live in seconds. Sentinels older than this are stale.
         repo_root: Repository root directory. If None, uses cwd.
-    
+        max_lifetime_seconds: Absolute ceiling on total sentinel lifetime measured
+            from the initial ``armed_at`` (Issue #1479). A sentinel that has exceeded
+            this ceiling is treated as inactive and cleaned up, even if refresh()
+            was keeping ``timestamp`` fresh.
+
     Returns:
-        True if an active (non-stale) agent dispatch is in progress
+        True if an active (non-stale, within-ceiling) agent dispatch is in progress
     """
     p = _path(repo_root)
     if not p.exists():
         return False
     try:
         data = json.loads(p.read_text())
+        # Issue #1480: guard against non-dict payloads (e.g. a JSON list). Without
+        # this, .get() raises AttributeError. Mirrors the isinstance guard in refresh().
+        if not isinstance(data, dict):
+            return False
         ts = float(data.get("timestamp", 0))
     except (OSError, json.JSONDecodeError, ValueError, TypeError):
         return False
-    age = time.time() - ts
-    if age > ttl_seconds:
-        # stale → treat as inactive, also clean it up opportunistically
+    now = time.time()
+    age = now - ts
+    # Issue #1479: absolute-lifetime ceiling anchored on armed_at. Defaults to
+    # ``ts`` for pre-#1479 sentinels (graceful upgrade).
+    armed_at = float(data.get("armed_at", ts))
+    lifetime = now - armed_at
+    if age > ttl_seconds or lifetime > max_lifetime_seconds:
+        # stale or past ceiling → treat as inactive, also clean it up opportunistically
         try:
             p.unlink()
         except OSError:
