@@ -6394,17 +6394,27 @@ def _check_bash_infra_writes(command: str) -> "Optional[Tuple[str, str]]":
     except Exception:
         pass  # fail-open: never block on extraction errors
 
-    # 7. git apply / patch to protected infra (Issue #1408). The diff body is
-    # unparseable here (it may arrive via stdin/heredoc/file), so we mirror the
-    # existing conservative ``__suspicious_exec__`` style: if the command
-    # invokes `git apply` or `patch` AND a protected path segment appears
-    # anywhere in the command string, block. False negatives (segment hidden in
-    # a separate diff file) are acceptable; false positives are avoided because
-    # the segment must literally appear in the command.
+    # 7. git apply / patch to protected infra (Issue #1408, narrowed by #1488).
+    # The diff body is unparseable here (it may arrive via stdin/heredoc/file),
+    # so we mirror the conservative ``__suspicious_exec__`` style. To avoid
+    # false positives (Issue #1488) where the tokens co-occur inside heredoc
+    # bodies, grep pattern arguments, or other quoted DATA (not shell command
+    # structure), we (a) strip heredoc bodies and quoted segments before
+    # scanning, and (b) require the ``git apply`` / ``patch`` invocation to
+    # appear at a command-start position (start-of-string or immediately after
+    # ``;`` ``&&`` ``||`` ``|`` ``(`` ``$(`` `` ` ``, allowing whitespace).
+    # False negatives (segment hidden in a separate diff file) remain
+    # acceptable; false positives on unrelated Bash commands are prevented.
     try:
-        if re.search(r"\b(?:git\s+apply|patch)\b", command):
+        scan_text = _strip_heredoc_content(command)
+        scan_text = _strip_quoted_segments(scan_text)
+        # Command-start position: start of string OR after a shell separator/opener,
+        # optionally followed by whitespace. Matches "patch " and "git apply " when
+        # they are being invoked, not when they appear as substrings inside argv.
+        invocation_pat = r"(?:^|[;&|(`]|\$\()\s*(?:git\s+apply|patch)\b"
+        if re.search(invocation_pat, scan_text):
             for seg in ("agents/", "hooks/", "lib/", "skills/", "commands/"):
-                if seg in command:
+                if seg in scan_text:
                     return (
                         f"__patch_apply__ ({seg})",
                         f"BLOCKED: Bash command uses git apply/patch referencing protected "

@@ -98,6 +98,48 @@ MAX_CUMULATIVE_SHRINKAGE = 0.30  # 30% total drift threshold (Issue #870, calibr
 REINVOCATION_CONTEXTS = {"remediation", "re-review", "doc-update-retry", "research-skip", "fix", "light"}
 
 
+# Issue #1485: Auto-detect remediation re-dispatches from prompt content when
+# the coordinator neglected to pass invocation_context="remediation" explicitly.
+# A remediation re-dispatch is legitimately much shorter than the original
+# full dispatch (it names one specific finding), so the shrinkage gate should
+# not fire. These signals mirror the phrasing the coordinator uses when
+# constructing a remediation prompt in response to a reviewer / security-auditor
+# / spec-validator finding.
+_REMEDIATION_SIGNAL_TOKENS = (
+    "remediation",
+    "re-dispatch",
+    "reviewer flagged",
+    "reviewer finding",
+    "security-auditor flagged",
+    "security-auditor finding",
+    "spec-validator failed",
+    "spec-validator finding",
+    "fix the following finding",
+    "fix the following:",
+    "address the following finding",
+    "address this finding",
+    "continuation dispatch",
+)
+
+
+def _is_remediation_dispatch(prompt: str) -> bool:
+    """Return True if the prompt text carries a remediation-re-dispatch signal.
+
+    Issue #1485: The shrinkage-baseline gate false-positives on legitimate
+    narrow remediation re-dispatches (e.g., "fix the finding at file:line")
+    because those prompts are much shorter than the original full-feature
+    dispatch that established the baseline. This helper lets the shrinkage
+    check identify such follow-up dispatches from the prompt content itself,
+    even when the coordinator did not thread ``invocation_context="remediation"``
+    through explicitly. Case-insensitive substring match on any of the tokens
+    in ``_REMEDIATION_SIGNAL_TOKENS`` is sufficient.
+    """
+    if not prompt:
+        return False
+    lowered = prompt.lower()
+    return any(tok in lowered for tok in _REMEDIATION_SIGNAL_TOKENS)
+
+
 # Default baseline persistence location (relative to project root).
 _DEFAULT_BASELINES_RELPATH = Path(".claude") / "logs" / "prompt_baselines.json"
 
@@ -221,25 +263,41 @@ def validate_prompt_word_count(
 
         # Adjust threshold for reinvocation contexts (Issue #789/#791)
         # Issue #1358: Use 3.0x multiplier for "fix" mode, 2.0x for others
+        # Issue #1485: Auto-detect remediation dispatch from prompt content
+        # when the coordinator did not thread invocation_context through
+        # explicitly. Applies only when a baseline exists (i.e., this is a
+        # follow-up dispatch, not the first). This prevents four separate
+        # blocks per pipeline observed in session b0926f9b (issue #1467)
+        # where narrow same-issue remediation re-dispatches were compared
+        # against the original 1270-word full-feature baseline.
+        effective_context = invocation_context
+        if (effective_context is None or effective_context not in REINVOCATION_CONTEXTS) \
+                and _is_remediation_dispatch(prompt):
+            effective_context = "remediation"
+            logger.debug(
+                "Issue #1485: auto-detected remediation dispatch for %s "
+                "(prompt matches remediation signal token)",
+                agent_type,
+            )
         effective_max_shrinkage = max_shrinkage
-        if invocation_context and invocation_context in REINVOCATION_CONTEXTS:
-            if invocation_context == "fix":
+        if effective_context and effective_context in REINVOCATION_CONTEXTS:
+            if effective_context == "fix":
                 effective_max_shrinkage = max_shrinkage * 3.0  # Issue #1358
-            elif invocation_context == "light":
+            elif effective_context == "light":
                 effective_max_shrinkage = max_shrinkage * 2.5  # Issue #1359
             else:
                 effective_max_shrinkage = max_shrinkage * 2.0
             logger.debug(
                 "Relaxed shrinkage threshold for %s context: %.0f%% -> %.0f%%",
-                invocation_context,
+                effective_context,
                 max_shrinkage * 100,
                 effective_max_shrinkage * 100,
             )
 
         if shrinkage > effective_max_shrinkage:
             threshold_note = (
-                f" [relaxed from {max_shrinkage:.0%} for {invocation_context}]"
-                if invocation_context and invocation_context in REINVOCATION_CONTEXTS
+                f" [relaxed from {max_shrinkage:.0%} for {effective_context}]"
+                if effective_context and effective_context in REINVOCATION_CONTEXTS
                 else ""
             )
             return PromptIntegrityResult(
