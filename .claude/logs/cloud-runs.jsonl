@@ -710,3 +710,4 @@
 {"fire_id": "20260810T041301Z", "fired_at": "2026-08-10T04:14:07Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "GITHUB_TOKEN stub (len 14) \u2014 REST 403: Claude GitHub App not connected for this org"}
 {"fire_id": "20260810T041301Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "root_cause": "github_rest_403_app_not_connected"}
 {"fire_id": "20260810T081928Z", "fired_at": "2026-08-10T08:19:46Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260810T081928Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
