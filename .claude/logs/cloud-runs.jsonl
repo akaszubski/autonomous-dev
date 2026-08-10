@@ -718,3 +718,4 @@
 {"fire_id": "20260810T143108Z", "fired_at": "2026-08-10T14:31:28Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260810T143108Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260810T161819Z", "fired_at": "2026-08-10T16:19:23Z", "selected_cluster": "1484", "phase": "FIRE_START"}
+{"fire_id": "20260810T161819Z", "phase": "FIRE_END", "exit_reason": "skipped_too_complex", "commit_sha": "", "notes": "Only auto-improvement candidate was #1484 (structural redesign of agent-dispatch sentinel). Posted skip comment via MCP; direct REST is 403 in this session so implementer-with-curl path unusable."}
