@@ -78,6 +78,28 @@ TODO: List major components with brief descriptions
 - **Data Access** (`src/db/`) - Database operations
 - **Utilities** (`src/utils/`) - Shared helper functions
 
+### INVARIANTS
+
+{INVARIANTS}
+
+An invariant is a load-bearing property a change must not silently violate — the
+architecture-level guarantees of the system, NOT a feature list and NOT volatile
+detail (component counts, versions, tech stack) which belong elsewhere in this
+document. A proposed change that contradicts an invariant is an **architecture
+delta** and requires explicit sign-off before implementation.
+
+TODO: derive your project's real invariants — run `/align --project --invariants`
+(or hand-author below).
+
+1. INV-1 — <a load-bearing property this project guarantees>. Evidence: <file/mechanism/test>. Violated by: <a change that would break it>.
+2. INV-2 — <another load-bearing property>. Evidence: <file/mechanism/test>. Violated by: <a change that would break it>.
+3. INV-3 — <another load-bearing property>. Evidence: <file/mechanism/test>. Violated by: <a change that would break it>.
+
+Convert these numbered examples to `- **INV-N — Property.** explanation` bullets
+(under the ## ARCHITECTURE / Architecture Overview heading) to activate
+architecture-delta checking. Until then, a repo with no `- ` INVARIANTS bullets is
+never architecture-delta-blocked (the safe default).
+
 ### Data Flow
 
 {DATA_FLOW_DIAGRAM}

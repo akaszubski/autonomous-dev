@@ -1,7 +1,7 @@
 ---
 name: align
 description: "Unified alignment command (--project, --docs, --retrofit, --content)"
-argument-hint: "[--project | --docs | --retrofit | --content] [--dry-run] [--auto]"
+argument-hint: "[--project [--invariants] | --docs | --retrofit | --content] [--dry-run] [--auto]"
 version: 3.1.0
 category: core
 allowed-tools: [Read, Write, Edit, Grep, Glob]
@@ -18,6 +18,7 @@ user_facing: true
 
 **Modes**:
 - `/align` - Full alignment (PROJECT.md + CLAUDE.md + README vs code + hooks review)
+- `/align --project --invariants` - Derive or audit the `### INVARIANTS` section of PROJECT.md (approval-gated; opts a brownfield repo into the #1467 architecture-delta gate)
 - `/align --docs` - Documentation only (ensure all docs consistent with PROJECT.md)
 - `/align --retrofit` - Brownfield retrofit (5-phase project transformation)
 - `/align --content` - Content allocation audit (CLAUDE.md/PROJECT.md/MEMORY.md sizing + de-dup)
@@ -398,11 +399,121 @@ Files moved: 1, compressed: 1, deleted: 1
 
 ---
 
+## INVARIANTS Derivation & Audit (`--project --invariants`)
+
+**Purpose**: Derive (or audit) the `### INVARIANTS` subsection of PROJECT.md so a brownfield repo can opt into the Issue #1467 **architecture-delta gate**. An invariant is a **load-bearing property a change must not silently violate** — an architecture-level guarantee, NOT a feature list and NOT volatile detail (component counts, versions, tech stack). A proposed change that contradicts one is an *architecture delta* requiring explicit sign-off.
+
+**Backward-compat guarantee**: a repo with **no** `### INVARIANTS` bullets under `## ARCHITECTURE` is **never** architecture-delta-blocked — deriving invariants is strictly opt-in. This mode never weakens that default; it only offers to populate the section.
+
+**Every `/align` mode runs inline** (no sub-agent): the coordinator gathers evidence with Read/Grep only, then proposes. This mirrors Mode 4 (`--content`)'s AUDIT → PROPOSE → APPROVE → EXECUTE flow.
+
+**Time**: 5-20 minutes. **Model**: runs in the current conversation.
+
+### Entry branch (parse first)
+
+At entry, parse the current PROJECT.md:
+
+```bash
+python plugins/autonomous-dev/lib/alignment_classifier.py --help >/dev/null 2>&1  # capability probe
+```
+```python
+import sys; sys.path.insert(0, "plugins/autonomous-dev/lib")
+from alignment_classifier import parse_project_md
+from pathlib import Path
+doc = parse_project_md(Path(".claude/PROJECT.md"))   # falls back to PROJECT.md per repo convention
+print("has_invariants:", doc.has_invariants, "count:", len(doc.invariants))
+```
+
+- **No `.claude/PROJECT.md` (FileNotFoundError)** → **BLOCK**: "run `/setup` or `/align --retrofit` first — a project with no alignment source of truth cannot derive invariants." STOP.
+- **Consumer repo without `lib/alignment_classifier.py`** → degrade gracefully: skip the programmatic parse, describe the manual bullet format (`- **INV-N — Property.** explanation` under `## ARCHITECTURE`), and proceed with the derivation flow using Read/Grep only.
+- **`has_invariants == False`** → **INITIAL DERIVATION** (Phase 1-3 below).
+- **`has_invariants == True`** → **IDEMPOTENT AUDIT** (see Audit mode).
+- **Malformed existing INVARIANTS** (a heading is present but no parseable `- ` bullets under `## ARCHITECTURE`) → treat as **initial derivation** and **warn** the user that the existing section did not parse; offer to *replace* it — never duplicate.
+
+### Phase 1: EVIDENCE (inline, Read/Grep only)
+
+Gather candidate load-bearing properties from, in priority order:
+
+1. **PROJECT.md** GOALS / SCOPE / CONSTRAINTS and stated intent.
+2. **README** and **CLAUDE.md** — stated guarantees, "never do X" rules.
+3. **Runtime safety / enforcement mechanisms** — hooks returning `{"decision": "block"}`, fail-closed guards, signature/HMAC checks (the strongest evidence: an enforced property is a real invariant).
+4. **Tests that encode contracts** — regression tests asserting a property must hold.
+5. **CI gates** — required checks in workflows.
+6. **Policy / config files** — allowlists, hard-floor definitions, sandbox policy.
+7. **Git-log "never do X" corrections** — `git log --grep` for recurring guardrail commits.
+
+Prefer *enforced* properties over *aspirational* ones. An invariant backed by a hook/test is defensible; one backed only by prose is `(intended, not yet enforced)`.
+
+### Phase 2: PROPOSE (draft in exact parse format)
+
+Emit a **DRAFT** `### INVARIANTS` section in the EXACT format the parser recognizes:
+
+```markdown
+### INVARIANTS
+
+- **INV-1 — <Property>.** <explanation of the load-bearing guarantee>
+- **INV-2 — <Property>.** <explanation>
+```
+
+…plus an **evidence table**:
+
+| Candidate | Property | EVIDENCE (file/mechanism/test) | Would-VIOLATE example |
+|-----------|----------|--------------------------------|-----------------------|
+| INV-1 | … | `hooks/foo.py` returns block on … | a change that … |
+
+Rules:
+- Propose **5-8** candidates. Tag any intended-but-unenforced property `(intended, not yet enforced)`.
+- If **fewer than 3** defensible candidates are found, present exactly what was found and **say so** — do NOT pad or invent invariants to hit a count.
+- Each bullet MUST be a single `- **INV-N — Property.** explanation` line so `parse_project_md` captures it. The section MUST land **under `## ARCHITECTURE`** or it will not be detected.
+
+### Phase 3: APPROVE (AskUserQuestion — PROJECT.md-amending governance, #1467)
+
+PROJECT.md is a governed alignment source. **FORBIDDEN: writing PROJECT.md before approval.** Present the proposal, then ask via **AskUserQuestion** with exactly four options (mirrors `/implement` STEP 2d):
+
+- **(A) Apply** — write the drafted `### INVARIANTS` section UNDER `## ARCHITECTURE` in PROJECT.md.
+- **(B) Edit specific invariants** — user names which to change/drop; re-present the revised proposal, then ask again.
+- **(C) Save proposal to a file only** — write the draft to e.g. `docs/proposed-invariants.md`; do NOT modify PROJECT.md.
+- **(D) Cancel** — make no changes. STOP.
+
+On (B)/(C)/(D) do not modify PROJECT.md in this pass. `--dry-run` forces proposal-only: emit the draft + evidence table and STOP (never write, never prompt).
+
+### Phase 4: POST-WRITE SELF-CHECK (integration proof)
+
+After any write to PROJECT.md (option A), re-run the parser and confirm the flag flipped:
+
+```python
+from alignment_classifier import parse_project_md
+from pathlib import Path
+doc = parse_project_md(Path(".claude/PROJECT.md"))
+assert doc.has_invariants is True, "INVARIANTS write did not activate — section likely landed OUTSIDE ## ARCHITECTURE"
+print("post-write has_invariants:", doc.has_invariants, "count:", len(doc.invariants))
+```
+
+If it did NOT flip (e.g. the section was written above `## ARCHITECTURE`, or as a numbered list instead of `- ` bullets), report the error and the fix (move the section under `## ARCHITECTURE`; convert numbered items to `- **INV-N — …** …` bullets), then re-write.
+
+### Audit mode (`has_invariants == True`, idempotent)
+
+When invariants already exist, this mode is a **drift audit**, not a re-derivation:
+
+- For each existing `INV-N`, re-verify that its cited evidence **still resolves** in the current code (the hook/test/file it points to still exists and still enforces the property).
+- Report drift as: `DRIFT: INV-N — <what changed> — <cite>` when the evidence no longer resolves OR the property is now violable.
+- Propose only **additive or corrective** deltas. **NEVER duplicate** an existing invariant.
+- If nothing drifted, emit a **clean no-op report** (no proposal, no write).
+- Any write still goes through Phase 3 approval + Phase 4 self-check.
+
+### Why not reuse `alignment_assessor.py`?
+
+`lib/alignment_assessor.py`'s `ProjectMdDraft` / `AlignmentAssessor` (used by `--retrofit`) was considered and is **not** reused here because it derives architecture **mechanically** (file and dependency counts), whereas invariants require **semantic judgment** about which properties are load-bearing — a judgment the coordinator makes inline from evidence, not a count.
+
+---
+
 ## When to Use Each Mode
 
 | Scenario | Mode |
 |----------|------|
 | Regular development check | `/align` |
+| Opt a brownfield repo into architecture-delta checking | `/align --project --invariants` |
+| Audit existing invariants for drift | `/align --project --invariants` |
 | After adding/removing components | `/align` |
 | Before major release | `/align` |
 | Updating documentation only | `/align --docs` |
@@ -441,6 +552,11 @@ python plugins/autonomous-dev/lib/hybrid_validator.py --mode auto
 - Execute 4-phase content allocation audit as described in Mode 4 above
 - Sub-flags: `--dry-run` (preview), `--auto` (auto-approve low-risk proposals)
 
+**Invariants mode** (`/align --project --invariants`):
+- Execute the EVIDENCE → PROPOSE → APPROVE → SELF-CHECK flow (or idempotent AUDIT) as described in "INVARIANTS Derivation & Audit" above
+- PROJECT.md-amending: approval-gated via AskUserQuestion; FORBIDDEN to write before approval (#1467)
+- Sub-flags: `--dry-run` (proposal only, never write)
+
 ---
 
 ## Implementation Details
@@ -463,6 +579,14 @@ ELIF --content flag:
     → Run 4-phase content allocation audit (AUDIT → PROPOSE → APPROVE → EXECUTE)
     → MUST load methodology from skills/content-allocation/SKILL.md
     → MUST handle --dry-run (proposal only) or --auto (low-risk auto-approve)
+
+ELIF --invariants flag (a sub-mode of --project / default):
+    → Parse PROJECT.md via alignment_classifier.parse_project_md
+    → has_invariants False → INITIAL DERIVATION (EVIDENCE → PROPOSE → APPROVE → SELF-CHECK)
+    → has_invariants True  → IDEMPOTENT AUDIT (drift check, additive-only, never duplicate)
+    → PROJECT.md-amending: FORBIDDEN to write PROJECT.md before AskUserQuestion approval (#1467)
+    → MUST handle --dry-run (proposal only, never write)
+    → No .claude/PROJECT.md → BLOCK (run /setup or /align --retrofit first)
 
 ELSE (default):
     → Phase 1: alignment_fixer.py (quick scan)
@@ -489,6 +613,11 @@ ELSE (default):
 - `retrofit_verifier.py` - Phase 5
 
 **--content mode**: skills/content-allocation/SKILL.md (methodology); reuses Read/Glob/Grep/Edit
+
+**--project --invariants mode**:
+- `alignment_classifier.py` - `parse_project_md` (entry branch + Phase 4 post-write self-check); reused **as-is**, no signature changes
+- Evidence gathering + semantic judgment performed inline by Claude Code (Read/Grep only)
+- `lib/alignment_assessor.py` (`ProjectMdDraft` / `AlignmentAssessor`) was considered and is **not** reused — it derives architecture mechanically (file/dependency counts), whereas invariants require semantic judgment about load-bearing properties
 
 ---
 
