@@ -203,11 +203,93 @@ DEFAULT_DENY_LIST = [
     "Read(~/.ssh/**)",
     "Read(~/.aws/**)",
     "Read(~/.config/gh/**)",
+    # Issue #1486: every Edit(<path>) deny needs a matching Write(<path>) deny,
+    # otherwise creating a new file at the sensitive path bypasses the Edit
+    # deny. Edit governs modifying an existing file; Write governs creating
+    # a new one. The two grants are distinct in Claude Code.
     "Edit(//etc/**)",
+    "Write(//etc/**)",
     "Edit(//System/**)",
+    "Write(//System/**)",
     "Edit(//usr/**)",
+    "Write(//usr/**)",
     "Edit(~/.ssh/**)",
+    "Write(~/.ssh/**)",
 ]
+
+# Issue #1486: Protected-infrastructure path patterns. When a caller emits an
+# Edit(<pattern>) allow rule targeting one of these paths, we deliberately do
+# NOT emit a matching Write(<pattern>) companion — these paths are only ever
+# meant to be modified through /implement (enforced by unified_pre_tool.py),
+# and a Write allow rule at those paths would defeat the protection.
+PROTECTED_INFRASTRUCTURE_PATTERNS = (
+    "agents/",
+    "commands/",
+    "hooks/",
+    "lib/",
+    "skills/",
+)
+
+
+def _extract_path(pattern: str) -> Optional[str]:
+    """Return the inner path from a scoped rule like ``Edit(<path>)``.
+
+    Returns None if the pattern is a bare tool name (e.g. ``"Edit"``) or does
+    not have the ``Tool(<path>)`` shape. The inner path may include glob
+    metacharacters; we do not interpret them.
+    """
+    m = re.match(r"^(Edit|Write)\((.+)\)$", pattern)
+    if not m:
+        return None
+    return m.group(2)
+
+
+def _is_protected_infrastructure_path(path: str) -> bool:
+    """True when ``path`` targets a protected-infrastructure category.
+
+    A path is protected when any segment of its normalized form matches a
+    known protected directory prefix (agents/, commands/, hooks/, lib/,
+    skills/). The check ignores leading ``./`` and any parent-directory
+    prefix (e.g. ``plugins/autonomous-dev/agents/**`` still triggers).
+    """
+    normalized = path.lstrip("./")
+    return any(f"{prefix}" in normalized for prefix in PROTECTED_INFRASTRUCTURE_PATTERNS)
+
+
+def add_write_companions(patterns: List[str]) -> List[str]:
+    """Return ``patterns`` extended with a ``Write(<path>)`` companion for
+    every ``Edit(<path>)`` entry whose path is not in the protected-
+    infrastructure set.
+
+    Issue #1486: Edit and Write are distinct permission grants in Claude
+    Code. Emitting an Edit(<path>) allow rule without a matching Write(<path>)
+    causes a live permission prompt every time the coordinator tries to
+    CREATE a new file at that path (as opposed to modifying an existing
+    one). This helper enforces the invariant that every non-protected
+    Edit(<path>) has a matching Write(<path>) companion.
+
+    Protected-infrastructure paths (agents/*.md, commands/*.md, hooks/*.py,
+    lib/*.py, skills/*/SKILL.md) are excluded — they must be modified
+    through /implement only, and a Write companion would defeat the
+    unified_pre_tool.py block. Bare "Edit" (no path scope) already covers
+    creation, so it is left alone.
+
+    The converse (Write without Edit) is intentionally NOT required — some
+    paths may be write-once/append-only.
+    """
+    result = list(patterns)
+    existing = set(result)
+    for pattern in patterns:
+        path = _extract_path(pattern)
+        if path is None or not pattern.startswith("Edit("):
+            continue
+        if _is_protected_infrastructure_path(path):
+            continue
+        companion = f"Write({path})"
+        if companion not in existing:
+            result.append(companion)
+            existing.add(companion)
+    return result
 
 
 # =============================================================================
@@ -748,6 +830,11 @@ class SettingsGenerator:
         allow_patterns = self.build_command_patterns()
         deny_patterns = self.build_deny_list()
 
+        # Issue #1486: emit Write(<path>) companion for every non-protected
+        # Edit(<path>) allow rule so creating a new file at a trusted content
+        # path does not trigger a live permission prompt.
+        allow_patterns = add_write_companions(allow_patterns)
+
         # Add Claude Code standalone tools (not Bash patterns)
         standalone_tools = [
             "Task",
@@ -801,6 +888,12 @@ class SettingsGenerator:
             for key, value in merge_with.items():
                 if key not in settings and key not in ["permissions"]:
                     settings[key] = value
+
+            # Issue #1486: re-apply Write companions after merging user
+            # Edit(<path>) patterns.
+            settings["permissions"]["allow"] = add_write_companions(
+                settings["permissions"]["allow"]
+            )
 
         return settings
 
@@ -1192,6 +1285,9 @@ class SettingsGenerator:
             user_allow = [p for p in user_allow if p not in broken_wildcards]
             # Union of template and user patterns (deduplicate)
             merged_allow = list(set(template_allow + user_allow))
+            # Issue #1486: guarantee every Edit(<path>) allow has a matching
+            # Write(<path>) companion (non-protected paths only).
+            merged_allow = add_write_companions(merged_allow)
             template_perms["allow"] = sorted(merged_allow)
 
             # Merge deny patterns (union)
