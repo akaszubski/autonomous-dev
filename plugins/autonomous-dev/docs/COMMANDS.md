@@ -9,7 +9,7 @@
 | Command | Description |
 |---------|-------------|
 | `/advise` | Critical thinking analysis - validates alignment, challenges assumptions, identifies risks |
-| `/align` | Unified alignment command (--project, --docs, --retrofit, --content) |
+| `/align` | Unified alignment command (--project [--invariants], --docs, --retrofit, --content) |
 | `/audit` | Comprehensive quality audit - code quality, documentation, coverage, security |
 | `/autoresearch` | Autonomous experiment loop — hypothesize, modify, benchmark, commit or revert |
 | `/create-issue` | Create GitHub issue with automated research (--quick for fast mode) |
@@ -85,6 +85,25 @@ for automated processing.
 - **doc-drift** — documentation out of sync with implementation
 
 ---
+
+## /align --project --invariants
+
+Derive or audit the `### INVARIANTS` section of PROJECT.md so a brownfield repo can
+opt into the Issue #1467 **architecture-delta gate**. An invariant is a load-bearing
+property a change must not silently violate (an architecture-level guarantee, not a
+feature list). Deriving invariants is strictly opt-in: a repo with no `- ` INVARIANTS
+bullets under `## ARCHITECTURE` is never architecture-delta-blocked.
+
+- **Derive** (no invariants yet): gathers evidence (PROJECT.md intent, README, CLAUDE.md,
+  hooks returning `{"decision": "block"}`, contract tests, CI gates, policy files,
+  git-log "never do X" corrections), then proposes 5-8 candidate `- **INV-N — Property.**`
+  bullets plus an evidence table.
+- **Audit** (invariants already exist): idempotent drift check — re-verifies each cited
+  evidence still resolves, reports `DRIFT: INV-N …`, proposes additive/corrective deltas
+  only, never duplicates. Clean no-op report when nothing drifted.
+- **Approval-gated**: PROJECT.md is a governed alignment source, so any write is gated by
+  an AskUserQuestion (Apply / Edit / Save-to-file / Cancel). `--dry-run` emits the proposal
+  only and never writes.
 
 ## Command Options
 

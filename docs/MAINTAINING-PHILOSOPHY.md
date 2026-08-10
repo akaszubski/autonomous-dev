@@ -106,6 +106,17 @@ git commit -m "docs: update scope to GraphQL architecture"
 - Optional: repos with no INVARIANTS subsection are never architecture-delta-blocked by the alignment gate
 ```
 
+**Placement matters**: the `### INVARIANTS` subsection MUST live **under `## ARCHITECTURE`** and each invariant MUST be a `- **INV-N — Property.** explanation` bullet. `parse_project_md` only searches for invariants inside the captured ARCHITECTURE block and only captures `- ` bullets — a section placed at the top level, or written as a numbered list, parses to `has_invariants=False` and does NOT activate the gate (this is the safe default a fresh template ships with, Issue #1489).
+
+**Deriving invariants** (`/align --project --invariants`): rather than hand-authoring, derive them from evidence. Method:
+
+- **Evidence sources** (strongest first): runtime enforcement (hooks returning `{"decision": "block"}`, fail-closed guards, HMAC/signature checks), contract tests, CI gates, policy/config files (allowlists, hard floors, sandbox policy), then PROJECT.md/README/CLAUDE.md stated guarantees and git-log "never do X" corrections. An *enforced* property is a real invariant; a merely *stated* one is aspirational.
+- **Candidate schema**: `INV-N | property | EVIDENCE (file/mechanism/test) | would-VIOLATE example`. The would-VIOLATE example is what makes an invariant testable — if you cannot name a concrete change that would break it, it is probably not load-bearing.
+- **Intended-but-unenforced tag**: a property with no enforcing hook/test is tagged `(intended, not yet enforced)` so the map distinguishes guarantees the system actually holds from ones it merely aspires to.
+- **Idempotent audit**: once invariants exist, re-running the command audits drift (does each cited evidence still resolve?) and proposes additive/corrective deltas only — it never duplicates.
+
+See [`plugins/autonomous-dev/commands/align.md`](../plugins/autonomous-dev/commands/align.md) "INVARIANTS Derivation & Audit" for the full approval-gated flow.
+
 #### 2. **orchestrator.md** (Gatekeeper Behavior)
 
 **Location**: `plugins/autonomous-dev/agents/orchestrator.md`

@@ -270,5 +270,61 @@ class TestProjectMdInvariants:
         assert ok_scope, msg_scope
 
 
+# ---------------------------------------------------------------------------
+# 5. Shipped greenfield templates must be architecture-safe by default (#1489)
+# ---------------------------------------------------------------------------
+
+
+class TestGreenfieldTemplateInvariants:
+    """A fresh, uncustomized repo must never architecture-block on placeholders.
+
+    The templates ship generic placeholder invariants written as a NUMBERED list
+    (not ``- `` bullets), so ``parse_project_md`` reports ``has_invariants=False``
+    until a maintainer converts them to real ``- **INV-N — Property.** ...``
+    bullets. This preserves the safe default: no INVARIANTS => never blocked on
+    the architecture-delta axis (Issue #1489, Decision 4).
+    """
+
+    _TEMPLATES = (
+        _PLUGIN_ROOT / "templates" / "PROJECT.md",
+        _PLUGIN_ROOT / "templates" / "PROJECT.md.template",
+    )
+
+    @pytest.mark.parametrize("template_path", _TEMPLATES, ids=lambda p: p.name)
+    def test_shipped_template_yields_no_invariants(self, template_path: Path):
+        from alignment_classifier import parse_project_md
+
+        doc = parse_project_md(template_path)
+        assert doc.has_invariants is False, (
+            f"{template_path} parses has_invariants=True — a fresh repo would "
+            "architecture-block on placeholder invariants. Placeholders MUST be a "
+            "numbered list, never '- ' bullets (Issue #1489, Decision 4)."
+        )
+
+    def test_derived_bullet_format_parses(self):
+        """Real derived invariants (bullets under ## ARCHITECTURE) activate the gate."""
+        from alignment_classifier import parse_project_md_text
+
+        text = (
+            "## ARCHITECTURE (Solution-on-a-Page)\n\n"
+            "### INVARIANTS\n\n"
+            "- **INV-1 — X.** y\n"
+        )
+        doc = parse_project_md_text(text)
+        assert doc.has_invariants is True
+        assert doc.invariants, "Derived bullet-format invariants must be non-empty"
+
+    def test_invariants_outside_architecture_not_detected(self):
+        """INVARIANTS must live UNDER ## ARCHITECTURE, not at top level, to count."""
+        from alignment_classifier import parse_project_md_text
+
+        text = "## INVARIANTS\n- **INV-1 — X.** y"
+        doc = parse_project_md_text(text)
+        assert doc.has_invariants is False, (
+            "A top-level ## INVARIANTS section (outside the ARCHITECTURE block) "
+            "must not activate architecture-delta checking."
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
