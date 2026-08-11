@@ -724,3 +724,4 @@
 {"fire_id": "20260810T201301Z", "fired_at": "2026-08-10T20:13:22Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260810T201301Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260811T212224Z", "fired_at": "2026-08-11T21:23:00Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "issues API 403 \u2014 token lacks issues:read scope for this repo"}
+{"fire_id": "20260811T212224Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "issues API 403 \u2014 could not enumerate open auto-improvement issues; token scope missing issues:read"}
