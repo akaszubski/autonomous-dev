@@ -568,6 +568,7 @@ def record_agent_completion(
         # Opt-out path: write only to str(issue_number).
         issue_completions = completions.setdefault(str(issue_number), {})
         issue_completions[agent_type] = entry
+        _time_scope_keys = {str(issue_number)}
     else:
         # Tri-scope write: write to the primary key, "0", and "unscoped".
         # Determine the set of scope keys to write to.
@@ -577,6 +578,27 @@ def record_agent_completion(
         for key in scope_keys:
             issue_completions = completions.setdefault(key, {})
             issue_completions[agent_type] = entry
+        _time_scope_keys = scope_keys
+
+    # Issue #1454: record WHEN each agent completed.
+    #
+    # The plan-critic REVISE gate needs to know whether the planner ran AFTER a
+    # given verdict epoch, but completion entries carry no timestamp -- they are
+    # a bare bool (or a remediation dict), so get_planner_completion_count()
+    # could never return non-zero and the gate's allow-branch was dead code. An
+    # honest REVISE verdict therefore deadlocked the pipeline, and #1457 records
+    # that both available escapes were dishonest.
+    #
+    # This is a SIBLING map rather than a field inside the completion entry, on
+    # purpose: lines ~700 and ~740 iterate issue_completions.items() treating
+    # every key as an agent name, so a nested key would be mistaken for an
+    # agent, and changing bool -> dict would touch every _completion_is_success
+    # consumer across ~10 modules. A new top-level key is invisible to all of
+    # them.
+    _completion_times = state.setdefault("completion_times", {})
+    _now = time.time()
+    for _key in _time_scope_keys:
+        _completion_times.setdefault(_key, {})[agent_type] = _now
 
     _write_state(session_id, state, run_id=run_id)
 
@@ -784,6 +806,25 @@ def get_planner_completion_count(session_id: str, since_timestamp: float) -> int
             if not state:
                 return 0
         
+        # Issue #1454: prefer the completion_times sibling map, which the real
+        # writer populates. The legacy walk below is retained unchanged so state
+        # files written before this fix still parse.
+        #
+        # Tri-scope writes record the same completion under "0", "unscoped" and
+        # the issue key, so counting raw entries would inflate one planner run
+        # into three. Deduplicate on the timestamp itself.
+        _times = state.get("completion_times", {})
+        if isinstance(_times, dict):
+            _seen: set = set()
+            for _issue_key, _agents in _times.items():
+                if not isinstance(_agents, dict):
+                    continue
+                _ts = _agents.get("planner")
+                if isinstance(_ts, (int, float)) and _ts > since_timestamp:
+                    _seen.add(round(float(_ts), 6))
+            if _seen:
+                return len(_seen)
+
         # Count planner completions after timestamp across all issue keys
         count = 0
         completions = state.get("completions", {})
