@@ -275,7 +275,7 @@ class TestIssue1296CoordinatorBypass:
         assert "timestamp" in data
         
         # Clear sentinel
-        ads.clear(self.repo_root)
+        ads.clear(self.repo_root, force=True)
         assert not sentinel_path.exists()
         assert not ads.is_active(repo_root=self.repo_root)
     

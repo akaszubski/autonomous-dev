@@ -56,6 +56,22 @@ DEFAULT_TTL_SECONDS = 600
 # misattribution window.
 MAX_LIFETIME_SECONDS = 4 * 3600
 
+# Issue #1512: minimum sentinel age before an ANONYMOUS clear (one with no
+# recovered generation token) is permitted to unlink.
+#
+# Measured failure: a phantom SubagentStop -- result_word_count 5, and an
+# agent_transcript_path that does not exist on disk -- produced a cache miss in
+# unified_session_tracker, which then called clear(expected_generation=None).
+# That path unlinked a sentinel armed 33 seconds earlier, mid-dispatch, and
+# every protected edit afterwards was denied as a coordinator direct-edit.
+#
+# A sentinel this young cannot be an orphan: the dispatch that armed it is
+# still running. Genuine orphans are unaffected -- the real owner's stop
+# carries a generation token and takes the compare-and-delete path below, and
+# DEFAULT_TTL_SECONDS remains the backstop for anything truly abandoned, so
+# refusing a young anonymous clear cannot leak a sentinel permanently.
+MIN_ANONYMOUS_CLEAR_AGE_SECONDS = 120
+
 
 def _path(repo_root: Optional[Path] = None) -> Path:
     """Get the sentinel file path.
@@ -132,6 +148,7 @@ def write(
 def clear(
     repo_root: Optional[Path] = None,
     expected_generation: Optional[str] = None,
+    force: bool = False,
 ) -> None:
     """Clear the agent dispatch sentinel (compare-and-delete, Issue #1484).
 
@@ -152,13 +169,39 @@ def clear(
         expected_generation: The generation token of the dispatch that is
             clearing. When provided, guards against disarming a sibling
             dispatch's sentinel.
+        force: Bypass the #1512 minimum-age guard and unlink regardless of the
+            sentinel's age. For deliberate operator recovery only -- production
+            callers pass ``expected_generation`` instead and must never set
+            this. A phantom stop setting ``force=True`` would reintroduce the
+            #1512 defect exactly.
     """
     p = _path(repo_root)
     if expected_generation is None:
-        # Accepted backcompat gap (Issue #1484, residual amendment #1): a genuine
-        # cache-miss (no recovered generation) still unconditionally unlinks, so
-        # it can ABA-disarm a sibling dispatch. Preferred over refusing to clear
-        # (which would leak sentinels and re-arm the #1447/#1448 keep-alive bug).
+        # Issue #1512: a cache-miss must NOT disarm a LIVE dispatch. This was
+        # the #1484 "accepted backcompat gap", and it turned out to be the
+        # dominant failure path rather than a rare edge case -- it fired within
+        # one minute on an ordinary dispatch and stranded a patch half-applied.
+        #
+        # The #1484 rationale for unconditional unlink was that refusing to
+        # clear would leak sentinels and re-arm the #1447/#1448 keep-alive bug.
+        # That concern is addressed without the collateral damage: we refuse
+        # only for sentinels younger than MIN_ANONYMOUS_CLEAR_AGE_SECONDS, and
+        # DEFAULT_TTL_SECONDS still reaps anything genuinely abandoned, so no
+        # sentinel can leak permanently.
+        try:
+            _data = json.loads(p.read_text())
+            if isinstance(_data, dict):
+                _age = time.time() - float(_data.get("timestamp", 0))
+                if not force and _age < MIN_ANONYMOUS_CLEAR_AGE_SECONDS:
+                    # Too young to be an orphan -- the owner is still working.
+                    # ``force=True`` is the deliberate operator-recovery escape
+                    # (a stuck sentinel blocking protected writes); it is never
+                    # used by production code, only by tooling and tests that
+                    # mean "remove this regardless of age".
+                    return
+        except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, TypeError):
+            # Unreadable/absent/malformed -> fall through and unlink as before.
+            pass
         try:
             p.unlink()
         except (FileNotFoundError, OSError):

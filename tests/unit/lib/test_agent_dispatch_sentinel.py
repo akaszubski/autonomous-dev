@@ -45,13 +45,13 @@ class TestAgentDispatchSentinel:
         assert abs(data["timestamp"] - time.time()) < 1  # Within 1 second
     
     def test_clear_removes_sentinel_file(self):
-        """Test that clear() removes the sentinel file."""
+        """Test that clear(force=True) removes the sentinel file."""
         # Create a sentinel
         ads.write("test-agent", self.test_root)
         assert self.sentinel_path.exists()
-        
+
         # Clear it
-        ads.clear(self.test_root)
+        ads.clear(self.test_root, force=True)
         assert not self.sentinel_path.exists()
     
     def test_clear_handles_missing_file_gracefully(self):
