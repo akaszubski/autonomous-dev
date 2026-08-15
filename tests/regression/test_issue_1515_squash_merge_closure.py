@@ -35,9 +35,17 @@ git behaviour under real merge strategies.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+# tests/regression/<this file> -> parents[2] is the repo root.
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[2] / "plugins/autonomous-dev/lib")
+)
+
+import already_done_detector as add  # noqa: E402
 
 
 def git(repo: Path, *args: str, stdin: str | None = None) -> str:
@@ -235,3 +243,93 @@ class TestAncestryIsTheWrongInstrument:
             "requirement should be re-examined."
         )
         assert landed_by_content(repo, "master", base, tip) is True
+
+
+class TestProductionDetectorHandlesSquash:
+    """Drives the SHIPPED module, not the reference implementation above.
+
+    The classes above validate the METHOD using a local ``landed()`` helper.
+    That proves the method is sound but says nothing about the code that
+    ``/implement`` actually runs. These tests call the real public API:
+
+        already_done_detector.check_issue_already_implemented(
+            issue_number, title, body, repo_root) -> MatchResult | None
+
+    Scenario C (the #1515 defect): a two-commit fix whose ``Closes #123``
+    marker lives ONLY in a branch commit message, squash-merged under a
+    message that does NOT repeat the marker. Scenarios where the squash
+    message KEEPS the marker already worked, because ``git log --all --grep``
+    finds the squash commit itself and that commit IS a HEAD ancestor.
+
+    Branch-ref note (measured, not assumed): the branch ref is intentionally
+    RETAINED. With the ref deleted, the marker-bearing commit is unreachable
+    from every ref, so ``git log --all --grep=#123`` returns zero matches and
+    there is no SHA for any content check to examine -- verified empirically:
+    grep matches drop from 1 to 0. That is an object-reachability limit of
+    git, not something the content fallback can address. A real clone keeps
+    the PR branch (or its ``origin/`` remote-tracking ref) until it is pruned.
+    """
+
+    @staticmethod
+    def _scenario_c(repo: Path) -> str:
+        """Two-commit fix; marker only on the branch tip; squash drops it.
+
+        The marker is placed on the TIP commit deliberately: the content
+        fallback ranges ``merge-base..<marker sha>``, so a marker on the tip
+        makes that range the FULL combined fix diff -- exactly what the
+        squash commit carries.
+
+        Returns:
+            The SHA of the marker-bearing branch commit.
+        """
+        git(repo, "checkout", "-qb", "fix")
+        (repo / "f.py").write_text("line1\nfix_A\n")
+        git(repo, "commit", "-qam", "fix part A")
+        (repo / "f.py").write_text("line1\nfix_A\nfix_B\n")
+        git(repo, "commit", "-qam", "fix part B\n\nCloses #123")
+        marker_sha = git(repo, "rev-parse", "HEAD")
+        git(repo, "checkout", "-q", "master")
+        git(repo, "merge", "--squash", "-q", "fix")
+        # Squash message deliberately omits "Closes #123" -- the defect.
+        git(repo, "commit", "-qm", "feat: the thing")
+        return marker_sha
+
+    def test_scenario_c_squash_dropping_marker_is_detected(self, repo):
+        """The shipped detector must report the squashed fix as already done."""
+        marker_sha = self._scenario_c(repo)
+
+        # Pin the precondition: ancestry ALONE still fails here. Without this,
+        # a future change could make the test pass for the wrong reason.
+        assert add._is_ancestor_of_head(repo, marker_sha) is False, (
+            "Marker commit unexpectedly an ancestor of HEAD -- the squash "
+            "scenario was not built correctly and the test proves nothing."
+        )
+
+        result = add.check_issue_already_implemented(
+            123, "the thing", "fix the thing", repo
+        )
+
+        assert result is not None, (
+            "Production detector reported NOT-done for a squash-merged fix. "
+            "This is the #1515 defect: ancestry is a valid POSITIVE but an "
+            "invalid NEGATIVE, and the content fallback did not fire."
+        )
+        assert result.classification == "closes"
+        assert result.sha == marker_sha
+
+    def test_genuinely_unmerged_still_reports_not_done(self, repo):
+        """Negative control -- a detector that always says done is useless."""
+        git(repo, "checkout", "-qb", "never")
+        (repo / "h.py").write_text("unmerged\n")
+        git(repo, "add", "h.py")
+        git(repo, "commit", "-qm", "wip fix\n\nCloses #123")
+        git(repo, "checkout", "-q", "master")
+
+        result = add.check_issue_already_implemented(
+            123, "the thing", "fix the thing", repo
+        )
+
+        assert result is None, (
+            f"Unmerged work reported as already done ({result}) -- the "
+            "detector can no longer find a real gap."
+        )

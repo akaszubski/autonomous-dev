@@ -7,7 +7,10 @@ This module distinguishes between:
 - "closes" markers (Closes #N, Fixes #N, Completed: #N) — strong signal the issue is done
 - "anti" markers (Pending: #N, Preflight-skipped: #N, Deferred: #N) — explicit signal NOT done
 - "mention" markers (bare #N reference) — weak signal, not enough alone
-- "stale_branch" — commit closes the issue but is not an ancestor of HEAD (unmerged side branch)
+- "stale_branch" — commit closes the issue but is neither an ancestor of HEAD nor
+  content-landed (genuinely unmerged side branch). Ancestry alone is NOT the test:
+  squash/rebase rewrite SHAs, so a shipped fix can be a non-ancestor whose content
+  is present. See ``_content_landed_on_head`` (Issue #1515).
 
 Issue: #1110, #1125
 """
@@ -28,7 +31,9 @@ class MatchResult(NamedTuple):
     Backward compatibility: NamedTuple supports 2-element tuple unpacking
     (e.g. ``sha, subject = result``) as long as callers do not access index 2.
     The detector returns this 3-tuple only when classification == "closes" AND
-    the commit is an ancestor of HEAD — otherwise it returns None.
+    the commit is either an ancestor of HEAD or has landed by content
+    (squash/rebase-safe patch-id match, Issue #1515) — otherwise it returns
+    None.
     """
 
     sha: str
@@ -178,6 +183,76 @@ def _is_ancestor_of_head(repo_root: Path, sha: str) -> bool:
         return False
 
 
+def _content_landed_on_head(repo_root: Path, sha: str) -> bool:
+    """Is the change introduced by ``sha`` present on HEAD, however it merged?
+
+    Issue #1515. ``_is_ancestor_of_head`` is a valid POSITIVE but an invalid
+    NEGATIVE: squash and rebase rewrite SHAs, so a shipped fix is not an
+    ancestor of HEAD and ancestry alone reports it as an unmerged side branch.
+
+    Compares CONTENT via ``git patch-id --stable``, which hashes a diff while
+    ignoring whitespace and line offsets.
+
+    Critically this uses the COMBINED range diff (merge-base..sha), NOT the
+    single commit's diff. A squash collapses N commits into one combined diff,
+    so per-commit patch-ids match NONE of it -- and ``git cherry``, which is
+    built on per-commit patch-ids, reports such a fix as absent. Measured on a
+    two-commit fix: originals f3608df3/ba83d172 vs squash 8ee6841d.
+
+    Known, accepted limitation: this proves THIS DIFF landed, not that the bug
+    is fixed. A re-implemented fix has a different diff and reads as not-found.
+    That is the safe direction to err.
+
+    Args:
+        repo_root: Root directory of the git repository.
+        sha: Commit SHA whose content to look for on HEAD.
+
+    Returns:
+        True iff a commit reachable from HEAD introduces an equivalent diff.
+    """
+
+    def _run(args, stdin=None):
+        return subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            input=stdin,
+        )
+
+    try:
+        base = _run(["merge-base", "HEAD", sha]).stdout.strip()
+        if not base:
+            return False
+        combined = _run(["diff", f"{base}..{sha}"]).stdout
+        if not combined:
+            return False
+        want = _run(["patch-id", "--stable"], stdin=combined).stdout.strip()
+        if not want:
+            return False
+        want_id = want.split()[0]
+
+        # Bound the scan to commits touching the same paths since the
+        # merge-base; a full-history patch-id sweep is not affordable here.
+        paths = [
+            p
+            for p in _run(["diff", "--name-only", f"{base}..{sha}"]).stdout.split()
+            if p
+        ]
+        log_args = ["log", "--format=%H", f"{base}..HEAD"]
+        if paths:
+            log_args += ["--", *paths]
+        for cand in _run(log_args).stdout.split():
+            shown = _run(["show", cand]).stdout
+            got = _run(["patch-id", "--stable"], stdin=shown).stdout.strip()
+            if got and got.split()[0] == want_id:
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def _git_log_grep_issue(
     repo_root: Path, issue_number: int
 ) -> List[Tuple[str, str, str]]:
@@ -289,8 +364,10 @@ def check_issue_already_implemented(
       1. Search ALL branches for commits referencing ``#<issue_number>``.
       2. Classify each match (closes / mention / anti / none).
       3. Skip anti-marker results (the commit explicitly says NOT done).
-      4. For closes matches, require the commit to be an ancestor of HEAD;
-         otherwise downgrade to "stale_branch" and skip.
+      4. For closes matches, require the commit to be an ancestor of HEAD, or
+         to have landed by content (squash/rebase-safe patch-id match on the
+         combined merge-base..sha range diff, Issue #1515); otherwise
+         downgrade to "stale_branch" and skip.
       5. Return the first valid "closes" match.
       6. Fall back to symbol pickaxe search only when no commit references
          #N at all. Pickaxe matches are advisory-only and return None (not
@@ -313,7 +390,8 @@ def check_issue_already_implemented(
     """
     grep_matches = _git_log_grep_issue(repo_root, issue_number)
 
-    # First pass: look for an explicit closure on a HEAD-ancestor commit.
+    # First pass: look for an explicit closure on a commit that is either a
+    # HEAD-ancestor or content-landed (Issue #1515).
     for sha, subject, commit_body in grep_matches:
         classification = _classify_issue_in_body(commit_body, issue_number)
         if classification == "anti":
@@ -322,7 +400,12 @@ def check_issue_already_implemented(
         if classification == "closes":
             if _is_ancestor_of_head(repo_root, sha):
                 return MatchResult(sha=sha, subject=subject, classification="closes")
-            # Closes the issue but on an unmerged side branch.
+            # Issue #1515: ancestry is a valid POSITIVE but an invalid NEGATIVE.
+            # Squash/rebase rewrites the SHA, so a shipped fix is not an
+            # ancestor. Check CONTENT before concluding "unmerged".
+            if _content_landed_on_head(repo_root, sha):
+                return MatchResult(sha=sha, subject=subject, classification="closes")
+            # Genuinely closes the issue on an unmerged side branch.
             continue
         # "mention" or "none" — skip; require a closure marker for a confident match.
 
