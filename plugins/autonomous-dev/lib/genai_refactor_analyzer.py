@@ -170,7 +170,7 @@ class GenAIRefactorAnalyzer:
             return False
 
         self._escalation_analyzer = GenAIAnalyzer(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=1000,
             timeout=15,
             use_genai=True,
