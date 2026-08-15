@@ -7,7 +7,7 @@
   "registrations": [
     {
       "event": "PreToolUse",
-      "matcher": "Write|Edit",
+      "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
       "timeout": 5
     }
   ]

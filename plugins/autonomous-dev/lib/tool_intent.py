@@ -22,13 +22,24 @@ Design principles:
 - Defensive: never raise — every error path returns a safe default.
 - Composable: ``classify`` and ``write_targets`` are pure functions of inputs.
 
+Issue #1503 widened the module to be TRANSPORT-INDEPENDENT: enforcement sites
+previously asked ``tool_name in ("Write", "Edit")``, which let MultiEdit,
+NotebookEdit, and every MCP editor (serena et al.) walk straight through the
+Issue #1435 protected-infrastructure hard floor. ``is_write`` and
+``changed_content`` are the canonical answers to "is this a write?" and "what
+content does it write?" for every enforcement site.
+
 Public API:
     classify(tool_name, tool_input) -> Literal["READ","WRITE","EXEC"]
     write_targets(tool_name, tool_input) -> List[str]
+    is_write(tool_name, tool_input) -> bool
+    changed_content(tool_name, tool_input) -> str
     has_suspicious_exec(command) -> bool
 
 Constants:
     READ_TOOLS, WRITE_TOOLS — native tool name sets
+    MCP_READ_TOOLS, MCP_WRITE_TOOLS — MCP tool name registries (#1503)
+    PATH_KEYS, CONTENT_KEYS — tool_input key names used by the shape fallback
     BASH_READ_BINS, BASH_WRITE_BINS — common shell utilities
 """
 
@@ -56,6 +67,124 @@ READ_TOOLS: Set[str] = {"Read", "Glob", "Grep", "NotebookRead"}
 
 # Native Claude Code tools that write/modify files.
 WRITE_TOOLS: Set[str] = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
+# ---------------------------------------------------------------------------
+# MCP tool registries (Issue #1503)
+# ---------------------------------------------------------------------------
+#
+# CRITICAL DESIGN CONSTRAINT (relocated verbatim from the
+# ``_PLAN_EXIT_MCP_READONLY`` comment in unified_pre_tool.py, which this
+# registry supersedes):
+#
+#   "Structural (regex-based) heuristics are forbidden because they produce
+#    false-negatives (e.g., "find_and_replace" contains "find" but is a write)."
+#
+# The registries below are therefore EXPLICIT and authoritative. The
+# path+content shape test in ``_looks_like_write`` is ONLY a fail-closed
+# fallback for tools that are not registered at all — it is never consulted
+# for a registered tool.
+#
+# The registry is load-bearing rather than belt-and-braces: four verified
+# serena writers carry NO content argument at all, so the shape fallback
+# provably cannot catch them (a deletion or a rename has nothing to
+# shape-match on):
+#   replace_in_files    relative_path defaults to "" — no REQUIRED path
+#   rename_symbol       (name_path, relative_path, new_name) — no content key
+#   safe_delete_symbol  (name_path_pattern, relative_path) — no content key
+#   delete_lines        (relative_path, start_line, end_line) — no content key
+
+# MCP tools that only read. Strict SUPERSET of the legacy
+# ``_PLAN_EXIT_MCP_READONLY`` frozenset that used to live in
+# unified_pre_tool.py (all 24 entries copied verbatim), plus the serena
+# read-side surface.
+#
+# AC #19: mcp__playwright__browser_evaluate MUST NOT appear here — it
+# executes arbitrary JS in the browser and is therefore not read-only.
+MCP_READ_TOOLS: "frozenset[str]" = frozenset({
+    # --- Legacy _PLAN_EXIT_MCP_READONLY (24 entries, verbatim) -------------
+    # Playwright — read-only browser inspection
+    "mcp__playwright__browser_snapshot",
+    "mcp__playwright__browser_take_screenshot",
+    "mcp__playwright__browser_console_messages",
+    "mcp__playwright__browser_network_requests",
+    # HuggingFace — read-only search and lookup
+    "mcp__claude_ai_Hugging_Face__hf_doc_search",
+    "mcp__claude_ai_Hugging_Face__hf_doc_fetch",
+    "mcp__claude_ai_Hugging_Face__hub_repo_search",
+    "mcp__claude_ai_Hugging_Face__paper_search",
+    "mcp__claude_ai_Hugging_Face__space_search",
+    "mcp__claude_ai_Hugging_Face__hf_whoami",
+    "mcp__claude_ai_Hugging_Face__hf_hub_query",
+    "mcp__claude_ai_Hugging_Face__hub_repo_details",
+    # Gmail — read-only
+    "mcp__claude_ai_Gmail__list_drafts",
+    "mcp__claude_ai_Gmail__list_labels",
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__search_threads",
+    # Calendar — read-only
+    "mcp__claude_ai_Google_Calendar__list_calendars",
+    "mcp__claude_ai_Google_Calendar__list_events",
+    "mcp__claude_ai_Google_Calendar__get_event",
+    # Drive — read-only
+    "mcp__claude_ai_Google_Drive__list_recent_files",
+    "mcp__claude_ai_Google_Drive__search_files",
+    "mcp__claude_ai_Google_Drive__read_file_content",
+    "mcp__claude_ai_Google_Drive__get_file_metadata",
+    "mcp__claude_ai_Google_Drive__get_file_permissions",
+    # --- serena (LSP) read surface (Issue #1503) --------------------------
+    # Several of these are excluded in the ide-assistant context today (via
+    # claude-code.yml excluded_tools, and get_diagnostics_for_symbol via a
+    # ToolMarkerOptional default-off marker). They are registered defensively
+    # so that enabling them later cannot reopen the hole.
+    "mcp__serena__find_symbol",
+    "mcp__serena__find_referencing_symbols",
+    "mcp__serena__find_declaration",
+    "mcp__serena__find_implementations",
+    "mcp__serena__get_symbols_overview",
+    "mcp__serena__get_diagnostics_for_file",
+    "mcp__serena__get_diagnostics_for_symbol",
+    "mcp__serena__read_memory",
+    "mcp__serena__list_memories",
+    "mcp__serena__initial_instructions",
+    "mcp__serena__onboarding",
+    "mcp__serena__read_file",
+    "mcp__serena__list_dir",
+    "mcp__serena__find_file",
+    "mcp__serena__search_for_pattern",
+})
+
+# MCP tools that mutate files or persisted state.
+MCP_WRITE_TOOLS: "frozenset[str]" = frozenset({
+    # serena — symbol/content editors
+    "mcp__serena__replace_symbol_body",
+    "mcp__serena__insert_after_symbol",
+    "mcp__serena__insert_before_symbol",
+    "mcp__serena__replace_content",
+    "mcp__serena__replace_in_files",
+    "mcp__serena__rename_symbol",
+    "mcp__serena__safe_delete_symbol",
+    "mcp__serena__delete_lines",
+    "mcp__serena__create_text_file",
+    "mcp__serena__insert_at_line",
+    # serena — memory writers
+    "mcp__serena__write_memory",
+    "mcp__serena__edit_memory",
+    "mcp__serena__delete_memory",
+    "mcp__serena__rename_memory",
+})
+
+# tool_input keys that may carry a filesystem target, in resolution order.
+PATH_KEYS: "tuple[str, ...]" = ("file_path", "notebook_path", "relative_path", "path")
+
+# tool_input keys that may carry the content being written, in resolution
+# order. Verified against the real tool schemas:
+#   replace_content / replace_in_files ........ ``repl``   (NOT ``content``)
+#   replace_symbol_body / insert_*_symbol ..... ``body``
+#   NotebookEdit .............................. ``new_source``
+# Deliberately EXCLUDED: ``url`` / ``prompt`` (WebFetch is not a filesystem
+# path) and ``subject`` / ``to`` (mcp__ms365__send-mail carries ``body`` but
+# NO path key, so the both-keys conjunction below keeps it EXEC).
+CONTENT_KEYS: "tuple[str, ...]" = ("content", "new_string", "body", "repl", "new_source")
 
 # Common shell binaries that only read.
 BASH_READ_BINS: Set[str] = {
@@ -173,9 +302,133 @@ def classify(tool_name: str, tool_input: dict) -> Intent:
         intent, _targets = _classify_bash(command, depth=0)
         return intent
 
+    # --- MCP registries (Issue #1503) — registry FIRST, fallback LAST -------
+    if tool_name in MCP_READ_TOOLS:
+        return "READ"
+
+    if tool_name in MCP_WRITE_TOOLS:
+        return "WRITE"
+
+    # Fail-closed shape fallback for UNREGISTERED tools only: a tool that
+    # carries BOTH a filesystem path AND content is writing that content
+    # somewhere. The conjunction is what keeps reads unblocked —
+    # mcp__serena__find_symbol carries ``relative_path`` but no content
+    # argument, so it stays EXEC (and therefore unblocked). Over-correcting
+    # into a gate that blocks reads is an explicit failure condition of
+    # Issue #1503.
+    if _looks_like_write(tool_input):
+        return "WRITE"
+
     # Unknown native tool, MCP tool, orchestration tool — EXEC by default.
     # The hook applies its own per-tool rules to these.
     return "EXEC"
+
+
+def is_write(tool_name: str, tool_input: dict) -> bool:
+    """Return True if a tool call would mutate the filesystem (Issue #1503).
+
+    This is the canonical, TRANSPORT-INDEPENDENT replacement for the
+    hard-coded ``tool_name in ("Write", "Edit")`` tests that used to guard
+    every enforcement site. Any new file-mutating transport is covered by
+    registering it in ``WRITE_TOOLS`` / ``MCP_WRITE_TOOLS`` once, here.
+
+    Args:
+        tool_name: The tool name (e.g. ``"NotebookEdit"``,
+            ``"mcp__serena__replace_symbol_body"``).
+        tool_input: The tool input dict.
+
+    Returns:
+        True when the call classifies as ``"WRITE"``. Never raises — any
+        malformed input returns False (fail-open on classification errors is
+        required because these callers also gate reads).
+    """
+    try:
+        return classify(tool_name, tool_input) == "WRITE"
+    except Exception:  # pragma: no cover — defensive; classify never raises
+        return False
+
+
+def changed_content(tool_name: str, tool_input: dict) -> str:
+    """Return the content a tool call would write, as a single string.
+
+    Used by complexity gates (e.g. ``plan_gate``'s simple-edit exemption) so
+    the exemption is about the CHANGE, not about the TRANSPORT.
+
+    Resolution order:
+        1. ``MultiEdit`` — concatenate every ``edits[].new_string``.
+        2. The first non-empty value found under ``CONTENT_KEYS``.
+
+    Args:
+        tool_name: The tool name.
+        tool_input: The tool input dict.
+
+    Returns:
+        The content string, or ``""`` when no content key is present or the
+        input is malformed. Never raises.
+    """
+    if not isinstance(tool_input, dict):
+        return ""
+
+    try:
+        if tool_name == "MultiEdit" or isinstance(tool_input.get("edits"), list):
+            parts: List[str] = []
+            for edit in tool_input.get("edits") or []:
+                if not isinstance(edit, dict):
+                    continue
+                new_string = edit.get("new_string")
+                if isinstance(new_string, str) and new_string:
+                    parts.append(new_string)
+            if parts:
+                return "\n".join(parts)
+
+        for key in CONTENT_KEYS:
+            value = tool_input.get(key)
+            if isinstance(value, str) and value:
+                return value
+    except Exception:  # pragma: no cover — defensive
+        return ""
+
+    return ""
+
+
+def _looks_like_write(tool_input: dict) -> bool:
+    """Shape test: does this input carry BOTH a path AND content?
+
+    The fail-closed fallback for tools absent from every registry. Both
+    conditions must hold — a path alone is a read (serena's ``find_symbol``
+    carries ``relative_path``), and content alone is not a filesystem write
+    (``mcp__ms365__send-mail`` carries ``body`` but no path).
+
+    Args:
+        tool_input: The tool input dict.
+
+    Returns:
+        True when a non-empty string exists under some ``PATH_KEYS`` entry
+        AND a non-empty string exists under some ``CONTENT_KEYS`` entry.
+    """
+    if not isinstance(tool_input, dict):
+        return False
+    has_path = any(
+        isinstance(tool_input.get(k), str) and tool_input.get(k)
+        for k in PATH_KEYS
+    )
+    if not has_path:
+        return False
+    return any(
+        isinstance(tool_input.get(k), str) and tool_input.get(k)
+        for k in CONTENT_KEYS
+    )
+
+
+def _first_path(tool_input: dict) -> Optional[str]:
+    """Return the first non-empty string value under ``PATH_KEYS``."""
+    if not isinstance(tool_input, dict):
+        return None
+    for key in PATH_KEYS:
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def write_targets(tool_name: str, tool_input: dict) -> List[str]:
@@ -200,16 +453,12 @@ def write_targets(tool_name: str, tool_input: dict) -> List[str]:
     if not isinstance(tool_name, str) or not tool_name:
         return []
 
-    if tool_name in READ_TOOLS:
+    if tool_name in READ_TOOLS or tool_name in MCP_READ_TOOLS:
         return []
 
     if tool_name in WRITE_TOOLS:
-        if not isinstance(tool_input, dict):
-            return []
-        fp = tool_input.get("file_path") or tool_input.get("notebook_path")
-        if isinstance(fp, str) and fp:
-            return [fp]
-        return []
+        fp = _first_path(tool_input)
+        return [fp] if fp else []
 
     if tool_name == "Bash":
         command = ""
@@ -219,6 +468,13 @@ def write_targets(tool_name: str, tool_input: dict) -> List[str]:
             return []
         _intent, targets = _classify_bash(command, depth=0)
         return targets
+
+    # Issue #1503: MCP writers carry their target under ``relative_path`` or
+    # ``path`` rather than ``file_path``. Unregistered tools that pass the
+    # fail-closed shape test resolve their target the same way.
+    if tool_name in MCP_WRITE_TOOLS or _looks_like_write(tool_input):
+        fp = _first_path(tool_input)
+        return [fp] if fp else []
 
     return []
 
@@ -743,9 +999,15 @@ def _classify_python_inline(snippet: str) -> Tuple[Intent, List[str]]:
 __all__ = [
     "READ_TOOLS",
     "WRITE_TOOLS",
+    "MCP_READ_TOOLS",
+    "MCP_WRITE_TOOLS",
+    "PATH_KEYS",
+    "CONTENT_KEYS",
     "BASH_READ_BINS",
     "BASH_WRITE_BINS",
     "classify",
     "write_targets",
+    "is_write",
+    "changed_content",
     "has_suspicious_exec",
 ]

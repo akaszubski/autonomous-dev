@@ -28,6 +28,29 @@ except ImportError:
     # Inline the target if TestLifecycleManager not available
     TIER_DISTRIBUTION_TARGETS = {"T0": 1, "T1": 2, "T2": 2, "T3": 5}
 
+# Issue #1503: transport-independent write classification. The fallback is the
+# literal four-tuple — strictly stronger than the ("Write", "Edit") list it
+# replaces, never weaker.
+try:
+    from tool_intent import is_write, write_targets
+except ImportError:  # pragma: no cover — stale-install fallback
+    _FALLBACK_WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+    _FALLBACK_PATH_KEYS = ("file_path", "notebook_path", "relative_path", "path")
+
+    def is_write(tool_name: str, tool_input: dict) -> bool:
+        """Fallback write test: the literal native write-tool tuple."""
+        return tool_name in _FALLBACK_WRITE_TOOLS
+
+    def write_targets(tool_name: str, tool_input: dict) -> list:
+        """Fallback target accessor: first non-empty known path key."""
+        if not isinstance(tool_input, dict):
+            return []
+        for _key in _FALLBACK_PATH_KEYS:
+            _value = tool_input.get(_key)
+            if isinstance(_value, str) and _value:
+                return [_value]
+        return []
+
 try:
     from hook_safety import safe_main as _hook_safe_main
 except ImportError:
@@ -161,26 +184,31 @@ def main():
             print(json.dumps(output))
             sys.exit(0)
         
-        # Check if this is a Write/Edit operation on a test file
+        # Check if this is a file-mutating operation on a test file.
         # Hook payload contract uses snake_case: tool_name, tool_input
+        # (legacy: toolName / toolArguments).
+        # Issue #1503: transport-independent — this hook was bypassable via
+        # MultiEdit, NotebookEdit, or any MCP editor.
         tool_name = input_data.get("tool_name") or input_data.get("toolName", "")
-        if tool_name not in ["Write", "Edit"]:
-            # Not a write/edit operation - allow
+        tool_input = input_data.get("tool_input") or input_data.get("toolArguments", {})
+        if not isinstance(tool_input, dict):
+            tool_input = {}
+        if not is_write(tool_name, tool_input):
+            # Not a write operation - allow
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "allow",
-                    "permissionDecisionReason": "Not a Write/Edit operation"
+                    "permissionDecisionReason": "Not a write operation"
                 }
             }
             print(json.dumps(output))
             sys.exit(0)
-        
-        # Check if targeting a test file
-        # Hook payload contract uses snake_case: tool_input (legacy: toolArguments)
-        tool_input = input_data.get("tool_input") or input_data.get("toolArguments", {})
-        file_path = tool_input.get("file_path", "") if isinstance(tool_input, dict) else ""
-        
+
+        # Check if targeting a test file (resolves MCP path keys too).
+        _targets = write_targets(tool_name, tool_input)
+        file_path = _targets[0] if _targets else tool_input.get("file_path", "")
+
         if not file_path or not ("tests/" in file_path and file_path.endswith(".py")):
             # Not a test file - allow
             output = {

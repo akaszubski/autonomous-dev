@@ -613,3 +613,141 @@ class TestSetupPathPortability:
 
         assert global_events == expected, f"Global template missing events: {expected - global_events}"
         assert default_events == expected, f"Default template missing events: {expected - default_events}"
+
+
+# ============================================================================
+# TestPreToolUseMatcherConsistency - Issue #1503 (review finding 2)
+# ============================================================================
+
+# The three standalone PreToolUse hooks whose matcher widened in Issue #1503 to
+# cover every write transport (Write|Edit|MultiEdit|NotebookEdit|mcp__.*).
+#
+# Each hook declares its matcher in its own ``<name>.hook.json`` AND has that
+# matcher duplicated into the shipped settings templates. Nothing previously
+# compared the copies: the existing tests in this file check lifecycle-event
+# presence and manifest/disk membership, not matcher-regex equality, so a future
+# edit to any single site could silently narrow one copy and reopen the
+# transport hole for that deployment context.
+#
+# Value = the settings templates where the hook is EXPECTED to be registered.
+# ``enforce_tier_distribution`` is deliberately absent from
+# settings.autonomous-dev.json: it is the warn-only test-pyramid monitor
+# (Issue #908) that the repo-local template does not ship. The two hooks that
+# actually BLOCK are registered in both templates. Re-verify this exclusion if
+# the tier-distribution hook ever gains blocking behaviour.
+_MATCHER_SYNCED_HOOKS = {
+    "plan_gate": ("global", "autonomous_dev"),
+    "enforce_file_organization": ("global", "autonomous_dev"),
+    "enforce_tier_distribution": ("global",),
+}
+
+_SETTINGS_SOURCES = {
+    "global": PLUGIN_DIR / "config" / "global_settings_template.json",
+    "autonomous_dev": PLUGIN_DIR / "templates" / "settings.autonomous-dev.json",
+}
+
+_MATCHER_SYNCED_HOOK_NAMES = sorted(_MATCHER_SYNCED_HOOKS)
+
+
+def _hook_json_matcher(hook_name: str) -> str:
+    """Return the PreToolUse matcher declared in ``<hook_name>.hook.json``."""
+    config = _read_json(PLUGIN_DIR / "hooks" / f"{hook_name}.hook.json")
+    matchers = [
+        reg.get("matcher", "")
+        for reg in config.get("registrations", [])
+        if reg.get("event") == "PreToolUse"
+    ]
+    assert len(matchers) == 1, (
+        f"{hook_name}.hook.json must declare exactly one PreToolUse "
+        f"registration, found {len(matchers)}: {matchers}"
+    )
+    return matchers[0]
+
+
+def _settings_matchers(settings_path: Path, hook_name: str) -> list:
+    """Return every PreToolUse matcher registering ``hook_name`` in a settings file."""
+    data = _read_json(settings_path)
+    matchers = []
+    for entry in data.get("hooks", {}).get("PreToolUse", []):
+        commands = [h.get("command", "") for h in entry.get("hooks", [])]
+        if any(f"{hook_name}.py" in cmd for cmd in commands):
+            matchers.append(entry.get("matcher", ""))
+    return matchers
+
+
+class TestPreToolUseMatcherConsistency:
+    """Matcher strings must agree across every registration site (Issue #1503).
+
+    Five sites total: three ``*.hook.json`` files plus the two settings
+    templates that duplicate them. The ``*.hook.json`` file is treated as the
+    source of truth and the templates are cross-validated against it, so no
+    expected matcher string is hard-coded in this test.
+    """
+
+    @pytest.mark.parametrize("hook_name", _MATCHER_SYNCED_HOOK_NAMES)
+    def test_hook_json_declares_nonempty_pretooluse_matcher(self, hook_name):
+        """Each hook config declares exactly one non-empty PreToolUse matcher."""
+        matcher = _hook_json_matcher(hook_name)
+        assert matcher, f"{hook_name}.hook.json has an empty PreToolUse matcher"
+
+    @pytest.mark.parametrize("hook_name", _MATCHER_SYNCED_HOOK_NAMES)
+    def test_settings_templates_match_hook_json(self, hook_name):
+        """Every settings template copy equals the hook.json matcher."""
+        expected = _hook_json_matcher(hook_name)
+
+        for source_key in _MATCHER_SYNCED_HOOKS[hook_name]:
+            settings_path = _SETTINGS_SOURCES[source_key]
+            found = _settings_matchers(settings_path, hook_name)
+
+            assert found, (
+                f"{hook_name}.py is not registered under PreToolUse in "
+                f"{settings_path.relative_to(WORKTREE)} — the hook was dropped "
+                f"from a deployment context it is expected to ship in."
+            )
+            for matcher in found:
+                assert matcher == expected, (
+                    f"Matcher drift for {hook_name}: "
+                    f"{settings_path.relative_to(WORKTREE)} has {matcher!r} but "
+                    f"hooks/{hook_name}.hook.json declares {expected!r}. "
+                    f"All registration sites must stay in sync (Issue #1503)."
+                )
+
+    @pytest.mark.parametrize("hook_name", _MATCHER_SYNCED_HOOK_NAMES)
+    def test_all_registration_sites_agree(self, hook_name):
+        """Aggregate check: exactly one distinct matcher across all sites."""
+        collected = {f"hooks/{hook_name}.hook.json": _hook_json_matcher(hook_name)}
+        for source_key in _MATCHER_SYNCED_HOOKS[hook_name]:
+            settings_path = _SETTINGS_SOURCES[source_key]
+            for i, matcher in enumerate(_settings_matchers(settings_path, hook_name)):
+                collected[f"{settings_path.name}[{i}]"] = matcher
+
+        distinct = set(collected.values())
+        assert len(distinct) == 1, (
+            f"{hook_name} has {len(distinct)} distinct matchers across its "
+            f"registration sites: {collected}"
+        )
+
+    @pytest.mark.parametrize("hook_name", _MATCHER_SYNCED_HOOK_NAMES)
+    def test_matcher_covers_every_native_write_transport(self, hook_name):
+        """The matcher must reach every native write tool plus MCP editors.
+
+        Derived from ``tool_intent.WRITE_TOOLS`` (the canonical registry) rather
+        than a hard-coded list, so registering a new native write transport
+        there fails this test until the matchers are widened to match. Guards
+        the case where all five sites drift together to a narrower regex.
+        """
+        from tool_intent import WRITE_TOOLS
+
+        matcher = _hook_json_matcher(hook_name)
+        alternatives = set(matcher.split("|"))
+
+        missing = set(WRITE_TOOLS) - alternatives
+        assert not missing, (
+            f"{hook_name} matcher {matcher!r} does not reach native write "
+            f"transports {sorted(missing)} — Issue #1503 requires transport "
+            f"independence at the matcher layer too."
+        )
+        assert any(alt.startswith("mcp__") for alt in alternatives), (
+            f"{hook_name} matcher {matcher!r} has no mcp__ alternative — MCP "
+            f"editors would never reach the hook (Issue #1503)."
+        )

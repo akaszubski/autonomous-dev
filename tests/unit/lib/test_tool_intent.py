@@ -517,3 +517,267 @@ class TestIssueAcceptanceScenarios:
         cmd = 'bash -c "rm settings.json"'
         assert tool_intent.classify("Bash", {"command": cmd}) == "WRITE"
         assert "settings.json" in tool_intent.write_targets("Bash", {"command": cmd})
+
+
+# ---------------------------------------------------------------------------
+# Issue #1503 — transport-independent write classification
+# ---------------------------------------------------------------------------
+
+# The 24 entries that used to live in unified_pre_tool.py as
+# _PLAN_EXIT_MCP_READONLY. MCP_READ_TOOLS must be a strict SUPERSET of these.
+LEGACY_PLAN_EXIT_MCP_READONLY = frozenset({
+    "mcp__playwright__browser_snapshot",
+    "mcp__playwright__browser_take_screenshot",
+    "mcp__playwright__browser_console_messages",
+    "mcp__playwright__browser_network_requests",
+    "mcp__claude_ai_Hugging_Face__hf_doc_search",
+    "mcp__claude_ai_Hugging_Face__hf_doc_fetch",
+    "mcp__claude_ai_Hugging_Face__hub_repo_search",
+    "mcp__claude_ai_Hugging_Face__paper_search",
+    "mcp__claude_ai_Hugging_Face__space_search",
+    "mcp__claude_ai_Hugging_Face__hf_whoami",
+    "mcp__claude_ai_Hugging_Face__hf_hub_query",
+    "mcp__claude_ai_Hugging_Face__hub_repo_details",
+    "mcp__claude_ai_Gmail__list_drafts",
+    "mcp__claude_ai_Gmail__list_labels",
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__search_threads",
+    "mcp__claude_ai_Google_Calendar__list_calendars",
+    "mcp__claude_ai_Google_Calendar__list_events",
+    "mcp__claude_ai_Google_Calendar__get_event",
+    "mcp__claude_ai_Google_Drive__list_recent_files",
+    "mcp__claude_ai_Google_Drive__search_files",
+    "mcp__claude_ai_Google_Drive__read_file_content",
+    "mcp__claude_ai_Google_Drive__get_file_metadata",
+    "mcp__claude_ai_Google_Drive__get_file_permissions",
+})
+
+TARGET = "/repo/plugins/autonomous-dev/hooks/plan_gate.py"
+
+# Every transport that can mutate a file, with a realistic payload shape.
+WRITE_TRANSPORT_PAYLOADS = [
+    ("Write", {"file_path": TARGET, "content": "body\n"}),
+    ("Edit", {"file_path": TARGET, "old_string": "x", "new_string": "body\n"}),
+    ("MultiEdit", {"file_path": TARGET,
+                   "edits": [{"old_string": "x", "new_string": "body\n"}]}),
+    ("NotebookEdit", {"notebook_path": TARGET, "cell_id": "c1",
+                      "new_source": "body\n"}),
+    ("mcp__serena__replace_symbol_body",
+     {"relative_path": TARGET, "name_path": "main", "body": "body\n"}),
+    ("mcp__serena__insert_after_symbol",
+     {"relative_path": TARGET, "name_path": "main", "body": "body\n"}),
+    ("mcp__serena__replace_content",
+     {"relative_path": TARGET, "needle": "x", "repl": "body\n"}),
+]
+
+# Verified against the real serena tool schemas: none of these carries a
+# content key, so the path+content shape fallback provably cannot catch them.
+# Only explicit registry membership can.
+FALLBACK_UNCATCHABLE_WRITERS = [
+    ("mcp__serena__replace_in_files",
+     {"relative_path": "", "needle": "x", "repl": "y"}),
+    ("mcp__serena__rename_symbol",
+     {"name_path": "main", "relative_path": TARGET, "new_name": "main2"}),
+    ("mcp__serena__safe_delete_symbol",
+     {"name_path_pattern": "main", "relative_path": TARGET}),
+    ("mcp__serena__delete_lines",
+     {"relative_path": TARGET, "start_line": 1, "end_line": 9}),
+]
+
+# Must NEVER classify as WRITE. Several carry a path argument on purpose —
+# a naive "has a path -> block" rule would break these.
+READONLY_PAYLOADS = [
+    ("Read", {"file_path": TARGET}),
+    ("Grep", {"pattern": "def", "path": "/repo"}),
+    ("Glob", {"pattern": "**/*.py"}),
+    ("NotebookRead", {"notebook_path": TARGET}),
+    ("mcp__serena__find_symbol",
+     {"name_path_pattern": "main", "relative_path": TARGET}),
+    ("mcp__serena__get_symbols_overview", {"relative_path": TARGET}),
+    ("mcp__serena__find_referencing_symbols",
+     {"name_path": "main", "relative_path": TARGET}),
+    ("mcp__serena__search_for_pattern",
+     {"substring_pattern": "def", "relative_path": TARGET}),
+    ("mcp__searxng__search", {"query": "python"}),
+    ("WebFetch", {"url": "https://example.com", "prompt": "summarise"}),
+    ("mcp__ms365__send-mail", {"subject": "hi", "body": "text body no path"}),
+]
+
+
+class TestIssue1503Registries:
+    """The MCP registries are explicit and authoritative."""
+
+    def test_mcp_read_tools_is_strict_superset_of_legacy_allowlist(self):
+        missing = LEGACY_PLAN_EXIT_MCP_READONLY - set(tool_intent.MCP_READ_TOOLS)
+        assert not missing, f"MCP_READ_TOOLS lost legacy entries: {sorted(missing)}"
+        assert len(tool_intent.MCP_READ_TOOLS) > len(LEGACY_PLAN_EXIT_MCP_READONLY), (
+            "MCP_READ_TOOLS must be a STRICT superset (serena reads added)"
+        )
+
+    def test_browser_evaluate_is_not_read_only(self):
+        """AC #19: browser_evaluate executes arbitrary JS — never read-only."""
+        assert "mcp__playwright__browser_evaluate" not in tool_intent.MCP_READ_TOOLS
+
+    def test_read_and_write_registries_are_disjoint(self):
+        assert not (set(tool_intent.MCP_READ_TOOLS) & set(tool_intent.MCP_WRITE_TOOLS))
+        assert not (tool_intent.READ_TOOLS & tool_intent.WRITE_TOOLS)
+
+    def test_path_and_content_keys_exclude_non_filesystem_keys(self):
+        for key in ("url", "prompt", "subject", "to"):
+            assert key not in tool_intent.PATH_KEYS
+            assert key not in tool_intent.CONTENT_KEYS
+
+
+class TestIssue1503IsWrite:
+    """is_write() truth table across every transport."""
+
+    @pytest.mark.parametrize("tool_name,tool_input", WRITE_TRANSPORT_PAYLOADS)
+    def test_write_transports_classify_as_write(self, tool_name, tool_input):
+        assert tool_intent.classify(tool_name, tool_input) == "WRITE"
+        assert tool_intent.is_write(tool_name, tool_input) is True
+
+    @pytest.mark.parametrize("tool_name,tool_input", FALLBACK_UNCATCHABLE_WRITERS)
+    def test_contentless_writers_caught_by_registry_membership(
+        self, tool_name, tool_input
+    ):
+        """These have no content key — only the registry can catch them."""
+        assert tool_intent._looks_like_write(tool_input) is False, (
+            "precondition: the shape fallback must NOT catch this payload"
+        )
+        assert tool_intent.is_write(tool_name, tool_input) is True
+
+    @pytest.mark.parametrize("tool_name,tool_input", READONLY_PAYLOADS)
+    def test_readonly_payloads_are_never_writes(self, tool_name, tool_input):
+        assert tool_intent.is_write(tool_name, tool_input) is False
+        assert tool_intent.write_targets(tool_name, tool_input) == []
+
+    def test_unknown_tool_with_path_only_stays_exec(self):
+        payload = {"relative_path": TARGET, "name_path": "main"}
+        assert tool_intent.classify("mcp__future__inspect", payload) == "EXEC"
+        assert tool_intent.is_write("mcp__future__inspect", payload) is False
+
+    def test_unknown_tool_with_path_and_content_becomes_write(self):
+        payload = {"path": TARGET, "content": "pwned\n"}
+        assert tool_intent.classify("mcp__future__editor", payload) == "WRITE"
+        assert tool_intent.write_targets("mcp__future__editor", payload) == [TARGET]
+
+    def test_unknown_tool_with_content_only_stays_exec(self):
+        payload = {"body": "just a message"}
+        assert tool_intent.classify("mcp__future__notify", payload) == "EXEC"
+
+    @pytest.mark.parametrize("bad", [None, "", 0, [], "not-a-dict"])
+    def test_malformed_input_never_raises(self, bad):
+        assert tool_intent.is_write("mcp__x__y", bad) is False
+        assert tool_intent.changed_content("mcp__x__y", bad) == ""
+        assert tool_intent.write_targets("mcp__x__y", bad) == []
+        assert tool_intent.classify(bad, {}) == "EXEC"
+
+
+class TestIssue1503ChangedContent:
+    """changed_content() extracts the change regardless of transport."""
+
+    def test_write_uses_content_key(self):
+        assert tool_intent.changed_content(
+            "Write", {"file_path": TARGET, "content": "a\nb"}
+        ) == "a\nb"
+
+    def test_edit_uses_new_string_key(self):
+        assert tool_intent.changed_content(
+            "Edit", {"file_path": TARGET, "new_string": "a\nb"}
+        ) == "a\nb"
+
+    def test_notebook_edit_uses_new_source_key(self):
+        assert tool_intent.changed_content(
+            "NotebookEdit", {"notebook_path": TARGET, "new_source": "a\nb"}
+        ) == "a\nb"
+
+    def test_serena_symbol_editors_use_body_key(self):
+        assert tool_intent.changed_content(
+            "mcp__serena__replace_symbol_body",
+            {"relative_path": TARGET, "name_path": "m", "body": "a\nb"},
+        ) == "a\nb"
+
+    def test_serena_replace_content_uses_repl_not_content(self):
+        assert tool_intent.changed_content(
+            "mcp__serena__replace_content",
+            {"relative_path": TARGET, "needle": "x", "repl": "a\nb"},
+        ) == "a\nb"
+
+    def test_multiedit_concatenates_every_new_string(self):
+        result = tool_intent.changed_content(
+            "MultiEdit",
+            {
+                "file_path": TARGET,
+                "edits": [
+                    {"old_string": "x", "new_string": "one\ntwo"},
+                    {"old_string": "y", "new_string": "three"},
+                ],
+            },
+        )
+        assert "one" in result and "three" in result
+        assert result.count("\n") == 2
+
+    def test_multiedit_line_count_reflects_total_change_size(self):
+        """A 120-line MultiEdit must not read as a 0-line change."""
+        big = "\n".join(f"line {i}" for i in range(120))
+        payload = {"file_path": TARGET,
+                   "edits": [{"old_string": "x", "new_string": big}]}
+        assert tool_intent.changed_content("MultiEdit", payload).count("\n") >= 100
+
+    def test_missing_content_returns_empty_string(self):
+        assert tool_intent.changed_content(
+            "mcp__serena__delete_lines",
+            {"relative_path": TARGET, "start_line": 1, "end_line": 2},
+        ) == ""
+
+
+class TestIssue1503WriteTargets:
+    """write_targets() resolves MCP path keys too."""
+
+    def test_serena_target_resolved_from_relative_path(self):
+        assert tool_intent.write_targets(
+            "mcp__serena__replace_symbol_body",
+            {"relative_path": TARGET, "name_path": "m", "body": "b"},
+        ) == [TARGET]
+
+    def test_notebook_edit_target_resolved_from_notebook_path(self):
+        assert tool_intent.write_targets(
+            "NotebookEdit", {"notebook_path": TARGET, "new_source": "b"}
+        ) == [TARGET]
+
+    def test_registered_writer_without_path_returns_empty_list(self):
+        assert tool_intent.write_targets(
+            "mcp__serena__replace_in_files",
+            {"relative_path": "", "needle": "x", "repl": "y"},
+        ) == []
+
+    def test_mcp_read_tools_never_yield_targets(self):
+        assert tool_intent.write_targets(
+            "mcp__serena__find_symbol",
+            {"name_path_pattern": "m", "relative_path": TARGET},
+        ) == []
+
+
+class TestIssue1503BashUnchanged:
+    """Widening classify() must not disturb the existing Bash path."""
+
+    def test_bash_read_still_read(self):
+        assert tool_intent.classify("Bash", {"command": "cat foo.txt"}) == "READ"
+
+    def test_bash_write_still_write_with_targets(self):
+        payload = {"command": "rm -f settings.json"}
+        assert tool_intent.classify("Bash", payload) == "WRITE"
+        assert "settings.json" in tool_intent.write_targets("Bash", payload)
+
+    def test_bash_redirect_still_write(self):
+        payload = {"command": "echo hi > out.txt"}
+        assert tool_intent.classify("Bash", payload) == "WRITE"
+        assert "out.txt" in tool_intent.write_targets("Bash", payload)
+
+    def test_bash_unknown_binary_still_exec(self):
+        assert tool_intent.classify("Bash", {"command": "make build"}) == "EXEC"
+
+    def test_bash_with_path_and_content_keys_is_not_shape_matched(self):
+        """Bash must route through _classify_bash, never the shape fallback."""
+        payload = {"command": "ls", "path": TARGET, "content": "x"}
+        assert tool_intent.classify("Bash", payload) == "READ"

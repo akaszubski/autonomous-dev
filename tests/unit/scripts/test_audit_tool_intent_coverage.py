@@ -224,3 +224,63 @@ class TestAuditAgainstRealLogs:
             f"(READ_TOOLS / WRITE_TOOLS) or to KNOWN_EXEC_TOOLS in "
             f"scripts/audit_tool_intent_coverage.py."
         )
+
+
+# ---------------------------------------------------------------------------
+# Issue #1503 — the blanket mcp__ prefix pass is gone
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1503McpCoverageIsNotBlanket:
+    """An unregistered mcp__ tool must be reported UNCOVERED.
+
+    The old gate short-circuited with ``if tool_name.startswith("mcp__"):
+    return True``, declaring every conceivable MCP tool covered by
+    construction. That is why it never flagged the serena editors that were
+    walking through the protected-infrastructure hard floor.
+    """
+
+    def test_unregistered_mcp_tool_is_uncovered(self, audit_mod):
+        assert audit_mod._is_covered("mcp__brandnew__frobnicate") is False
+
+    def test_unregistered_mcp_tool_classifies_as_uncovered(self, audit_mod):
+        assert audit_mod._classify_summary("mcp__brandnew__frobnicate") == "UNCOVERED"
+
+    def test_registered_mcp_writer_is_covered(self, audit_mod):
+        assert audit_mod._is_covered("mcp__serena__replace_symbol_body") is True
+        assert audit_mod._classify_summary(
+            "mcp__serena__replace_symbol_body"
+        ) == "WRITE (mcp)"
+
+    def test_registered_mcp_reader_is_covered(self, audit_mod):
+        assert audit_mod._is_covered("mcp__serena__find_symbol") is True
+        assert audit_mod._classify_summary("mcp__serena__find_symbol") == "READ (mcp)"
+
+    def test_known_exec_mcp_tool_is_covered(self, audit_mod):
+        assert audit_mod._is_covered("mcp__searxng__search") is True
+        assert audit_mod._classify_summary("mcp__searxng__search") == "EXEC (mcp)"
+
+    def test_covered_and_classify_helpers_agree(self, audit_mod):
+        """Both helpers must apply the same registry test (half-fix guard)."""
+        for name in (
+            "mcp__brandnew__frobnicate",
+            "mcp__serena__replace_symbol_body",
+            "mcp__serena__find_symbol",
+            "mcp__searxng__search",
+        ):
+            covered = audit_mod._is_covered(name)
+            summary = audit_mod._classify_summary(name)
+            assert covered == (summary != "UNCOVERED"), (
+                f"{name}: _is_covered={covered} but _classify_summary={summary}"
+            )
+
+    def test_uncovered_mcp_tool_flows_through_to_strict_audit(self, audit_mod, tmp_path):
+        """End-to-end: an unregistered MCP tool in the logs fails --strict."""
+        logs = tmp_path / "activity"
+        logs.mkdir()
+        (logs / "2099-01-01.jsonl").write_text(
+            json.dumps({"tool": "mcp__brandnew__frobnicate"}) + "\n"
+        )
+        exit_code, uncovered = audit_mod.audit(logs, days=99999, strict=True)
+        assert exit_code == 1
+        assert "mcp__brandnew__frobnicate" in uncovered

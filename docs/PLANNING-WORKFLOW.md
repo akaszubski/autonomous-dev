@@ -98,11 +98,15 @@ One of:
 
 ## Hook Enforcement
 
-The `plan_gate.py` hook runs on every Write/Edit operation:
+The `plan_gate.py` hook runs on every write-classified tool call. Since Issue
+#1503 the test is `tool_intent.is_write()`, not a hard-coded `("Write", "Edit")`
+tuple, so `MultiEdit`, `NotebookEdit`, and MCP editors (`mcp__serena__*`) are
+gated identically — the hook is transport-independent:
 
-1. **Non-Write/Edit tools**: Always allowed
+1. **Non-write tools** (Read, Grep, `mcp__serena__find_symbol`, ...): Always allowed
 2. **Documentation files** (.md, CHANGELOG, README, docs/): Always allowed
-3. **Simple edits** (<100 lines): Always allowed
+3. **Simple edits** (<100 lines of changed content, measured via
+   `tool_intent.changed_content()` regardless of transport): Always allowed
 4. **Complex edits without plan**: Blocked with actionable message
 5. **Complex edits with valid plan**: Allowed
 6. **Expired plan** (>72h): Allowed with warning

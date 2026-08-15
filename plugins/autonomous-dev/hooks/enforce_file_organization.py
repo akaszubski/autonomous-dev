@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-File Organization Enforcer - PreToolUse Write/Edit guard.
+File Organization Enforcer - PreToolUse write guard.
 
-Blocks Write/Edit operations that would create files at the repository root
+Issue #1503: the tool test is tool_intent.is_write, not a literal
+("Write", "Edit") tuple, so MultiEdit / NotebookEdit / MCP editors cannot
+route around this hook.
+
+Blocks file-mutating operations that would create files at the repository root
 outside of an allow-list (e.g. README.md, pyproject.toml). The hook is
 stdlib-only, fails open, and respects the universal AUTONOMOUS_DEV_BYPASS
 mechanism (Issue #969).
@@ -61,6 +65,30 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+# Issue #1503: transport-independent write classification. The lib dir is
+# already on sys.path (the _953 block above). The fallback is the literal
+# four-tuple — strictly stronger than the ("Write", "Edit") tuple it replaces,
+# never weaker.
+try:
+    from tool_intent import is_write, write_targets
+except ImportError:  # pragma: no cover — stale-install fallback
+    _FALLBACK_WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+    _FALLBACK_PATH_KEYS = ("file_path", "notebook_path", "relative_path", "path")
+
+    def is_write(tool_name: str, tool_input: dict) -> bool:
+        """Fallback write test: the literal native write-tool tuple."""
+        return tool_name in _FALLBACK_WRITE_TOOLS
+
+    def write_targets(tool_name: str, tool_input: dict) -> list:
+        """Fallback target accessor: first non-empty known path key."""
+        if not isinstance(tool_input, dict):
+            return []
+        for _key in _FALLBACK_PATH_KEYS:
+            _value = tool_input.get(_key)
+            if isinstance(_value, str) and _value:
+                return [_value]
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -316,16 +344,18 @@ def main() -> int:
         # Missing hook_bypass — fail open.
         pass
 
-    # 2. Only act on Write and Edit.
+    # 2. Only act on file-mutating tools. Issue #1503: transport-independent —
+    # this hook was bypassable via MultiEdit, NotebookEdit, or any MCP editor.
     tool_name = payload.get("tool_name", "")
-    if tool_name not in ("Write", "Edit"):
-        return 0
-
-    # 3. Extract file_path from tool_input.
     tool_input = payload.get("tool_input") or {}
     if not isinstance(tool_input, dict):
         return 0
-    file_path = tool_input.get("file_path") or ""
+    if not is_write(tool_name, tool_input):
+        return 0
+
+    # 3. Extract the write target (resolves MCP path keys too).
+    _targets = write_targets(tool_name, tool_input)
+    file_path = _targets[0] if _targets else (tool_input.get("file_path") or "")
     if not file_path or not isinstance(file_path, str):
         return 0
 

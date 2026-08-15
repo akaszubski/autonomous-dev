@@ -120,6 +120,109 @@ try:
 except Exception:
     _tool_intent = None  # Fallback: _extract_bash_file_writes_legacy retains old behavior
 
+# Issue #1503: transport-independent write classification for every gate in
+# this module. _tool_intent is loaded via spec_from_file_location above, so
+# attribute probing (hasattr) is the only available capability detection —
+# a stale install may expose classify/write_targets but not is_write.
+#
+# The fallback is the literal FOUR-tuple, not the legacy two-tuple: it is
+# strictly stronger than today at every call site and never weaker. It must
+# NOT fail closed to "deny" — denying on a missing library would block Read,
+# which is catastrophic.
+_FALLBACK_WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+
+def _ti_is_write(tool_name, tool_input):
+    """Transport-independent write test with a stale-install fallback (#1503)."""
+    if _tool_intent is not None and hasattr(_tool_intent, "is_write"):
+        try:
+            return _tool_intent.is_write(tool_name, tool_input)
+        except Exception:
+            pass
+    return tool_name in _FALLBACK_WRITE_TOOLS
+
+
+def _ti_write_targets(tool_name, tool_input):
+    """Resolve a tool call's write target paths, with a stale-install fallback."""
+    if _tool_intent is not None and hasattr(_tool_intent, "write_targets"):
+        try:
+            targets = _tool_intent.write_targets(tool_name, tool_input)
+            if targets:
+                return list(targets)
+        except Exception:
+            pass
+    if not isinstance(tool_input, dict):
+        return []
+    for _key in ("file_path", "notebook_path", "relative_path", "path"):
+        _value = tool_input.get(_key)
+        if isinstance(_value, str) and _value:
+            return [_value]
+    return []
+
+
+def _ti_first_write_target(tool_name, tool_input):
+    """Return the first write target path, or "" when there is none."""
+    targets = _ti_write_targets(tool_name, tool_input)
+    return targets[0] if targets else ""
+
+
+def _ti_write_tool_names():
+    """Every registered write tool name (native + MCP), with a stale fallback."""
+    names = set(_FALLBACK_WRITE_TOOLS)
+    if _tool_intent is not None:
+        for _attr in ("WRITE_TOOLS", "MCP_WRITE_TOOLS"):
+            try:
+                names |= set(getattr(_tool_intent, _attr, ()) or ())
+            except Exception:
+                pass
+    return frozenset(names)
+
+
+# Stale-install fallback for _ti_mcp_read_tools. Issue #1503 deleted the
+# module-local _PLAN_EXIT_MCP_READONLY frozenset in favour of the canonical
+# tool_intent.MCP_READ_TOOLS registry (which is a strict superset — it also
+# knows the serena read surface, which this list over-blocked at the
+# plan_exited stage). This copy exists ONLY so an old installed tool_intent.py
+# without MCP_READ_TOOLS does not regress plan-exit behaviour.
+_PLAN_EXIT_MCP_READONLY_FALLBACK: "frozenset[str]" = frozenset({
+    "mcp__playwright__browser_snapshot",
+    "mcp__playwright__browser_take_screenshot",
+    "mcp__playwright__browser_console_messages",
+    "mcp__playwright__browser_network_requests",
+    "mcp__claude_ai_Hugging_Face__hf_doc_search",
+    "mcp__claude_ai_Hugging_Face__hf_doc_fetch",
+    "mcp__claude_ai_Hugging_Face__hub_repo_search",
+    "mcp__claude_ai_Hugging_Face__paper_search",
+    "mcp__claude_ai_Hugging_Face__space_search",
+    "mcp__claude_ai_Hugging_Face__hf_whoami",
+    "mcp__claude_ai_Hugging_Face__hf_hub_query",
+    "mcp__claude_ai_Hugging_Face__hub_repo_details",
+    "mcp__claude_ai_Gmail__list_drafts",
+    "mcp__claude_ai_Gmail__list_labels",
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__search_threads",
+    "mcp__claude_ai_Google_Calendar__list_calendars",
+    "mcp__claude_ai_Google_Calendar__list_events",
+    "mcp__claude_ai_Google_Calendar__get_event",
+    "mcp__claude_ai_Google_Drive__list_recent_files",
+    "mcp__claude_ai_Google_Drive__search_files",
+    "mcp__claude_ai_Google_Drive__read_file_content",
+    "mcp__claude_ai_Google_Drive__get_file_metadata",
+    "mcp__claude_ai_Google_Drive__get_file_permissions",
+})
+
+
+def _ti_mcp_read_tools():
+    """The canonical read-only MCP allowlist, with a stale-install fallback."""
+    if _tool_intent is not None:
+        try:
+            registry = getattr(_tool_intent, "MCP_READ_TOOLS", None)
+            if registry:
+                return frozenset(registry)
+        except Exception:
+            pass
+    return _PLAN_EXIT_MCP_READONLY_FALLBACK
+
 # Defensive import of hook_recovery (Issue #970).
 # Telemetry-only. If unavailable, log_block_with_recovery becomes a no-op so
 # the hook gate continues to function unchanged.
@@ -1144,41 +1247,17 @@ _PLAN_EXIT_CONSUMER_AGENTS: "frozenset[str]" = frozenset({
 })
 
 # MCP tools allowed at plan_exited stage — explicit allowlist (AC #21).
-# Structural (regex-based) heuristics are forbidden because they produce
-# false-negatives (e.g., "find_and_replace" contains "find" but is a write).
-# AC #19: mcp__playwright__browser_evaluate MUST NOT be on this list
-# (it executes arbitrary JS in the browser — not read-only).
-_PLAN_EXIT_MCP_READONLY: "frozenset[str]" = frozenset({
-    # Playwright — read-only browser inspection
-    "mcp__playwright__browser_snapshot",
-    "mcp__playwright__browser_take_screenshot",
-    "mcp__playwright__browser_console_messages",
-    "mcp__playwright__browser_network_requests",
-    # HuggingFace — read-only search and lookup
-    "mcp__claude_ai_Hugging_Face__hf_doc_search",
-    "mcp__claude_ai_Hugging_Face__hf_doc_fetch",
-    "mcp__claude_ai_Hugging_Face__hub_repo_search",
-    "mcp__claude_ai_Hugging_Face__paper_search",
-    "mcp__claude_ai_Hugging_Face__space_search",
-    "mcp__claude_ai_Hugging_Face__hf_whoami",
-    "mcp__claude_ai_Hugging_Face__hf_hub_query",
-    "mcp__claude_ai_Hugging_Face__hub_repo_details",
-    # Gmail — read-only
-    "mcp__claude_ai_Gmail__list_drafts",
-    "mcp__claude_ai_Gmail__list_labels",
-    "mcp__claude_ai_Gmail__get_thread",
-    "mcp__claude_ai_Gmail__search_threads",
-    # Calendar — read-only
-    "mcp__claude_ai_Google_Calendar__list_calendars",
-    "mcp__claude_ai_Google_Calendar__list_events",
-    "mcp__claude_ai_Google_Calendar__get_event",
-    # Drive — read-only
-    "mcp__claude_ai_Google_Drive__list_recent_files",
-    "mcp__claude_ai_Google_Drive__search_files",
-    "mcp__claude_ai_Google_Drive__read_file_content",
-    "mcp__claude_ai_Google_Drive__get_file_metadata",
-    "mcp__claude_ai_Google_Drive__get_file_permissions",
-})
+#
+# Issue #1503: the literal frozenset that used to live here was DELETED. It is
+# now sourced from tool_intent.MCP_READ_TOOLS via _ti_mcp_read_tools(), the
+# single canonical registry. The old copy was a strict subset — it did not
+# know serena's read surface, so it OVER-BLOCKED find_symbol /
+# get_symbols_overview / find_referencing_symbols at the plan_exited stage.
+# The design constraint it carried ("structural regex heuristics are forbidden
+# because they produce false-negatives — 'find_and_replace' contains 'find'
+# but is a write") is preserved verbatim in tool_intent.py alongside the
+# registries. AC #19 (mcp__playwright__browser_evaluate must NOT be treated as
+# read-only) is enforced there and asserted by tests/unit/lib/test_tool_intent.py.
 
 # Canonical deny reason (AC #5) — same string for all plan-exit denies.
 # Issue #938: surfaces all three escape hatches in the canonical reason.
@@ -1704,6 +1783,138 @@ def _is_protected_infrastructure(file_path: str) -> bool:
             if ext in extensions:
                 return True
     return False
+
+
+def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
+    """Protected-infrastructure hard floor — INV-4 (Issues #483, #1296, #1435).
+
+    Blocks writes to agents/, commands/, hooks/, lib/, skills/ unless the
+    /implement pipeline is active AND the implementer agent is the actor.
+    Denies via ``output_decision`` + ``sys.exit(0)``; returns None when the
+    call is permitted.
+
+    Issue #1503 relocated this block OUT of the native-tool fast path. It
+    previously lived inside ``if tool_name in NATIVE_TOOLS:`` and tested
+    ``tool_name in ("Write", "Edit")``, which meant:
+      - NotebookEdit entered the fast path, failed the tuple test, and fell
+        through to the terminal "Native tool — hook bypass" allow;
+      - MultiEdit is not in NATIVE_TOOLS at all, so it skipped the fast path
+        (and therefore this gate) entirely;
+      - every MCP editor did the same.
+    Running upstream of the fast path makes the hard floor reachable for every
+    write transport. Threat model: accidental direct edits, not a malicious
+    local attacker. CLAUDE_AGENT_NAME is set by Claude Code; env var trust is
+    by design. Fail-closed: if the check itself errors, block the write
+    (A04 remediation).
+
+    DOCUMENTED BEHAVIOUR CHANGE (#1503): ``_check_plan_exit_native`` used to
+    run BEFORE this block, so when both would fire the plan-exit message won.
+    After the relocation the infrastructure message wins. deny stays deny —
+    only the visible reason changes.
+
+    Args:
+        tool_name: The tool name from the PreToolUse payload.
+        tool_input: The tool input dict from the PreToolUse payload.
+
+    Returns:
+        None. Exits the process with a deny decision when the write is denied.
+    """
+    # Bash is deliberately OUT of scope for this block (Issue #1503).
+    # Pre-#1503 the guard was ``tool_name in ("Write", "Edit")``, which is
+    # False for Bash, so this hard floor never evaluated Bash commands.
+    # Bash has its own dedicated coverage in ``_check_bash_infra_writes``
+    # with intentionally different semantics — an active-pipeline implementer
+    # may use ``sed -i``/``tee`` on protected paths. Routing Bash through
+    # here as well silently tightened that and broke
+    # test_bash_write_to_protected_path_allowed_when_pipeline_active.
+    # #1503 widened this gate to reach MultiEdit, NotebookEdit and MCP
+    # editors — transports that previously escaped it — NOT to change Bash.
+    if tool_name == "Bash":
+        return
+    if not _ti_is_write(tool_name, tool_input):
+        return
+    file_path = _ti_first_write_target(tool_name, tool_input)
+    try:
+        is_protected = _is_protected_infrastructure(file_path)
+        pipeline_active = _is_pipeline_active() if is_protected else False
+    except Exception:
+        # Fail closed — if protection check errors, treat as protected
+        is_protected = True
+        pipeline_active = False
+    if not is_protected:
+        return
+
+    # Issue #1296: pipeline-active is NOT a blanket permit. The implementer agent
+    # must be the actor — coordinator direct-edits to protected paths during an
+    # active pipeline are also blocked.
+    if pipeline_active:
+        try:
+            from agent_dispatch_sentinel import is_active as _ads_is_active
+            if not _ads_is_active():
+                file_name = Path(file_path).name if file_path else "unknown"
+                block_reason = (
+                    f"BLOCKED: Coordinator cannot directly edit protected path '{file_name}' "
+                    f"mid-pipeline. Re-dispatch the implementer agent with this "
+                    f"change as a remediation cycle. (Issue #1296) "
+                    f"REQUIRED NEXT ACTION: Use the Task tool to invoke the implementer "
+                    f"agent to make this change. Do NOT edit infrastructure files directly."
+                )
+                _log_deviation(file_name, tool_name, "coordinator_bypass_block")
+                _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+                output_decision(
+                    "deny", block_reason,
+                    system_message=(
+                        f"Coordinator cannot directly edit protected path '{file_path}' "
+                        f"mid-pipeline. Re-dispatch the implementer agent. (Issue #1296)"
+                    )
+                )
+                sys.exit(0)
+        except ImportError:
+            # Issue #1296: Fail CLOSED when sentinel library missing for security-critical check
+            file_name = Path(file_path).name if file_path else "unknown"
+            block_reason = (
+                f"BLOCKED: Sentinel library missing — security-critical component unavailable, "
+                f"refusing to allow protected-path edit to '{file_name}'. "
+                f"The agent_dispatch_sentinel module is required for coordinator bypass detection."
+            )
+            _log_deviation(file_name, tool_name, "sentinel_import_error_block")
+            _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+            output_decision(
+                "deny", block_reason,
+                system_message=(
+                    f"Sentinel library missing — cannot verify agent dispatch status. "
+                    f"Blocking protected-path edit for security. (Issue #1296)"
+                )
+            )
+            sys.exit(0)
+        # implementer-dispatched edit: permit as before (fall through to WPG/other checks)
+        return
+
+    file_name = Path(file_path).name if file_path else "unknown"
+    block_reason = (
+        f"BLOCKED: Direct edit to '{file_name}' denied. "
+        f"Infrastructure files (agents/, commands/, hooks/, lib/, skills/) "
+        f"require the /implement pipeline. Run: /implement \"description\" "
+        f"REQUIRED NEXT ACTION: Run /implement with a description of your "
+        f"change. Delegate the edit to the implementer agent. "
+        f"Do NOT write infrastructure files directly."
+    )
+    _log_deviation(file_name, tool_name, "infrastructure_protection_block")
+    _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
+    output_decision(
+        "deny", block_reason,
+        system_message=(
+            f"BLOCKED: Direct edit to '{file_name}' denied. "
+            f"Use /implement to modify infrastructure files."
+        ),
+    )
+    # Issue #803: Record denial for cross-tool workaround detection.
+    # If the agent retries via Bash heredoc, the deny cache catches it.
+    try:
+        _update_deny_cache(file_path)
+    except Exception:
+        pass  # Never fail the hook for cache writes
+    sys.exit(0)
 
 
 def _get_active_agent_name() -> str:
@@ -2409,8 +2620,10 @@ def _is_code_file_target(tool_name: str, tool_input: Dict) -> bool:
     Returns:
         True if the tool targets a code file or protected infrastructure file
     """
-    if tool_name in ("Write", "Edit"):
-        file_path = tool_input.get("file_path", "")
+    # Issue #1503: transport-independent. MultiEdit/NotebookEdit/MCP editors
+    # target code files exactly as Write and Edit do.
+    if tool_name != "Bash" and _ti_is_write(tool_name, tool_input):
+        file_path = _ti_first_write_target(tool_name, tool_input)
         if not file_path:
             return False
         # Issue #623: Protected infrastructure files (agents/*.md, commands/*.md,
@@ -6801,7 +7014,10 @@ def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple
     # Race mitigation: 10ms re-read; if stage advanced, allow.
     # Belt-and-suspenders: catches any newly added NATIVE_TOOLS that aren't
     # explicitly handled above.
-    deny_tools = ("Write", "Edit", "NotebookEdit")
+    # Issue #1503: was the literal ("Write", "Edit", "NotebookEdit") tuple,
+    # which omitted MultiEdit. Sourced from the canonical registries so a new
+    # write transport is covered by registering it once, in tool_intent.
+    deny_tools = _ti_write_tool_names()
     is_deny_candidate = (
         tool_name in deny_tools
         or (tool_name in AGENT_TOOL_NAMES and (tool_input.get("subagent_type", "") or "").strip().lower() != "plan-critic")
@@ -6844,7 +7060,8 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
     """Plan-exit gate for MCP (non-native) tools (Issue #926).
 
     State matrix:
-      stage=plan_exited: deny unless tool_name in _PLAN_EXIT_MCP_READONLY.
+      stage=plan_exited: deny unless tool_name is in the canonical read-only
+        MCP registry (tool_intent.MCP_READ_TOOLS, via _ti_mcp_read_tools()).
       stage=critique_done: None (fall through — marker consumed by native gate).
 
     Same 10ms race mitigation as the native gate.
@@ -6884,7 +7101,7 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
         return None
 
     # stage == "plan_exited"
-    if tool_name in _PLAN_EXIT_MCP_READONLY:
+    if tool_name in _ti_mcp_read_tools():
         return None
 
     # Deny candidate — race mitigation
@@ -7072,18 +7289,27 @@ def main():
                 # Issue #1435: Hard-floor infrastructure protection must survive the
                 # universal bypass. _is_protected_infrastructure is a hard-floor function
                 # (config/hard_floor_hooks.json); bypass must NOT allow protected-infra
-                # Write/Edit. Fall through to the existing deny gate at ~line 6997.
-                if not _skip_bypass_exit and tool_name in ("Write", "Edit"):
+                # writes. Fall through to the protected-infrastructure hard floor
+                # (_enforce_protected_infrastructure, invoked just before the native-tool
+                # fast path) so it can evaluate and deny.
+                #
+                # Issue #1503: the test is _ti_is_write, not the ("Write", "Edit")
+                # tuple this replaced. Measured before the fix: native Write/Edit
+                # correctly denied under bypass while MultiEdit, NotebookEdit and the
+                # three serena editors all walked straight through — INV-4 was
+                # bypassable with zero MCP servers installed (NotebookEdit ships with
+                # Claude Code).
+                if not _skip_bypass_exit and _ti_is_write(tool_name, tool_input):
                     try:
                         from hard_floor import is_hard_floor
-                        file_path = tool_input.get("file_path", "")
+                        file_path = _ti_first_write_target(tool_name, tool_input)
                         if _is_protected_infrastructure(file_path) and is_hard_floor(
                             "unified_pre_tool.py", "_is_protected_infrastructure"
                         ):
                             _skip_bypass_exit = True
                     except Exception:
                         # Fail CLOSED: if the hard-floor/protection check errors on a
-                        # Write/Edit under bypass, do NOT grant the bypass allow — fall
+                        # write under bypass, do NOT grant the bypass allow — fall
                         # through so the deny gate can evaluate.
                         _skip_bypass_exit = True
 
@@ -7125,6 +7351,22 @@ def main():
                 sys.exit(0)
 
         # =================================================================
+        # PROTECTED-INFRASTRUCTURE HARD FLOOR (INV-4).
+        #
+        # Issue #1503: runs BEFORE the native-tool fast path so it is reachable
+        # for EVERY write transport, not just the two that happened to be
+        # spelled out in a tuple. The fast path below terminates in an
+        # unconditional allow, so anything gated inside it is only as broad as
+        # its own tool-name test — that is exactly how NotebookEdit (ships with
+        # Claude Code, zero MCP servers required) walked through the hard floor.
+        #
+        # The fast-path entry itself is deliberately NOT widened: routing MCP
+        # writers into it would skip validate_mcp_security, trading one hole
+        # for another.
+        # =================================================================
+        _enforce_protected_infrastructure(tool_name, tool_input)
+
+        # =================================================================
         # FAST PATH: Native tools skip ALL hook layers.
         # Hooks run BEFORE settings.json — returning "ask" here overrides
         # settings.json "allow" rules. Native tools are governed by
@@ -7159,97 +7401,15 @@ def main():
                     output_decision(decision, reason, system_message=system_message)
                     sys.exit(0)
 
-            # Infrastructure protection: block direct edits to agents/, commands/,
-            # hooks/, lib/, skills/ unless /implement pipeline is active (Issue #483)
-            # Threat model: accidental direct edits, not malicious local attacker.
-            # CLAUDE_AGENT_NAME is set by Claude Code; env var trust is by design.
-            # Fail-closed: if the check itself errors, block the edit (A04 remediation).
-            #
-            # Issue #971: This block is the canonical Edit/Write tool gate.
-            # Tool-name dispatch is sufficient here — no command parsing needed.
-            # The settings.json sub-gate at lines ~3989+ handles the per-pipeline
-            # restriction. Verified correct by Issue #971 plan; no functional
-            # change required, only this clarifying comment.
+            # Infrastructure protection (Issue #483) now runs UPSTREAM of this
+            # fast path, in _enforce_protected_infrastructure(). Issue #1503
+            # moved it: NotebookEdit reached this point, failed the old
+            # ("Write", "Edit") tuple test, and fell through to the terminal
+            # "Native tool — hook bypass" allow, while MultiEdit and the MCP
+            # editors never entered the fast path at all. The remaining
+            # sub-gates below are still native-Write/Edit-shaped.
             if tool_name in ("Write", "Edit"):
                 file_path = tool_input.get("file_path", "")
-                try:
-                    is_protected = _is_protected_infrastructure(file_path)
-                    pipeline_active = _is_pipeline_active() if is_protected else False
-                except Exception:
-                    # Fail closed — if protection check errors, treat as protected
-                    is_protected = True
-                    pipeline_active = False
-                if is_protected:
-                    # Issue #1296: pipeline-active is NOT a blanket permit. The implementer agent
-                    # must be the actor — coordinator direct-edits to protected paths during an
-                    # active pipeline are also blocked.
-                    if pipeline_active:
-                        try:
-                            from agent_dispatch_sentinel import is_active as _ads_is_active
-                            if not _ads_is_active():
-                                file_name = Path(file_path).name if file_path else "unknown"
-                                block_reason = (
-                                    f"BLOCKED: Coordinator cannot directly edit protected path '{file_name}' "
-                                    f"mid-pipeline. Re-dispatch the implementer agent with this "
-                                    f"change as a remediation cycle. (Issue #1296) "
-                                    f"REQUIRED NEXT ACTION: Use the Task tool to invoke the implementer "
-                                    f"agent to make this change. Do NOT edit infrastructure files directly."
-                                )
-                                _log_deviation(file_name, tool_name, "coordinator_bypass_block")
-                                _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
-                                output_decision(
-                                    "deny", block_reason,
-                                    system_message=(
-                                        f"Coordinator cannot directly edit protected path '{file_path}' "
-                                        f"mid-pipeline. Re-dispatch the implementer agent. (Issue #1296)"
-                                    )
-                                )
-                                sys.exit(0)
-                        except ImportError:
-                            # Issue #1296: Fail CLOSED when sentinel library missing for security-critical check
-                            file_name = Path(file_path).name if file_path else "unknown"
-                            block_reason = (
-                                f"BLOCKED: Sentinel library missing — security-critical component unavailable, "
-                                f"refusing to allow protected-path edit to '{file_name}'. "
-                                f"The agent_dispatch_sentinel module is required for coordinator bypass detection."
-                            )
-                            _log_deviation(file_name, tool_name, "sentinel_import_error_block")
-                            _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
-                            output_decision(
-                                "deny", block_reason,
-                                system_message=(
-                                    f"Sentinel library missing — cannot verify agent dispatch status. "
-                                    f"Blocking protected-path edit for security. (Issue #1296)"
-                                )
-                            )
-                            sys.exit(0)
-                        # implementer-dispatched edit: permit as before (fall through to WPG/other checks)
-                    elif not pipeline_active:
-                        file_name = Path(file_path).name if file_path else "unknown"
-                        block_reason = (
-                            f"BLOCKED: Direct edit to '{file_name}' denied. "
-                            f"Infrastructure files (agents/, commands/, hooks/, lib/, skills/) "
-                            f"require the /implement pipeline. Run: /implement \"description\" "
-                            f"REQUIRED NEXT ACTION: Run /implement with a description of your "
-                            f"change. Delegate the edit to the implementer agent. "
-                            f"Do NOT write infrastructure files directly."
-                        )
-                        _log_deviation(file_name, tool_name, "infrastructure_protection_block")
-                        _log_pretool_activity(tool_name, tool_input, "deny", block_reason)
-                        output_decision(
-                            "deny", block_reason,
-                            system_message=(
-                                f"BLOCKED: Direct edit to '{file_name}' denied. "
-                                f"Use /implement to modify infrastructure files."
-                            ),
-                        )
-                        # Issue #803: Record denial for cross-tool workaround detection.
-                        # If the agent retries via Bash heredoc, the deny cache catches it.
-                        try:
-                            _update_deny_cache(file_path)
-                        except Exception:
-                            pass  # Never fail the hook for cache writes
-                        sys.exit(0)
 
                 # Issue #1330: Block architectural decision creation without plan-critic
                 arch_block = _detect_architectural_decision_without_plan_critic(tool_name, tool_input)
@@ -8321,6 +8481,9 @@ def main():
                 output_decision("deny", ext_reason, system_message=ext_reason)
                 sys.exit(0)
 
+            # Issue #1503: the protected-infrastructure hard floor (INV-4) now
+            # runs UPSTREAM of this fast path, so protected-infra writes are
+            # already denied before reaching this terminal allow.
             reason = f"Native tool '{tool_name}' - hook bypass (settings.json governs)"
             _log_pretool_activity(tool_name, tool_input, "allow", reason)
             output_decision("allow", reason)

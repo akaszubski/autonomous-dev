@@ -1,12 +1,22 @@
 ---
 name: planning-workflow
-description: "7-step planning workflow for pre-implementation design. Enforced by plan_gate hook, critiqued by plan-critic agent. Use when creating plans, design documents, or architecture decisions before implementation. TRIGGER when: plan, planning, /plan, design document, architecture decision. DO NOT TRIGGER when: implementation, coding, testing."
+description: "7-step planning workflow for pre-implementation design. Plan EXISTENCE is enforced by the plan_gate hook; the plan-critic CRITIQUE is enforced separately (unified_pre_tool's plan-exit marker gate, and the /implement STEP 5.5b verdict gate). Use when creating plans, design documents, or architecture decisions before implementation. TRIGGER when: plan, planning, /plan, design document, architecture decision. DO NOT TRIGGER when: implementation, coding, testing."
 allowed-tools: [Read, Grep, Glob, WebSearch, Bash, Write]
 ---
 
 # Planning Workflow
 
-A structured 7-step process for creating validated plans before implementation. Plans are critiqued adversarially by the plan-critic agent and enforced by the plan_gate hook.
+A structured 7-step process for creating validated plans before implementation. Plans are critiqued adversarially by the plan-critic agent.
+
+Two different enforcers, two different things enforced — do not conflate them:
+
+| What is enforced | Enforcer |
+|------------------|----------|
+| A plan EXISTS with the three required sections, before a complex write | `plan_gate.py` hook (PreToolUse). Transport-independent since Issue #1503 — MultiEdit, NotebookEdit, and MCP editors are gated identically to Write/Edit. |
+| The plan-critic CRITIQUE actually ran (plan-mode path) | `unified_pre_tool.py` plan-exit marker gate (Issue #926) — the marker must reach `stage: critique_done`. |
+| The plan-critic VERDICT is PROCEED (`/implement` path) | `/implement` STEP 5.5b verdict gate. |
+
+`plan_gate.py` does NOT enforce the critique. It checks only that a validated planning document is present.
 
 ## When to Use
 

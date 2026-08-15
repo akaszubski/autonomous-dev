@@ -2,14 +2,17 @@
 """
 Plan Gate - Pre-implementation planning enforcement hook.
 
-Blocks complex Write/Edit operations when no valid plan exists in
+Blocks complex file-mutating operations when no valid plan exists in
 .claude/plans/. Follows stick+carrot pattern: blocks with a clear
 REQUIRED NEXT ACTION directive pointing to /plan.
 
 Detection strategy:
-1. Check if tool is Write or Edit (other tools pass through)
+1. Classify the tool via tool_intent.is_write (Issue #1503) — every write
+   transport is covered (Write, Edit, MultiEdit, NotebookEdit, MCP editors),
+   not just the two native ones. Non-writers pass through.
 2. Exempt documentation files (.md, CHANGELOG, README, docs/)
-3. Check complexity threshold (simple edits < 100 lines pass through)
+3. Check complexity threshold against the CHANGE, not the transport
+   (simple edits < 100 lines pass through)
 4. Validate plan exists in .claude/plans/ with required sections
 5. Block if no valid plan, with actionable message
 
@@ -54,9 +57,92 @@ import os
 import sys
 from pathlib import Path
 
+# Issue #1503: transport-independent write classification. The lib dir is
+# already on sys.path (the _953 block above). The fallback keeps this hook
+# working against a stale install and is STRICTLY STRONGER than the legacy
+# ("Write", "Edit") tuple it replaces — never weaker.
+try:
+    from tool_intent import CONTENT_KEYS, changed_content, is_write, write_targets
+except ImportError:  # pragma: no cover — stale-install fallback
+    _FALLBACK_WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+    _FALLBACK_PATH_KEYS = ("file_path", "notebook_path", "relative_path", "path")
+    _FALLBACK_CONTENT_KEYS = ("content", "new_string", "body", "repl", "new_source")
+    CONTENT_KEYS = _FALLBACK_CONTENT_KEYS
+
+    def is_write(tool_name: str, tool_input: dict) -> bool:
+        """Fallback write test: the literal native write-tool tuple."""
+        return tool_name in _FALLBACK_WRITE_TOOLS
+
+    def changed_content(tool_name: str, tool_input: dict) -> str:
+        """Fallback content accessor: first non-empty known content key."""
+        if not isinstance(tool_input, dict):
+            return ""
+        edits = tool_input.get("edits")
+        if isinstance(edits, list):
+            parts = [
+                e.get("new_string")
+                for e in edits
+                if isinstance(e, dict) and isinstance(e.get("new_string"), str)
+            ]
+            if parts:
+                return "\n".join(p for p in parts if p)
+        for _key in _FALLBACK_CONTENT_KEYS:
+            _value = tool_input.get(_key)
+            if isinstance(_value, str) and _value:
+                return _value
+        return ""
+
+    def write_targets(tool_name: str, tool_input: dict) -> list:
+        """Fallback target accessor: first non-empty known path key."""
+        if not isinstance(tool_input, dict):
+            return []
+        for _key in _FALLBACK_PATH_KEYS:
+            _value = tool_input.get(_key)
+            if isinstance(_value, str) and _value:
+                return [_value]
+        return []
+
 
 # Simple edit threshold -- edits with fewer lines than this are never blocked
 SIMPLE_EDIT_LINE_THRESHOLD = 100
+
+# Issue #1503 follow-up: write transports whose changed_content() does not
+# BOUND the size of the change. replace_in_files rewrites an unbounded set of
+# files from one small ``repl``, so content length says nothing about blast
+# radius. This is NOT a second write-classification scheme — tool_intent
+# .is_write() remains the only answer to "is this a write?"; this set answers
+# the separate question "does the content bound the size?".
+UNBOUNDED_CHANGE_TOOLS = frozenset({"mcp__serena__replace_in_files"})
+
+# Security finding F5 (#1503 re-audit): transports that carry NO content
+# argument in their real schema. These MUST be rejected by NAME, before any
+# key inspection, because the PreToolUse hook receives tool_input straight
+# from the model's tool-call arguments — before the MCP server validates them
+# against its own schema. Without this, appending a throwaway ``content: ""``
+# to a safe_delete_symbol call forged the simple-edit exemption (measured).
+# Trusting key PRESENCE is only sound for tools whose schema actually
+# declares that key; for these it never does.
+NO_CONTENT_ARG_TOOLS = frozenset(
+    {
+        "mcp__serena__rename_symbol",
+        "mcp__serena__safe_delete_symbol",
+        "mcp__serena__delete_lines",
+        "mcp__serena__delete_memory",
+        "mcp__serena__rename_memory",
+    }
+)
+
+# Memory-store mutations DO declare a content argument, so they are not
+# content-less -- but content length still fails to bound their blast radius,
+# and a memory write is not a source edit, so the source-edit simple-edit
+# exemption should not apply to them either. Separate predicate, separate
+# name, so NO_CONTENT_ARG_TOOLS keeps stating something true.
+NON_SOURCE_MUTATION_TOOLS = frozenset(
+    {
+        "mcp__serena__write_memory",
+        "mcp__serena__edit_memory",
+    }
+)
 
 # Documentation file patterns that are always allowed
 DOC_EXTENSIONS = {".md", ".rst", ".txt"}
@@ -120,27 +206,67 @@ def _is_doc_file(file_path: str) -> bool:
     return False
 
 
+def _has_size_proxy(tool_name: str, tool_input: dict) -> bool:
+    """Return True when ``changed_content`` faithfully bounds the change size.
+
+    Presence, NOT truthiness: a native ``Write`` with ``content: ""`` or an
+    ``Edit`` with ``new_string: ""`` does carry a content signal — the change
+    is genuinely empty, hence genuinely simple, and stays exempt. The serena
+    writers that carry no content argument at all (``rename_symbol``,
+    ``safe_delete_symbol``, ``delete_lines``, and the memory mutators) do not:
+    ``changed_content`` returns "" and the line count is 0 no matter how many
+    lines the call removes, so they must fall through to the plan requirement.
+
+    Issue #1503 follow-up (reviewer FINDING-1 / security-auditor F3).
+
+    Args:
+        tool_name: The tool being used.
+        tool_input: The tool's input parameters.
+
+    Returns:
+        True if content length is a faithful proxy for the change size.
+    """
+    if (
+        tool_name in UNBOUNDED_CHANGE_TOOLS
+        or tool_name in NO_CONTENT_ARG_TOOLS
+        or tool_name in NON_SOURCE_MUTATION_TOOLS
+    ):
+        return False
+    if not isinstance(tool_input, dict):
+        return False
+    if isinstance(tool_input.get("edits"), list):
+        return True
+    return any(isinstance(tool_input.get(key), str) for key in CONTENT_KEYS)
+
+
 def _is_simple_edit(tool_name: str, tool_input: dict) -> bool:
     """Check if this is a simple edit below the complexity threshold.
 
     Simple edits (< 100 lines of new content) are never blocked.
 
+    Issue #1503: the exemption is about the CHANGE, not the TRANSPORT. The
+    per-tool_name branches this replaced returned False for MultiEdit,
+    NotebookEdit, and every MCP editor, so a 5-line MultiEdit was gated while
+    an identical 5-line Edit sailed through. ``changed_content`` resolves the
+    written content for every transport, so one line-count rule now covers
+    all of them.
+
+    Issue #1503 follow-up: a transport with no content argument has no size
+    proxy — ``changed_content`` returns "" and the line count is 0 however
+    destructive the call. Those transports are NOT simple and fall through to
+    the plan requirement. See ``_has_size_proxy``.
+
     Args:
-        tool_name: The tool being used (Write or Edit).
+        tool_name: The tool being used.
         tool_input: The tool's input parameters.
 
     Returns:
         True if the edit is simple enough to skip plan check.
     """
-    if tool_name == "Edit":
-        new_string = tool_input.get("new_string", "")
-        if new_string.count("\n") < SIMPLE_EDIT_LINE_THRESHOLD:
-            return True
-    elif tool_name == "Write":
-        content = tool_input.get("content", "")
-        if content.count("\n") < SIMPLE_EDIT_LINE_THRESHOLD:
-            return True
-    return False
+    if not _has_size_proxy(tool_name, tool_input):
+        return False
+    content = changed_content(tool_name, tool_input)
+    return content.count("\n") < SIMPLE_EDIT_LINE_THRESHOLD
 
 
 def main() -> int:
@@ -207,8 +333,9 @@ def main() -> int:
         except ImportError:
             pass  # transitional deploy — fall through to existing logic
 
-        # Only check Write and Edit tools
-        if tool_name not in ("Write", "Edit"):
+        # Only check file-mutating tools. Issue #1503: transport-independent —
+        # MultiEdit, NotebookEdit and MCP editors are writes too.
+        if not is_write(tool_name, tool_input):
             _output_decision("allow", f"Plan gate: tool {tool_name} not subject to plan check")
             return 0
 
@@ -218,8 +345,13 @@ def main() -> int:
             _output_decision("allow", "Plan gate: SKIP_PLAN_CHECK=1 bypass")
             return 0
 
-        # Get file path from tool input
-        file_path = tool_input.get("file_path", "") or tool_input.get("path", "")
+        # Get file path from tool input. Issue #1503: write_targets resolves
+        # MCP path keys (relative_path) as well as the native ones; the
+        # explicit "path" fallback is retained for tools it does not know.
+        _targets = write_targets(tool_name, tool_input)
+        file_path = _targets[0] if _targets else (
+            tool_input.get("file_path", "") or tool_input.get("path", "")
+        )
 
         # Documentation files are always allowed
         if file_path and _is_doc_file(file_path):

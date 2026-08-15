@@ -3,12 +3,17 @@
 
 CI gate per Issue #971 acceptance criterion #5: every distinct ``tool_name``
 observed in the activity logs over the last N days MUST have a defined
-classification (READ / WRITE / EXEC / known-EXEC / mcp__*).
+classification (READ / WRITE / EXEC / known-EXEC).
 
 If an unknown tool appears in the logs, this script flags it. The intent is
-that whoever introduces a new native tool also adds it to ``tool_intent.py``
-(or to the ``KNOWN_EXEC_TOOLS`` set here), so the classifier never has to
-guess what an unrecognised tool does.
+that whoever introduces a new tool also adds it to ``tool_intent.py`` (or to
+the ``KNOWN_EXEC_TOOLS`` / ``MCP_KNOWN_EXEC_TOOLS`` sets here), so the
+classifier never has to guess what an unrecognised tool does.
+
+Issue #1503: MCP tools are no longer covered by a blanket ``mcp__`` prefix
+match. That blanket declared every conceivable MCP tool covered by
+construction, which is why this gate did not catch the serena editors walking
+through the protected-infrastructure hard floor.
 
 Usage:
     python scripts/audit_tool_intent_coverage.py
@@ -67,6 +72,55 @@ KNOWN_EXEC_TOOLS: Set[str] = {
     # Plugins & UI primitives
     "Skill", "Agent", "AgentOutputTool", "AskUserQuestion",
     "Monitor", "ToolSearch", "LSP",
+    # Messaging / orchestration primitives observed in the activity logs.
+    # None of these touch the filesystem (Issue #1503 — they were reported
+    # UNCOVERED once the blanket mcp__ pass was removed and the gate started
+    # actually gating).
+    "PushNotification", "RemoteTrigger", "SendMessage",
+    "StructuredOutput", "Workflow",
+}
+
+# MCP tools that are valid non-file primitives — the MCP analogue of
+# KNOWN_EXEC_TOOLS. Issue #1503: this script previously declared EVERY
+# ``mcp__*`` name "covered" by construction (``if tool_name.startswith("mcp__"):
+# return True``). That blanket is exactly why this CI gate never flagged the
+# serena editors that were walking through the protected-infrastructure hard
+# floor. An MCP tool is now covered only if it is in tool_intent's
+# MCP_READ_TOOLS / MCP_WRITE_TOOLS registries, or explicitly listed here.
+#
+# Seeded from tools actually observed in .claude/logs/activity/.
+MCP_KNOWN_EXEC_TOOLS: Set[str] = {
+    # Web search / fetch
+    "mcp__searxng__search", "mcp__searxng__fetch",
+    # Microsoft 365
+    "mcp__ms365__send-mail",
+    # Home Assistant
+    "mcp__home-assistant__ha_get_skill_guide",
+    # Google Workspace bridge
+    "mcp__hardened-workspace__get_events",
+    "mcp__hardened-workspace__get_gmail_message_content",
+    "mcp__hardened-workspace__get_gmail_messages_content_batch",
+    "mcp__hardened-workspace__list_contacts",
+    "mcp__hardened-workspace__search_gmail_messages",
+    "mcp__hardened-workspace__start_google_auth",
+    # Playwright — browser actions that are NOT read-only inspection
+    "mcp__playwright__browser_evaluate",
+    "mcp__playwright__browser_navigate",
+    "mcp__playwright__browser_click",
+    "mcp__playwright__browser_type",
+    # HuggingFace / GitHub / misc integrations
+    "mcp__github__create_issue",
+    "mcp__claude_ai_PayPal__authenticate",
+    "mcp__plugin_telegram_telegram__reply",
+    # Obsidian
+    "mcp__obsidian__search",
+    # UniFi network
+    "mcp__unifi-network__unifi_batch",
+    "mcp__unifi-network__unifi_batch_status",
+    "mcp__unifi-network__unifi_execute",
+    "mcp__unifi-network__unifi_tool_index",
+    # Test/fixture placeholder observed in the logs
+    "mcp__custom__tool",
 }
 
 
@@ -84,7 +138,12 @@ def _is_covered(tool_name: str) -> bool:
         return True
     if tool_name in KNOWN_EXEC_TOOLS:
         return True
-    if tool_name.startswith("mcp__"):
+    # Issue #1503: explicit MCP registries, NOT a blanket mcp__ prefix pass.
+    if tool_name in getattr(_tool_intent, "MCP_READ_TOOLS", frozenset()):
+        return True
+    if tool_name in getattr(_tool_intent, "MCP_WRITE_TOOLS", frozenset()):
+        return True
+    if tool_name in MCP_KNOWN_EXEC_TOOLS:
         return True
     return False
 
@@ -168,7 +227,16 @@ def _classify_summary(tool_name: str) -> str:
         return "BASH"
     if tool_name in KNOWN_EXEC_TOOLS:
         return "EXEC (known)"
-    if tool_name.startswith("mcp__"):
+    # Issue #1503: mirrors _is_covered. The blanket ``startswith("mcp__")``
+    # that used to live here reported every MCP tool as covered, so the
+    # --print-classifications view agreed with a gate that was not checking
+    # anything. Both helpers must apply the same registry test or the gate is
+    # only half-fixed.
+    if tool_name in getattr(_tool_intent, "MCP_READ_TOOLS", frozenset()):
+        return "READ (mcp)"
+    if tool_name in getattr(_tool_intent, "MCP_WRITE_TOOLS", frozenset()):
+        return "WRITE (mcp)"
+    if tool_name in MCP_KNOWN_EXEC_TOOLS:
         return "EXEC (mcp)"
     return "UNCOVERED"
 
@@ -227,7 +295,8 @@ def main(argv: List[str] | None = None) -> int:
             print(f"  - {t}", file=sys.stderr)
         print(
             "\nFix: add the tool to plugins/autonomous-dev/lib/tool_intent.py "
-            "(READ_TOOLS / WRITE_TOOLS) or to KNOWN_EXEC_TOOLS in "
+            "(READ_TOOLS / WRITE_TOOLS / MCP_READ_TOOLS / MCP_WRITE_TOOLS), or "
+            "to KNOWN_EXEC_TOOLS / MCP_KNOWN_EXEC_TOOLS in "
             "scripts/audit_tool_intent_coverage.py.",
             file=sys.stderr,
         )

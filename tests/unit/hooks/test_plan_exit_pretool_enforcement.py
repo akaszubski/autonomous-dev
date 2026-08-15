@@ -24,11 +24,11 @@ from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
     _PLAN_EXIT_STALE_MINUTES,
     _PLAN_EXIT_DENY_REASON,
-    _PLAN_EXIT_MCP_READONLY,
     _bash_command_on_allowlist,
     _check_plan_exit_mcp,
     _check_plan_exit_native,
     _read_plan_exit_marker,
+    _ti_mcp_read_tools,
 )
 
 
@@ -327,8 +327,44 @@ class TestPlanExitedMCP:
         assert result is None
 
     def test_mcp_readonly_does_not_contain_browser_evaluate(self):
-        """AC #19: Regression — browser_evaluate must not be added to allowlist."""
-        assert "mcp__playwright__browser_evaluate" not in _PLAN_EXIT_MCP_READONLY
+        """AC #19: Regression — browser_evaluate must not be added to allowlist.
+
+        Issue #1503 replaced the module-local _PLAN_EXIT_MCP_READONLY frozenset
+        with the canonical tool_intent.MCP_READ_TOOLS registry, read via
+        _ti_mcp_read_tools(). The AC is unchanged; only the source moved.
+        """
+        assert "mcp__playwright__browser_evaluate" not in _ti_mcp_read_tools()
+
+    def test_plan_exited_allows_serena_read_tools(self, tmp_path: Path):
+        """Issue #1503: the old allowlist OVER-BLOCKED serena reads.
+
+        find_symbol / get_symbols_overview / find_referencing_symbols are
+        read-only LSP queries. They were denied at the plan_exited stage purely
+        because the module-local allowlist predated the serena integration.
+        """
+        _write_marker(tmp_path, stage="plan_exited")
+        for tool in (
+            "mcp__serena__find_symbol",
+            "mcp__serena__get_symbols_overview",
+            "mcp__serena__find_referencing_symbols",
+        ):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                result = _check_plan_exit_mcp(tool)
+            assert result is None, f"{tool} was blocked at plan_exited stage"
+
+    def test_plan_exited_denies_serena_write_tools(self, tmp_path: Path):
+        """Issue #1503: serena editors must NOT gain plan-exit passage."""
+        _write_marker(tmp_path, stage="plan_exited")
+        for tool in (
+            "mcp__serena__replace_symbol_body",
+            "mcp__serena__insert_after_symbol",
+            "mcp__serena__replace_content",
+        ):
+            with patch("os.getcwd", return_value=str(tmp_path)):
+                result = _check_plan_exit_mcp(tool)
+            assert result is not None and result[0] == "deny", (
+                f"{tool} was allowed at plan_exited stage"
+            )
 
 
 # ============================================================================
