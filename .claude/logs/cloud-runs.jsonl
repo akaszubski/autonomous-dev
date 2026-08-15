@@ -788,3 +788,4 @@
 {"fire_id": "20260815T163819Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260815T183745Z", "fired_at": "2026-08-15T18:38:32Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260815T183745Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"timestamp": "2026-08-15T18:50:46.644008+00:00", "fire_type": "FIRE_END", "cluster": "1497", "exit_reason": "step6_agent_dispatch_404_meta", "suppressed_commit": false, "note": "self-referential: cluster 1497 IS the model-ID 404 bug blocking its own fix"}
