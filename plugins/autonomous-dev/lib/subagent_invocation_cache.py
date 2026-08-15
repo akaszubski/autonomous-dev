@@ -93,6 +93,7 @@ def cache_invocation(
     *,
     start_time: Optional[float] = None,
     description: str = "",
+    generation: str = "",
 ) -> bool:
     """Append a subagent invocation entry to the per-session FIFO queue.
 
@@ -103,6 +104,10 @@ def cache_invocation(
         start_time: Optional epoch seconds; defaults to ``time.time()``.
         description: Optional human description from Task tool input
             (truncated to 200 chars; for diagnostics only).
+        generation: Per-dispatch generation token (Issue #1484). Stored so
+            ``pop_invocation()`` can recover it on SubagentStop and pass it to
+            ``agent_dispatch_sentinel.clear(expected_generation=...)`` for the
+            compare-and-delete that avoids the #1467 ABA race.
 
     Returns:
         True on successful write, False on any failure or rejected input.
@@ -118,6 +123,7 @@ def cache_invocation(
             "subagent_type": subagent_type,
             "start_time": float(start_time) if start_time is not None else time.time(),
             "description": (description or "")[:200],
+            "generation": generation,
         }
         with open(path, "a+") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)

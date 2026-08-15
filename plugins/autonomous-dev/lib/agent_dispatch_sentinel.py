@@ -59,23 +59,59 @@ MAX_LIFETIME_SECONDS = 4 * 3600
 
 def _path(repo_root: Optional[Path] = None) -> Path:
     """Get the sentinel file path.
-    
+
+    Convergence note (Issue #1484): production callers MUST use the default
+    (no-arg) branch. In that branch the repo root is resolved via the blessed
+    ``path_utils.find_project_root`` resolver so the writer (PreToolUse),
+    reader (unified_pre_tool) and clearer (SubagentStop) — all running as
+    separate hook subprocesses — converge on one normalized sentinel path even
+    when invoked from a subdirectory or a git worktree. ``find_project_root``
+    walks up for ``.git``/``.claude`` markers; it does NOT shell out to
+    ``git rev-parse --git-common-dir`` (banned by hook_path_validator.py).
+
+    The EXPLICIT ``repo_root`` branch is test-only: it stays literal and is NOT
+    ``.resolve()``-normalized, so the 30+ existing ``repo_root=``-passing tests
+    (which pass ``tmp_path`` directly) keep asserting against the exact path
+    they supplied. Do not rely on the explicit branch in production code.
+
     Args:
-        repo_root: Repository root directory. If None, uses cwd.
-    
+        repo_root: Repository root directory. If None, resolves via
+            ``find_project_root`` (falling back to ``Path.cwd().resolve()``).
+
     Returns:
         Path to the sentinel file
     """
-    root = Path(repo_root) if repo_root else Path.cwd()
+    if repo_root is not None:
+        # Test-only branch: literal, unresolved (preserves existing repo_root tests).
+        root = Path(repo_root)
+    else:
+        try:
+            from path_utils import find_project_root
+
+            root = find_project_root()
+        except (ImportError, FileNotFoundError):
+            root = Path.cwd().resolve()
     return root / _SENTINEL_REL
 
 
-def write(agent_name: str, repo_root: Optional[Path] = None) -> None:
+def write(
+    agent_name: str,
+    repo_root: Optional[Path] = None,
+    generation: Optional[str] = None,
+) -> None:
     """Write an agent dispatch sentinel.
-    
+
+    This is the SOLE authorization event (Issue #1296): only a real Task/Agent
+    dispatch arms the sentinel that authorizes protected-infra edits.
+
     Args:
         agent_name: Name of the agent being dispatched
-        repo_root: Repository root directory. If None, uses cwd.
+        repo_root: Repository root directory. If None, resolves via
+            ``find_project_root`` (see ``_path``).
+        generation: Per-dispatch generation token (Issue #1484). Recorded in the
+            payload so ``clear(expected_generation=...)`` can compare-and-delete
+            and avoid the ABA race where an overlapping sibling dispatch's
+            SubagentStop disarms this dispatch's still-in-flight sentinel.
     """
     p = _path(repo_root)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -87,20 +123,60 @@ def write(agent_name: str, repo_root: Optional[Path] = None) -> None:
         # Issue #1479: fixed anchor for the absolute-lifetime ceiling. Never
         # updated by refresh().
         "armed_at": now,
+        # Issue #1484: per-dispatch generation token for compare-and-delete.
+        "generation": generation,
     }
     p.write_text(json.dumps(payload))
 
 
-def clear(repo_root: Optional[Path] = None) -> None:
-    """Clear the agent dispatch sentinel.
-    
+def clear(
+    repo_root: Optional[Path] = None,
+    expected_generation: Optional[str] = None,
+) -> None:
+    """Clear the agent dispatch sentinel (compare-and-delete, Issue #1484).
+
+    Semantics:
+        - ``expected_generation is None`` -> unconditional ``unlink()``
+          (backward-compat / genuine cache-miss path).
+        - ``expected_generation`` given -> read+parse the sentinel; if the
+          payload is a dict whose ``generation`` is present AND does not match
+          ``expected_generation``, a *different* dispatch owns it, so this is a
+          no-op (the #1467 ABA fix). Otherwise (generation matches, or is
+          absent/legacy, or the sentinel is unreadable) -> ``unlink()``.
+
+    Never raises — a failed disarm must never block a hook.
+
     Args:
-        repo_root: Repository root directory. If None, uses cwd.
+        repo_root: Repository root directory. If None, resolves via
+            ``find_project_root`` (see ``_path``).
+        expected_generation: The generation token of the dispatch that is
+            clearing. When provided, guards against disarming a sibling
+            dispatch's sentinel.
     """
     p = _path(repo_root)
+    if expected_generation is None:
+        # Accepted backcompat gap (Issue #1484, residual amendment #1): a genuine
+        # cache-miss (no recovered generation) still unconditionally unlinks, so
+        # it can ABA-disarm a sibling dispatch. Preferred over refusing to clear
+        # (which would leak sentinels and re-arm the #1447/#1448 keep-alive bug).
+        try:
+            p.unlink()
+        except (FileNotFoundError, OSError):
+            pass
+        return
+    try:
+        data = json.loads(p.read_text())
+    except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, TypeError):
+        # Unreadable/absent/malformed -> fall through to unconditional unlink.
+        data = None
+    if isinstance(data, dict):
+        sentinel_gen = data.get("generation")
+        if sentinel_gen is not None and sentinel_gen != expected_generation:
+            # A different dispatch owns this sentinel — do not disarm it.
+            return
     try:
         p.unlink()
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         pass
 
 

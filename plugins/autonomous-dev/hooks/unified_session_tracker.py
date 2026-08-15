@@ -1199,7 +1199,16 @@ def main() -> int:
         if hook_input:
             agent_name = hook_input.get("agent_type", "unknown")
             agent_output = hook_input.get("last_assistant_message", "")
-            session_id = hook_input.get("session_id", os.environ.get("CLAUDE_SESSION_ID", "unknown"))
+            # Issue #1484 (Fix C): env-first session_id resolution — matches the
+            # writer (session_activity_logger PreToolUse, ~293-296) and the
+            # canonical PostToolUse path (session_activity_logger:337). Symmetric
+            # resolution is required so the SubagentStop popper looks up the same
+            # cache key the writer used and can recover the generation token.
+            session_id = (
+                os.environ.get("CLAUDE_SESSION_ID")
+                or hook_input.get("session_id")
+                or "unknown"
+            )
             agent_transcript_path_raw = hook_input.get("agent_transcript_path", "")
         else:
             # Backward compatibility: fall back to environment variables
@@ -1232,13 +1241,6 @@ def main() -> int:
                 pass  # Non-blocking: skip entry is advisory only
             return 0
 
-        # Issue #1296: clear agent-dispatch sentinel on SubagentStop
-        try:
-            from agent_dispatch_sentinel import clear as _ads_clear
-            _ads_clear()
-        except Exception:
-            pass  # never block on sentinel clear failure
-
         # Issue #1087: Recover missing subagent_type and duration_ms via the
         # subagent invocation cache populated by session_activity_logger on
         # PreToolUse. Claude Code's SubagentStop payload frequently omits
@@ -1253,6 +1255,23 @@ def main() -> int:
             else "",
         )
         cache_hit = bool(cached_invocation)
+
+        # Issue #1296 + #1484 (Fix B): clear the agent-dispatch sentinel on
+        # SubagentStop with a compare-and-delete. Relocated to AFTER the cache
+        # pop so the recovered generation token is available. This runs past the
+        # dedup early-return (~1218-1233), so a dedup-skipped duplicate
+        # SubagentStop never reaches here and cannot disarm the sentinel. Passing
+        # expected_generation makes clear() a no-op when a *different*, still
+        # in-flight dispatch owns the sentinel — the fix for the #1467 ABA race.
+        expected_gen = cached_invocation.get("generation") if cached_invocation else None
+        try:
+            from agent_dispatch_sentinel import clear as _ads_clear
+            _ads_clear(expected_generation=expected_gen)
+        except Exception as e:
+            sys.stderr.write(
+                f"[agent_dispatch_sentinel] WARNING: clear failed: {e}\n"
+            )
+
         if (not agent_name) or agent_name in ("", "unknown"):
             if cached_invocation and cached_invocation.get("subagent_type"):
                 agent_name = cached_invocation["subagent_type"]

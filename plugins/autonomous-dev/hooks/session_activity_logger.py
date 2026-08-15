@@ -59,6 +59,7 @@ import os
 import re
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -295,20 +296,32 @@ def main():
                     or hook_input.get("session_id", "unknown")
                 )
                 pre_subagent_type = (pre_tool_input.get("subagent_type", "") or "").strip()
+                # Issue #1484: mint one per-dispatch generation token shared by the
+                # invocation cache entry and the sentinel payload. SubagentStop
+                # recovers it from the cache and passes it to clear() for a
+                # compare-and-delete that avoids the #1467 ABA disarm race.
+                generation = uuid.uuid4().hex
                 if pre_subagent_type:
                     _sic_cache_invocation(
                         pre_session_id,
                         pre_subagent_type,
                         start_time=time.time(),
                         description=pre_tool_input.get("description", ""),
+                        generation=generation,
                     )
                 # Issue #1296: write agent-dispatch sentinel so unified_pre_tool can distinguish
                 # coordinator-direct edits from implementer-dispatched edits to protected paths.
                 try:
                     from agent_dispatch_sentinel import write as _ads_write
-                    _ads_write(agent_name=pre_subagent_type if pre_subagent_type else "unknown")
-                except Exception:
-                    pass  # never block on sentinel write failure
+                    _ads_write(
+                        agent_name=pre_subagent_type if pre_subagent_type else "unknown",
+                        generation=generation,
+                    )
+                except Exception as e:
+                    # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
+                    sys.stderr.write(
+                        f"[agent_dispatch_sentinel] WARNING: write failed: {e}\n"
+                    )
             # Always exit on PreToolUse — we don't write a log entry from this hook
             # (unified_pre_tool.py owns PreToolUse activity logging).
             sys.exit(0)
@@ -330,8 +343,11 @@ def main():
         try:
             from agent_dispatch_sentinel import refresh as _ads_refresh
             _ads_refresh()
-        except Exception:
-            pass  # never block on sentinel refresh failure
+        except Exception as e:
+            # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
+            sys.stderr.write(
+                f"[agent_dispatch_sentinel] WARNING: refresh failed: {e}\n"
+            )
 
         # Session ID: prefer env var, fall back to hook stdin JSON
         session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"

@@ -305,13 +305,25 @@ Re-dispatch the implementer agent with this change as a remediation cycle. (Issu
    "Re-dispatch the implementer agent to add the missing import/function/etc."
    ```
 
-2. **Sentinel lifecycle (sliding TTL, Issue #1448/#1475)** — the sentinel is automatically:
-   - Written once when an agent is dispatched (via Task tool, `PreToolUse`)
+2. **Sentinel lifecycle (sliding TTL, Issue #1448/#1475; compare-and-delete,
+   Issue #1484)** — the sentinel is automatically:
+   - Written once when an agent is dispatched (via Task tool, `PreToolUse`),
+     tagged with a per-dispatch `generation` token (Issue #1484) minted by
+     `session_activity_logger.py` and shared with that dispatch's
+     `subagent_invocation_cache` entry
    - Refreshed (timestamp slid forward) on every observed tool use while the
      dispatched agent is running (`PostToolUse` in `session_activity_logger.py`) —
      this is what makes a long-running, multi-file implementer session stay
      continuously "active" instead of expiring mid-dispatch
-   - Cleared on `SubagentStop` (normal dispatch completion)
+   - Cleared on `SubagentStop` via **compare-and-delete** (Issue #1484):
+     `unified_session_tracker.py` recovers the dispatch's `generation` token
+     from the invocation cache and passes it to
+     `clear(expected_generation=...)`, which only unlinks the sentinel when
+     the token matches (or the sentinel predates generation tokens). If a
+     *different*, still in-flight dispatch owns the sentinel, the clear is a
+     no-op — this closes the #1467 ABA race where an overlapping sibling
+     dispatch's `SubagentStop` could disarm another dispatch's still-active
+     sentinel mid-edit.
    - `DEFAULT_TTL_SECONDS = 600` is only the *idle*/crash backstop — how long
      the sentinel survives with **no** tool activity at all (crashed agent, or
      a `SubagentStop` that never fired). It is no longer a fixed window
