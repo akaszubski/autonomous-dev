@@ -791,3 +791,4 @@
 {"timestamp": "2026-08-15T18:50:46.644008+00:00", "fire_type": "FIRE_END", "cluster": "1497", "exit_reason": "step6_agent_dispatch_404_meta", "suppressed_commit": false, "note": "self-referential: cluster 1497 IS the model-ID 404 bug blocking its own fix"}
 {"fire_id": "20260815T203803Z", "fired_at": "2026-08-15T20:38:52Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260815T203803Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260815T223735Z", "fired_at": "2026-08-15T22:38:23Z", "selected_cluster": "1497", "phase": "FIRE_START", "note": "direct REST 403 (GitHub App not connected for session); used github MCP tools instead"}
