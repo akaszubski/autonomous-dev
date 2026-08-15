@@ -782,3 +782,5 @@
 {"fire_id": "20260815T103815Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
 {"fire_id": "20260815T123904Z", "fired_at": "2026-08-15T12:39:04Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260815T123904Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
+{"fire_id": "20260815T143926Z", "fired_at": "2026-08-15T14:39:26Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260815T143926Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
