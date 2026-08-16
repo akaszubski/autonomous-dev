@@ -1,0 +1,66 @@
+{
+  "recorded": "2026-08-16T04:45:28.649344+00:00",
+  "commit": "b96d0b2c",
+  "results": [
+    {
+      "guard": "protected-infrastructure-hard-floor",
+      "issue": "#1435",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "Write",
+        "decision": "deny",
+        "reason": "BLOCKED: Direct edit to 'pipeline_state.py' denied. Infrastructure files (agents/, commands/, hooks/, lib/, skills/) require the /implement pipeline. Run: /implement \"description\" ",
+        "why": "direct Write to a protected lib path must be refused",
+        "ok": true
+      },
+      "negative": {
+        "tool": "Write",
+        "decision": "allow",
+        "reason": "Native tool 'Write' - hook bypass (settings.json governs)",
+        "why": "an ordinary docs write must NOT be refused",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "mcp-write-classification",
+      "issue": "#1503",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "mcp__serena__replace_content",
+        "decision": "deny",
+        "reason": "BLOCKED: Direct edit to 'pipeline_state.py' denied. Infrastructure files (agents/, commands/, hooks/, lib/, skills/) require the /implement pipeline. Run: /implement \"description\" ",
+        "why": "an MCP editor must be refused on a protected path, classified by EFFECT not by tool name",
+        "ok": true
+      },
+      "negative": {
+        "tool": "mcp__serena__find_symbol",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__serena__find_symbol' not subject to work",
+        "why": "a read-only MCP tool must NOT be refused",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "plan-exit-gate",
+      "issue": "#926/#1503",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "mcp__serena__replace_content",
+        "decision": "deny",
+        "reason": "Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1",
+        "why": "at plan_exited an MCP writer must be refused",
+        "ok": true
+      },
+      "negative": {
+        "tool": "mcp__searxng__search",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__searxng__search' not subject to workflow",
+        "why": "at plan_exited the mandated search path must still work; reading is not acting",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    }
+  ]
+}
