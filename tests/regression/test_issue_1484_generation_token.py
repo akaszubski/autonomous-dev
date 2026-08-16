@@ -48,10 +48,33 @@ class TestIssue1484GenerationToken:
         assert ads.is_active(repo_root=tmp_path) is False
         assert not _sentinel_path(tmp_path).exists()
 
-    def test_clear_none_generation_unconditional_delete(self, tmp_path: Path) -> None:
+    def test_clear_none_generation_refuses_to_delete(self, tmp_path: Path) -> None:
+        """#1484's None-generation unconditional unlink was reversed (#1512).
+
+        CONTRACT REVERSAL (deliberate). This previously asserted that
+        ``expected_generation=None`` performed a backward-compat unconditional
+        unlink. That path was the dominant real-world failure mode, not a rare
+        edge case: an unidentified SubagentStop unlinked a live 33-second-old
+        sentinel mid-dispatch and every protected edit afterwards was denied.
+
+        "I cannot identify the caller" is not authorization to delete. The
+        sentinel is now left in place and DEFAULT_TTL_SECONDS (600) reaps
+        anything genuinely abandoned; ``force=True`` remains the deliberate
+        operator-recovery escape.
+
+        TRADEOFF (accepted): after an unidentified stop the sentinel may persist
+        for up to 600s, during which the #1296 coordinator-vs-agent distinction
+        is weaker. This is accepted because the previous behaviour broke
+        legitimate work and drove people to blanket bypasses.
+        """
         ads.write("implementer", repo_root=tmp_path, generation="GEN_A")
-        # None expected_generation -> backward-compat unconditional unlink.
+        # None expected_generation -> refuse to unlink (no proof of ownership).
         ads.clear(repo_root=tmp_path, expected_generation=None)
+        assert ads.is_active(repo_root=tmp_path) is True, (
+            "an unidentified clear must leave the sentinel for the TTL backstop"
+        )
+        # force=True remains the deliberate operator escape.
+        ads.clear(repo_root=tmp_path, expected_generation=None, force=True)
         assert ads.is_active(repo_root=tmp_path) is False
 
     def test_clear_legacy_sentinel_no_generation_field(self, tmp_path: Path) -> None:
@@ -119,19 +142,33 @@ class TestIssue1484GenerationToken:
     def test_overlapping_dispatch_cache_miss_clears_conservatively(
         self, tmp_path: Path
     ) -> None:
-        """Documented degradation (residual amendment #1).
+        """#1484's documented backcompat gap was REVERSED (Issue #1512).
 
-        On a genuine cache-miss the popper recovers no generation, so
-        expected_generation is None and clear() unconditionally unlinks — which
-        CAN ABA-disarm an overlapping sibling. This asserts the accepted
-        backcompat gap so the behavior is intentional and locked, not a
-        silent regression.
+        This test used to lock in a "documented degradation (residual amendment
+        #1)": on a genuine cache-miss the popper recovers no generation, so
+        expected_generation was None and clear() unconditionally unlinked,
+        ABA-disarming an overlapping sibling that was still in flight.
+
+        That accepted gap is now reversed. Treating "I cannot identify the
+        caller" as authorization to delete is an authorization failure, not a
+        conservative default -- and it was not a rare edge case: in session
+        cc5ba4af it fired within one minute of an ordinary dispatch and
+        stranded a patch half-applied. A bounded TTL leak is the better trade.
+
+        New contract: on a cache miss the sibling sentinel SURVIVES.
+
+        TRADEOFF (accepted): after an unidentified stop the sentinel may persist
+        for up to DEFAULT_TTL_SECONDS (600s), during which the #1296
+        coordinator-vs-agent distinction is weaker. This is accepted because the
+        previous behaviour broke legitimate work mid-dispatch and drove people
+        to blanket bypasses, which is strictly worse than a bounded window.
         """
         ads.write("implementer", repo_root=tmp_path, generation="A")
         ads.write("implementer", repo_root=tmp_path, generation="B")
-        # Cache-miss path: expected_generation=None -> unconditional delete,
-        # disarming B even though B is still in-flight.
+        # Cache-miss path: expected_generation=None -> refuse to clear, because
+        # the caller cannot prove it owns B, which is still in-flight.
         ads.clear(repo_root=tmp_path, expected_generation=None)
-        assert ads.is_active(repo_root=tmp_path) is False, (
-            "cache-miss None-clear is documented to disarm conservatively"
+        assert ads.is_active(repo_root=tmp_path) is True, (
+            "cache-miss None-clear must NOT disarm in-flight sibling B; "
+            "#1484's backcompat gap was reversed by #1512"
         )

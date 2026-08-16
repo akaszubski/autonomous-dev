@@ -104,14 +104,45 @@ class TestLegitimateClearsStillWork:
         ads.clear(repo_root=repo, expected_generation="gen-different")
         assert ads.is_active(repo_root=repo) is True
 
-    def test_anonymous_clear_still_reaps_an_old_orphan(self, repo):
-        """An genuinely orphaned sentinel must still be clearable anonymously,
-        otherwise a crashed dispatch blocks the repo until TTL."""
+    def test_old_orphan_survives_anonymous_clear_but_ttl_still_bounds_the_leak(
+        self, repo
+    ):
+        """An old orphan is NO LONGER reaped by an anonymous clear; TTL reaps it.
+
+        CONTRACT REVERSAL (deliberate). This test previously asserted that an
+        anonymous clear at 300s still unlinked, on the reasoning that refusing
+        every anonymous clear would re-arm the #1447/#1448 sentinel-leak class.
+
+        The leak concern is real but is now covered by a DIFFERENT mechanism:
+        ``DEFAULT_TTL_SECONDS`` (600), not anonymous deletion. Age was never a
+        sound discriminator -- real protected-path implementer runs take 3-5
+        minutes, so any threshold short enough to reap orphans promptly also
+        killed live dispatches. Identity is the discriminator: a caller that
+        cannot say WHICH dispatch stopped may delete nothing.
+
+        So this asserts both halves of the new contract:
+          1. at 300s the sentinel SURVIVES an anonymous clear, and
+          2. the leak is still bounded -- past DEFAULT_TTL_SECONDS it is gone.
+
+        TRADEOFF (accepted): after an unidentified stop the sentinel may persist
+        for up to 600s, during which the #1296 coordinator-vs-agent distinction
+        is weaker. This is accepted because the previous behaviour broke
+        legitimate work mid-dispatch and drove people to blanket bypasses, which
+        is a strictly worse security posture than a bounded 600s window.
+        """
         _arm(repo, age_seconds=300.0)
         ads.clear(repo_root=repo, expected_generation=None)
+        assert ads.is_active(repo_root=repo) is True, (
+            "An unidentified clear must not delete even an old sentinel -- "
+            "identity, not age, authorizes deletion."
+        )
+
+        # The #1447/#1448 leak protection, now via the TTL backstop.
+        _arm(repo, age_seconds=ads.DEFAULT_TTL_SECONDS + 60)
+        ads.clear(repo_root=repo, expected_generation=None)
         assert ads.is_active(repo_root=repo) is False, (
-            "An old orphan must still clear -- refusing all anonymous clears "
-            "would re-arm the #1447/#1448 sentinel-leak class."
+            "TTL must still reap a genuinely abandoned sentinel -- otherwise "
+            "refusing anonymous clears WOULD re-arm the #1447/#1448 leak class."
         )
 
     def test_ttl_still_reaps_a_protected_young_sentinel_eventually(self, repo):

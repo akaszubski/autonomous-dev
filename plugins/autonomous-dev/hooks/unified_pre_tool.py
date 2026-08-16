@@ -1249,6 +1249,30 @@ _PLAN_EXIT_CONSUMER_AGENTS: "frozenset[str]" = frozenset({
 # MCP tools allowed at plan_exited stage — explicit allowlist (AC #21).
 #
 # Issue #1503: the literal frozenset that used to live here was DELETED. It is
+# Issue #1503 residual: MCP tools that ACT without carrying a write shape.
+#
+# The plan-exit gate denies what acts, not what is un-enumerated. Most acting
+# tools are caught by tool_intent.is_write(), which classifies by registry and
+# by path+content shape. These are not: they have side effects with no path and
+# no content argument, so no shape test can reach them.
+#
+# browser_evaluate executes arbitrary JavaScript in a live browser and was
+# AC #19 of the original #1503 work -- it must never be treated as read-only.
+_MCP_SIDE_EFFECT_TOOLS: "frozenset[str]" = frozenset({
+    "mcp__playwright__browser_evaluate",
+    "mcp__playwright__browser_click",
+    "mcp__playwright__browser_type",
+    "mcp__playwright__browser_navigate",
+    "mcp__playwright__browser_file_upload",
+    "mcp__claude_ai_Gmail__send_message",
+    "mcp__claude_ai_Gmail__trash_message",
+    "mcp__ms365__send-mail",
+    "mcp__home-assistant__ha_call_service",
+    "mcp__home-assistant__ha_bulk_control",
+    "mcp__home-assistant__ha_restart",
+    "mcp__unifi-network__unifi_execute",
+})
+
 # now sourced from tool_intent.MCP_READ_TOOLS via _ti_mcp_read_tools(), the
 # single canonical registry. The old copy was a strict subset — it did not
 # know serena's read surface, so it OVER-BLOCKED find_symbol /
@@ -7056,12 +7080,23 @@ def _check_plan_exit_native(tool_name: str, tool_input: Dict) -> "Optional[Tuple
     return ("deny", _PLAN_EXIT_DENY_REASON, system_msg)
 
 
-def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
+def _check_plan_exit_mcp(
+    tool_name: str, tool_input: "Optional[Dict]" = None
+) -> "Optional[Tuple[str, str]]":
     """Plan-exit gate for MCP (non-native) tools (Issue #926).
 
     State matrix:
-      stage=plan_exited: deny unless tool_name is in the canonical read-only
-        MCP registry (tool_intent.MCP_READ_TOOLS, via _ti_mcp_read_tools()).
+      stage=plan_exited: deny what ACTS -- tools classified as writes by
+        tool_intent.is_write(), plus _MCP_SIDE_EFFECT_TOOLS for tools that act
+        without carrying a write shape. Everything else is allowed (Issue
+        #1503 residual: the previous rule denied anything absent from an
+        enumerated read allowlist, which blocked read-only tools from any
+        unlisted server, including the mandated search path).
+
+    ``tool_input`` defaults to None so the existing call site at ~8559 keeps
+    working unchanged; registered writers classify by NAME and are caught even
+    without a payload, and only the unregistered path+content fallback needs
+    the real input.
       stage=critique_done: None (fall through — marker consumed by native gate).
 
     Same 10ms race mitigation as the native gate.
@@ -7101,7 +7136,25 @@ def _check_plan_exit_mcp(tool_name: str) -> "Optional[Tuple[str, str]]":
         return None
 
     # stage == "plan_exited"
-    if tool_name in _ti_mcp_read_tools():
+    # Issue #1503 residual: deny what ACTS, not what is un-enumerated.
+    #
+    # Previously this allowed ONLY tools present in MCP_READ_TOOLS, so a
+    # read-only tool from any unlisted server was denied at this stage --
+    # including mcp__searxng__search, the mandated search path. That is the
+    # same enumerate-by-name defect #1503 fixed on the write side.
+    #
+    # tool_input may be absent on older call paths; registered writers are
+    # classified by NAME so they are still caught with an empty dict, and only
+    # the unregistered path+content fallback needs the real payload.
+    _pe_input = tool_input if isinstance(tool_input, dict) else {}
+    try:
+        _pe_acts = (
+            _ti_is_write(tool_name, _pe_input)
+            or tool_name in _MCP_SIDE_EFFECT_TOOLS
+        )
+    except Exception:
+        _pe_acts = True  # fail closed: unclassifiable at a gate means deny
+    if not _pe_acts:
         return None
 
     # Deny candidate — race mitigation
@@ -8503,9 +8556,17 @@ def main():
             output_decision("allow", reason)
             sys.exit(0)
 
-        # Plan-Exit Gate for MCP tools (Issue #926): enforce plan-critic
-        # workflow on non-native tool calls (MCP servers). Uses explicit
-        # read-only allowlist (no regex heuristics — AC #21).
+        # Plan-Exit Gate for MCP tools (Issue #926, Issue #1503): enforce
+        # plan-critic workflow on non-native tool calls (MCP servers). Deny when
+        # the call is classified as a WRITE — either by tool name or by argument
+        # shape, so editing tools from MCP servers nobody has enumerated are
+        # still caught. Also deny tools in the explicit side-effect set, which
+        # act without carrying a write shape (mcp__playwright__browser_evaluate
+        # executes arbitrary JS with no path or content argument, so no shape
+        # test can catch it). Everything else is allowed, including
+        # un-enumerated read-only tools such as mcp__searxng__search. Passing
+        # tool_input is required: it drives the argument-shape half of the
+        # classifier.
         # Phase E (Issue #999): session-mode wrap. Hard-floor checks are
         # NOT wrapped; this is a non-hard-floor gate.
         _phase_e_mcp = _phase_e_skip(
@@ -8514,7 +8575,7 @@ def main():
             session_id=_session_id,
         )
         if _phase_e_mcp is None or not _phase_e_mcp[0]:
-            plan_exit_mcp_decision = _check_plan_exit_mcp(tool_name)
+            plan_exit_mcp_decision = _check_plan_exit_mcp(tool_name, tool_input)
             if plan_exit_mcp_decision is not None:
                 decision, reason = plan_exit_mcp_decision
                 _log_pretool_activity(tool_name, tool_input, decision, reason)

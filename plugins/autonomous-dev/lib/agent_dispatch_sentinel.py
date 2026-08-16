@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional
@@ -56,21 +58,64 @@ DEFAULT_TTL_SECONDS = 600
 # misattribution window.
 MAX_LIFETIME_SECONDS = 4 * 3600
 
-# Issue #1512: minimum sentinel age before an ANONYMOUS clear (one with no
-# recovered generation token) is permitted to unlink.
+# Issue #1512: RETAINED FOR BACKWARD COMPATIBILITY ONLY -- this constant no
+# longer gates clearing, at any age.
 #
-# Measured failure: a phantom SubagentStop -- result_word_count 5, and an
-# agent_transcript_path that does not exist on disk -- produced a cache miss in
-# unified_session_tracker, which then called clear(expected_generation=None).
-# That path unlinked a sentinel armed 33 seconds earlier, mid-dispatch, and
-# every protected edit afterwards was denied as a coordinator direct-edit.
+# It originally expressed an age threshold below which an ANONYMOUS clear (one
+# with no recovered generation token) was refused. That was too weak: the
+# measured failure was a phantom SubagentStop -- result_word_count 5, and an
+# agent_transcript_path that does not exist on disk -- which produced a cache
+# miss in unified_session_tracker, which then called
+# clear(expected_generation=None) and unlinked a LIVE dispatch's sentinel.
+# An age threshold only narrows that window; it does not close it.
 #
-# A sentinel this young cannot be an orphan: the dispatch that armed it is
-# still running. Genuine orphans are unaffected -- the real owner's stop
-# carries a generation token and takes the compare-and-delete path below, and
-# DEFAULT_TTL_SECONDS remains the backstop for anything truly abandoned, so
-# refusing a young anonymous clear cannot leak a sentinel permanently.
+# clear() now refuses an anonymous clear UNCONDITIONALLY (unless force=True),
+# regardless of sentinel age, so this value is never consulted on the clear
+# path. It remains defined because tests and possibly other modules import it.
+# DEFAULT_TTL_SECONDS is the sole backstop for genuinely abandoned sentinels,
+# so refusing anonymous clears cannot leak a sentinel permanently.
 MIN_ANONYMOUS_CLEAR_AGE_SECONDS = 120
+
+
+def _atomic_write_json(p: Path, payload: dict) -> None:
+    """Serialize ``payload`` to ``p`` atomically.
+
+    Issue #1512: ``Path.write_text`` is truncate-then-write, which is NOT atomic.
+    Two hook subprocesses (the coordinator's PostToolUse refresh() and a
+    dispatched agent's write()) can open the same sentinel at offset 0
+    concurrently; when the shorter payload lands second it leaves the tail of the
+    longer one behind. The observed artifact was valid JSON followed by a stray
+    2-byte ``"}`` tail, which made ``json.loads`` raise ``Extra data``.
+
+    Writing to a temp file in the SAME directory and then ``os.replace()``-ing it
+    onto the target makes the swap atomic: a reader sees either the entire old
+    payload or the entire new one, never a splice. Same-directory matters —
+    ``os.replace`` is only atomic within a single filesystem.
+
+    Args:
+        p: Destination sentinel path. Its parent directory must already exist.
+        payload: JSON-serializable mapping to persist.
+
+    Raises:
+        OSError: If the temp file cannot be written or the replace fails.
+    """
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{p.name}.", suffix=".tmp", dir=str(p.parent)
+    )
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(json.dumps(payload))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, str(p))
+    except BaseException:
+        # Replace failed (or serialization raised) — do not leave the temp file
+        # behind for the next glob/audit to trip over.
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _path(repo_root: Optional[Path] = None) -> Path:
@@ -142,7 +187,7 @@ def write(
         # Issue #1484: per-dispatch generation token for compare-and-delete.
         "generation": generation,
     }
-    p.write_text(json.dumps(payload))
+    _atomic_write_json(p, payload)
 
 
 def clear(
@@ -153,8 +198,12 @@ def clear(
     """Clear the agent dispatch sentinel (compare-and-delete, Issue #1484).
 
     Semantics:
-        - ``expected_generation is None`` -> unconditional ``unlink()``
-          (backward-compat / genuine cache-miss path).
+        - ``expected_generation is None`` -> no-op (Issue #1512). A clear
+          requires a generation token; a caller that cannot say WHICH dispatch
+          stopped clears nothing, and the sentinel is left alone.
+          ``DEFAULT_TTL_SECONDS`` (600) reaps anything genuinely abandoned, so
+          refusing here cannot leak a sentinel permanently. ``force=True``
+          overrides this refusal.
         - ``expected_generation`` given -> read+parse the sentinel; if the
           payload is a dict whose ``generation`` is present AND does not match
           ``expected_generation``, a *different* dispatch owns it, so this is a
@@ -169,11 +218,12 @@ def clear(
         expected_generation: The generation token of the dispatch that is
             clearing. When provided, guards against disarming a sibling
             dispatch's sentinel.
-        force: Bypass the #1512 minimum-age guard and unlink regardless of the
-            sentinel's age. For deliberate operator recovery only -- production
-            callers pass ``expected_generation`` instead and must never set
-            this. A phantom stop setting ``force=True`` would reintroduce the
-            #1512 defect exactly.
+        force: Unlink the sentinel regardless of whether a generation token was
+            supplied -- i.e. bypass the ``expected_generation is None`` refusal.
+            For deliberate operator recovery only (a stuck sentinel blocking
+            protected writes); production callers pass ``expected_generation``
+            instead and must never set this. A phantom stop setting
+            ``force=True`` would reintroduce the #1512 defect exactly.
     """
     p = _path(repo_root)
     if expected_generation is None:
@@ -185,23 +235,21 @@ def clear(
         # The #1484 rationale for unconditional unlink was that refusing to
         # clear would leak sentinels and re-arm the #1447/#1448 keep-alive bug.
         # That concern is addressed without the collateral damage: we refuse
-        # only for sentinels younger than MIN_ANONYMOUS_CLEAR_AGE_SECONDS, and
+        # unconditionally whenever no generation token was supplied, and
         # DEFAULT_TTL_SECONDS still reaps anything genuinely abandoned, so no
         # sentinel can leak permanently.
-        try:
-            _data = json.loads(p.read_text())
-            if isinstance(_data, dict):
-                _age = time.time() - float(_data.get("timestamp", 0))
-                if not force and _age < MIN_ANONYMOUS_CLEAR_AGE_SECONDS:
-                    # Too young to be an orphan -- the owner is still working.
-                    # ``force=True`` is the deliberate operator-recovery escape
-                    # (a stuck sentinel blocking protected writes); it is never
-                    # used by production code, only by tooling and tests that
-                    # mean "remove this regardless of age".
-                    return
-        except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, TypeError):
-            # Unreadable/absent/malformed -> fall through and unlink as before.
-            pass
+        if not force:
+            # Issue #1512: refuse unconditionally. A caller that cannot say
+            # WHICH dispatch stopped must clear nothing at all -- not "anything
+            # older than two minutes". ``force=True`` remains the deliberate
+            # operator-recovery escape (a stuck sentinel blocking protected
+            # writes); it is never used by production code, only by tooling and
+            # tests that mean "remove this regardless".
+            sys.stderr.write(
+                "[agent_dispatch_sentinel] WARNING: unidentified SubagentStop "
+                "(no generation token) — refusing to clear; TTL remains the backstop\n"
+            )
+            return
         try:
             p.unlink()
         except (FileNotFoundError, OSError):
@@ -279,7 +327,7 @@ def refresh(
         return False
     data["timestamp"] = now
     try:
-        p.write_text(json.dumps(data))
+        _atomic_write_json(p, data)
     except OSError:
         return False
     return True
@@ -313,7 +361,27 @@ def is_active(
         if not isinstance(data, dict):
             return False
         ts = float(data.get("timestamp", 0))
-    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+    except json.JSONDecodeError as e:
+        # Issue #1512: a CORRUPT sentinel and an ABSENT one used to be
+        # indistinguishable here (both silently False), which is precisely what
+        # made the torn-write bug take five dispatches to find. Now that writes
+        # are atomic (_atomic_write_json), corruption has no ordinary cause and
+        # is worth a loud diagnostic.
+        #
+        # Still fail-closed: treating a corrupt file as valid authorization
+        # would let truncated bytes grant protected-path access, which is
+        # strictly worse than a rare false denial that is now diagnosable.
+        #
+        # Only CORRUPT warns. A genuinely ABSENT sentinel returns above at the
+        # p.exists() check and stays silent — a warning on every ordinary
+        # "no dispatch in flight" check would be pure noise and would train
+        # people to ignore it.
+        sys.stderr.write(
+            f"[agent_dispatch_sentinel] WARNING: corrupt sentinel at {p}: {e}; "
+            "treating as inactive (fail-closed)\n"
+        )
+        return False
+    except (OSError, ValueError, TypeError):
         return False
     now = time.time()
     age = now - ts

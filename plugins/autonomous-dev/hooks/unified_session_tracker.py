@@ -1264,6 +1264,11 @@ def main() -> int:
         # expected_generation makes clear() a no-op when a *different*, still
         # in-flight dispatch owns the sentinel — the fix for the #1467 ABA race.
         expected_gen = cached_invocation.get("generation") if cached_invocation else None
+        if expected_gen is None:
+            sys.stderr.write(
+                "[agent_dispatch_sentinel] WARNING: SubagentStop with no cached "
+                "invocation — cannot identify dispatch; sentinel left for TTL\n"
+            )
         try:
             from agent_dispatch_sentinel import clear as _ads_clear
             _ads_clear(expected_generation=expected_gen)
