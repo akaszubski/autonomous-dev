@@ -1,6 +1,6 @@
 {
-  "recorded": "2026-08-16T04:45:28.649344+00:00",
-  "commit": "b96d0b2c",
+  "recorded": "2026-08-16T04:54:53.864762+00:00",
+  "commit": "bbd57827",
   "results": [
     {
       "guard": "protected-infrastructure-hard-floor",
@@ -58,6 +58,86 @@
         "decision": "allow",
         "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__searxng__search' not subject to workflow",
         "why": "at plan_exited the mandated search path must still work; reading is not acting",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "write-pipeline-gate",
+      "issue": "#1142",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "Write",
+        "decision": "deny",
+        "reason": "BLOCKED: Write/Edit to code file 'pob_probe_newfile.py' requires the /implement pipeline. File: /Users/akaszubski/Dev/autonomous-dev/scripts/pob_probe_newfile.py Tier: fix. REQUIRE",
+        "why": "creating a NEW production code file outside the pipeline must be refused",
+        "ok": true
+      },
+      "negative": {
+        "tool": "Write",
+        "decision": "allow",
+        "reason": "Native tool 'Write' - hook bypass (settings.json governs)",
+        "why": "a markdown doc must NOT be refused",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "mcp-rename-symbol-is-a-write",
+      "issue": "#1503",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "mcp__serena__rename_symbol",
+        "decision": "deny",
+        "reason": "BLOCKED: Direct edit to 'pipeline_state.py' denied. Infrastructure files (agents/, commands/, hooks/, lib/, skills/) require the /implement pipeline. Run: /implement \"description\" ",
+        "why": "rename_symbol mutates files and must be classified as a write even though its name contains no write verb",
+        "ok": true
+      },
+      "negative": {
+        "tool": "mcp__serena__get_symbols_overview",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__serena__get_symbols_overview' not subjec",
+        "why": "get_symbols_overview only reads",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "mcp-side-effect-set",
+      "issue": "#1503 AC#19",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "mcp__playwright__browser_evaluate",
+        "decision": "deny",
+        "reason": "Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1",
+        "why": "browser_evaluate executes arbitrary JS and carries NO path or content argument, so no shape test can catch it -- it must be caught by the explicit side-effect set",
+        "ok": true
+      },
+      "negative": {
+        "tool": "mcp__playwright__browser_snapshot",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__playwright__browser_snapshot' not subjec",
+        "why": "browser_snapshot only observes",
+        "ok": true
+      },
+      "verdict": "PROVEN"
+    },
+    {
+      "guard": "unenumerated-mcp-writer-by-shape",
+      "issue": "#1503",
+      "hook": "unified_pre_tool.py",
+      "positive": {
+        "tool": "mcp__someserver__apply_patch",
+        "decision": "deny",
+        "reason": "Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1",
+        "why": "a tool from a server nobody enumerated, carrying a path AND content, must be refused BY SHAPE -- this is the whole point of classifying by effect rather than by name",
+        "ok": true
+      },
+      "negative": {
+        "tool": "mcp__someserver__list_things",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__someserver__list_things' not subject to ",
+        "why": "the same unknown server's read tool must NOT be refused",
         "ok": true
       },
       "verdict": "PROVEN"

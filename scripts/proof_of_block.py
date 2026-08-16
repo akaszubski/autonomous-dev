@@ -179,6 +179,84 @@ GUARDS = [
             "tool_input": lambda r: {"query": "python"},
         },
     },
+    {
+        # I hit this one myself today: it correctly refused a new script.
+        "guard": "write-pipeline-gate",
+        "issue": "#1142",
+        "hook": "unified_pre_tool.py",
+        "fixture": _real_repo,
+        "positive": {
+            "why": "creating a NEW production code file outside the pipeline "
+                   "must be refused",
+            "tool_name": "Write",
+            "tool_input": lambda r: {
+                "file_path": str(r / "scripts" / "pob_probe_newfile.py"),
+                "content": "print('x')\n"},
+        },
+        "negative": {
+            "why": "a markdown doc must NOT be refused",
+            "tool_name": "Write",
+            "tool_input": lambda r: {
+                "file_path": str(r / "docs" / "pob_probe_note.md"),
+                "content": "# note\n"},
+        },
+    },
+    {
+        "guard": "mcp-rename-symbol-is-a-write",
+        "issue": "#1503",
+        "hook": "unified_pre_tool.py",
+        "fixture": _real_repo,
+        "positive": {
+            "why": "rename_symbol mutates files and must be classified as a "
+                   "write even though its name contains no write verb",
+            "tool_name": "mcp__serena__rename_symbol",
+            "tool_input": lambda r: {
+                "relative_path": "plugins/autonomous-dev/lib/pipeline_state.py",
+                "name_path": "save_pipeline", "new_name": "x"},
+        },
+        "negative": {
+            "why": "get_symbols_overview only reads",
+            "tool_name": "mcp__serena__get_symbols_overview",
+            "tool_input": lambda r: {"relative_path": "README.md"},
+        },
+    },
+    {
+        "guard": "mcp-side-effect-set",
+        "issue": "#1503 AC#19",
+        "hook": "unified_pre_tool.py",
+        "fixture": _plan_exited,
+        "positive": {
+            "why": "browser_evaluate executes arbitrary JS and carries NO path "
+                   "or content argument, so no shape test can catch it -- it "
+                   "must be caught by the explicit side-effect set",
+            "tool_name": "mcp__playwright__browser_evaluate",
+            "tool_input": lambda r: {"function": "() => document.title"},
+        },
+        "negative": {
+            "why": "browser_snapshot only observes",
+            "tool_name": "mcp__playwright__browser_snapshot",
+            "tool_input": lambda r: {},
+        },
+    },
+    {
+        "guard": "unenumerated-mcp-writer-by-shape",
+        "issue": "#1503",
+        "hook": "unified_pre_tool.py",
+        "fixture": _plan_exited,
+        "positive": {
+            "why": "a tool from a server nobody enumerated, carrying a path "
+                   "AND content, must be refused BY SHAPE -- this is the whole "
+                   "point of classifying by effect rather than by name",
+            "tool_name": "mcp__someserver__apply_patch",
+            "tool_input": lambda r: {
+                "relative_path": "src/a.py", "content": "x = 1\n"},
+        },
+        "negative": {
+            "why": "the same unknown server's read tool must NOT be refused",
+            "tool_name": "mcp__someserver__list_things",
+            "tool_input": lambda r: {"query": "x"},
+        },
+    },
 ]
 
 
