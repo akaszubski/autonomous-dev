@@ -8,7 +8,7 @@ and checks for regressions.
 Usage:
     python scripts/improve_reviewer.py \
         --dataset tests/benchmarks/reviewer/dataset.json \
-        --model claude-sonnet-4-20250514 \
+        --model claude-sonnet-4-5-20250929 \
         --trials 3 \
         --dry-run
 
@@ -202,8 +202,8 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="claude-sonnet-4-20250514",
-        help="Anthropic model to use (default: claude-sonnet-4-20250514)",
+        default="claude-sonnet-4-5-20250929",
+        help="Anthropic model to use (default: claude-sonnet-4-5-20250929)",
     )
     parser.add_argument(
         "--trials",

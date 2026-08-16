@@ -8,7 +8,7 @@ Usage:
     python scripts/run_reviewer_benchmark.py \
         --dataset tests/benchmarks/reviewer/dataset.json \
         --trials 5 \
-        --model claude-sonnet-4-20250514 \
+        --model claude-sonnet-4-5-20250929 \
         --output tests/benchmarks/reviewer/results/ \
         --store tests/benchmarks/reviewer/benchmark_results.json
 
@@ -163,7 +163,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=str,
-        default="claude-sonnet-4-20250514",
+        default="claude-sonnet-4-5-20250929",
         help="Anthropic model to use",
     )
     parser.add_argument(
