@@ -15,7 +15,14 @@ from pathlib import Path
 
 import pytest
 
-WORKTREE = Path("/Users/akaszubski/Dev/autonomous-dev/.worktrees/batch-20260414-095305")
+# Repo-relative anchor (Issue #1518): this file lives at tests/spec_validation/,
+# so parents[2] is the repo root. Derived from __file__ so it resolves correctly in
+# a git worktree AND in the canonical checkout, and survives fresh clones. The
+# previous value was a hardcoded developer-specific absolute path to an ephemeral
+# build worktree; when that worktree was deleted every assertion in this file raised
+# FileNotFoundError, leaving all 35 tests unconditionally red for four months.
+# The name WORKTREE is kept because it is referenced throughout this file.
+WORKTREE = Path(__file__).resolve().parents[2]
 LIB_DIR = WORKTREE / "plugins" / "autonomous-dev" / "lib"
 HOOKS_DIR = WORKTREE / "plugins" / "autonomous-dev" / "hooks"
 CONFIG_PLUGIN = WORKTREE / "plugins" / "autonomous-dev" / "config" / "test_routing_config.json"
@@ -277,12 +284,32 @@ class TestSpec842Layer6Hook:
         content = hook_path.read_text(encoding="utf-8")
         assert '"Edit"' in content or "'Edit'" in content
 
-    def test_spec_842_8d_calls_check_all(self) -> None:
-        """Layer 6 MUST use check_all from prompt_quality_rules."""
+    def test_spec_842_8d_invokes_prompt_quality_rules(self) -> None:
+        """Layer 6 MUST invoke the prompt_quality_rules checks.
+
+        Originally this asserted the hook called the aggregate ``check_all``.
+        Issue #1038 made the Edit path diff-aware: it compares violations in the
+        new content against violations already present in the existing file, so a
+        pre-existing oversized section or persona phrase does not block an edit
+        that never touches it. ``check_all`` cannot express that diff (it returns
+        violations for the whole document), so the hook now calls the individual
+        rule functions instead. What matters for the spec is that the hook wires
+        in prompt_quality_rules and actually runs at least one rule, not which
+        specific function name it uses.
+        """
         hook_path = HOOKS_DIR / "unified_pre_tool.py"
         content = hook_path.read_text(encoding="utf-8")
-        assert "check_all" in content
-        assert "prompt_quality_rules" in content
+        assert "prompt_quality_rules" in content, (
+            "unified_pre_tool.py must reference prompt_quality_rules — "
+            "the prompt quality gate appears unwired."
+        )
+        rule_functions = ("check_persona", "check_casual_register")
+        called = [fn for fn in rule_functions if fn in content]
+        assert called, (
+            "unified_pre_tool.py must call at least one prompt_quality_rules "
+            f"rule function (one of {list(rule_functions)}) — the prompt quality "
+            "gate imports the module but never runs a check."
+        )
 
     def test_spec_842_8e_outputs_deny_on_violations(self) -> None:
         """Layer 6 MUST output deny decision when violations found."""
