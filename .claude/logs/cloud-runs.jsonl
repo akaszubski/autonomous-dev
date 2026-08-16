@@ -807,3 +807,4 @@
 {"timestamp": "2026-08-16T10:15:11.380203+00:00", "fire_type": "FIRE_END", "cluster": "1497", "exit_reason": "step6_agent_dispatch_404_meta_repeat", "suppressed_commit": false, "details": {"sonnet_4_model": "claude-sonnet-4-20250514", "haiku_35_model": "claude-3-5-haiku-20241022", "both_return_404": true, "attempts": 2}}
 {"fire_id": "20260816T103831Z", "fired_at": "2026-08-16T10:38:49Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260816T103831Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"timestamp": "2026-08-16T12:16:19.421141+00:00", "fire_type": "FIRE_END", "cluster": "1497", "exit_reason": "blocked_step_6_agent_404", "suppressed_commit": false}
