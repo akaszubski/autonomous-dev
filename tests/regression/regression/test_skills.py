@@ -479,20 +479,26 @@ class TestSkillLoading:
     """Test skill content loading."""
 
     def test_load_skills_for_implementer(self):
-        """Implementer should load python-standards, testing-guide, error-handling-patterns."""
+        """Implementer should load python-standards, testing-guide, error-handling.
+
+        Skill renamed from 'error-handling-patterns' by e64d5563 (Issue #1526).
+        """
         from skill_loader import load_skills_for_agent
         skills = load_skills_for_agent("implementer")
         assert "python-standards" in skills
         assert "testing-guide" in skills
-        assert "error-handling-patterns" in skills
+        assert "error-handling" in skills
         assert len(skills) == 3
 
     def test_load_skills_for_security_auditor(self):
-        """Security auditor should load security-patterns, error-handling-patterns."""
+        """Security auditor should load security-patterns, error-handling.
+
+        Skill renamed from 'error-handling-patterns' by e64d5563 (Issue #1526).
+        """
         from skill_loader import load_skills_for_agent
         skills = load_skills_for_agent("security-auditor")
         assert "security-patterns" in skills
-        assert "error-handling-patterns" in skills
+        assert "error-handling" in skills
         assert len(skills) == 2
 
     def test_load_skill_content_returns_string(self):
@@ -646,6 +652,100 @@ class TestSkillLoaderIntegration:
             assert len(injection) > 100
             # Should be under reasonable limit (roughly 3000 lines * 4 chars = 12000)
             assert len(injection) < 100000, f"Agent '{agent_name}' injection too large"
+
+
+class TestIssue1526DanglingSkillMap:
+    """Regression: AGENT_SKILL_MAP must never name a skill that is not on disk.
+
+    Commit e64d5563 (2026-03-18) renamed 'error-handling-patterns' to
+    'error-handling' and archived 'project-management' without updating
+    AGENT_SKILL_MAP. The loader treated the missing skills as nothing to do,
+    so implementer, security-auditor and planner silently ran with fewer
+    skills than they declared for five months. See Issue #1526.
+    """
+
+    def test_regression_issue_1526_no_dangling_skill_map_entries(self):
+        """The invariant: every mapped skill resolves to a real SKILL.md."""
+        from skill_loader import AGENT_SKILL_MAP, find_dangling_skills
+
+        dangling = find_dangling_skills(AGENT_SKILL_MAP, skills_dir=SKILLS_DIR)
+        assert dangling == {}, (
+            f"AGENT_SKILL_MAP names skills with no SKILL.md on disk: {dangling}\n"
+            f"Expected: every mapped skill has {SKILLS_DIR}/<skill>/SKILL.md\n"
+            "Fix: repoint the entry to the renamed skill or remove it (Issue #1526)"
+        )
+
+    def test_regression_issue_1526_renamed_skills_repointed(self):
+        """The three specific agents carry their intended skills."""
+        from skill_loader import AGENT_SKILL_MAP
+
+        assert "error-handling" in AGENT_SKILL_MAP["implementer"]
+        assert "error-handling" in AGENT_SKILL_MAP["security-auditor"]
+        assert "planning-workflow" in AGENT_SKILL_MAP["planner"]
+        for agent in ("implementer", "security-auditor", "planner"):
+            assert "error-handling-patterns" not in AGENT_SKILL_MAP[agent]
+            assert "project-management" not in AGENT_SKILL_MAP[agent]
+
+    def test_regression_issue_1526_dangling_entry_detected(self):
+        """The pre-fix map must be reported as dangling, not silently skipped."""
+        from skill_loader import find_dangling_skills
+
+        pre_fix_map = {
+            "planner": ["architecture-patterns", "project-management"],
+            "implementer": ["python-standards", "testing-guide", "error-handling-patterns"],
+            "security-auditor": ["security-patterns", "error-handling-patterns"],
+        }
+        dangling = find_dangling_skills(pre_fix_map, skills_dir=SKILLS_DIR)
+        assert dangling == {
+            "planner": ["project-management"],
+            "implementer": ["error-handling-patterns"],
+            "security-auditor": ["error-handling-patterns"],
+        }, f"Pre-fix map should be flagged, got: {dangling}"
+
+    def test_regression_issue_1526_dangling_entry_warns_loudly(self, capsys):
+        """A dangling entry emits a loud, actionable warning on stderr."""
+        from skill_loader import validate_agent_skill_map
+
+        pre_fix_map = {
+            "security-auditor": ["security-patterns", "error-handling-patterns"],
+        }
+        dangling = validate_agent_skill_map(pre_fix_map, skills_dir=SKILLS_DIR)
+        captured = capsys.readouterr()
+
+        assert dangling == {"security-auditor": ["error-handling-patterns"]}
+        assert "error-handling-patterns" in captured.err
+        assert "security-auditor" in captured.err
+        assert "SKILL.md" in captured.err
+
+    def test_regression_issue_1526_valid_map_is_silent(self, capsys):
+        """Negative control: a valid map produces no error and no warning.
+
+        Without this, a check that fires on everything would look like a pass
+        and train readers to ignore the warning.
+        """
+        from skill_loader import validate_agent_skill_map
+
+        valid_map = {
+            "security-auditor": ["security-patterns", "error-handling"],
+            "implementer": ["python-standards", "testing-guide", "error-handling"],
+            "planner": ["architecture-patterns", "planning-workflow"],
+        }
+        dangling = validate_agent_skill_map(valid_map, skills_dir=SKILLS_DIR)
+        captured = capsys.readouterr()
+
+        assert dangling == {}, f"Valid map wrongly flagged: {dangling}"
+        assert captured.err == "", f"Valid map emitted a warning: {captured.err!r}"
+        assert captured.out == "", f"Valid map emitted output: {captured.out!r}"
+
+    def test_regression_issue_1526_shipped_map_loads_silently(self, capsys):
+        """The shipped map, validated end-to-end, is clean and silent."""
+        from skill_loader import AGENT_SKILL_MAP, validate_agent_skill_map
+
+        dangling = validate_agent_skill_map(AGENT_SKILL_MAP, skills_dir=SKILLS_DIR)
+        captured = capsys.readouterr()
+
+        assert dangling == {}
+        assert captured.err == "", f"Shipped map emitted a warning: {captured.err!r}"
 
 
 # =============================================================================

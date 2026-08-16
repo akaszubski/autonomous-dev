@@ -59,11 +59,14 @@ except ImportError:
 AGENT_SKILL_MAP: Dict[str, List[str]] = {
     # Pipeline agents (7)
     "researcher-local": ["research-patterns"],
-    "planner": ["architecture-patterns", "project-management"],
+    # "project-management" was archived by commit e64d5563 (2026-03-18);
+    # "planning-workflow" is its successor for the planner (Issue #1526).
+    "planner": ["architecture-patterns", "planning-workflow"],
     "test-master": ["testing-guide", "python-standards"],
-    "implementer": ["python-standards", "testing-guide", "error-handling-patterns"],
+    # "error-handling-patterns" was renamed to "error-handling" by e64d5563 (Issue #1526).
+    "implementer": ["python-standards", "testing-guide", "error-handling"],
     "reviewer": ["code-review", "python-standards"],
-    "security-auditor": ["security-patterns", "error-handling-patterns"],
+    "security-auditor": ["security-patterns", "error-handling"],
     "doc-master": ["documentation-guide"],
     # Utility agents
     "issue-creator": ["research-patterns"],
@@ -91,6 +94,90 @@ def get_skills_dir() -> Path:
         raise FileNotFoundError(f"Skills directory not found: {skills_dir}")
 
     return skills_dir
+
+
+def find_dangling_skills(
+    skill_map: Optional[Dict[str, List[str]]] = None,
+    *,
+    skills_dir: Optional[Path] = None,
+) -> Dict[str, List[str]]:
+    """Find agent->skill mappings that name a skill with no SKILL.md on disk.
+
+    A mapping entry naming a non-existent skill is always a configuration error:
+    the agent silently receives fewer skills than it declares. Issue #1526 -
+    commit e64d5563 renamed/archived skills without updating AGENT_SKILL_MAP,
+    leaving security-auditor running on half its intended skill context.
+
+    Args:
+        skill_map: Mapping to validate (default: module-level AGENT_SKILL_MAP)
+        skills_dir: Skills directory to resolve against (default: get_skills_dir())
+
+    Returns:
+        Dict mapping agent name to the list of its dangling skill names.
+        Empty dict means every declared skill resolves to a real SKILL.md.
+        Also empty if the skills directory cannot be located (nothing to check
+        against - never guess a failure from a missing directory).
+    """
+    if skill_map is None:
+        skill_map = AGENT_SKILL_MAP
+
+    if skills_dir is None:
+        try:
+            skills_dir = get_skills_dir()
+        except (FileNotFoundError, OSError):
+            return {}
+
+    dangling: Dict[str, List[str]] = {}
+    for agent_name, skill_names in skill_map.items():
+        missing = [
+            skill_name
+            for skill_name in skill_names
+            if not (skills_dir / skill_name / "SKILL.md").exists()
+        ]
+        if missing:
+            dangling[agent_name] = missing
+    return dangling
+
+
+def validate_agent_skill_map(
+    skill_map: Optional[Dict[str, List[str]]] = None,
+    *,
+    skills_dir: Optional[Path] = None,
+) -> Dict[str, List[str]]:
+    """Validate the agent->skill map and warn loudly about dangling entries.
+
+    Warnings go to stderr, matching this module's existing convention
+    (see load_skill_content / parse_agent_skills). A warning rather than a
+    raise is deliberate: skill_loader is imported by hooks and pipeline code,
+    so an import-time exception would take the whole harness down instead of
+    surfacing the misconfiguration.
+
+    Args:
+        skill_map: Mapping to validate (default: module-level AGENT_SKILL_MAP)
+        skills_dir: Skills directory to resolve against (default: get_skills_dir())
+
+    Returns:
+        Dict mapping agent name to its dangling skill names (empty if valid).
+    """
+    dangling = find_dangling_skills(skill_map, skills_dir=skills_dir)
+
+    if dangling:
+        details = "; ".join(
+            f"{agent}: {', '.join(missing)}" for agent, missing in sorted(dangling.items())
+        )
+        print(
+            f"ERROR: AGENT_SKILL_MAP references {sum(len(v) for v in dangling.values())} "
+            f"skill(s) with no SKILL.md on disk - affected agents run with less "
+            f"context than they declare.\n"
+            f"Dangling entries: {details}\n"
+            f"Expected: every mapped skill has "
+            f"plugins/autonomous-dev/skills/<skill>/SKILL.md\n"
+            f"Fix: repoint the entry to the renamed skill or remove it "
+            f"(see Issue #1526)",
+            file=sys.stderr,
+        )
+
+    return dangling
 
 
 def get_agent_file(agent_name: str) -> Optional[Path]:
@@ -211,6 +298,11 @@ def load_skills_for_agent(agent_name: str) -> Dict[str, str]:
         if content:
             loaded_skills[skill_name] = content
 
+    # Issue #1526: a declared-but-unloadable skill is a configuration error,
+    # not a no-op. Surface it loudly instead of silently shrinking the context.
+    if len(loaded_skills) != len(skills):
+        validate_agent_skill_map({agent_name: skills})
+
     return loaded_skills
 
 
@@ -301,6 +393,12 @@ def audit_skill_load(agent_name: str, skills_loaded: List[str], skills_requested
               f"Missing: {', '.join(missing)}", file=sys.stderr)
     else:
         print(f"Skill audit [{agent_name}]: Loaded all {len(skills_loaded)} skills successfully", file=sys.stderr)
+
+
+# Issue #1526: validate the map at import so a dangling entry is caught the
+# moment this module is loaded, not silently absorbed at skill-load time.
+# Silent when the map is clean; never raises (see validate_agent_skill_map).
+validate_agent_skill_map()
 
 
 # CLI interface for testing
