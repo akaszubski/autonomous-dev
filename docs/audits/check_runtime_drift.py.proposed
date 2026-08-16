@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Verify the code that RUNS matches the code in source. (Issue #1521)
+
+Hooks do not execute from ``plugins/autonomous-dev/``. They execute from
+deployed copies under ``<repo>/.claude/`` and ``~/.claude/``. A fix can
+therefore be committed, merged, and reported as shipped while the running
+system continues to execute the old bytes.
+
+That is not hypothetical. Measured 2026-08-16, three fixes committed the same
+day were all absent from the code that actually ran::
+
+    a40f5386  #1515  _content_landed_on_head           source 3  deployed 0
+    e16ab311  #1454  completion_times                  source 4  deployed 0
+    d7a8d44f  #1512  MIN_ANONYMOUS_CLEAR_AGE_SECONDS   source 2  deployed 0
+
+``deploy-all.sh`` does validate, but only three named files via ``KEY_FILES``.
+None of the three drifted files were on that list, so the deploy reported
+success while the runtime was stale. A check that passes green while missing
+the entire class it appears to cover is worse than no check.
+
+This module compares EVERY file in the deployed surface, across BOTH tiers,
+by content -- never by mtime, which produces false signals in both directions
+(a redeploy that rewrites identical bytes, or a bare ``touch``).
+
+Two states are distinguished, because conflating them would make the check
+unusable during ordinary development:
+
+STALE
+    The deployed copy differs from *committed* source. This is the defect:
+    a merged fix that is not running. Exit code 1.
+
+AHEAD
+    The deployed copy matches committed source, but the working tree has
+    uncommitted edits not yet deployed. Normal mid-development; not a failure.
+
+Usage::
+
+    python3 scripts/check_runtime_drift.py            # check, exit 1 on STALE
+    python3 scripts/check_runtime_drift.py --json     # machine-readable
+    python3 scripts/check_runtime_drift.py --repo /path/to/other/repo
+    python3 scripts/check_runtime_drift.py --quiet    # only report problems
+
+Read-only: this never writes, copies, or deploys anything.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional
+
+# Subdirectories deploy-all.sh copies into a repo's .claude/ tier.
+REPO_SUBDIRS = ("hooks", "commands", "agents", "lib", "templates", "config",
+                "skills", "scripts")
+# Subdirectories synced into the global ~/.claude tier.
+GLOBAL_SUBDIRS = ("hooks", "lib", "config")
+
+STALE = "STALE"
+AHEAD = "AHEAD"
+MISSING = "MISSING"
+ORPHAN = "ORPHAN"
+
+
+def _sha(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _committed_blob(repo: Path, rel: str) -> Optional[bytes]:
+    """Bytes of ``rel`` at HEAD, or None when untracked/absent."""
+    r = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
+                       capture_output=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def _sha_bytes(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def compare_tier(source_root: Path, dest_root: Path, subdirs, repo: Path,
+                 tier: str) -> List[Dict]:
+    """Compare one deployed tier against source. Returns finding dicts."""
+    findings: List[Dict] = []
+    for sub in subdirs:
+        src_dir, dst_dir = source_root / sub, dest_root / sub
+        if not src_dir.is_dir():
+            continue
+        for src in sorted(p for p in src_dir.rglob("*") if p.is_file()):
+            if "__pycache__" in src.parts or src.suffix == ".pyc":
+                continue
+            rel_in_sub = src.relative_to(src_dir)
+            dst = dst_dir / rel_in_sub
+            rel_repo = str(src.relative_to(repo))
+
+            if not dst.exists():
+                findings.append({"tier": tier, "state": MISSING,
+                                 "file": rel_repo,
+                                 "detail": f"absent from {dest_root / sub}"})
+                continue
+
+            src_h, dst_h = _sha(src), _sha(dst)
+            if src_h == dst_h:
+                continue
+
+            # Differs from the working tree. Is the DEPLOYED copy at least
+            # current with committed source? If so this is ordinary
+            # mid-development drift, not a stale runtime.
+            blob = _committed_blob(repo, rel_repo)
+            if blob is not None and _sha_bytes(blob) == dst_h:
+                findings.append({"tier": tier, "state": AHEAD, "file": rel_repo,
+                                 "detail": "deployed matches HEAD; working tree "
+                                           "has undeployed local edits"})
+            else:
+                findings.append({"tier": tier, "state": STALE, "file": rel_repo,
+                                 "detail": "deployed differs from committed "
+                                           "source — a merged change is NOT running"})
+    return findings
+
+
+def find_orphans(source_root: Path, dest_root: Path, subdirs, tier: str) -> List[Dict]:
+    """Files in the deployed tier with no counterpart in source."""
+    out: List[Dict] = []
+    for sub in subdirs:
+        src_dir, dst_dir = source_root / sub, dest_root / sub
+        if not dst_dir.is_dir():
+            continue
+        for dst in sorted(p for p in dst_dir.rglob("*") if p.is_file()):
+            if "__pycache__" in dst.parts or dst.suffix == ".pyc":
+                continue
+            if not (src_dir / dst.relative_to(dst_dir)).exists():
+                out.append({"tier": tier, "state": ORPHAN,
+                            "file": str(dst.relative_to(dst_dir.parent.parent)),
+                            "detail": "present in deployed tier, absent from source"})
+    return out
+
+
+def run(repo: Path, include_global: bool = True) -> List[Dict]:
+    source_root = repo / "plugins" / "autonomous-dev"
+    findings: List[Dict] = []
+    findings += compare_tier(source_root, repo / ".claude", REPO_SUBDIRS, repo, "repo")
+    findings += find_orphans(source_root, repo / ".claude", REPO_SUBDIRS, "repo")
+    if include_global:
+        g = Path.home() / ".claude"
+        findings += compare_tier(source_root, g, GLOBAL_SUBDIRS, repo, "global")
+    return findings
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--repo", default=".", help="repo root (default: cwd)")
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--quiet", action="store_true", help="only print problems")
+    ap.add_argument("--no-global", action="store_true",
+                    help="skip the ~/.claude tier")
+    args = ap.parse_args()
+
+    repo = Path(args.repo).resolve()
+    if not (repo / "plugins" / "autonomous-dev").is_dir():
+        print(f"error: {repo} is not an autonomous-dev source checkout",
+              file=sys.stderr)
+        return 2
+
+    findings = run(repo, include_global=not args.no_global)
+    stale = [f for f in findings if f["state"] == STALE]
+    missing = [f for f in findings if f["state"] == MISSING]
+    ahead = [f for f in findings if f["state"] == AHEAD]
+    orphan = [f for f in findings if f["state"] == ORPHAN]
+
+    if args.json:
+        print(json.dumps({"repo": str(repo), "findings": findings,
+                          "stale": len(stale), "missing": len(missing),
+                          "ahead": len(ahead), "orphans": len(orphan)}, indent=2))
+    else:
+        for label, group in (("STALE — merged change is NOT running", stale),
+                             ("MISSING from deployed tier", missing),
+                             ("ORPHAN in deployed tier", orphan),
+                             ("ahead — undeployed local edits (not a failure)", ahead)):
+            if not group:
+                continue
+            if args.quiet and group is ahead:
+                continue
+            print(f"\n=== {label} ({len(group)}) ===")
+            for f in group:
+                print(f"  [{f['tier']:>6}] {f['file']}")
+                print(f"           {f['detail']}")
+        if not args.quiet:
+            print(f"\nstale={len(stale)} missing={len(missing)} "
+                  f"orphans={len(orphan)} ahead={len(ahead)}")
+
+    # Only STALE and MISSING are defects. AHEAD is normal development.
+    return 1 if (stale or missing) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
