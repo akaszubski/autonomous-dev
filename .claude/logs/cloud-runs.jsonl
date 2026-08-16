@@ -799,3 +799,4 @@
 {"fire_id": "20260816T023804Z", "phase": "FIRE_END", "exit_reason": "commit_landed", "commit_sha": "c1786ca75d2dcd28a15e052dc6038efea8b6cd69", "cluster": "1497", "notes": "scripts/ default model ID refresh; lib/ fix remains on branch drain/1497-stale-sonnet-model-id awaiting /implement merge; issue #1497 remains OPEN (proposals #2/#3/#4 unimplemented)"}
 {"fire_id": "20260816T043839Z", "fired_at": "2026-08-16T04:38:39Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260816T043839Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260816T063742Z", "fired_at": "2026-08-16T06:38:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
