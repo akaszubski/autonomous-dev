@@ -500,3 +500,20 @@ tests/test_sync_dev_command.py::TestSyncValidatorAgentStructure::test_agent_has_
 tests/test_sync_dev_command.py::TestSyncValidatorAgentStructure::test_agent_has_frontmatter
 tests/test_sync_dev_command.py::TestSyncValidatorAgentStructure::test_agent_has_mission
 tests/test_sync_dev_command.py::TestSyncValidatorAgentStructure::test_agent_has_process_section
+
+# --- DELIBERATE RED (added by hand, not by the generator) ---
+#
+# These are NOT unmaintained-test drift. They are gates landed red on purpose
+# against an open, measured defect, per the repo rule that a gate committed
+# green proves nothing. They must go green by being FIXED, never by being
+# edited, skipped, or xfailed.
+#
+# Issue #1512 -- phantom SubagentStop steals the live dispatch's generation
+# token (50/50 phantom stops got the cache, 52/52 real stops missed it;
+# activity logs 2026-08-15 + 2026-08-17). The three negative controls in the
+# same file PASS today, which is what makes these five failures informative.
+tests/regression/test_issue_1512_phantom_steals_generation_token.py::TestPhantomStopMustNotClaimTheDispatch::test_phantom_stop_does_not_pop_the_invocation_cache
+tests/regression/test_issue_1512_phantom_steals_generation_token.py::TestPhantomStopMustNotClaimTheDispatch::test_phantom_stop_does_not_disarm_a_live_sentinel
+tests/regression/test_issue_1512_phantom_steals_generation_token.py::TestPhantomStopMustNotClaimTheDispatch::test_real_stop_after_phantom_still_completes_the_dispatch
+tests/regression/test_issue_1512_phantom_steals_generation_token.py::TestIsActiveIsSideEffectFree::test_is_active_does_not_delete_a_stale_sentinel
+tests/regression/test_issue_1512_phantom_steals_generation_token.py::TestIsActiveIsSideEffectFree::test_is_active_is_idempotent
