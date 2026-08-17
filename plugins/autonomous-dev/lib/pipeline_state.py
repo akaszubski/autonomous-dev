@@ -1109,6 +1109,14 @@ def get_pipeline_base_commit(
 #: The canonical baseline pytest command — stored as a list for shell-injection
 #: safety (never joined into a shell string). Callers that need a string form
 #: must join explicitly: ``" ".join(CANONICAL_BASELINE_CMD)``.
+#:
+#: Issue #1533 — ``--continue-on-collection-errors`` is deliberately ABSENT.
+#: Surviving a collection error would let the run continue with the erroring
+#: module's tests silently missing from the baseline, and would suppress the
+#: loudest signal (``Interrupted:`` plus exit code 2) that
+#: ``fix_forward.detect_capture_failure()`` relies on to write the
+#: ``__COLLECTION_ERROR__`` sentinel. A collection error must abort loudly and
+#: be reported as UNKNOWN, never masked into a plausible-looking baseline.
 CANONICAL_BASELINE_CMD: List[str] = [
     "pytest",
     "tests/unit",

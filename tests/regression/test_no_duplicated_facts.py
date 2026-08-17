@@ -28,6 +28,7 @@ that can also rot. If a count is needed, measure it.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -35,6 +36,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 PLUG = REPO / "plugins" / "autonomous-dev"
+TESTS = REPO / "tests"
 
 
 # --------------------------------------------------------------------------
@@ -108,6 +110,146 @@ def _archived_references() -> list:
     return hits
 
 
+# --------------------------------------------------------------------------
+# archived IMPORTS -- the route that silently zeroed the pipeline baseline
+# --------------------------------------------------------------------------
+#
+# Issue #1533. tests/integration/test_auto_add_to_regression_workflow.py
+# imported `auto_add_to_regression`, a module that exists only under
+# hooks/archived/. pytest aborted the whole canonical baseline scope during
+# COLLECTION -- zero tests ran -- and the pipeline reported "Baseline failing
+# tests: 0", which is indistinguishable from a green tree.
+#
+# The scan above never looked at tests/, which is why this survived. This scan
+# does. It targets IMPORTS rather than quoted names because an unresolvable
+# module-level import is the thing that aborts collection: one such import in
+# any collected module blanks the measurement for every other module.
+#
+# Deliberately NOT flagged, because neither aborts collection:
+#   - imports guarded by try/except ImportError (the convention already used by
+#     ~15 files in this tree for tests of archived hooks);
+#   - files that themselves put an archived directory on sys.path, which makes
+#     the import resolve. Those still violate the archived-code rule and are
+#     the quoted-name scan's business, not this one's.
+
+_IMPORT_GUARD_EXCEPTIONS = {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"}
+
+
+def _importable_module_stems() -> set:
+    """Module names that resolve WITHOUT reaching into an archived directory."""
+    out = set()
+    for root in (PLUG / "lib", PLUG / "hooks", REPO / "scripts"):
+        if not root.is_dir():
+            continue
+        for p in root.rglob("*.py"):
+            if "archived" in p.parts or "__pycache__" in p.parts:
+                continue
+            out.add(p.stem)
+    return out
+
+
+def _archived_module_stems() -> set:
+    """Module names that exist ONLY under an archived/ directory."""
+    archived = {
+        p.stem
+        for p in PLUG.rglob("archived/**/*.py")
+        if "__pycache__" not in p.parts
+    }
+    return archived - _importable_module_stems() - _NON_COMPONENTS
+
+
+def _scanned_python() -> list:
+    """Every active Python file the import scan covers: lib, hooks, AND tests."""
+    out = list(_active_python())
+    for p in TESTS.rglob("*.py"):
+        if "archived" in p.parts or "__pycache__" in p.parts:
+            continue
+        out.append(p)
+    return sorted(out)
+
+
+def _adds_archived_to_syspath(source: str) -> bool:
+    """True when the file deliberately makes archived/ importable."""
+    return any(
+        "sys.path" in line and "archived" in line for line in source.splitlines()
+    )
+
+
+def _guards_import_error(node: ast.Try) -> bool:
+    """True when a try/except handles ImportError (or a superclass of it)."""
+    for handler in node.handlers:
+        exc = handler.type
+        names = []
+        if exc is None:
+            names = ["BaseException"]
+        elif isinstance(exc, ast.Name):
+            names = [exc.id]
+        elif isinstance(exc, ast.Attribute):
+            names = [exc.attr]
+        elif isinstance(exc, ast.Tuple):
+            names = [e.id for e in exc.elts if isinstance(e, ast.Name)]
+        if any(n in _IMPORT_GUARD_EXCEPTIONS for n in names):
+            return True
+    return False
+
+
+def _unguarded_archived_imports_in(path: Path, targets: set) -> list:
+    """[names] of archived modules imported at module level without a guard."""
+    try:
+        source = path.read_text(errors="replace")
+    except OSError:
+        return []
+    if _adds_archived_to_syspath(source):
+        return []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+
+    found = []
+
+    def visit(body, guarded: bool) -> None:
+        for node in body:
+            # Function/class bodies do not execute at import time.
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            if isinstance(node, ast.Try):
+                visit(node.body, guarded or _guards_import_error(node))
+                for handler in node.handlers:
+                    visit(handler.body, guarded)
+                visit(node.orelse, guarded)
+                visit(node.finalbody, guarded)
+                continue
+            if isinstance(node, (ast.If, ast.With, ast.For, ast.While)):
+                visit(node.body, guarded)
+                visit(getattr(node, "orelse", []), guarded)
+                continue
+            if guarded:
+                continue
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.split(".")[0]
+                    if root in targets:
+                        found.append(root)
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                root = node.module.split(".")[0]
+                if root in targets:
+                    found.append(root)
+
+    visit(tree.body, False)
+    return found
+
+
+def _archived_imports(files=None) -> list:
+    """[(file, module)] for every collection-aborting archived import."""
+    targets = _archived_module_stems()
+    hits = []
+    for py in files if files is not None else _scanned_python():
+        for name in sorted(set(_unguarded_archived_imports_in(py, targets))):
+            hits.append((py.relative_to(REPO), name))
+    return hits
+
+
 class TestArchivedCodeRule:
     """PROJECT.md's archived-code rule, made enforceable."""
 
@@ -140,6 +282,79 @@ class TestArchivedCodeRule:
             f"scanner failed to detect a planted archived name {planted!r} — "
             "it cannot catch what it exists to catch"
         )
+
+    def test_no_active_code_imports_archived_modules(self):
+        """Issue #1533: an archived import aborts collection and zeroes the baseline.
+
+        Covers tests/ as well as lib/ and hooks/ -- the blind spot that let
+        `from auto_add_to_regression import ...` sit in tests/integration/ and
+        silently turn the pipeline's baseline capture into "0 failing tests".
+        """
+        hits = _archived_imports()
+        detail = "\n".join(f"  {name:<40} {f}" for f, name in hits)
+        assert not hits, (
+            f"{len(hits)} unguarded import(s) of archived modules in active code.\n"
+            f"{detail}\n\n"
+            "An archived module is not importable, so pytest aborts during "
+            "COLLECTION and zero tests execute -- the pipeline then reads an "
+            "empty baseline as a green tree (Issue #1533).\n"
+            "Fix: delete the dead test, or repoint it at the live successor."
+        )
+
+    def test_import_scanner_covers_the_tests_tree(self):
+        """The scan must actually look at tests/ -- that was the blind spot."""
+        scanned = _scanned_python()
+        assert any(TESTS in p.parents for p in scanned), (
+            "import scanner does not cover tests/; an archived import there "
+            "would zero the pipeline baseline undetected (Issue #1533)"
+        )
+
+    def test_import_scanner_detects_a_planted_reference_in_tests(self, tmp_path):
+        """Negative control: the scanner must FIRE on a real file under tests/.
+
+        The file is planted in the real tests/ tree, not a tmp dir, so this
+        exercises the same discovery path the gate uses. Named with a leading
+        underscore so pytest itself never collects it.
+        """
+        targets = sorted(_archived_module_stems())
+        assert targets, "no archived-only modules in this tree — control is vacuous"
+        planted_name = targets[0]
+
+        planted = TESTS / "regression" / "_planted_archived_import_1533.py"
+        planted.write_text(f"import {planted_name}\n")
+        try:
+            hits = _archived_imports()
+            assert (planted.relative_to(REPO), planted_name) in hits, (
+                f"scanner failed to detect a planted archived import "
+                f"{planted_name!r} in {planted.relative_to(REPO)} — it cannot "
+                "catch what it exists to catch"
+            )
+        finally:
+            planted.unlink(missing_ok=True)
+
+    def test_import_scanner_permits_live_and_guarded_imports(self, tmp_path):
+        """...and the control must not have made the scanner fire on everything.
+
+        A live module import, and an archived import guarded by
+        try/except ImportError (the convention this tree already uses), are
+        both legitimate: neither aborts collection.
+        """
+        targets = sorted(_archived_module_stems())
+        live = sorted(_importable_module_stems())
+        assert targets and live
+
+        clean = tmp_path / "clean.py"
+        clean.write_text(f"import {live[0]}\n")
+        assert _unguarded_archived_imports_in(clean, set(targets)) == []
+
+        guarded = tmp_path / "guarded.py"
+        guarded.write_text(
+            "try:\n"
+            f"    import {targets[0]}\n"
+            "except ImportError:\n"
+            "    pass\n"
+        )
+        assert _unguarded_archived_imports_in(guarded, set(targets)) == []
 
     def test_clean_source_does_not_false_positive(self):
         """A file naming only LIVE components must not be flagged."""
