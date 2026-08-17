@@ -143,7 +143,9 @@ class TestIssue1479AbsoluteLifetimeCeiling:
         self.sentinel.write_text(json.dumps(payload))
 
         assert ads.is_active(repo_root=self.repo) is False
-        # Opportunistic cleanup happened.
+        # Issue #1512: is_active() is a pure predicate — the reap is explicit.
+        assert self.sentinel.exists(), "is_active() must not mutate the sentinel"
+        assert ads.reap_if_stale(repo_root=self.repo) is True
         assert not self.sentinel.exists()
 
     def test_ceiling_blocks_hung_dispatch_kept_alive_by_coordinator(self):

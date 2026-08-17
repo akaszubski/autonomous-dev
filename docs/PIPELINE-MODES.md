@@ -296,9 +296,19 @@ records exactly as it reads hook-written ones.
 
 **What the SubagentStop hook does instead** (`unified_session_tracker.py`):
 best-effort handling for the *foreground / internal* firings that DO reach the
-hook. Three behaviors (two from #1396, one from #1436) apply only to those
-firings:
+hook. Four behaviors (two from #1396, one from #1436, one from #1512) apply
+only to those firings:
 
+0. **Phantom-stop classification** (Issue #1512) — runs first, before the
+   #1087 cache pop below. A `SubagentStop` naming an `agent_transcript_path`
+   that does not exist on disk (after a short grace/poll window) is a
+   *phantom*: it previously won the #1087 invocation cache and used the
+   recovered #1484 generation token to disarm a still-running dispatch's
+   `agent_dispatch_sentinel`. A phantom classification skips both the cache
+   pop and the sentinel `clear()` call, and is logged as a
+   `__phantom_stop__:<agent_name>` JSONL audit entry (no
+   `record_agent_completion()` call). An empty or out-of-`~/.claude` path is
+   classified UNKNOWN, not phantom, and falls through to today's behavior.
 1. **Agent-type recovery** — when the payload and the #1087 PreToolUse cache
    both omit `agent_type`, `_resolve_agent_type_from_transcript()` scans the
    subagent transcript's early entries for the agent identity (best-effort;

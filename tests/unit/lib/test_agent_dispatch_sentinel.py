@@ -88,8 +88,14 @@ class TestAgentDispatchSentinel:
         # Check with 30 second TTL
         assert not ads.is_active(ttl_seconds=30, repo_root=self.test_root)
     
-    def test_is_active_cleans_up_stale_sentinel(self):
-        """Test that is_active() removes stale sentinels opportunistically."""
+    def test_reap_if_stale_removes_stale_sentinel(self):
+        """Test that reap_if_stale() removes stale sentinels.
+
+        Issue #1512: this coverage was retargeted from is_active(), which used
+        to unlink as a side effect of a read. The reap is now explicit; the
+        observable outcome at the gate is unchanged because unified_pre_tool
+        calls reap_if_stale() immediately before is_active().
+        """
         # Write stale sentinel
         old_data = {
             "agent": "test-agent",
@@ -98,13 +104,29 @@ class TestAgentDispatchSentinel:
         }
         self.sentinel_path.write_text(json.dumps(old_data))
         assert self.sentinel_path.exists()
-        
-        # Call is_active - should clean up
-        result = ads.is_active(ttl_seconds=30, repo_root=self.test_root)
-        
-        assert not result
+
+        reaped = ads.reap_if_stale(ttl_seconds=30, repo_root=self.test_root)
+
+        assert reaped is True
         assert not self.sentinel_path.exists()
-    
+        assert not ads.is_active(ttl_seconds=30, repo_root=self.test_root)
+
+    def test_is_active_does_not_mutate(self):
+        """Issue #1512: is_active() is a pure predicate — no unlink."""
+        old_data = {
+            "agent": "test-agent",
+            "pid": os.getpid(),
+            "timestamp": time.time() - 35
+        }
+        self.sentinel_path.write_text(json.dumps(old_data))
+
+        result = ads.is_active(ttl_seconds=30, repo_root=self.test_root)
+
+        assert not result
+        assert self.sentinel_path.exists(), (
+            "is_active() destroyed the sentinel it was asked to describe"
+        )
+
     def test_is_active_handles_malformed_json(self):
         """Test that is_active() returns False for malformed JSON."""
         self.sentinel_path.write_text("{invalid json}")
@@ -308,4 +330,7 @@ class TestRefreshSlidingTTL:
         self.clock.advance(ads.DEFAULT_TTL_SECONDS + 1)
 
         assert not ads.is_active(repo_root=self.test_root)
+        # Issue #1512: is_active() is a pure predicate — the reap is explicit.
+        assert self.sentinel_path.exists(), "is_active() must not mutate the sentinel"
+        assert ads.reap_if_stale(repo_root=self.test_root) is True
         assert not self.sentinel_path.exists()

@@ -318,7 +318,8 @@ def refresh(
         return False
     now = time.time()
     if now - ts > ttl_seconds:
-        # Stale → refusing to resurrect. is_active() cleans it up.
+        # Stale → refusing to resurrect. reap_if_stale() cleans it up
+        # (Issue #1512: is_active() is a pure predicate and no longer unlinks).
         return False
     # Issue #1479: absolute-ceiling backstop. armed_at defaults to ts for
     # sentinels written before this field was introduced (graceful upgrade).
@@ -340,13 +341,19 @@ def is_active(
 ) -> bool:
     """Check if an agent dispatch is currently active.
 
+    Issue #1512: this is a PURE PREDICATE. It never mutates the sentinel.
+    Asking whether a dispatch is active used to destroy the evidence — a stale
+    sentinel was unlinked as a side effect of reading it, so any diagnostic that
+    inspected the gate consumed what it was measuring. Reaping now lives in the
+    explicit :func:`reap_if_stale`.
+
     Args:
         ttl_seconds: Time-to-live in seconds. Sentinels older than this are stale.
         repo_root: Repository root directory. If None, uses cwd.
         max_lifetime_seconds: Absolute ceiling on total sentinel lifetime measured
             from the initial ``armed_at`` (Issue #1479). A sentinel that has exceeded
-            this ceiling is treated as inactive and cleaned up, even if refresh()
-            was keeping ``timestamp`` fresh.
+            this ceiling is treated as inactive, even if refresh() was keeping
+            ``timestamp`` fresh.
 
     Returns:
         True if an active (non-stale, within-ceiling) agent dispatch is in progress
@@ -390,10 +397,62 @@ def is_active(
     armed_at = float(data.get("armed_at", ts))
     lifetime = now - armed_at
     if age > ttl_seconds or lifetime > max_lifetime_seconds:
-        # stale or past ceiling → treat as inactive, also clean it up opportunistically
-        try:
-            p.unlink()
-        except OSError:
-            pass
+        # Stale or past ceiling → inactive. Issue #1512: NO unlink here. The
+        # reap is an explicit operation (reap_if_stale), wired at the one
+        # production gate that relied on the implicit cleanup.
+        return False
+    return True
+
+
+def reap_if_stale(
+    ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    repo_root: Optional[Path] = None,
+    max_lifetime_seconds: int = MAX_LIFETIME_SECONDS,
+) -> bool:
+    """Remove the sentinel if — and only if — it is stale or past its ceiling.
+
+    Issue #1512: the explicit half of what :func:`is_active` used to do
+    implicitly. Split out so that reading the gate cannot perturb it. Callers
+    that want the old read-and-reap behaviour call this immediately before
+    ``is_active()``; the observable outcome is identical.
+
+    A CORRUPT sentinel is deliberately NOT reaped, matching the pre-split
+    behaviour: ``is_active()``'s JSONDecodeError branch returned before ever
+    reaching the unlink. Corruption has no ordinary cause now that writes are
+    atomic, so the file is left on disk as evidence for the operator.
+
+    Args:
+        ttl_seconds: Staleness threshold in seconds.
+        repo_root: Repository root directory. If None, uses cwd.
+        max_lifetime_seconds: Absolute ceiling on total sentinel lifetime measured
+            from the initial ``armed_at`` (Issue #1479).
+
+    Returns:
+        True if a stale or past-ceiling sentinel was unlinked. False for an
+        absent, fresh, corrupt, or malformed sentinel, and False if the unlink
+        itself failed. Never raises.
+    """
+    p = _path(repo_root)
+    if not p.exists():
+        return False
+    try:
+        data = json.loads(p.read_text())
+        if not isinstance(data, dict):
+            return False
+        ts = float(data.get("timestamp", 0))
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        return False
+    now = time.time()
+    age = now - ts
+    try:
+        armed_at = float(data.get("armed_at", ts))
+    except (ValueError, TypeError):
+        armed_at = ts
+    lifetime = now - armed_at
+    if age <= ttl_seconds and lifetime <= max_lifetime_seconds:
+        return False
+    try:
+        p.unlink()
+    except OSError:
         return False
     return True

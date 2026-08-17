@@ -253,7 +253,11 @@ class TestIssue1296CoordinatorBypass:
         # Check is_active returns False
         assert not ads.is_active(ttl_seconds=30, repo_root=self.repo_root)
         
-        # Verify stale sentinel was cleaned up
+        # Issue #1512: is_active() is a pure predicate — the reap is explicit.
+        # unified_pre_tool calls reap_if_stale() immediately before the gate
+        # check, so the observable outcome at the gate is unchanged.
+        assert sentinel_path.exists(), "is_active() must not mutate the sentinel"
+        assert ads.reap_if_stale(ttl_seconds=30, repo_root=self.repo_root) is True
         assert not sentinel_path.exists()
     
     def test_sentinel_write_clear_lifecycle(self):

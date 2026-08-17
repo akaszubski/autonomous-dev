@@ -911,6 +911,85 @@ PHANTOM_DEDUP_WINDOW_SECONDS = 300  # 5 minutes
 # filters trivial noise while a real agent completion easily clears it.
 HEARTBEAT_MIN_OUTPUT_WORDS = 5
 
+# Issue #1512: belt-and-braces grace for a transcript that has not appeared yet.
+#
+# MEASURED, not tuned. Over the 55 real SubagentStop events whose transcript
+# still survives on disk, ``stop_timestamp - transcript_birthtime`` was:
+#   min 44.7s, p05 73.2s, median 196.1s. Zero transcripts were born AFTER their
+#   stop; zero were born within 0.5s of it.
+# Claude Code writes the transcript incrementally DURING the agent's run, so by
+# the time SubagentStop fires the file has existed for ~45s at worst. 0.5s is
+# roughly 90x that observed worst-case margin and is expected never to be
+# exercised on a genuine stop — it exists solely to absorb a hypothetical
+# #1179-class async-flush race. It is paid only on the phantom path (a real
+# transcript is found on the first check), so it costs a real dispatch nothing.
+#
+# NOT justified by analogy to _wait_for_transcript_flush's 2.0s budget: that
+# solves a different problem (size-stability of a file that already exists).
+PHANTOM_TRANSCRIPT_GRACE_SECONDS = 0.5
+PHANTOM_TRANSCRIPT_POLL_SECONDS = 0.05
+
+
+def _is_phantom_subagent_stop(
+    raw_transcript_path: str,
+    grace_seconds: float = PHANTOM_TRANSCRIPT_GRACE_SECONDS,
+) -> bool:
+    """Issue #1512: True when a SubagentStop names a transcript that was never written.
+
+    A SubagentStop whose ``agent_transcript_path`` points at a file that does
+    not exist is not a dispatch completion. Measured over 102 typed stops, this
+    separates 50 phantoms from 52 real completions with zero overlap. Today the
+    phantom always wins the #1087 invocation cache and the real stop always
+    misses it, so the phantom collects the live dispatch's #1484 generation
+    token and disarms a sentinel that is still mid-write.
+
+    Three inputs classify as UNKNOWN (``False``, i.e. today's behaviour), never
+    as phantom:
+
+    - an empty raw path — Claude Code omits it on a small minority of genuine
+      stops, and the #1087 cache exists precisely to recover those. Treating
+      "unknown" as "phantom" would re-break the #1387/#1412 false-negative
+      class and block legitimate commits at the #802 completeness gate.
+    - a path that resolves outside ``~/.claude`` — ``_validate_transcript_path``
+      is the containment gate; a path we are not allowed to reason about tells
+      us nothing.
+    - any unexpected error.
+
+    Over-broadening is the strictly worse failure: a genuine stop misclassified
+    as phantom loses its cache entry too, reproducing the exact ``duration_ms``
+    corruption this fix removes. Under-broadening only lets a sentinel age out
+    on its existing TTL backstop.
+
+    Args:
+        raw_transcript_path: The unvalidated ``agent_transcript_path`` from the
+            SubagentStop payload.
+        grace_seconds: How long to keep polling for a validated-but-absent
+            transcript to appear before declaring the stop a phantom. Pass 0 to
+            classify immediately (used by tests).
+
+    Returns:
+        True only when the path is non-empty, resolves under ``~/.claude``, and
+        still names no file after the grace window. False in every other case.
+    """
+    try:
+        if not raw_transcript_path:
+            return False  # UNKNOWN
+        validated = _validate_transcript_path(raw_transcript_path)
+        if not validated:
+            return False  # UNKNOWN — outside ~/.claude
+        path = Path(validated)
+        if path.exists():
+            return False  # REAL
+        if grace_seconds > 0:
+            deadline = time.monotonic() + grace_seconds
+            while time.monotonic() < deadline:
+                time.sleep(PHANTOM_TRANSCRIPT_POLL_SECONDS)
+                if path.exists():
+                    return False  # REAL — appeared within the grace window
+        return True  # PHANTOM
+    except Exception:
+        return False  # UNKNOWN — never let the classifier raise into the hook
+
 
 def _is_unattributable(agent_name: Optional[str]) -> bool:
     """Issue #1436: True when a SubagentStop carries no usable identity
@@ -1248,34 +1327,77 @@ def main() -> int:
         # this cache, downstream consumers (ghost-agent detection, agent
         # completeness gate, pipeline timing analyzer) have no way to know
         # which agent stopped or how long it took.
-        cached_invocation = _pop_cached_subagent_invocation(
-            session_id,
-            preferred_subagent_type=(agent_name or "").strip()
-            if agent_name not in ("", "unknown")
-            else "",
-        )
-        cache_hit = bool(cached_invocation)
+        # Issue #1512: classify BEFORE the pop — this is the only window in
+        # which the generation token has not yet been spent. A phantom stop
+        # (named transcript never written) that reaches the pop collects the
+        # LIVE dispatch's token, which then satisfies #1484's compare-and-delete
+        # and unlinks a sentinel whose owner is still mid-write. Deterministic,
+        # evaluated before any mutation, and fails toward today's behaviour.
+        is_phantom = _is_phantom_subagent_stop(agent_transcript_path_raw)
 
-        # Issue #1296 + #1484 (Fix B): clear the agent-dispatch sentinel on
-        # SubagentStop with a compare-and-delete. Relocated to AFTER the cache
-        # pop so the recovered generation token is available. This runs past the
-        # dedup early-return (~1218-1233), so a dedup-skipped duplicate
-        # SubagentStop never reaches here and cannot disarm the sentinel. Passing
-        # expected_generation makes clear() a no-op when a *different*, still
-        # in-flight dispatch owns the sentinel — the fix for the #1467 ABA race.
-        expected_gen = cached_invocation.get("generation") if cached_invocation else None
-        if expected_gen is None:
+        if is_phantom:
+            # Do exactly two fewer things: no cache pop, no sentinel clear.
+            # Everything downstream is deliberately unchanged.
+            cached_invocation = None
+            cache_hit = False
             sys.stderr.write(
-                "[agent_dispatch_sentinel] WARNING: SubagentStop with no cached "
-                "invocation — cannot identify dispatch; sentinel left for TTL\n"
+                "[unified_session_tracker] Issue #1512: phantom SubagentStop for "
+                f"'{agent_name}' — transcript never written; refusing to pop the "
+                "invocation cache or clear the sentinel\n"
             )
-        try:
-            from agent_dispatch_sentinel import clear as _ads_clear
-            _ads_clear(expected_generation=expected_gen)
-        except Exception as e:
-            sys.stderr.write(
-                f"[agent_dispatch_sentinel] WARNING: clear failed: {e}\n"
+            # Audit record for TYPED phantoms only. Untyped phantoms are the
+            # #1396 heartbeat class, already dropped without a record; writing
+            # ~95 lines per run for them would be a signal that cries wolf.
+            # The "__"-prefix convention (see __dedup_skip__, __unattributable__)
+            # keeps this inert for downstream consumers such as
+            # agent_output_health._get_agent_completions. record_agent_completion
+            # is NOT called here, so the #802 completeness gate is untouched.
+            if not _is_unattributable(agent_name):
+                try:
+                    _write_jsonl_entry(
+                        subagent_type=f"__phantom_stop__:{agent_name}",
+                        duration_ms=0,
+                        result_word_count=0,
+                        agent_transcript_path=_validate_transcript_path(
+                            agent_transcript_path_raw
+                        ),
+                        session_id=session_id,
+                        success=True,
+                    )
+                except Exception:
+                    pass  # Non-blocking: the audit entry is advisory only
+        else:
+            cached_invocation = _pop_cached_subagent_invocation(
+                session_id,
+                preferred_subagent_type=(agent_name or "").strip()
+                if agent_name not in ("", "unknown")
+                else "",
             )
+            cache_hit = bool(cached_invocation)
+
+            # Issue #1296 + #1484 (Fix B): clear the agent-dispatch sentinel on
+            # SubagentStop with a compare-and-delete. Relocated to AFTER the
+            # cache pop so the recovered generation token is available. This runs
+            # past the dedup early-return, so a dedup-skipped duplicate
+            # SubagentStop never reaches here and cannot disarm the sentinel.
+            # Passing expected_generation makes clear() a no-op when a
+            # *different*, still in-flight dispatch owns the sentinel — the fix
+            # for the #1467 ABA race.
+            expected_gen = (
+                cached_invocation.get("generation") if cached_invocation else None
+            )
+            if expected_gen is None:
+                sys.stderr.write(
+                    "[agent_dispatch_sentinel] WARNING: SubagentStop with no cached "
+                    "invocation — cannot identify dispatch; sentinel left for TTL\n"
+                )
+            try:
+                from agent_dispatch_sentinel import clear as _ads_clear
+                _ads_clear(expected_generation=expected_gen)
+            except Exception as e:
+                sys.stderr.write(
+                    f"[agent_dispatch_sentinel] WARNING: clear failed: {e}\n"
+                )
 
         if (not agent_name) or agent_name in ("", "unknown"):
             if cached_invocation and cached_invocation.get("subagent_type"):

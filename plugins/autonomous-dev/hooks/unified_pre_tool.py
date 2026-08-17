@@ -1874,6 +1874,14 @@ def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
     if pipeline_active:
         try:
             from agent_dispatch_sentinel import is_active as _ads_is_active
+            from agent_dispatch_sentinel import reap_if_stale as _ads_reap_if_stale
+            # Issue #1512: is_active() is now a pure predicate. Reap explicitly
+            # first so this gate's observable outcome is unchanged — a stale
+            # sentinel is unlinked, then read as absent, then denied.
+            try:
+                _ads_reap_if_stale()
+            except Exception:
+                pass  # Reaping is opportunistic; the gate decision does not depend on it
             if not _ads_is_active():
                 file_name = Path(file_path).name if file_path else "unknown"
                 block_reason = (

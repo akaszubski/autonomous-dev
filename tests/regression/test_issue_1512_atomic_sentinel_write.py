@@ -357,8 +357,11 @@ def test_ttl_backstop_still_reaps_a_stale_sentinel(
     p.write_text(json.dumps(payload))
 
     assert ads.is_active(repo_root=tmp_path) is False
-    # is_active() opportunistically cleans up what it reaps.
-    assert not p.exists(), "stale sentinel should have been unlinked"
+    # Issue #1512: the reap is explicit now — is_active() is a pure predicate,
+    # so the sentinel survives the read and only reap_if_stale() unlinks it.
+    assert p.exists(), "is_active() must not mutate the sentinel it describes"
+    assert ads.reap_if_stale(repo_root=tmp_path) is True
+    assert not p.exists(), "stale sentinel should have been unlinked by the reaper"
 
 
 def test_refresh_does_not_resurrect_a_stale_sentinel(

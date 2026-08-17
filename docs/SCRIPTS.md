@@ -267,6 +267,16 @@ Autoresearch helper — runs reviewer benchmark, modifies `agents/reviewer.md`, 
 
 Mutation testing for core libraries — introduces controlled bugs and verifies tests catch them. Measures test-suite effectiveness, not just coverage percentage.
 
+### `scripts/measure_phantom_subagent_stops.py` — **Phantom vs. real `SubagentStop` measurement (Issue #1512)**
+
+```bash
+python3 scripts/measure_phantom_subagent_stops.py
+python3 scripts/measure_phantom_subagent_stops.py --since 2026-08-15
+python3 scripts/measure_phantom_subagent_stops.py --json
+```
+
+Re-runs the phantom/real `SubagentStop` classification against typed records in `.claude/logs/activity/*.jsonl` — a `SubagentStop` whose `agent_transcript_path` names a file never written to disk is a phantom that (before the #1512 fix) won the #1087 invocation cache and could disarm a live dispatch's `agent_dispatch_sentinel`. Prints a phantom/real x cache-HIT/MISS table plus two controls (basename disjointness between phantom and real transcripts, and a word-count split) so the classification can be re-verified after deployment instead of merely asserted. Pure measurement — always exits 0, never a gate.
+
 ---
 
 ## Mining & Analysis
