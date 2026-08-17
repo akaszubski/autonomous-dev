@@ -18,6 +18,7 @@ Run specific tiers:
   pytest -m "not slow"         # Exclude slow tests
 """
 
+import hashlib
 import pytest
 import sys
 from pathlib import Path
@@ -204,6 +205,87 @@ def reset_path_utils_cache():
     except ImportError:
         # path_utils doesn't exist yet (old tests)
         yield
+
+
+# =============================================================================
+# AGENT-DISPATCH SENTINEL ISOLATION (Issue #1535)
+# =============================================================================
+
+_LIVE_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _isolate_agent_dispatch_sentinel(request, tmp_path_factory, monkeypatch):
+    """No test may touch the LIVE repo's authorization sentinel (Issue #1535).
+
+    ``<repo>/.claude/local/active_agent_dispatch.json`` is the file that the
+    Issue #1296 gate in ``unified_pre_tool.py`` consults to decide whether a
+    Write/Edit to protected infrastructure (``agents/*.md``, ``commands/*.md``,
+    ``hooks/*.py``, ``lib/*.py``, ``skills/*/SKILL.md``) is coming from a
+    dispatched agent. A test run that arms it hands the coordinator a false
+    "agent dispatched" authorization, and the Issue #1448 sliding TTL keeps it
+    alive on ordinary session activity long after the run that created it.
+
+    Two measured routes reached it, and only one of them is greppable:
+
+      Route 1 (direct)   a test calls ``write()`` with no ``repo_root``.
+      Route 2 (indirect) a test drives a hook with a Task/Agent ``PreToolUse``
+                         payload and the HOOK calls ``write()`` — the test file
+                         contains no ``write()`` call at all.
+
+    Because route 2 is invisible to a call-site sweep, the interception is at
+    the shared choke point ``agent_dispatch_sentinel._path()`` instead. Every
+    production caller (writer, reader, clearer) uses its default no-arg branch,
+    so one redirect covers both routes and any future test that drives a hook
+    with an Agent payload.
+
+    Two properties are preserved deliberately:
+
+    - **The explicit-``repo_root`` branch is passed through verbatim**, so the
+      30+ existing ``repo_root=tmp_path`` tests keep resolving to exactly the
+      path they supplied.
+    - **Only a resolution that lands on the LIVE repo is redirected.** Tests
+      that legitimately exercise default-branch resolution against a temporary
+      fake repo (``test_issue_1484_path_convergence.py`` chdir's into one) still
+      get the real ``find_project_root`` answer. This keeps the fix scoped to
+      the actual defect rather than blinding the tests that cover the resolver.
+
+    Writer and reader are moved TOGETHER — that is what makes this correct.
+    Redirecting only the test's ``write()`` (e.g. passing ``repo_root=tmp_path``
+    at the call site) would decouple it from a hook reading the default path
+    in-process, breaking ``test_install_manifest_allows_edit_inside_pipeline``.
+    """
+    try:
+        import agent_dispatch_sentinel as ads
+    except ImportError:
+        # Sentinel module unavailable (e.g. running tests outside the plugin).
+        yield
+        return
+
+    real_path = ads._path
+    live_sentinel = _LIVE_REPO_ROOT / ads._SENTINEL_REL
+
+    # Per-test directory under the session basetemp. Built lazily as a plain
+    # path — never mkdir'd here — so the ~2000 tests that never touch the
+    # sentinel pay nothing, and no test's own ``tmp_path`` gains a stray entry.
+    isolated_root = (
+        tmp_path_factory.getbasetemp()
+        / "agent-dispatch-sentinel-isolation"
+        / hashlib.sha1(request.node.nodeid.encode("utf-8")).hexdigest()[:16]
+    )
+
+    def _isolated(repo_root: "Path | None" = None) -> Path:
+        """Stand-in for ``agent_dispatch_sentinel._path`` (see fixture docstring)."""
+        if repo_root is not None:
+            # Explicit branch: preserved verbatim (literal, un-normalized).
+            return real_path(repo_root)
+        resolved = real_path(None)
+        if resolved == live_sentinel or resolved.resolve() == live_sentinel:
+            return isolated_root / ads._SENTINEL_REL
+        return resolved
+
+    monkeypatch.setattr(ads, "_path", _isolated)
+    yield
 
 
 @pytest.fixture
