@@ -23,10 +23,13 @@ import hashlib
 import json
 import os
 import re
+import sys
+import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 try:
     from .pipeline_state import get_legacy_sentinel_path  # type: ignore
@@ -389,8 +392,52 @@ def _state_file_path(session_id: str, *, run_id: Optional[str] = None) -> Path:
     return Path(f"/tmp/pipeline_agent_completions_{h}.json")
 
 
+# Issue #1544: a parse failure is NOT the same thing as "file absent".
+# ``_read_state`` used to collapse both onto ``{}``, and ``_ensure_state``
+# reads ``{}`` as "no file yet" and rebuilds a blank skeleton — so one
+# transient unreadable read silently discarded every recorded completion.
+# We now retry briefly (the truncation window a concurrent writer could open
+# is sub-millisecond) and, if the file is still unreadable, report LOUDLY on
+# stderr instead of pretending the session never happened.
+#
+# Deliberately NOT raising: every caller here also gates reads, and a hard
+# failure would block the pipeline rather than degrade it. Loud + degraded is
+# the correct trade; silent + degraded is the bug.
+_READ_RETRY_ATTEMPTS = 3
+_READ_RETRY_DELAY_SECONDS = 0.01
+
+
+def _report_unreadable_state(path: Path, detail: str) -> None:
+    """Report an unreadable (but present) state file on stderr.
+
+    Args:
+        path: The state file that could not be parsed.
+        detail: Short description of the failure (exception text).
+
+    Issues: #1544
+    """
+    try:
+        print(
+            f"[pipeline_completion_state] WARNING: state file is present but "
+            f"unreadable: {path}\n"
+            f"  Cause: {detail}\n"
+            f"  Effect: treated as EMPTY for this read — recorded agent "
+            f"completions may be rebuilt as a blank skeleton.\n"
+            f"  See: plugins/autonomous-dev/docs/TROUBLESHOOTING.md (Issue #1544)",
+            file=sys.stderr,
+        )
+    except Exception:  # pragma: no cover - stderr itself is broken
+        pass
+
+
 def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
     """Read state file with file locking. Returns empty dict on any failure.
+
+    A missing file returns ``{}`` silently — that is normal first-run behavior.
+    A file that exists but cannot be parsed is retried
+    ``_READ_RETRY_ATTEMPTS`` times and then reported on stderr before ``{}``
+    is returned, so a transient truncated read can no longer masquerade as
+    "no state" without leaving a trace. (#1544)
 
     Args:
         session_id: The pipeline session identifier.
@@ -399,6 +446,8 @@ def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
 
     Returns:
         Parsed state dict, or empty dict if file missing/corrupt/stale.
+
+    Issues: #1041, #1413, #1544
     """
     path = _state_file_path(session_id, run_id=run_id)
     if not path.exists():
@@ -412,14 +461,39 @@ def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
     except OSError:
         return {}
 
-    try:
-        with open(path, "r") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                data = json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    last_error: Optional[str] = None
+    for attempt in range(_READ_RETRY_ATTEMPTS):
+        try:
+            with open(path, "r") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    data = json.load(f)
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        except (json.JSONDecodeError, ValueError) as exc:
+            # File exists but did not parse. Under the pre-#1544 writer this
+            # was the truncate-before-lock window; under the atomic writer it
+            # should be impossible. Retry, then shout.
+            last_error = f"{type(exc).__name__}: {exc}"
+            if attempt < _READ_RETRY_ATTEMPTS - 1:
+                time.sleep(_READ_RETRY_DELAY_SECONDS)
+                if not path.exists():
+                    return {}  # concurrently cleared — genuinely absent now
+                continue
+            _report_unreadable_state(path, last_error)
+            return {}
+        except OSError as exc:
+            # Unreadable for filesystem reasons (permissions, ENOENT race).
+            # Absence is normal; anything else is worth reporting.
+            if not path.exists():
+                return {}
+            _report_unreadable_state(path, f"{type(exc).__name__}: {exc}")
+            return {}
+
         if not isinstance(data, dict):
+            _report_unreadable_state(
+                path, f"expected a JSON object, got {type(data).__name__}"
+            )
             return {}
         # Issue #1413: refresh mtime on successful read so an active session
         # that keeps reading its state file never crosses the 7200s staleness
@@ -430,44 +504,172 @@ def _read_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
         except OSError:
             pass  # mtime refresh is best-effort; do not fail the read
         return data
-    except (json.JSONDecodeError, OSError, ValueError):
-        return {}
+
+    return {}  # pragma: no cover - loop always returns
+
+
+# Issue #1544: re-entrancy guard for the raw on-disk write.
+#
+# ``_write_state`` used to be called directly by eight mutators, each of which
+# did an UNSERIALIZED read-modify-write. Now the raw write is only performed
+# while this guard is held, and the guard is only taken inside ``_locked_rmw``.
+# A ``_write_state`` call made from anywhere else transparently self-wraps in
+# ``_locked_rmw`` (see below) rather than being rejected, so a ninth bypass
+# caller cannot reintroduce the race by construction — it gets serialized
+# whether or not its author knew about the lock.
+#
+# Thread-local (not a plain module global) so concurrent threads in one process
+# cannot see each other's guard state.
+_RMW_GUARD = threading.local()
+
+
+def _in_locked_rmw() -> bool:
+    """Return True when the caller is executing inside :func:`_locked_rmw`."""
+    return getattr(_RMW_GUARD, "depth", 0) > 0
+
+
+def _atomic_write_state(path: Path, state: dict) -> None:
+    """Serialize *state* to *path* atomically via a temp file + ``os.replace``.
+
+    Defence in depth for the truncate-before-lock defect (#1544). The previous
+    implementation used ``open(path, "w")``, which truncates the target to 0
+    bytes BEFORE ``fcntl.LOCK_EX`` is acquired; any concurrent reader landing
+    in that window read an empty file. Writing to a sibling temp file in the
+    same directory and then calling ``os.replace`` makes the swap atomic on
+    POSIX: a concurrent reader sees either the complete old file or the
+    complete new one, never a truncated one.
+
+    This is what makes ``_locked_rmw``'s deliberate fail-open behaviour SAFE
+    rather than merely rarer — on a flock failure the RMW is still unserialized
+    (last writer wins), but no reader can ever observe a half-written file.
+
+    The temp file is created by ``tempfile.mkstemp`` (mode 0o600 by default)
+    and explicitly chmod'd to ``0o600`` before the rename, preserving #1169:
+    the state file carries session-scoped HMAC and completion data and must
+    never be world-readable, not even for the duration of the write. chmod
+    failure is non-fatal — it can legitimately fail on filesystems without
+    POSIX modes.
+
+    Args:
+        path: Target state file path.
+        state: The state dict to serialize.
+
+    Raises:
+        OSError: If the temp file cannot be created, written, or renamed.
+            The caller (:func:`_write_state`) swallows this — a state write
+            failure must not be fatal to the pipeline.
+
+    Issues: #1169, #1544
+    """
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp"
+    )
+    try:
+        # #1169: tighten permissions on the staging file so the post-rename
+        # target is 0o600 the instant it becomes visible. mkstemp already
+        # creates at 0o600; this is belt-and-braces for exotic umask/FS setups.
+        try:
+            os.chmod(tmp_name, 0o600)
+        except OSError:
+            pass
+        with os.fdopen(fd, "w") as f:
+            fd = -1  # ownership transferred to the file object
+            json.dump(state, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, str(path))
+    except BaseException:
+        if fd != -1:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> None:
-    """Write state file atomically with file locking.
+    """Write the state file atomically, always under the RMW lock.
 
-    The state file is chmod'd to ``0o600`` (owner read/write only) immediately
-    after open. This narrows the previously world-readable default in /tmp
-    and protects session-scoped HMAC + completion data from unprivileged
-    inspection on multi-user systems. chmod failure is non-fatal: the write
-    still proceeds. (#1169)
+    Two behaviours, selected by whether the caller is already inside
+    :func:`_locked_rmw`:
+
+    - **Inside** ``_locked_rmw``: perform the atomic write directly. The whole
+      read-modify-write is already serialized by the sibling lockfile.
+    - **Outside** ``_locked_rmw``: self-wrap in ``_locked_rmw`` with a
+      replace-all mutator. Observable behaviour is identical (the supplied
+      ``state`` becomes the file's contents) but the write is now serialized
+      against concurrent mutators.
+
+    The self-wrap is what makes the fix durable: the raw truncating write is
+    unreachable, so a future caller that reaches for ``_write_state`` gets the
+    lock for free instead of quietly reopening the #1544 race. The only direct
+    caller of :func:`_atomic_write_state` is this function.
 
     Args:
         session_id: The pipeline session identifier.
         state: The state dict to write.
         run_id: Optional per-invocation run identifier passed to
             ``_state_file_path``. (#1041)
+
+    Raises:
+        ValueError: If ``run_id`` is non-empty and fails ``_RUN_ID_RE``. This
+            is pre-existing behaviour — ``_state_file_path`` already raised
+            for the same inputs.
+
+    Issues: #1041, #1169, #1544
     """
+    if not _in_locked_rmw():
+        # Not serialized yet — route through the lock. Replace-all preserves
+        # the historical "these are the file's new contents" semantics.
+        def _replace_all(existing: dict) -> None:
+            existing.clear()
+            existing.update(state)
+
+        _locked_rmw(session_id, _replace_all, run_id=run_id)
+        return
+
     path = _state_file_path(session_id, run_id=run_id)
     try:
-        with open(path, "w") as f:
-            # #1169: tighten permissions to 0o600 before holding the lock so
-            # the file is never world-readable, even during the brief window
-            # before the lock is released. Failure here is non-fatal — chmod
-            # can legitimately fail on filesystems that don't support POSIX
-            # modes (e.g. tmpfs mounted noexec/nosuid on some configs).
-            try:
-                os.chmod(path, 0o600)
-            except OSError:
-                pass
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(state, f, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        _atomic_write_state(path, state)
     except OSError:
         pass  # Non-blocking: state write failure is not fatal
+
+
+def _new_state_skeleton(session_id: str) -> dict:
+    """Return a fresh, empty state skeleton for *session_id*."""
+    return {
+        "session_id": session_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "validation_mode": "sequential",
+        "completions": {},
+        "prompt_baselines": {},
+    }
+
+
+def _ensure_state_inplace(state: dict, session_id: str) -> dict:
+    """Populate *state* with a fresh skeleton if it is empty, in place.
+
+    The in-place variant of :func:`_ensure_state`, for use inside a
+    :func:`_locked_rmw` mutator where the state dict has already been read
+    under the lock and must not be re-read (a second read would reopen the
+    read-modify-write window the lock exists to close).
+
+    Args:
+        state: The state dict supplied by ``_locked_rmw``. Mutated in place.
+        session_id: The pipeline session identifier.
+
+    Returns:
+        The same dict object, for convenience.
+
+    Issues: #1544
+    """
+    if not state:
+        state.update(_new_state_skeleton(session_id))
+    return state
 
 
 def _ensure_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
@@ -483,15 +685,7 @@ def _ensure_state(session_id: str, *, run_id: Optional[str] = None) -> dict:
     """
     state = _read_state(session_id, run_id=run_id)
     if not state:
-        from datetime import datetime, timezone
-
-        state = {
-            "session_id": session_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "validation_mode": "sequential",
-            "completions": {},
-            "prompt_baselines": {},
-        }
+        state = _new_state_skeleton(session_id)
     return state
 
 
@@ -561,46 +755,63 @@ def record_agent_completion(
     else:
         entry = success  # type: ignore[assignment]  # plain bool, legacy shape
 
-    state = _ensure_state(session_id, run_id=run_id)
-    completions = state.setdefault("completions", {})
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        completions = state.setdefault("completions", {})
 
-    if _single_scope:
-        # Opt-out path: write only to str(issue_number).
-        issue_completions = completions.setdefault(str(issue_number), {})
-        issue_completions[agent_type] = entry
-        _time_scope_keys = {str(issue_number)}
-    else:
-        # Tri-scope write: write to the primary key, "0", and "unscoped".
-        # Determine the set of scope keys to write to.
-        scope_keys: set[str] = {"0", "unscoped"}
-        if issue_number != 0:
-            scope_keys.add(str(issue_number))
-        for key in scope_keys:
-            issue_completions = completions.setdefault(key, {})
+        if _single_scope:
+            # Opt-out path: write only to str(issue_number).
+            issue_completions = completions.setdefault(str(issue_number), {})
             issue_completions[agent_type] = entry
-        _time_scope_keys = scope_keys
+            _time_scope_keys = {str(issue_number)}
+        else:
+            # Tri-scope write: write to the primary key, "0", and "unscoped".
+            # Determine the set of scope keys to write to.
+            scope_keys: set[str] = {"0", "unscoped"}
+            if issue_number != 0:
+                scope_keys.add(str(issue_number))
+            for key in scope_keys:
+                issue_completions = completions.setdefault(key, {})
+                issue_completions[agent_type] = entry
+            _time_scope_keys = scope_keys
 
-    # Issue #1454: record WHEN each agent completed.
-    #
-    # The plan-critic REVISE gate needs to know whether the planner ran AFTER a
-    # given verdict epoch, but completion entries carry no timestamp -- they are
-    # a bare bool (or a remediation dict), so get_planner_completion_count()
-    # could never return non-zero and the gate's allow-branch was dead code. An
-    # honest REVISE verdict therefore deadlocked the pipeline, and #1457 records
-    # that both available escapes were dishonest.
-    #
-    # This is a SIBLING map rather than a field inside the completion entry, on
-    # purpose: lines ~700 and ~740 iterate issue_completions.items() treating
-    # every key as an agent name, so a nested key would be mistaken for an
-    # agent, and changing bool -> dict would touch every _completion_is_success
-    # consumer across ~10 modules. A new top-level key is invisible to all of
-    # them.
-    _completion_times = state.setdefault("completion_times", {})
-    _now = time.time()
-    for _key in _time_scope_keys:
-        _completion_times.setdefault(_key, {})[agent_type] = _now
+        _record_completion_times(state, _time_scope_keys, agent_type)
 
-    _write_state(session_id, state, run_id=run_id)
+    _locked_rmw(session_id, _mutator, run_id=run_id)
+
+
+def _record_completion_times(
+    state: dict, scope_keys: set[str], agent_type: str
+) -> None:
+    """Stamp ``completion_times[scope][agent_type]`` with the current time.
+
+    Issue #1454: record WHEN each agent completed.
+
+    The plan-critic REVISE gate needs to know whether the planner ran AFTER a
+    given verdict epoch, but completion entries carry no timestamp -- they are
+    a bare bool (or a remediation dict), so get_planner_completion_count()
+    could never return non-zero and the gate's allow-branch was dead code. An
+    honest REVISE verdict therefore deadlocked the pipeline, and #1457 records
+    that both available escapes were dishonest.
+
+    This is a SIBLING map rather than a field inside the completion entry, on
+    purpose: the readers below iterate ``issue_completions.items()`` treating
+    every key as an agent name, so a nested key would be mistaken for an
+    agent, and changing bool -> dict would touch every _completion_is_success
+    consumer across ~10 modules. A new top-level key is invisible to all of
+    them.
+
+    Args:
+        state: The state dict being mutated inside a ``_locked_rmw`` mutator.
+        scope_keys: The scope keys that received this completion.
+        agent_type: The agent that completed.
+
+    Issues: #1454, #1544
+    """
+    completion_times = state.setdefault("completion_times", {})
+    now = time.time()
+    for key in scope_keys:
+        completion_times.setdefault(key, {})[agent_type] = now
 
 
 def _completion_is_success(entry) -> bool:
@@ -871,14 +1082,17 @@ def record_agent_launch(
         agent_type: The agent type (e.g., "reviewer", "security-auditor").
         issue_number: The issue number (0 for non-batch).
 
-    Issues: #686
+    Issues: #686, #1544
     """
-    state = _ensure_state(session_id)
-    launches = state.setdefault("launches", {})
-    issue_key = str(issue_number)
-    issue_launches = launches.setdefault(issue_key, {})
-    issue_launches[agent_type] = True
-    _write_state(session_id, state)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        launches = state.setdefault("launches", {})
+        issue_key = str(issue_number)
+        issue_launches = launches.setdefault(issue_key, {})
+        issue_launches[agent_type] = True
+
+    _locked_rmw(session_id, _mutator)
 
 
 def get_launched_agents(
@@ -936,11 +1150,16 @@ def record_prompt_baseline(
         agent_type: The agent type.
         word_count: The prompt word count.
         issue_number: The issue number.
+
+    Issues: #1544
     """
-    state = _ensure_state(session_id)
-    baselines = state.setdefault("prompt_baselines", {})
-    baselines[agent_type] = word_count
-    _write_state(session_id, state)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        baselines = state.setdefault("prompt_baselines", {})
+        baselines[agent_type] = word_count
+
+    _locked_rmw(session_id, _mutator)
 
 
 def get_prompt_baseline(session_id: str, agent_type: str) -> Optional[int]:
@@ -985,10 +1204,15 @@ def set_validation_mode(
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path.
             (#1041 — symmetry with the rest of the module's API)
+
+    Issues: #1214, #1544
     """
-    state = _ensure_state(session_id, run_id=run_id)
-    state["validation_mode"] = mode
-    _write_state(session_id, state, run_id=run_id)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        state["validation_mode"] = mode
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
 def get_validation_mode(
@@ -1102,14 +1326,17 @@ def record_doc_verdict(
         verdict: The verdict string (e.g., "PASS", "FAIL", "DOCS-UPDATED",
                  "NO-UPDATE-NEEDED", "DOCS-DRIFT-FOUND", "MISSING", "SHALLOW").
 
-    Issues: #837
+    Issues: #837, #1544
     """
-    state = _ensure_state(session_id)
-    completions = state.setdefault("completions", {})
-    issue_key = str(issue_number)
-    issue_completions = completions.setdefault(issue_key, {})
-    issue_completions["doc-master-verdict"] = verdict
-    _write_state(session_id, state)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        completions = state.setdefault("completions", {})
+        issue_key = str(issue_number)
+        issue_completions = completions.setdefault(issue_key, {})
+        issue_completions["doc-master-verdict"] = verdict
+
+    _locked_rmw(session_id, _mutator)
 
 
 # Valid doc-master verdicts that count as "verdict present".
@@ -1286,18 +1513,21 @@ def record_research_skipped(
         run_id: Optional per-invocation run identifier. When set, the run-id-
             scoped state file is used instead of the legacy sha256 path. (#1041)
 
-    Issues: #802, #1213
+    Issues: #802, #1213, #1544
     """
-    state = _ensure_state(session_id, run_id=run_id)
-    research_skipped = state.setdefault("research_skipped", {})
-    issue_key = str(issue_number)
-    research_skipped[issue_key] = True
-    # #1213: Also write to the "0" fallback scope so the commit-time gate
-    # (which calls verify_pipeline_agent_completions with issue_number=0)
-    # can see the marker. No-op when issue_number is already 0.
-    if issue_number != 0:
-        research_skipped["0"] = True
-    _write_state(session_id, state, run_id=run_id)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        research_skipped = state.setdefault("research_skipped", {})
+        issue_key = str(issue_number)
+        research_skipped[issue_key] = True
+        # #1213: Also write to the "0" fallback scope so the commit-time gate
+        # (which calls verify_pipeline_agent_completions with issue_number=0)
+        # can see the marker. No-op when issue_number is already 0.
+        if issue_number != 0:
+            research_skipped["0"] = True
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
 def get_research_skipped(
@@ -1363,31 +1593,37 @@ def record_plan_critic_skipped(
             recorded so STEP 8.5 can canonicalize ACs from the plan file.
         bypass_reason: Optional reason why plan-critic was bypassed (#1279).
 
-    Issues: #878, #1213, #1218, #1279, #1325
+    Issues: #878, #1213, #1218, #1279, #1325, #1544
     """
-    state = _ensure_state(session_id, run_id=run_id)
-    plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
-    issue_key = str(issue_number)
-    plan_critic_skipped[issue_key] = True
-    # #1213: Also write to the "0" fallback scope so the commit-time gate
-    # (which calls verify_pipeline_agent_completions with issue_number=0)
-    # can see the marker. No-op when issue_number is already 0.
-    if issue_number != 0:
-        plan_critic_skipped["0"] = True
-    # #1218: Record the canonical plan path for STEP 8.5 AC canonicalization.
-    if plan_path:
-        plan_paths = state.setdefault("plan_critic_skipped_plan_path", {})
-        plan_paths[issue_key] = plan_path
-        if issue_number != 0:
-            plan_paths["0"] = plan_path
-    # #1279: Record the bypass reason for audit trail.
+    # #1279 / #1380: sanitize before the mutator so the closure captures the
+    # cleaned value (the mutator may run inside a retry/fallback path).
     if bypass_reason:
-        bypass_reason = _sanitize_bypass_reason(bypass_reason)  # Issue #1380
-        reasons = state.setdefault("plan_critic_bypass_reason", {})
-        reasons[issue_key] = bypass_reason
+        bypass_reason = _sanitize_bypass_reason(bypass_reason)
+
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        plan_critic_skipped = state.setdefault("plan_critic_skipped", {})
+        issue_key = str(issue_number)
+        plan_critic_skipped[issue_key] = True
+        # #1213: Also write to the "0" fallback scope so the commit-time gate
+        # (which calls verify_pipeline_agent_completions with issue_number=0)
+        # can see the marker. No-op when issue_number is already 0.
         if issue_number != 0:
-            reasons["0"] = bypass_reason
-    _write_state(session_id, state, run_id=run_id)
+            plan_critic_skipped["0"] = True
+        # #1218: Record the canonical plan path for STEP 8.5 AC canonicalization.
+        if plan_path:
+            plan_paths = state.setdefault("plan_critic_skipped_plan_path", {})
+            plan_paths[issue_key] = plan_path
+            if issue_number != 0:
+                plan_paths["0"] = plan_path
+        # #1279: Record the bypass reason for audit trail.
+        if bypass_reason:
+            reasons = state.setdefault("plan_critic_bypass_reason", {})
+            reasons[issue_key] = bypass_reason
+            if issue_number != 0:
+                reasons["0"] = bypass_reason
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
     # Issue #1325: Emit activity log event when plan-critic is skipped
     # so CIA can verify the skip has a corresponding logged justification.
@@ -1494,17 +1730,21 @@ def record_plan_critic_passed(
         plan_slug: Slug identifier for the plan that passed critic.
         run_id: Optional test run identifier.
 
+    Issues: #1330, #1544
+
     Since:
         2026-06-27 (Issue #1330)
     """
     if not session_id or session_id == "unknown":
         return
 
-    state = _ensure_state(session_id, run_id=run_id)
-    state["plan_critic_passed"] = True
-    state["plan_critic_passed_plan_slug"] = plan_slug
-    state["plan_critic_passed_timestamp"] = datetime.now().isoformat()
-    _write_state(session_id, state, run_id=run_id)
+    def _mutator(state: dict) -> None:
+        _ensure_state_inplace(state, session_id)
+        state["plan_critic_passed"] = True
+        state["plan_critic_passed_plan_slug"] = plan_slug
+        state["plan_critic_passed_timestamp"] = datetime.now().isoformat()
+
+    _locked_rmw(session_id, _mutator, run_id=run_id)
 
 
 def get_plan_critic_passed(
@@ -1754,7 +1994,7 @@ _TIER1_RING_BUFFER_CAP = 10
 
 def _locked_rmw(
     session_id: str,
-    mutator,
+    mutator: Callable[[dict], None],
     *,
     run_id: Optional[str] = None,
 ) -> None:
@@ -1780,12 +2020,32 @@ def _locked_rmw(
             key when ``run_id`` is unset).
         mutator: Callable ``(state: dict) -> None`` that mutates
             ``state`` in place. Return value is ignored.
+
+            The mutator MUST NOT call another state mutator (or
+            ``_locked_rmw`` directly): ``flock`` locks are per open file
+            description, so a nested call in the same thread opens a second
+            fd and blocks on a lock it already holds — a self-deadlock. Every
+            mutator in this module is a pure in-memory transform of ``state``,
+            which is what keeps that safe. Calling ``_write_state`` from
+            inside a mutator is safe (the re-entrancy guard is held for the
+            whole mutate-and-write, so it short-circuits to the direct atomic
+            write instead of re-entering the lock) but pointless — the
+            enclosing write follows immediately and supersedes it. Just mutate
+            ``state``.
         run_id: Optional per-invocation run identifier. When provided,
             the lockfile key matches the state file's per-run key for
             scope parity. Must match ``_RUN_ID_RE`` (``[a-zA-Z0-9_-]{1,64}``);
             ValueError is raised otherwise.
 
-    Issues: #1170, #1188
+    Issue #1544 made this the ONLY path to the on-disk write: all state
+    mutators route through here, and ``_write_state`` self-wraps in this
+    function when called from outside it. The fail-open branches below are
+    still deliberate (a flock failure on NFS must not block the gate) but are
+    now safe rather than merely rare — the underlying write is atomic
+    (``os.replace``), so an unserialized fallback can lose an update but can
+    never expose a truncated file to a concurrent reader.
+
+    Issues: #1170, #1188, #1544
     """
     if run_id:
         if not _RUN_ID_RE.match(run_id):
@@ -1799,37 +2059,69 @@ def _locked_rmw(
         key = hashlib.sha256(session_id.encode()).hexdigest()[:8]
     lock_path = Path(f"/tmp/pipeline_agent_completions_{key}.lock")
 
+    def _rmw() -> None:
+        """Read, mutate, write — with the raw-write guard held (#1544).
+
+        The guard spans BOTH the mutate and the write. Holding it only across
+        the write left a window in which a mutator that called ``_write_state``
+        directly saw ``_in_locked_rmw() is False``, took the self-wrap branch,
+        and re-entered ``_locked_rmw`` — a second fd on the same lockfile, a
+        blocking ``LOCK_EX`` from a thread that already holds it, and a
+        permanent hang (``flock`` locks are per open file description, not
+        reentrant). Every ``_rmw()`` call site in this function — both
+        fail-open branches and the locked path — uses this one closure, so the
+        guard discipline is identical on all three.
+        """
+        _RMW_GUARD.depth = getattr(_RMW_GUARD, "depth", 0) + 1
+        try:
+            state = _read_state(session_id, run_id=run_id)
+            mutator(state)
+            _write_state(session_id, state, run_id=run_id)
+        finally:
+            _RMW_GUARD.depth -= 1
+
     try:
         # "a+" auto-creates the lockfile and never truncates — important
         # because losing the fd here would lose the lock for any other
         # process that's already blocked on it.
-        with open(lock_path, "a+") as lock_fh:
-            try:
-                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
-            except OSError:
-                # Fail-open: a flock failure is rare (typically NFS) and
-                # the gate must keep functioning. Drop straight into the
-                # unlocked R-M-W path.
-                state = _read_state(session_id, run_id=run_id)
-                mutator(state)
-                _write_state(session_id, state, run_id=run_id)
-                return
-
-            try:
-                state = _read_state(session_id, run_id=run_id)
-                mutator(state)
-                _write_state(session_id, state, run_id=run_id)
-            finally:
-                # Release even on mutator exception so the lockfile does
-                # not stay held — every other concurrent caller would
-                # deadlock otherwise.
-                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+        lock_fh = open(lock_path, "a+")
     except OSError:
         # Lockfile couldn't be opened (permissions, full /tmp). Fall
         # back to the unlocked path — never raise out of state code.
-        state = _read_state(session_id, run_id=run_id)
-        mutator(state)
-        _write_state(session_id, state, run_id=run_id)
+        # #1544: the write itself is atomic, so this fallback can lose a
+        # concurrent update but can never expose a truncated file.
+        _rmw()
+        return
+
+    # #1544: the RMW is deliberately OUTSIDE the lockfile-open try/except so a
+    # failure inside the mutator cannot fall through to the fallback branch and
+    # apply the mutation a second time.
+    try:
+        try:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
+        except OSError:
+            # Fail-open: a flock failure is rare (typically NFS) and
+            # the gate must keep functioning. Drop straight into the
+            # unlocked R-M-W path. Safe since #1544: the write itself
+            # is atomic, so a reader never sees a partial file.
+            _rmw()
+            return
+
+        try:
+            _rmw()
+        finally:
+            # Release even on mutator exception so the lockfile does
+            # not stay held — every other concurrent caller would
+            # deadlock otherwise.
+            try:
+                fcntl.flock(lock_fh.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+    finally:
+        try:
+            lock_fh.close()
+        except OSError:
+            pass
 
 
 def record_tier1_allow(
@@ -1862,18 +2154,9 @@ def record_tier1_allow(
     lines_added = max(0, int(lines_added))
 
     def _mutator(state: dict) -> None:
-        # _ensure_state behavior inlined for the empty-state path so the
-        # locked RMW does not need a second read.
-        if not state:
-            from datetime import datetime, timezone
-
-            state.update({
-                "session_id": session_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "validation_mode": "sequential",
-                "completions": {},
-                "prompt_baselines": {},
-            })
+        # _ensure_state behavior applied in place so the locked RMW does not
+        # need a second read (#1544 made this the shared helper).
+        _ensure_state_inplace(state, session_id)
         buffers = state.setdefault(_TIER1_RING_BUFFER_KEY, {})
         entries = buffers.setdefault(file_path, [])
 
@@ -2154,6 +2437,8 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
 
     - ``/tmp/pipeline_agent_completions_*.json`` (both legacy sha256 and new
       run_id paths)
+    - ``/tmp/pipeline_agent_completions_*.json.*.tmp`` (orphaned ``os.replace``
+      staging files left by a process killed mid-write, #1544)
     - ``/tmp/implement_pipeline_*.json`` (per-run sentinel files)
     - ``/tmp/pipeline_*.lock`` (orphaned lockfiles)
 
@@ -2187,6 +2472,10 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
 
     patterns = [
         ("/tmp/pipeline_agent_completions_*.json", "state_files_removed"),
+        # #1544: os.replace() staging files. A process killed between
+        # mkstemp() and os.replace() leaves one behind; the "*.json" glob
+        # above does not match it, so reap it on the same cadence.
+        ("/tmp/pipeline_agent_completions_*.json.*.tmp", "state_files_removed"),
         ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
         # The "pipeline_*.lock" glob also matches the per-session R-M-W
         # lockfiles introduced in #1170
