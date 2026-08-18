@@ -450,15 +450,38 @@ class TestBranchProtectionRules:
 # =============================================================================
 
 class TestCommitMessageGenerationFailures:
-    """Test batch git workflow handles commit message generation failures."""
+    """Test batch git workflow handles commit message generation failures.
+
+    Issue #1555: these tests used to patch
+    ``auto_implement_git_integration.AgentInvoker`` and stub ``invoke_agent``,
+    a method that never existed on that class. The commit path no longer
+    dispatches a subagent (the two generators are archived), so both tests now
+    patch surfaces that actually exist.
+    """
 
     @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true'})
     def test_commit_message_agent_timeout(self, temp_repo, sample_features):
-        """Test timeout during commit message generation."""
-        with patch('auto_implement_git_integration.AgentInvoker') as mock_invoker:
-            instance = MagicMock()
-            instance.invoke_agent.side_effect = TimeoutExpired('claude', 60)
-            mock_invoker.return_value = instance
+        """Test a git timeout during commit message generation is contained."""
+        with patch(
+            'auto_implement_git_integration._collect_changed_files'
+        ) as mock_collect:
+            mock_collect.side_effect = TimeoutExpired('git status', 10)
+
+            # Should not raise - the failure is contained and reported
+            result = execute_git_workflow(
+                workflow_id='test-123',
+                request='Add feature',
+                in_batch_mode=True
+            )
+
+            assert result['success'] is False
+            assert 'generation failed' in result['error'].lower()
+
+    @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true'})
+    def test_commit_message_agent_error(self, temp_repo, sample_features):
+        """Test the workflow commits using the generated message."""
+        with patch('auto_implement_git_integration.auto_commit_and_push') as mock_git:
+            mock_git.return_value = {'success': True, 'commit_sha': 'abc123'}
 
             result = execute_git_workflow(
                 workflow_id='test-123',
@@ -466,32 +489,36 @@ class TestCommitMessageGenerationFailures:
                 in_batch_mode=True
             )
 
-            # Should fallback to default commit message
-            assert result['success'] is False or result.get('commit_message_fallback') is True
+            assert result['success'] is True, result
+            assert result['commit_sha'] == 'abc123'
+
+            # The message handed to git is generated in-process
+            commit_message = mock_git.call_args.kwargs['commit_message']
+            assert commit_message.startswith('feat'), commit_message
 
     @patch.dict(os.environ, {'AUTO_GIT_ENABLED': 'true'})
-    def test_commit_message_agent_error(self, temp_repo, sample_features):
-        """Test error during commit message generation."""
-        with patch('auto_implement_git_integration.AgentInvoker') as mock_invoker:
-            instance = MagicMock()
-            instance.invoke_agent.return_value = {
+    def test_commit_message_generation_error_is_reported(
+        self, temp_repo, sample_features
+    ):
+        """A generation failure degrades with manual instructions, not a crash."""
+        with patch(
+            'auto_implement_git_integration.invoke_commit_message_agent'
+        ) as mock_generate:
+            mock_generate.return_value = {
                 'success': False,
-                'error': 'Agent execution failed'
+                'output': '',
+                'error': 'Commit message generation failed: disk error'
             }
-            mock_invoker.return_value = instance
 
-            # Should use fallback commit message
-            with patch('auto_implement_git_integration.auto_commit_and_push') as mock_git:
-                mock_git.return_value = {'success': True, 'commit_sha': 'abc123'}
+            result = execute_git_workflow(
+                workflow_id='test-123',
+                request='Add feature',
+                in_batch_mode=True
+            )
 
-                result = execute_git_workflow(
-                    workflow_id='test-123',
-                    request='Add feature',
-                    in_batch_mode=True
-                )
-
-                # Should succeed with fallback message
-                assert result['success'] is True or result.get('commit_message_fallback') is True
+            assert result['success'] is False
+            assert 'generation failed' in result['error'].lower()
+            assert result['manual_instructions'], 'no manual fallback offered'
 
 
 # =============================================================================

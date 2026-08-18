@@ -3,12 +3,19 @@
 Auto-Implement Git Integration Module
 
 Provides Step 8 integration between /implement workflow and git automation.
-Integrates commit-message-generator and pr-description-generator agents with
-git_operations and pr_automation libraries.
+Generates the commit message and PR description in-process and hands them to
+the git_operations and pr_automation libraries.
+
+Issue #1555: message generation used to dispatch two subagents that now live
+under agents/archived/. PROJECT.md forbids active code from referencing
+archived components, and the dispatch could never have worked anyway --
+AgentInvoker.invoke() returns a Task-tool dispatch descriptor
+(subagent_type/description/prompt), never an executed {'success', 'output'}
+result. Generation is therefore inline and deterministic.
 
 Features:
 - Consent-based automation via environment variables
-- Agent-driven commit message and PR description generation
+- Deterministic, offline commit message and PR description generation
 - Graceful degradation with manual fallback instructions
 - Security-first (validates prerequisites, no hardcoded secrets)
 - Full error handling with actionable messages
@@ -45,12 +52,15 @@ Design Patterns:
 """
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
 # Import existing infrastructure
-from agent_invoker import AgentInvoker
+# NOTE (Issue #1555): AgentInvoker is intentionally NOT imported here. Commit
+# messages and PR descriptions are generated in-process (see
+# generate_commit_message / generate_pr_description below).
 from artifacts import ArtifactManager
 from git_operations import auto_commit_and_push
 from pr_automation import create_pull_request
@@ -380,22 +390,337 @@ def check_ralph_auto_continue() -> bool:
     return auto_continue
 
 
+# =============================================================================
+# Commit message / PR description generation (Issue #1555)
+#
+# These used to dispatch two subagents that are now archived. Active code must
+# never reference archived components (PROJECT.md:77), and the dispatch was
+# broken by construction: AgentInvoker.invoke() returns a Task-tool descriptor,
+# not an executed result. Generation is deterministic and offline.
+# =============================================================================
+
+# Commit type inference: (conventional type, keywords that select it).
+# Ordered - the first matching entry wins.
+COMMIT_TYPE_KEYWORDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ('fix', ('fix', 'bug', 'defect', 'repair', 'regression', 'broken', 'hotfix')),
+    ('docs', ('document', 'docs', 'readme', 'changelog', 'docstring')),
+    ('test', ('test', 'coverage', 'pytest', 'regression test')),
+    ('refactor', ('refactor', 'restructure', 'rename', 'extract', 'consolidate')),
+    ('perf', ('perf', 'optimi', 'speed up', 'latency', 'throughput')),
+    ('chore', ('chore', 'bump', 'dependency', 'dependencies', 'cleanup', 'housekeeping')),
+)
+
+# Fallback when no keyword matches.
+DEFAULT_COMMIT_TYPE = 'feat'
+
+# Path segments that carry no scope information on their own.
+_UNINFORMATIVE_PATH_SEGMENTS = frozenset({'plugins', 'autonomous-dev', 'src', '.claude'})
+
+# Conventional-commit subject lines should stay short and scannable.
+MAX_SUBJECT_LENGTH = 72
+
+# Cap the file list in the commit body so large changesets stay readable.
+MAX_BODY_FILES = 20
+
+# Characters the shell would interpret; stripped from generated subject lines
+# so the result always satisfies validate_commit_message().
+_SUBJECT_FORBIDDEN_CHARS = ('$', '`', '|', '&', ';')
+
+
+def _load_workflow_manifest(workflow_id: str) -> Optional[Dict[str, Any]]:
+    """Load the workflow manifest artifact when one exists.
+
+    The manifest is optional context, not a prerequisite: a commit must still
+    be possible for workflows that never wrote v2.0 artifacts.
+
+    Args:
+        workflow_id: Workflow identifier used as the artifact directory name
+
+    Returns:
+        The manifest dict, or None when it is absent or unreadable
+    """
+    try:
+        artifact_mgr = ArtifactManager()
+        # Existence probe uses the dedicated helper rather than catching
+        # FileNotFoundError from read_artifact (Issue #1555 / #1206).
+        if not artifact_mgr.artifact_exists(workflow_id, 'manifest'):
+            return None
+        manifest = artifact_mgr.read_artifact(workflow_id, 'manifest', validate=False)
+    except (FileNotFoundError, ValueError, OSError):
+        # Optional context - degrade rather than block the commit.
+        return None
+
+    # Only a real mapping is usable as context (guards against stubs/doubles).
+    return manifest if isinstance(manifest, dict) else None
+
+
+def _collect_changed_files(limit: int = 200) -> List[str]:
+    """List files changed in the working tree, staged or not.
+
+    Args:
+        limit: Maximum number of paths to return
+
+    Returns:
+        Sorted list of repository-relative paths (empty when git is unavailable)
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    files: List[str] = []
+    for line in result.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:].strip()
+        # Renames are reported as "old -> new"; keep the new path.
+        if ' -> ' in path:
+            path = path.split(' -> ', 1)[1]
+        path = path.strip('"')
+        if path:
+            files.append(path)
+
+    return sorted(set(files))[:limit]
+
+
+def infer_commit_type(request: str) -> str:
+    """Infer the conventional-commit type from a feature request.
+
+    Args:
+        request: Feature request description
+
+    Returns:
+        Conventional commit type (feat, fix, docs, test, refactor, perf, chore)
+    """
+    text = request.lower()
+    for commit_type, keywords in COMMIT_TYPE_KEYWORDS:
+        if any(keyword in text for keyword in keywords):
+            return commit_type
+    return DEFAULT_COMMIT_TYPE
+
+
+def infer_scope(changed_files: Optional[List[str]]) -> Optional[str]:
+    """Infer a commit scope from the paths that changed.
+
+    Args:
+        changed_files: Repository-relative paths
+
+    Returns:
+        Scope string (e.g. 'lib', 'tests'), or None when it cannot be inferred
+    """
+    if not changed_files:
+        return None
+
+    counts: Dict[str, int] = {}
+    for file_path in changed_files:
+        for segment in Path(file_path).parts[:-1]:
+            candidate = re.sub(r'[^a-z0-9-]', '', segment.lower())
+            if not candidate or candidate in _UNINFORMATIVE_PATH_SEGMENTS:
+                continue
+            counts[candidate] = counts.get(candidate, 0) + 1
+            break
+
+    if not counts:
+        return None
+
+    # Most frequent segment wins; ties broken alphabetically for determinism.
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def build_commit_subject(request: str, commit_type: str, scope: Optional[str] = None) -> str:
+    """Build a conventional-commit subject line.
+
+    Args:
+        request: Feature request description
+        commit_type: Conventional commit type
+        scope: Optional scope
+
+    Returns:
+        Subject line of the form ``type(scope): description``
+
+    Raises:
+        ValueError: If request contains no usable characters
+    """
+    # Collapse whitespace and drop shell metacharacters (CWE-78 hygiene).
+    description = ' '.join(request.split())
+    for char in _SUBJECT_FORBIDDEN_CHARS:
+        description = description.replace(char, '')
+    description = description.strip().rstrip('.')
+
+    if not description:
+        raise ValueError(
+            f'Cannot build a commit subject from request: {request!r}\n'
+            f'Expected: a request with at least one non-metacharacter word\n'
+            f'See: plugins/autonomous-dev/lib/auto_implement_git_integration.py'
+        )
+
+    # Imperative style: lowercase the first word unless it is an acronym.
+    first_word, _, rest = description.partition(' ')
+    if not first_word.isupper():
+        description = first_word[0].lower() + first_word[1:]
+        description = f'{description} {rest}'.strip() if rest else description
+
+    prefix = f'{commit_type}({scope}): ' if scope else f'{commit_type}: '
+    budget = MAX_SUBJECT_LENGTH - len(prefix)
+    if budget > 3 and len(description) > budget:
+        truncated = description[:budget - 3]
+        # Prefer cutting on a word boundary so the subject stays readable.
+        if ' ' in truncated.strip():
+            truncated = truncated[:truncated.rstrip().rfind(' ')]
+        description = truncated.rstrip() + '...'
+
+    return f'{prefix}{description}'
+
+
+def generate_commit_message(
+    request: str,
+    *,
+    changed_files: Optional[List[str]] = None,
+    manifest: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a conventional-commit message for a workflow.
+
+    Deterministic and offline - no subagent, no network, no LLM call.
+
+    Args:
+        request: Feature request description
+        changed_files: Repository-relative paths included in the change
+        manifest: Optional workflow manifest used to enrich the body
+
+    Returns:
+        Full commit message (subject, blank line, body)
+
+    Raises:
+        ValueError: If request is empty or yields no usable subject
+    """
+    if not request or not str(request).strip():
+        raise ValueError(
+            'Cannot generate a commit message from an empty request\n'
+            'Expected: a non-empty feature request description\n'
+            'See: plugins/autonomous-dev/lib/auto_implement_git_integration.py'
+        )
+
+    commit_type = infer_commit_type(request)
+    scope = infer_scope(changed_files)
+    subject = build_commit_subject(request, commit_type, scope)
+
+    body_lines: List[str] = [' '.join(str(request).split())]
+
+    if manifest:
+        manifest_request = manifest.get('request')
+        if isinstance(manifest_request, str) and manifest_request.strip():
+            normalized = ' '.join(manifest_request.split())
+            if normalized.lower() != body_lines[0].lower():
+                body_lines.append(f'Workflow request: {normalized}')
+
+    if changed_files:
+        body_lines.append('')
+        body_lines.append('Files changed:')
+        for file_path in changed_files[:MAX_BODY_FILES]:
+            body_lines.append(f'- {file_path}')
+        remaining = len(changed_files) - MAX_BODY_FILES
+        if remaining > 0:
+            body_lines.append(f'- ... and {remaining} more')
+
+    return f"{subject}\n\n" + "\n".join(body_lines)
+
+
+def generate_pr_description(
+    request: str,
+    branch: str,
+    *,
+    commit_subjects: Optional[List[str]] = None,
+    changed_files: Optional[List[str]] = None,
+) -> str:
+    """Generate a pull request description.
+
+    Deterministic and offline - no subagent, no network, no LLM call.
+
+    Args:
+        request: Feature request description
+        branch: Source branch name
+        commit_subjects: Recent commit subject lines on the branch
+        changed_files: Repository-relative paths included in the change
+
+    Returns:
+        Markdown PR description with Summary / Changes / Test Plan sections
+    """
+    summary = ' '.join(str(request).split()) if request else branch
+
+    sections: List[str] = ['## Summary', f'- {summary}', '', '## Changes']
+
+    if commit_subjects:
+        sections.extend(f'- {subject}' for subject in commit_subjects[:MAX_BODY_FILES])
+    elif changed_files:
+        sections.extend(f'- {file_path}' for file_path in changed_files[:MAX_BODY_FILES])
+    else:
+        sections.append(f'- See commit history on `{branch}`')
+
+    sections.extend([
+        '',
+        '## Test Plan',
+        '- [ ] Automated test suite passes',
+        '- [ ] Change verified against the acceptance criteria',
+    ])
+
+    return "\n".join(sections)
+
+
+def _recent_commit_subjects(limit: int = 10) -> List[str]:
+    """Read recent commit subject lines from the current branch.
+
+    Args:
+        limit: Maximum number of commits to read
+
+    Returns:
+        List of subject lines (empty when git is unavailable)
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'log', f'-{limit}', '--pretty=%s'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def invoke_commit_message_agent(
     workflow_id: str,
     request: str,
     staged_files: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
-    Invoke commit-message-generator agent to create commit message.
+    Produce the commit message for a workflow.
+
+    Issue #1555: this no longer dispatches a subagent. The message is built
+    in-process by generate_commit_message(); the function name and return
+    contract are kept because callers and tests depend on them.
 
     Args:
         workflow_id: Unique workflow identifier
         request: Feature request description
-        staged_files: Optional list of staged files to include in context
+        staged_files: Optional explicit file list (defaults to git status)
 
     Returns:
         Dict with:
-            - success: Whether agent succeeded
+            - success: Whether generation succeeded
             - output: Generated commit message (if success)
             - error: Error message (if failed)
 
@@ -407,9 +732,8 @@ def invoke_commit_message_agent(
         ...     workflow_id='workflow-123',
         ...     request='Add user authentication'
         ... )
-        >>> if result['success']:
-        ...     print(result['output'])
-        feat: add user authentication
+        >>> result['output'].startswith('feat')
+        True
     """
     # Validate inputs
     if not workflow_id or (isinstance(workflow_id, str) and not workflow_id.strip()):
@@ -418,53 +742,24 @@ def invoke_commit_message_agent(
         raise ValueError('request cannot be empty')
 
     try:
-        # Initialize artifact manager to check prerequisites
-        # commit-message-generator agent requires artifacts to exist
-        artifact_mgr = ArtifactManager()
+        # Optional context: the workflow manifest, when the workflow wrote one.
+        manifest = _load_workflow_manifest(workflow_id)
 
-        # Verify we can read artifacts (will raise FileNotFoundError if missing)
-        # This is a prerequisite check before invoking the agent
-        # Note: read_artifact might not exist or take different params depending on version
-        if hasattr(artifact_mgr, 'read_artifact'):
-            artifact_mgr.read_artifact('manifest')  # Will raise FileNotFoundError if missing
+        changed_files = list(staged_files) if staged_files else _collect_changed_files()
 
-        # Initialize agent invoker
-        invoker = AgentInvoker()
-
-        # Prepare context
-        context = {'request': request}
-        if staged_files:
-            context['staged_files'] = staged_files
-
-        # Invoke agent
-        result = invoker.invoke(
-            'commit-message-generator',
-            workflow_id,
-            **context
+        message = generate_commit_message(
+            request,
+            changed_files=changed_files,
+            manifest=manifest,
         )
 
-        return result
+        return {'success': True, 'output': message, 'error': ''}
 
-    except TimeoutError as e:
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
         return {
             'success': False,
             'output': '',
-            'error': f'Agent timeout: commit-message-generator did not respond ({str(e)})'
-        }
-    except FileNotFoundError as e:
-        # Handle missing artifacts
-        if 'manifest' in str(e).lower():
-            return {
-                'success': False,
-                'output': '',
-                'error': f'Required artifact not found: {str(e)}'
-            }
-        raise
-    except Exception as e:
-        return {
-            'success': False,
-            'output': '',
-            'error': f'Agent invocation failed: {str(e)}'
+            'error': f'Commit message generation failed: {str(e)}'
         }
 
 
@@ -473,7 +768,11 @@ def invoke_pr_description_agent(
     branch: str
 ) -> Dict[str, Any]:
     """
-    Invoke pr-description-generator agent to create PR description.
+    Produce the pull request description for a workflow.
+
+    Issue #1555: this no longer dispatches a subagent. The description is built
+    in-process by generate_pr_description(); the function name and return
+    contract are kept because callers and tests depend on them.
 
     Args:
         workflow_id: Unique workflow identifier
@@ -481,7 +780,7 @@ def invoke_pr_description_agent(
 
     Returns:
         Dict with:
-            - success: Whether agent succeeded
+            - success: Whether generation succeeded
             - output: Generated PR description (if success)
             - error: Error message (if failed)
 
@@ -493,10 +792,8 @@ def invoke_pr_description_agent(
         ...     workflow_id='workflow-123',
         ...     branch='feature/add-auth'
         ... )
-        >>> if result['success']:
-        ...     print(result['output'])
-        ## Summary
-        - Implemented user authentication
+        >>> '## Summary' in result['output']
+        True
     """
     # Validate inputs
     if not workflow_id or (isinstance(workflow_id, str) and not workflow_id.strip()):
@@ -505,45 +802,31 @@ def invoke_pr_description_agent(
         raise ValueError('branch cannot be empty')
 
     try:
-        # Initialize artifact manager to check prerequisites
-        artifact_mgr = ArtifactManager()
+        manifest = _load_workflow_manifest(workflow_id)
 
-        # Verify we can read artifacts (will raise FileNotFoundError if missing)
-        if hasattr(artifact_mgr, 'read_artifact'):
-            artifact_mgr.read_artifact('manifest')  # Will raise FileNotFoundError if missing
+        request = ''
+        if manifest:
+            manifest_request = manifest.get('request')
+            if isinstance(manifest_request, str):
+                request = manifest_request
+        if not request.strip():
+            # Fall back to the branch name as the human-readable summary.
+            request = branch.replace('-', ' ').replace('_', ' ').replace('/', ': ')
 
-        # Initialize agent invoker
-        invoker = AgentInvoker()
-
-        # Invoke agent
-        result = invoker.invoke(
-            'pr-description-generator',
-            workflow_id,
-            branch=branch
+        description = generate_pr_description(
+            request,
+            branch,
+            commit_subjects=_recent_commit_subjects(),
+            changed_files=_collect_changed_files(),
         )
 
-        return result
+        return {'success': True, 'output': description, 'error': ''}
 
-    except TimeoutError as e:
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
         return {
             'success': False,
             'output': '',
-            'error': f'Agent timeout: pr-description-generator did not respond ({str(e)})'
-        }
-    except FileNotFoundError as e:
-        # Handle missing artifacts
-        if 'manifest' in str(e).lower():
-            return {
-                'success': False,
-                'output': '',
-                'error': f'Required artifact not found: {str(e)}'
-            }
-        raise
-    except Exception as e:
-        return {
-            'success': False,
-            'output': '',
-            'error': f'Agent invocation failed: {str(e)}'
+            'error': f'PR description generation failed: {str(e)}'
         }
 
 
@@ -570,7 +853,7 @@ def validate_agent_output(
 
     Examples:
         >>> result = {'success': True, 'output': 'feat: add feature', 'error': ''}
-        >>> is_valid, error = validate_agent_output(result, 'commit-message-generator')
+        >>> is_valid, error = validate_agent_output(result, 'commit-message')
         >>> is_valid
         True
     """
@@ -1204,7 +1487,7 @@ def format_error_message(
     Format helpful error message with context and next steps.
 
     Args:
-        stage: Stage where error occurred (e.g., 'commit-message-generator')
+        stage: Stage where error occurred (e.g., 'commit-message')
         error: Error message
         next_steps: Optional list of suggested next steps
         context: Optional context dictionary (e.g., branch, commit_sha)
@@ -1257,11 +1540,11 @@ def create_commit_with_agent_message(
     issue_number: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Create git commit using agent-generated message.
+    Create git commit using a generated message.
 
     Workflow:
-    1. Invoke commit-message-generator agent
-    2. Validate agent output
+    1. Generate the commit message (in-process, Issue #1555)
+    2. Validate the generated output
     3. Append 'Closes #N' if issue_number provided (Issue #267)
     4. Execute git commit using git_operations.auto_commit_and_push()
 
@@ -1294,16 +1577,16 @@ def create_commit_with_agent_message(
         >>> if result['success']:
         ...     print(f"Committed: {result['commit_sha']}")
     """
-    # Step 1: Invoke commit-message-generator
+    # Step 1: Generate the commit message
     agent_result = invoke_commit_message_agent(
         workflow_id=workflow_id,
         request=request
     )
 
-    # Validate agent output
+    # Validate generated output
     is_valid, validation_error = validate_agent_output(
         agent_result,
-        'commit-message-generator'
+        'commit-message'
     )
 
     if not is_valid:
@@ -1353,6 +1636,30 @@ def create_commit_with_agent_message(
     )
 
     # Build response
+    if git_result['success'] and not git_result.get('commit_sha'):
+        # git_operations reports success with an empty SHA when there was
+        # nothing to commit. No commit exists, so this is a failure for the
+        # caller - report it explicitly instead of returning a silent no-op.
+        return {
+            'success': False,
+            'commit_sha': '',
+            'pushed': False,
+            'commit_message_generated': commit_message,
+            'agent_succeeded': True,
+            'git_succeeded': False,
+            'error': (
+                f"No commit created: {git_result.get('error') or 'nothing to commit'}\n"
+                f"Expected: at least one modified, added, or staged file\n"
+                f"Fix: stage your changes (git add <files>) and retry"
+            ),
+            'manual_instructions': build_manual_git_instructions(
+                branch=branch,
+                commit_message=commit_message,
+                include_push=push
+            ),
+            'fallback_available': True
+        }
+
     if git_result['success']:
         return {
             'success': True,
@@ -1394,7 +1701,7 @@ def push_and_create_pr(
 
     Workflow:
     1. Check consent for PR creation
-    2. Invoke pr-description-generator agent
+    2. Generate the PR description (in-process, Issue #1555)
     3. Validate agent output
     4. Execute PR creation using pr_automation.create_pull_request()
 
@@ -1458,7 +1765,7 @@ def push_and_create_pr(
             'pr_number': None
         }
 
-    # Step 1: Invoke pr-description-generator
+    # Step 1: Generate the PR description
     agent_result = invoke_pr_description_agent(
         workflow_id=workflow_id,
         branch=branch
@@ -1467,7 +1774,7 @@ def push_and_create_pr(
     # Validate agent output
     is_valid, validation_error = validate_agent_output(
         agent_result,
-        'pr-description-generator'
+        'pr-description'
     )
 
     if not is_valid:
@@ -1639,7 +1946,7 @@ def execute_step8_git_operations(
     Workflow:
     1. Check consent via environment variables
     2. Validate git CLI is available
-    3. Invoke commit-message-generator agent
+    3. Generate the commit message (in-process, Issue #1555)
     4. Append 'Closes #N' if issue_number provided (Issue #267)
     5. Create commit with agent message
     6. Optionally push to remote (if consent given)

@@ -1745,7 +1745,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ---
 
-## 11. auto_implement_git_integration.py (1,466 lines, v3.9.0+)
+## 11. auto_implement_git_integration.py (2,220 lines as of Issue #1555 — verify against the filesystem rather than trusting this count, it drifts; v3.9.0+)
 
 **Purpose**: Automatic git operations orchestration
 
@@ -1766,26 +1766,52 @@ See `docs/SECURITY.md` for comprehensive security guide
 - **Purpose**: Parse consent from environment variables
 - **Returns**: `dict` with `AUTO_GIT_ENABLED`, `AUTO_GIT_PUSH`, `AUTO_GIT_PR` values
 
-#### `invoke_commit_message_agent(workflow_id, request)`
-- **Purpose**: Call commit-message-generator agent
-- **Returns**: `dict` with commit message
+#### `invoke_commit_message_agent(workflow_id, request, staged_files=None)`
+- **Purpose**: Produce the commit message for a workflow. Despite the name, no subagent is dispatched — generates in-process via `generate_commit_message()` (Issue #1555; the `commit-message-generator` agent this used to call exists only under `agents/archived/` and was never a working call path, since `AgentInvoker.invoke()` returns a Task-tool dispatch descriptor, not an executed result). The function name and `{'success','output','error'}` return contract are preserved for backward compatibility — callers and ~15 test sites depend on them.
+- **Returns**: `dict` with `success`, `output` (commit message), `error`
 
-#### `invoke_pr_description_agent(workflow_id, request, branch, base_branch)`
-- **Purpose**: Call pr-description-generator agent
-- **Returns**: `dict` with PR description
+#### `invoke_pr_description_agent(workflow_id, branch)`
+- **Purpose**: Produce the PR description for a workflow. Same in-process substitution as `invoke_commit_message_agent()` — no subagent dispatch (Issue #1555).
+- **Returns**: `dict` with `success`, `output` (PR description), `error`
 
-#### `create_commit_with_agent_message(commit_message)`
-- **Purpose**: Stage changes and commit with agent-generated message
-- **Returns**: `str` (commit SHA)
+#### `generate_commit_message(request, changed_files=None, manifest=None)`
+- **Purpose**: New in Issue #1555. Deterministically builds a conventional-commit message from the feature request, changed files, and an optional workflow manifest (manifest is enrichment context, not a prerequisite)
+- **Returns**: `str` (commit message)
+
+#### `generate_pr_description(request, branch, *, commit_subjects=None, changed_files=None)`
+- **Purpose**: New in Issue #1555. Deterministically builds a PR description (summary, test plan, related issues) from the feature request, branch name, recent commit subjects, and changed files — note this does NOT take a `manifest` argument (unlike `generate_commit_message()`); `invoke_pr_description_agent()` reads the manifest itself and folds `manifest['request']` in as the `request` argument before calling this function
+- **Returns**: `str` (PR description)
+
+#### `infer_commit_type(request)`, `infer_scope(changed_files)`, `build_commit_subject(request, commit_type, scope=None)`
+- **Purpose**: New in Issue #1555. Helpers backing `generate_commit_message()` — classify the conventional-commit `type`, infer a `scope` from changed file paths, and format the `type(scope): description` subject line
+- **Returns**: `str` each
+
+#### `create_commit_with_agent_message(workflow_id, request, branch, push=False, issue_number=None)`
+- **Purpose**: Generate the commit message (in-process), validate it, append `Closes #N` if `issue_number` is provided, and execute the commit via `git_operations.auto_commit_and_push()`. A clean working tree (nothing to commit) is now a hard failure (`success=False` with an actionable error) rather than the pre-Issue #1555 silent `success=True, commit_sha=''` no-op.
+- **Returns**: `dict` with `success`, `commit_sha`, `pushed`, `commit_message_generated`, `agent_succeeded`, `git_succeeded`, `error`, `manual_instructions`
 
 #### `push_and_create_pr(branch, pr_description, base_branch)`
 - **Purpose**: Push to remote and optionally create PR via gh CLI
 - **Returns**: `dict` with PR URL
 
+### Private Helpers (Issue #1555)
+
+#### `_load_workflow_manifest(workflow_id)`
+- **Purpose**: Loads the workflow manifest via `ArtifactManager.artifact_exists()` + `read_artifact(workflow_id, 'manifest', validate=False)` if present. Returns `None` when no manifest was written — the manifest is optional context, not a required precondition, so a workflow that never wrote v2.0 artifacts is still committable. (Fixes the prior `TypeError` from calling `ArtifactManager.read_artifact()` with only 1 of its 2 required positional args.)
+- **Returns**: `Optional[Dict[str, Any]]`
+
+#### `_collect_changed_files(limit=200)`
+- **Purpose**: Collects the list of changed files from git status for use as generation context
+- **Returns**: `List[str]`
+
+#### `_recent_commit_subjects(limit=10)`
+- **Purpose**: Reads recent commit subject lines to inform type/scope inference
+- **Returns**: `List[str]`
+
 ### Validation Functions
 
 #### `validate_agent_output(agent_output)`
-- **Purpose**: Verify agent response is usable
+- **Purpose**: Verify the generated commit message / PR description is usable
 - **Checks**: success key, message length, format
 
 #### `validate_git_state()`
@@ -1822,7 +1848,7 @@ See `docs/SECURITY.md` for comprehensive security guide
 
 ### Features
 - Consent-based automation via environment variables (defaults: all disabled for safety)
-- Agent-driven commit and PR descriptions (uses existing agents)
+- In-process, deterministic commit and PR message generation — no subagent dispatch (Issue #1555)
 - Graceful degradation with manual fallback instructions (non-blocking)
 - Prerequisite validation before operations
 - Subprocess safety (command injection prevention)

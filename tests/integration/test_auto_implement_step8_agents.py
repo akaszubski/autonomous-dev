@@ -390,57 +390,49 @@ class TestConsentManagement:
 
 
 class TestAgentInvocation:
-    """Test agent invocation for commit messages and PR descriptions."""
+    """Test commit message / PR description generation.
 
-    @patch('auto_implement_git_integration.AgentInvoker')
-    @patch('auto_implement_git_integration.ArtifactManager')
-    def test_invoke_commit_message_agent_success(self, mock_artifact_mgr, mock_agent_invoker):
-        """Test successful invocation of commit-message-generator agent."""
-        # Arrange: Mock agent invoker
-        mock_invoker_instance = MagicMock()
-        mock_agent_invoker.return_value = mock_invoker_instance
+    Issue #1555: generation used to dispatch the ``commit-message-generator``
+    and ``pr-description-generator`` subagents, which are now archived. These
+    tests previously asserted that dispatch and passed only because both
+    ``AgentInvoker`` and ``ArtifactManager`` were fully mocked -- the real path
+    raised ``TypeError`` on every call. They now assert the in-process
+    generation contract instead.
+    """
 
-        mock_invoker_instance.invoke.return_value = {
-            'success': True,
-            'output': 'feat: add user authentication\n\nImplemented JWT-based auth',
-            'error': ''
-        }
-
+    def test_invoke_commit_message_agent_success(self):
+        """Generation returns a conventional-commit message, offline."""
         # Act
         result = invoke_commit_message_agent(
             workflow_id='test-workflow-123',
-            request='Add user authentication'
+            request='Add user authentication',
+            staged_files=['src/auth/login.py']
         )
 
         # Assert
-        mock_invoker_instance.invoke.assert_called_once_with(
-            'commit-message-generator',
-            'test-workflow-123',
-            request='Add user authentication'
+        assert result['success'] is True, result
+        assert result['error'] == ''
+        subject = result['output'].splitlines()[0]
+        assert subject.startswith('feat('), subject
+        assert 'user authentication' in subject
+        assert 'src/auth/login.py' in result['output']
+
+    def test_invoke_commit_message_agent_dispatches_no_subagent(self):
+        """Regression for Issue #1555: no subagent dispatch, no Task tool.
+
+        Generation must be a pure in-process call. If it ever tries to
+        dispatch an agent again, ``AgentInvoker`` will be re-imported into
+        the module namespace and this test fails.
+        """
+        import auto_implement_git_integration as agi
+
+        assert not hasattr(agi, 'AgentInvoker'), (
+            'auto_implement_git_integration re-imported AgentInvoker; the '
+            'commit path must generate messages in-process (Issue #1555).'
         )
-        assert result['success'] is True
-        assert 'feat: add user authentication' in result['output']
 
-    @patch('auto_implement_git_integration.AgentInvoker')
-    @patch('auto_implement_git_integration.ArtifactManager')
-    def test_invoke_pr_description_agent_success(self, mock_artifact_mgr, mock_agent_invoker):
-        """Test successful invocation of pr-description-generator agent."""
-        # Arrange: Mock agent invoker
-        mock_invoker_instance = MagicMock()
-        mock_agent_invoker.return_value = mock_invoker_instance
-
-        mock_invoker_instance.invoke.return_value = {
-            'success': True,
-            'output': '''## Summary
-- Implemented user authentication
-
-## Test Plan
-- [x] Unit tests
-- [x] Integration tests
-''',
-            'error': ''
-        }
-
+    def test_invoke_pr_description_agent_success(self):
+        """PR description generation returns markdown sections, offline."""
         # Act
         result = invoke_pr_description_agent(
             workflow_id='test-workflow-123',
@@ -448,39 +440,30 @@ class TestAgentInvocation:
         )
 
         # Assert
-        mock_invoker_instance.invoke.assert_called_once_with(
-            'pr-description-generator',
-            'test-workflow-123',
-            branch='feature/add-auth'
-        )
-        assert result['success'] is True
+        assert result['success'] is True, result
+        assert result['error'] == ''
         assert '## Summary' in result['output']
+        assert '## Test Plan' in result['output']
 
-    @patch('auto_implement_git_integration.AgentInvoker')
+    def test_invoke_agent_rejects_empty_inputs(self):
+        """Empty inputs raise ValueError rather than producing junk output."""
+        with pytest.raises(ValueError, match='workflow_id cannot be empty'):
+            invoke_commit_message_agent(workflow_id='  ', request='Add feature')
+
+        with pytest.raises(ValueError, match='request cannot be empty'):
+            invoke_commit_message_agent(workflow_id='wf-1', request='')
+
+        with pytest.raises(ValueError, match='branch cannot be empty'):
+            invoke_pr_description_agent(workflow_id='wf-1', branch='')
+
     @patch('auto_implement_git_integration.ArtifactManager')
-    def test_invoke_agent_handles_timeout(self, mock_artifact_mgr, mock_agent_invoker):
-        """Test agent invocation handles timeout gracefully."""
-        # Arrange: Agent times out
-        mock_invoker_instance = MagicMock()
-        mock_agent_invoker.return_value = mock_invoker_instance
+    def test_invoke_agent_handles_missing_artifacts(self, mock_artifact_mgr):
+        """A missing manifest degrades gracefully instead of blocking commits.
 
-        mock_invoker_instance.invoke.side_effect = TimeoutError('Agent did not respond within 30s')
-
-        # Act
-        result = invoke_commit_message_agent(
-            workflow_id='test-workflow-123',
-            request='Add feature'
-        )
-
-        # Assert
-        assert result['success'] is False
-        assert 'timeout' in result['error'].lower()
-        assert result['output'] == ''
-
-    @patch('auto_implement_git_integration.AgentInvoker')
-    @patch('auto_implement_git_integration.ArtifactManager')
-    def test_invoke_agent_handles_missing_artifacts(self, mock_artifact_mgr, mock_agent_invoker):
-        """Test agent invocation handles missing required artifacts."""
+        Issue #1555: the manifest was a prerequisite only because the archived
+        subagent needed artifacts. In-process generation treats it as optional
+        context -- a workflow without artifacts must still be committable.
+        """
         # Arrange: Artifact manager can't find required artifacts
         mock_artifact_mgr_instance = MagicMock()
         mock_artifact_mgr.return_value = mock_artifact_mgr_instance
@@ -493,10 +476,9 @@ class TestAgentInvocation:
             request='Add feature'
         )
 
-        # Assert
-        assert result['success'] is False
-        assert 'manifest' in result['error'].lower()
-        assert 'not found' in result['error'].lower()
+        # Assert: generation succeeded without the manifest
+        assert result['success'] is True, result
+        assert result['output'].splitlines()[0].startswith('feat')
 
 
 class TestGracefulDegradation:

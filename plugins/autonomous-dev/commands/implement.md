@@ -2293,7 +2293,7 @@ After dispatch, confirm the agent task ID is valid before proceeding to STEP 13.
 
 **Progress**: Output step banner (STEP 12.7/15 — Commit with Closes-ref injection).
 
-**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (lib/auto_implement_git_integration.py:1330-1346). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
+**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (see the `if issue_number is not None:` block inside `create_commit_with_agent_message()` in `lib/auto_implement_git_integration.py`). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
 
 ```bash
 # STEP 12.7: Route final commit through create_commit_with_agent_message
@@ -2625,7 +2625,7 @@ After dispatch, confirm the agent task ID is valid before proceeding to STEP L5.
 
 **Progress**: Output step banner (STEP L4.7 — Commit with Closes-ref injection).
 
-**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (lib/auto_implement_git_integration.py:1330-1346). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
+**HARD GATE — Closes-ref injection (Issue #1226)**: FORBIDDEN: bare `git commit` here; MUST route through `create_commit_with_agent_message()` helper. The helper already injects `Closes #N` when `issue_number=` is provided (see the `if issue_number is not None:` block inside `create_commit_with_agent_message()` in `lib/auto_implement_git_integration.py`). NO `--no-verify` anywhere. This is the single funnel that prevents the drain-pending commit gate from blocking autonomous /drain-queue cycles.
 
 ```bash
 # STEP L4.7: Route final commit through create_commit_with_agent_message

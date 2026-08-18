@@ -126,13 +126,13 @@ The git automation workflow integrates seamlessly with `/implement`:
    ↓
 4. Hook checks consent via environment variables
    ↓ (if enabled)
-5. Invoke commit-message-generator agent
+5. Generate commit message in-process (deterministic, offline — Issue #1555)
    ↓
-6. Stage changes and create commit with agent-generated message
+6. Stage changes and create commit with the generated message
    ↓ (if AUTO_GIT_PUSH=true)
 7. Push commit to remote
    ↓ (if AUTO_GIT_PR=true)
-8. Create pull request with pr-description-generator agent
+8. Create pull request with an in-process generated description
    ↓ (if git push succeeded)
 8.5. Auto-close GitHub issue (if issue number found in feature request)
      - Extract issue number from command args
@@ -157,14 +157,16 @@ The git automation workflow integrates seamlessly with `/implement`:
 - If enabled, proceeds with validation checks
 
 **Step 5: Commit Message Generation**
-- Invokes `commit-message-generator` agent with workflow context
-- Agent analyzes changed files and generates conventional commit message
+- `generate_commit_message()` in `auto_implement_git_integration.py` builds the message in-process — no subagent is dispatched (Issue #1555; the prior `commit-message-generator` agent lives only under `agents/archived/` and is never invoked)
+- Analyzes changed files, infers commit type/scope, and reads the workflow manifest as **optional** enrichment context (a workflow that never wrote v2.0 artifacts is still committable — the manifest is not a prerequisite)
 - Format: `type(scope): description` (follows [Conventional Commits](https://www.conventionalcommits.org/))
+- The public entry points `invoke_commit_message_agent()` / `invoke_pr_description_agent()` keep their historical names and `{'success','output','error'}` return contract for backward compatibility, but internally call the new deterministic generators
 
 **Step 6: Git Commit**
 - Stages all changes (`git add .`)
-- Creates commit with agent-generated message
+- Creates commit with the generated message
 - Includes co-authorship footer: `Co-Authored-By: Claude <noreply@anthropic.com>`
+- **Clean working tree is a failure, not a silent no-op (Issue #1555)**: if there is nothing to commit, `create_commit_with_agent_message()` now returns `success=False` with an actionable error ("No commit created: nothing to commit, working tree clean … Fix: stage your changes") instead of the old `success=True, commit_sha=''` result that falsely claimed a commit existed
 
 **Step 7: Git Push (Optional)**
 - Only if `AUTO_GIT_PUSH=true`
@@ -173,7 +175,7 @@ The git automation workflow integrates seamlessly with `/implement`:
 
 **Step 8: Pull Request Creation (Optional)**
 - Only if `AUTO_GIT_PR=true` and `gh` CLI available
-- Invokes `pr-description-generator` agent
+- `generate_pr_description()` builds the description in-process — no subagent is dispatched (Issue #1555; the prior `pr-description-generator` agent lives only under `agents/archived/` and is never invoked)
 - Creates GitHub PR with comprehensive description
 - Includes summary, test plan, and related issues
 
@@ -1276,7 +1278,7 @@ result = subprocess.run(
 - **Responsibility**: Detect feature completion, check consent, invoke git integration
 
 ### Core Library
-- **File**: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (1,466 lines)
+- **File**: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (2,220 lines as of Issue #1555 — verify against the filesystem rather than trusting this count, it drifts)
 - **Main Entry Point**: `execute_step8_git_operations()` - Orchestrates entire git workflow
 
 ### Key Functions
@@ -1293,19 +1295,15 @@ result = subprocess.run(
 **Git Operations**:
 - `create_commit_with_agent_message()` - Generate and create commit
 - `push_and_create_pr()` - Push to remote and optionally create PR
-- `validate_agent_output()` - Validate commit-message-generator output
+- `validate_agent_output()` - Validate the generated commit message / PR description
 
-### Agent Integration
-
-**commit-message-generator**:
-- Invoked with workflow context (feature description, changed files)
-- Generates conventional commit message
+**Message Generation** (in-process, no subagent dispatch — Issue #1555):
+- `generate_commit_message(request, changed_files, manifest)` - Builds the commit message from the feature request, changed files, and optional workflow manifest
+- `generate_pr_description(request, branch, *, commit_subjects=None, changed_files=None)` - Builds the PR description from the feature request, branch name, recent commit subjects, and changed files (no `manifest` argument here — `invoke_pr_description_agent()` reads the manifest and passes its `request` field through instead)
+- `infer_commit_type(request)`, `infer_scope(changed_files)`, `build_commit_subject(request, commit_type, scope)` - Deterministic helpers that classify the change and format the conventional-commit subject line
 - Format: `type(scope): description\n\nBody\n\nCo-Authored-By: Claude <noreply@anthropic.com>`
-
-**pr-description-generator**:
-- Invoked with commit history and feature context
-- Generates comprehensive PR description
-- Includes: summary, test plan, breaking changes, related issues
+- PR description includes: summary, test plan, breaking changes, related issues
+- The `commit-message-generator` and `pr-description-generator` agents referenced in older versions of this document exist only under `agents/archived/` and are **no longer invoked anywhere on this path** — `AgentInvoker.invoke()` only returns a Task-tool dispatch descriptor, never an executed result, so the old agent-dispatch call could never have succeeded
 
 ## Usage Examples
 
@@ -1416,7 +1414,7 @@ gh --version
 
 ---
 
-### Agent-generated commit message rejected
+### Generated commit message rejected
 
 **Symptoms**: Error: "Commit message doesn't follow conventional commits"
 
@@ -1426,9 +1424,22 @@ cat logs/security_audit.log | grep "commit_message_validation"
 ```
 
 **Solutions**:
-- Agent output usually follows convention; check for edge cases
+- The generator (`generate_commit_message()`, in-process since Issue #1555) usually produces convention-following output; check for edge cases
 - Manual override: Disable automation and commit manually
-- Report issue: If agent consistently generates invalid messages
+- Report issue: If generation consistently produces invalid messages
+
+---
+
+### "No commit created: nothing to commit, working tree clean" (Issue #1555)
+
+**Symptoms**: `create_commit_with_agent_message()` returns `success=False` even though the feature appeared to complete
+
+**Cause**: There were no staged/unstaged changes when the commit step ran. Before Issue #1555 this silently returned `success=True, commit_sha=''` (a false positive); it now fails loudly instead.
+
+**Solutions**:
+- Confirm the implementation actually wrote/modified files (`git status`)
+- Stage your changes (`git add <files>`) and retry
+- If this fires on a legitimately no-op run (e.g. a re-run after an already-committed change), treat it as expected — there is nothing new to commit
 
 ---
 
@@ -1475,10 +1486,10 @@ Git automation adds **minimal overhead** to `/implement` workflow:
 | Operation | Time (seconds) |
 |-----------|----------------|
 | Consent check | < 0.1 |
-| Agent invocation (commit-message-generator) | 5-15 |
+| In-process commit message generation (Issue #1555) | < 1 |
 | Git commit | < 1 |
 | Git push | 1-5 (network dependent) |
-| PR creation (pr-description-generator) | 10-20 |
+| In-process PR description generation (Issue #1555) | < 1 |
 | Issue closing (v3.22.0, Issue #91) | 1-3 (user prompt + gh CLI) |
 
 **Total overhead**: 15-50 seconds (with full automation including issue closing)
