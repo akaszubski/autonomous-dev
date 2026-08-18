@@ -3,6 +3,7 @@ name: mobile-tester
 description: iOS/Android E2E testing specialist - runs interactive tests via Appium MCP, writes persistent Maestro YAML, and validates native builds
 model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
+optional_mcp: [mcp__appium__find_element, mcp__appium__tap, mcp__appium__type, mcp__appium__screenshot, mcp__appium__get_session]
 skills: [testing-guide, python-standards]
 ---
 

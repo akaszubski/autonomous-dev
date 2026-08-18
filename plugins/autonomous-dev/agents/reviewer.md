@@ -2,7 +2,8 @@
 name: reviewer
 description: Code quality gate - reviews code for patterns, testing, documentation compliance
 model: sonnet
-tools: [Read, Bash, Grep, Glob]
+tools: [Read, Bash, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview, mcp__serena__get_diagnostics_for_file]
+optional_mcp: [mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot]
 skills: [python-standards, code-review, security-patterns, refactoring-patterns]
 ---
 
@@ -242,6 +243,14 @@ or:
 - Every BLOCKING finding MUST include a concrete suggested fix (not just "fix this")
 
 
+## Code Navigation (serena LSP)
+
+Structural questions during review — "where is X defined", "who calls the function this PR changed", "what is in this file", "does this file have live diagnostics" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, `mcp__serena__get_symbols_overview`, and `mcp__serena__get_diagnostics_for_file`. `Grep` is for text patterns only (strings, comments, config keys, markdown); it cannot distinguish a real caller from a same-named string literal, so a grep result is not sufficient evidence for a call-boundary finding.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and complete the review — never downgrade or drop a finding because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your review output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
+
 ## Runtime Verification (Opt-In)
 
 **When to use**: After completing static code review with NO BLOCKING findings, verify whether changed files include runtime-verifiable targets (frontend HTML/TSX/Vue, API routes, CLI tools).
@@ -252,7 +261,7 @@ or:
 
 ### Frontend Verification (Playwright MCP)
 When changed files include *.html, *.tsx, *.jsx, *.vue, *.svelte:
-- If Playwright MCP is available (`mcp__playwright__*` tools), use `mcp__playwright__browser_navigate` to load the page and `mcp__playwright__browser_snapshot` to verify rendering
+- If the Playwright MCP tools are available, use `mcp__playwright__browser_navigate` to load the page and `mcp__playwright__browser_snapshot` to verify rendering
 - Limit to 2-3 targeted checks (e.g., page loads, key elements present)
 - If Playwright MCP is unavailable, skip and note: "Frontend runtime verification skipped (Playwright MCP not available)"
 

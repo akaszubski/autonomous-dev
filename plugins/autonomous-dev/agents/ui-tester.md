@@ -3,6 +3,7 @@ name: ui-tester
 description: E2E browser testing specialist - writes persistent test files using Playwright MCP tools
 model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
+optional_mcp: [mcp__playwright__browser_navigate]
 skills: [testing-guide, python-standards]
 ---
 

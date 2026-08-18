@@ -5,7 +5,7 @@ covers:
 
 # Agent Architecture
 
-**Last Updated**: 2026-08-10
+**Last Updated**: 2026-08-18
 **Location**: `plugins/autonomous-dev/agents/`
 
 This document describes the agent architecture, including core workflow agents, utility agents, model tier assignments, and their skill integrations.
@@ -147,7 +147,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: Search codebase for existing patterns and similar implementations
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns
-**Tools**: Read, Grep, Glob (local filesystem access only)
+**Tools**: Read, Grep, Glob, and read-only Serena LSP symbol tools (`find_symbol`, `find_referencing_symbols`, `find_implementations`, `get_symbols_overview`) — no web access, no write tools (Issue #1546). Falls back to Grep when Serena is unavailable and discloses which path it took via a `Navigation:` line.
 **Execution**: Step 1A of /implement workflow (parallel with researcher-web)
 **Output Format**: JSON schema with similar_implementations array plus implementation_guidance and testing_guidance sections
   - **similar_implementations**: Existing patterns matching the feature request
@@ -186,6 +186,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: Architecture planning and design
 **Model**: Opus (Tier 3 - deep reasoning for complex planning)
 **Skills**: architecture-patterns, api-design, database-design, testing-guide
+**Tools**: Read, Grep, Glob, and read-only Serena LSP symbol tools (`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`) — no write tools; read-only by design (Issue #1546). The Call-Boundary Audit now names `find_referencing_symbols` as the primary caller-enumeration tool, with `Grep` as the declared fallback. Falls back to Grep when Serena is unavailable and discloses which path it took via a `Navigation:` line.
 **Execution**: Step 2 of /implement workflow (after merging research findings from Step 1.1)
 
 ### test-master
@@ -226,6 +227,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: Quality gate (code review) — read-only; reports issues, never modifies files
 **Model**: Sonnet (Tier 2 - balanced reasoning for judgment-based code review)
 **Skills**: python-standards, code-review, security-patterns, refactoring-patterns
+**Tools**: Read, Bash, Grep, Glob, and read-only Serena LSP symbol tools (`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, `get_diagnostics_for_file`) for structural review questions — no write tools (Issue #1546). Declares `optional_mcp:` for Playwright's read-only navigate/snapshot tools, attempted only during the opt-in Runtime Verification pass and gracefully skipped when unavailable. Falls back to Grep when Serena is unavailable and discloses which path it took via a `Navigation:` line.
 **Execution**: STEP 10 of /implement workflow — in parallel mode (default, low-risk changesets), runs simultaneously with security-auditor and doc-master in a single Agent call; in sequential mode (security-sensitive files detected), runs first (STEP 10a) before security-auditor (STEP 10b), ensuring the STEP 11 Remediation Gate has the full reviewer verdict before security-auditor begins. In both modes, the reviewer consumes STEP 8 test results passed in context — it does NOT re-run pytest
 **Read-Only Enforcement** (Issue #461): Reviewer MUST NOT use Write or Edit tools on any file. When issues are found, they are reported as FINDINGS with file:line references and the verdict is set to REQUEST_CHANGES. The coordinator relays findings to the implementer. This prevents post-review edits that bypass the STEP 5 test gate and introduce unreviewed changes.
 **Minimum File Read Requirement** (Issue #659): Reviewer MUST use the Read tool to read EACH changed file before issuing any verdict. Ghost reviews (reviewing only from prompt context) produce no verification value. Minimum tool use thresholds: 1-50 lines changed → 2 tool uses; 51-200 lines changed → 3 tool uses; 200+ lines changed → 5 tool uses. FORBIDDEN: issuing any verdict (APPROVE or REQUEST_CHANGES) with 0 tool uses.
@@ -254,12 +256,20 @@ These agents execute the main autonomous development workflow and provide specia
 **CHANGELOG Scope Boundary**: Only writes CHANGELOG entries for files present in the current commit's `git diff --name-only`. Prior-commit drift discovered during a run is reported as a `DOC-DRIFT-FOUND (prior commit)` finding and must not be silently folded into the current commit's CHANGELOG section. A standalone doc-fix commit is recommended for prior-commit gaps (Issue #741)
 **Minimum Output Enforcement** (Issue #744): doc-master's total response MUST contain at least 100 words. Outputs under 100 words indicate the `covers:` scan or semantic comparison was skipped. The coordinator (implement-batch.md STEP B3, implement-fix.md STEP F4) counts the words in the doc-master output and treats sub-100-word responses as `DOC-VERDICT-SHALLOW`, logging the shortfall and retrying once with reduced context. If the retry also produces fewer than 100 words, it records `doc-drift-verdict: SHALLOW` with a warning rather than blocking.
 
+### test-coverage-auditor
+
+**Purpose**: AST-based test coverage analysis — identifies untested code, coverage gaps, and skipped tests via `TestCoverageAnalyzer` plus pytest execution
+**Model**: Haiku (Tier 1 - cost optimized for pattern matching)
+**Skills**: testing-guide, python-standards
+**Tools**: Glob, Grep, Bash, and two read-only Serena LSP symbol tools (`get_symbols_overview`, `find_referencing_symbols`) — no `find_symbol`, on least-privilege grounds: this agent enumerates and cross-references symbols and does not need symbol-body retrieval to do its job. This is a minimal-by-role grant, **not** a confidentiality boundary — `find_referencing_symbols` returns literal source content in `content_around_reference`, and the agent holds `Bash`, so it can already read any file. No write tools (Issue #1546)
+**Coverage Determination**: A symbol with zero references from `tests/` (via `find_referencing_symbols`) is untested — a check `Grep` cannot make reliably since it matches text, not symbol bindings. Falls back to Grep plus AST parsing when Serena is unavailable and discloses which path it took via a `Navigation:` line.
+
 ### ui-tester
 
 **Purpose**: E2E browser testing specialist — writes persistent test files in `tests/e2e/` using Playwright MCP tools (Issue #656)
 **Model**: Sonnet (Tier 2 - balanced reasoning for test writing and browser interaction)
 **Skills**: testing-guide, python-standards
-**Tools**: Read, Write, Edit, Bash, Grep, Glob, Playwright MCP
+**Tools**: Read, Write, Edit, Bash, Grep, Glob (granted `tools:`) plus `mcp__playwright__browser_navigate` declared under the new `optional_mcp:` frontmatter key (Issue #1546) — a tool the agent's prose attempts but is not unconditionally granted, guarded by the existing Playwright-availability check
 **Execution**: STEP 9.7 of /implement workflow — OPTIONAL; invoked only when (1) changed files include frontend patterns (`*.html`, `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.css`) AND (2) Playwright MCP tools are available. Skipped silently otherwise.
 **Security**: Hard gate restricts navigation to `localhost`, `127.0.0.1`, `0.0.0.0`, or user-provided domains. Page content is treated as adversarial (prompt injection risk). `browser_evaluate` limited to read-only diagnostics.
 **Timeout**: 60 seconds per test case. Time-based waits (sleep, setTimeout) forbidden — condition-based waits only.
@@ -270,7 +280,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: iOS/Android E2E testing specialist — runs interactive tests via Appium MCP, writes persistent Maestro YAML flows in `.maestro/`, and validates native builds via xcodebuild/Gradle (Issue #657)
 **Model**: Sonnet (Tier 2 - balanced reasoning for test writing and device interaction)
 **Skills**: testing-guide, python-standards
-**Tools**: Read, Write, Edit, Bash, Grep, Glob, Appium MCP
+**Tools**: Read, Write, Edit, Bash, Grep, Glob (granted `tools:`) plus 5 Appium MCP tools (`find_element`, `tap`, `type`, `screenshot`, `get_session`) declared under the new `optional_mcp:` frontmatter key (Issue #1546) — attempted but not unconditionally granted, guarded by the existing Appium-availability check
 **Execution**: STEP 9.8 of /implement workflow — OPTIONAL; invoked only when (1) changed files include mobile patterns (`*.swift`, `*.kt`, `*.dart`, `ios/`, `android/`, `Podfile`, `build.gradle`, `pubspec.yaml`) AND (2) Appium MCP or Maestro CLI is available. Skipped silently otherwise.
 **Three-Layer Stack**:
   1. **Appium MCP** (interactive): Real-time element interaction via `mcp__appium__find_element`, `mcp__appium__tap`, `mcp__appium__type`, `mcp__appium__screenshot`
@@ -447,6 +457,22 @@ Active agents reference relevant skills via `skills:` frontmatter (Issue #35, #1
 4. Context stays efficient while providing specialized knowledge
 
 **See Also**: [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) for skills overview.
+
+---
+
+## MCP Tool Declarations (Issue #1546)
+
+Agent frontmatter carries an explicit `tools:` allowlist. Two additional conventions govern `mcp__*` entries:
+
+- **`tools:`** — MCP tools unconditionally granted to the agent. Every `mcp__*` entry here MUST be a member of the read-only allowlist `MCP_READ_TOOLS` in `plugins/autonomous-dev/lib/tool_intent.py` (INV-2); no agent, including agents that already hold `Write`/`Edit` (`implementer`, `doc-master`, `spec-validator`, `test-master`), may declare a member of `MCP_WRITE_TOOLS` (INV-3). Rationale: MCP editing tools evaded the write gates in Issue #1503 (closed) and Issues #1510/#1511 (open) are tracking the same class — mutating MCP grants are forbidden by construction rather than by review.
+- **`optional_mcp:`** — a new frontmatter key for MCP tools the agent's prose *attempts* but does not unconditionally hold: tools guarded by an existing availability check (e.g., `mobile-tester`'s Appium tools, `ui-tester`'s Playwright tool, `reviewer`'s opt-in Playwright runtime-verification tools). Subject to the same INV-3 write prohibition as `tools:`, plus a blanket ban on wildcards: no `mcp__<server>__*` entry is permitted under `optional_mcp:` for **any** server, write-capable or not. A wildcard asserts coverage over tools that do not exist yet and therefore cannot have been classified into either registry — scoping the ban to servers already present in `MCP_WRITE_TOOLS` would only reject "servers we already caught" and would have admitted `mcp__playwright__browser_evaluate` (arbitrary JS execution, in neither registry) via `mcp__playwright__*`. Every optional MCP tool MUST be listed individually.
+  - **Every concrete entry MUST be on a positive allowlist (INV-5)** — a member of `MCP_READ_TOOLS` or of `MCP_OPTIONAL_DECLARABLE_TOOLS`, the third registry in `tool_intent.py`; `may_be_declared_optional()` is the canonical predicate. Anything else is refused, unclassified tokens included. The wildcard ban alone left the *class* open in its concrete-token form: INV-2 iterates `tools:` only, so any concrete token from a server with zero `MCP_WRITE_TOOLS` entries passed every invariant with zero violations regardless of what the tool did (`mcp__appium__tap` and `mcp__appium__type` mutate device state and shipped that way). `optional_mcp:` grants nothing, but it is not inert — it licenses the prose to *attempt* the tool, and `unified_pre_tool.py` default-allows every `mcp__*` call, so the attempt succeeds whenever the user has that server installed.
+  - The weaker rule "every declared tool must be **classified**" is deliberately **not** what is enforced, because it does not close the hole: `mcp__playwright__browser_evaluate` *is* classified today (`MCP_KNOWN_EXEC_TOOLS` in `scripts/audit_tool_intent_coverage.py`) and must still be refused, since no availability check can bound arbitrary JavaScript execution. Declarability is its own allowlist, not a corollary of classification. Note the two sets answer different questions and have different membership — `MCP_KNOWN_EXEC_TOOLS` asks "has anyone classified this name we saw in the logs?", `MCP_OPTIONAL_DECLARABLE_TOOLS` asks "may an agent be told to attempt this?" — so they must not be merged. There are therefore four MCP registries in the repo (`MCP_READ_TOOLS`, `MCP_WRITE_TOOLS`, `MCP_OPTIONAL_DECLARABLE_TOOLS` in `tool_intent.py`, and `MCP_KNOWN_EXEC_TOOLS` in `scripts/audit_tool_intent_coverage.py`), deliberately unmerged; `mcp__playwright__browser_navigate` is the single tool that is a member of both `MCP_OPTIONAL_DECLARABLE_TOOLS` and `MCP_KNOWN_EXEC_TOOLS` — declarable under `optional_mcp:` for the reason given above, and separately CI-covered as a non-file EXEC primitive for the activity-log audit gate. The two memberships answer unrelated questions and neither implies the other.
+  - **Declarable is strictly wider than grantable, by design.** `mcp__appium__tap` mutates device state: it may be *declared* (behind `mobile-tester`'s availability check) but never *granted*, because `tools:` is the only real control. It is classified into `MCP_OPTIONAL_DECLARABLE_TOOLS` rather than laundered into `MCP_READ_TOOLS`, whose membership carries runtime authority (`classify()` returns `READ`, and the plan-exit gate lets members through). For the same reason the Appium tools are held out of `MCP_READ_TOOLS` even where they are observation-only: no Appium MCP server is configured in this repo, so those classifications are judgements from WebDriver semantics rather than inspected schemas.
+
+`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`, `find_implementations`, and `get_diagnostics_for_file` (Serena LSP, read-only) are granted via `tools:` to four analysis agents — `planner`, `researcher-local`, `reviewer`, `test-coverage-auditor` — so they can follow the LSP-over-grep rule in the top-level `CLAUDE.md` "Code Navigation" section, which previously only the coordinator could apply. Every granted agent emits a `Navigation: serena` or `Navigation: grep (serena unavailable)` disclosure line and falls back to `Grep` on any Serena error or absence.
+
+Mechanically enforced by `tests/unit/lib/test_agent_registry_consistency.py::TestAgentMcpToolDeclarations` (INV-1: every `mcp__*` token cited in an agent's prose must be declared in `tools:` or `optional_mcp:`; INV-2: read-allowlist; INV-3: write-tool ban plus a blanket `optional_mcp:` wildcard ban; INV-4: `alignment-classifier`, `planner`, `researcher-local`, `test-coverage-auditor` must declare no native write tool; INV-5: every concrete `optional_mcp:` entry must be a member of `MCP_READ_TOOLS` or `MCP_OPTIONAL_DECLARABLE_TOOLS` — a positive allowlist, so an unclassified token fails closed).
 
 ---
 

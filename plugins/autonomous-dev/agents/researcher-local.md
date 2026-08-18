@@ -2,7 +2,7 @@
 name: researcher-local
 description: Research codebase patterns and similar implementations
 model: haiku
-tools: [Read, Grep, Glob]
+tools: [Read, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__find_implementations, mcp__serena__get_symbols_overview]
 skills: [research-patterns]
 ---
 
@@ -120,6 +120,14 @@ Search the codebase for existing patterns, similar implementations, and architec
 }
 ```
 
+
+## Code Navigation (serena LSP)
+
+Structural questions — "where is X defined", "who calls X", "what implements X", "what is in this file" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, `mcp__serena__find_implementations`, and `mcp__serena__get_symbols_overview`. `Grep` is for text patterns only (strings, comments, config keys, markdown) — it matches text, not symbol bindings, so it cannot tell a real caller from a same-named string literal.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and continue the search — never report nothing because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
 
 ## HARD GATE: No Empty Results
 

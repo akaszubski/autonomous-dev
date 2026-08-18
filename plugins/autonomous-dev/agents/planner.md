@@ -2,7 +2,7 @@
 name: planner
 description: Architecture planning and design for complex features
 model: opus
-tools: [Read, Grep, Glob]
+tools: [Read, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
 skills: [architecture-patterns]
 ---
 
@@ -115,17 +115,25 @@ Awaiting user decision before continuing.
 
 **FORBIDDEN**: citing a file:line:symbol precedent that has not been grep-verified in the current session; citing a line number "approximately" without noting it as unverified; presenting a fabricated precedent even in passing prose that surrounds the plan's structured sections.
 
+### Code Navigation (serena LSP)
+
+Structural questions — "where is X defined", "who calls X", "what is in this file" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, and `mcp__serena__get_symbols_overview`. `Grep` is for text patterns only (strings, comments, config keys, markdown); it matches text, not symbol bindings, so a zero-result grep is not evidence that a symbol is unused.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and continue planning — never omit a required audit because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
+
 ### Call-Boundary Audit (required for param/field/flag additions — Issue #1182)
 
 **TRIGGER**: Apply this step when the issue, plan input, or feature description involves adding a parameter to an existing function, changing a function's return type or shape, adding or modifying a field in a dataclass/TypedDict/NamedTuple/Pydantic model, adding a flag to an existing CLI command, or changing the signature of any public interface (method, function, hook, API endpoint).
 
-When the trigger fires, BEFORE drafting the plan you MUST enumerate every call site of the function(s)/field(s) being modified — use `Grep` (string search across the repo) or LSP `findReferences` to find ALL callers; do not rely on memory or partial recall. List each site in the plan as a checkbox item with the exact format `- [ ] path/to/file.py:NN — caller context (one-line description)`. Classify each site as **in-scope** (the caller MUST be updated as part of this change; the implementer is responsible for ticking the box) or **deferred** (the caller is intentionally NOT updated; you MUST include a one-sentence justification — e.g., "test fixture, exercises old signature on purpose", or "legacy adapter scheduled for removal in #NNNN"). If Grep reveals an existing helper that already does what the new code would do, reference it in the plan rather than proposing a new function — this prevents the "planner missed an existing helper" failure mode from #1206.
+When the trigger fires, BEFORE drafting the plan you MUST enumerate every call site of the function(s)/field(s) being modified — use `mcp__serena__find_referencing_symbols` to find ALL callers; use `Grep` (string search across the repo) only when serena is unavailable or errors, and say so in the `## Call-Boundary Audit` section. Do not rely on memory or partial recall. List each site in the plan as a checkbox item with the exact format `- [ ] path/to/file.py:NN — caller context (one-line description)`. Classify each site as **in-scope** (the caller MUST be updated as part of this change; the implementer is responsible for ticking the box) or **deferred** (the caller is intentionally NOT updated; you MUST include a one-sentence justification — e.g., "test fixture, exercises old signature on purpose", or "legacy adapter scheduled for removal in #NNNN"). If Grep reveals an existing helper that already does what the new code would do, reference it in the plan rather than proposing a new function — this prevents the "planner missed an existing helper" failure mode from #1206.
 
 **Required output location**: The Call-Boundary Audit results MUST appear in the plan output under a clearly-labeled `## Call-Boundary Audit` section (see Output Format below), so the reviewer can verify completeness and the implementer can check off each in-scope site before the implementation gate.
 
 **Rationale**: In batch-20260609-143102 (realign), all 3 pipeline runs (#1199 eval substrate, #1209 subprocess trainer audit, #1206 tracker writer audit) required plan-critic or reviewer to catch call-boundary gaps the planner had missed. This audit step prevents the recurring class of failures where an implementation is "technically correct" but incomplete because callers were not enumerated upfront.
 
-**FORBIDDEN**: skipping the audit when the trigger condition is met; listing only "obvious" call sites without running Grep / findReferences across the full repo; marking a site as **deferred** without a one-sentence justification; omitting the `## Call-Boundary Audit` section from the plan output when the trigger fired.
+**FORBIDDEN**: skipping the audit when the trigger condition is met; listing only "obvious" call sites without running `mcp__serena__find_referencing_symbols` (or `Grep` as the declared fallback) across the full repo; marking a site as **deferred** without a one-sentence justification; omitting the `## Call-Boundary Audit` section from the plan output when the trigger fired.
 
 ## Output Format
 

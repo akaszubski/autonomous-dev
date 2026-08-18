@@ -34,11 +34,13 @@ Public API:
     write_targets(tool_name, tool_input) -> List[str]
     is_write(tool_name, tool_input) -> bool
     changed_content(tool_name, tool_input) -> str
+    may_be_declared_optional(tool_name) -> bool
     has_suspicious_exec(command) -> bool
 
 Constants:
     READ_TOOLS, WRITE_TOOLS — native tool name sets
     MCP_READ_TOOLS, MCP_WRITE_TOOLS — MCP tool name registries (#1503)
+    MCP_OPTIONAL_DECLARABLE_TOOLS — agent ``optional_mcp:`` allowlist (#1546)
     PATH_KEYS, CONTENT_KEYS — tool_input key names used by the shape fallback
     BASH_READ_BINS, BASH_WRITE_BINS — common shell utilities
 """
@@ -171,6 +173,78 @@ MCP_WRITE_TOOLS: "frozenset[str]" = frozenset({
     "mcp__serena__edit_memory",
     "mcp__serena__delete_memory",
     "mcp__serena__rename_memory",
+})
+
+# MCP tools an agent MAY name under the ``optional_mcp:`` frontmatter key --
+# a POSITIVE allowlist of reviewed tools whose effect is bounded and
+# enumerable, which neither mutate the local filesystem nor execute
+# caller-supplied code.
+#
+# WHY A THIRD REGISTRY (Issue #1546). ``optional_mcp:`` entries were checked
+# against MCP_WRITE_TOOLS and against a wildcard ban, but never against any
+# allowlist. Any concrete token from a server with zero MCP_WRITE_TOOLS
+# entries therefore passed every invariant with zero violations, regardless
+# of what the tool actually did. ``optional_mcp:`` grants no capability, but
+# it is not inert: it licenses the agent's prose to ATTEMPT the tool, and
+# unified_pre_tool.py default-allows every ``mcp__*`` call, so the attempt
+# succeeds whenever the user happens to have that server installed.
+#
+# The weaker rule "every declared tool must be CLASSIFIED" does NOT close
+# this. ``mcp__playwright__browser_evaluate`` is already classified today --
+# scripts/audit_tool_intent_coverage.py lists it in MCP_KNOWN_EXEC_TOOLS --
+# and it must still be refused. Declarability is its own allowlist, not a
+# corollary of classification.
+#
+# NOT the same set as MCP_KNOWN_EXEC_TOOLS in
+# scripts/audit_tool_intent_coverage.py. That set answers "has anyone
+# classified this tool name we observed in the activity logs?" and
+# deliberately INCLUDES browser_evaluate. This set answers "may an agent be
+# instructed to attempt this tool?" and deliberately EXCLUDES it. The two
+# have different purposes and different membership -- do not merge them.
+#
+# NOT consulted by ``classify()``. Every member is READ or EXEC in this
+# module's three-intent vocabulary, and ``classify`` already returns EXEC by
+# fallthrough. A branch placed AHEAD of the fail-closed ``_looks_like_write``
+# shape test would disable that fallback for members; a branch placed AFTER
+# it would be dead code. Membership here confers no runtime authority -- and
+# that is exactly why a plausibly-read-only tool whose surface we cannot
+# verify belongs here rather than in MCP_READ_TOOLS, whose membership DOES
+# grant plan-exit passage in unified_pre_tool.py.
+#
+# Appium caveat: no appium MCP server is configured in this repo (.mcp.json
+# lists serena only), so the appium classifications below are judgements
+# derived from WebDriver protocol semantics, NOT from an inspected tool
+# schema. They are held out of MCP_READ_TOOLS for that reason.
+MCP_OPTIONAL_DECLARABLE_TOOLS: "frozenset[str]" = frozenset({
+    # --- appium (mobile-tester) ------------------------------------------
+    # MUTATES device state: dispatches a touch event to the app under test.
+    "mcp__appium__tap",
+    # MUTATES device state: dispatches keystrokes to the focused element.
+    "mcp__appium__type",
+    # Observation only (stated judgement, not a guess): resolves a locator to
+    # an element handle. WebDriver findElement performs no input and changes
+    # no user-visible state; it does populate a server-side element cache,
+    # which is bookkeeping rather than state mutation.
+    "mcp__appium__find_element",
+    # Observation only: captures the current screen. Same shape as
+    # mcp__playwright__browser_take_screenshot, already in MCP_READ_TOOLS.
+    "mcp__appium__screenshot",
+    # Observation only: returns the session id and negotiated capabilities.
+    "mcp__appium__get_session",
+    # --- playwright (ui-tester, reviewer) --------------------------------
+    # EFFECTFUL but bounded (stated judgement, not a guess): loads one
+    # caller-named URL. Navigation is not an observation -- the request can
+    # trigger arbitrary side effects on the remote server -- so it does not
+    # belong in MCP_READ_TOOLS. It executes no caller-supplied code and
+    # touches no local file, so it is not a writer either.
+    "mcp__playwright__browser_navigate",
+    # mcp__playwright__browser_snapshot is deliberately NOT repeated here:
+    # it is already in MCP_READ_TOOLS and the declarability rule accepts the
+    # UNION of the two sets. The registries are kept disjoint.
+    #
+    # DELIBERATELY ABSENT: mcp__playwright__browser_evaluate. It executes
+    # caller-supplied JavaScript, so no availability check can bound its
+    # effect. See the AC #19 exclusion note on MCP_READ_TOOLS above.
 })
 
 # tool_input keys that may carry a filesystem target, in resolution order.
@@ -389,6 +463,41 @@ def changed_content(tool_name: str, tool_input: dict) -> str:
         return ""
 
     return ""
+
+
+def may_be_declared_optional(tool_name: str) -> bool:
+    """Return True if an agent may name this tool under ``optional_mcp:``.
+
+    The canonical answer to "is this MCP tool declarable?" (Issue #1546).
+    Declarable is the UNION of two positive allowlists -- ``MCP_READ_TOOLS``
+    (observation, no effect) and ``MCP_OPTIONAL_DECLARABLE_TOOLS`` (reviewed,
+    bounded, non-filesystem effect). Everything else is refused, including:
+
+    - unclassified tokens from any server (fail closed on unknown);
+    - arbitrary-code-execution tools such as
+      ``mcp__playwright__browser_evaluate``, which ARE classified elsewhere
+      in the repo but are still not safe to attempt;
+    - every ``MCP_WRITE_TOOLS`` member;
+    - wildcards, which are not tool names at all.
+
+    An allowlist is used rather than a denylist of dangerous tools for the
+    same reason INV-2 is an allowlist: a denylist only refuses what has
+    already been noticed, which is precisely how the gap this closes shipped.
+
+    Args:
+        tool_name: A fully qualified MCP tool name, e.g.
+            ``"mcp__appium__tap"``.
+
+    Returns:
+        True when the tool is on either allowlist. False for any other
+        value, including non-strings and wildcard patterns. Never raises.
+    """
+    if not isinstance(tool_name, str) or not tool_name:
+        return False
+    return (
+        tool_name in MCP_READ_TOOLS
+        or tool_name in MCP_OPTIONAL_DECLARABLE_TOOLS
+    )
 
 
 def _looks_like_write(tool_input: dict) -> bool:
@@ -1001,6 +1110,8 @@ __all__ = [
     "WRITE_TOOLS",
     "MCP_READ_TOOLS",
     "MCP_WRITE_TOOLS",
+    "MCP_OPTIONAL_DECLARABLE_TOOLS",
+    "may_be_declared_optional",
     "PATH_KEYS",
     "CONTENT_KEYS",
     "BASH_READ_BINS",
