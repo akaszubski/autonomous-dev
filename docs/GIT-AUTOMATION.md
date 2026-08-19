@@ -1,12 +1,13 @@
 ---
 covers:
   - plugins/autonomous-dev/lib/auto_implement_git_integration.py
+  - plugins/autonomous-dev/lib/git_operations.py
   - plugins/autonomous-dev/lib/github_issue_closer.py
 ---
 
 # Git Automation Control
 
-**Last Updated**: 2026-01-09
+**Last Updated**: 2026-08-19 (staging is no longer unconditional — `stage_all` parameter and `files_committed` result field, Issue #1564)
 **Related Issues**: [#61 - Enable Zero Manual Git Operations by Default](https://github.com/akaszubski/autonomous-dev/issues/61), [#91 - Auto-close GitHub issues after /implement](https://github.com/akaszubski/autonomous-dev/issues/91), [#96 - Fix consent blocking in batch processing](https://github.com/akaszubski/autonomous-dev/issues/96), [#93 - Add auto-commit to batch workflow](https://github.com/akaszubski/autonomous-dev/issues/93), [#144 - Consolidate git hooks](https://github.com/akaszubski/autonomous-dev/issues/144), [#167 - Git automation silently fails in user projects](https://github.com/akaszubski/autonomous-dev/issues/167), [#168 - Auto-close GitHub issues after batch-implement push](https://github.com/akaszubski/autonomous-dev/issues/168), [#212 - Resolve duplicate auto_git_workflow.py](https://github.com/akaszubski/autonomous-dev/issues/212)
 
 This document describes the automatic git operations feature for seamless end-to-end workflow after `/implement` completes.
@@ -128,7 +129,7 @@ The git automation workflow integrates seamlessly with `/implement`:
    ↓ (if enabled)
 5. Generate commit message in-process (deterministic, offline — Issue #1555)
    ↓
-6. Stage changes and create commit with the generated message
+6. Stage changes (whole working tree by default) and create commit with the generated message
    ↓ (if AUTO_GIT_PUSH=true)
 7. Push commit to remote
    ↓ (if AUTO_GIT_PR=true)
@@ -163,8 +164,10 @@ The git automation workflow integrates seamlessly with `/implement`:
 - The public entry points `invoke_commit_message_agent()` / `invoke_pr_description_agent()` keep their historical names and `{'success','output','error'}` return contract for backward compatibility, but internally call the new deterministic generators
 
 **Step 6: Git Commit**
-- Stages all changes (`git add .`)
+- Stages all changes (`git add .`) **by default** — `auto_commit_and_push()` and `create_commit_with_agent_message()` take a `stage_all: bool = True` parameter (Issue #1564). The default is unchanged and sweeps the entire working tree, untracked files included; this is the commit-everything semantics batch, worktree, and drain flows depend on
+- **`stage_all=False` commits only what the caller already staged**: nothing is added to the index, so unstaged and untracked files are left out. The caller MUST stage its own files first — with an empty index no commit is created (`auto_commit_and_push` returns `success=True`, `commit_sha=''`, `files_committed=0`, error `"nothing to commit, staging area is empty"`; `create_commit_with_agent_message` surfaces that as `success=False` per Issue #1555). No caller passes `False` today — see [Staging scope](#staging-scope-issue-1564) below
 - Creates commit with the generated message
+- Reports `files_committed` (int) — the number of files that actually landed in the commit, counted from the created commit rather than from what the caller believed it staged (Issue #1564). Always present; `0` on every failure path
 - Includes co-authorship footer: `Co-Authored-By: Claude <noreply@anthropic.com>`
 - **Clean working tree is a failure, not a silent no-op (Issue #1555)**: if there is nothing to commit, `create_commit_with_agent_message()` now returns `success=False` with an actionable error ("No commit created: nothing to commit, working tree clean … Fix: stage your changes") instead of the old `success=True, commit_sha=''` result that falsely claimed a commit existed
 
@@ -210,6 +213,27 @@ The git automation workflow integrates seamlessly with `/implement`:
     - gh CLI unavailable: Skip with manual instructions
     - Network error: Skip with retry instructions
     - All failures non-blocking (feature still successful)
+
+### Staging scope (Issue #1564)
+
+`auto_commit_and_push()` used to call `stage_all_changes()` unconditionally. Every caller therefore got commit-everything behaviour whether it wanted it or not, and a caller that had deliberately staged a narrow set had that index discarded and the whole working tree — untracked scratch files, `.proposal` drafts, and logs included — swept into its commit. Observed in practice: 9 deliberately staged files produced a 482-file commit.
+
+Staging is now conditional on a `stage_all` flag threaded through three entry points:
+
+| Entry point | Parameter |
+|---|---|
+| `git_operations.auto_commit_and_push(commit_message, branch, push=True, stage_all=True)` | `stage_all` |
+| `git_operations.GitOperations.auto_commit_push(commit_message, branch='main', push=True, stage_all=True)` | `stage_all` |
+| `auto_implement_git_integration.create_commit_with_agent_message(..., stage_all=True)` | forwarded verbatim |
+
+**The default is `True` and no caller passes `False` today**, so behaviour is unchanged for every existing flow. `stage_all=False` is a lever that exists but is not yet wired.
+
+**Precondition for `stage_all=False`** — the caller must stage its own files first. `/implement` does **not** satisfy this today: the pipeline has no staging step of its own (the only `git add` in `commands/implement.md` is a conditional one at STEP 12 for doc-master fixes), and STEP 1 hard-blocks when `git diff --cached --name-only` is non-empty, instructing `git reset HEAD`. The index at the mandatory STEP 12.7 / STEP L4.7 commit is therefore empty on any run where doc-master made no fixes, and holds *only* the doc-master fixes on runs where it did. Flipping STEP 12.7 to `stage_all=False` as things stand would either fail the mandatory commit step outright or commit the doc fixes alone and silently drop the implementation. Wiring the pipeline to stage deliberately is tracked separately.
+
+Two supporting helpers were added to `git_operations.py` for this (see [LIBRARIES.md](LIBRARIES.md)):
+
+- `get_staged_files(cwd=None) -> List[str]` — the index contents, via `git status --porcelain -z` so the query works with no `HEAD` (root commits) and non-ASCII / space-bearing paths survive `core.quotePath` unmangled. Unmerged paths are excluded (they have no single staged blob); use `detect_merge_conflict()` for those. Renames and copies emit their source path as a separate `-z` record which must be consumed, and `R`/`C` can appear in **either** column — `R ` is "renamed in index", ` R` is "renamed in work tree". Both carry a source record
+- `count_committed_files(ref='HEAD', cwd=None) -> int` — files actually changed by a commit, via `git diff-tree -r -m --root`. `git show --name-only` was not usable: its combined diff suppresses paths shared with a parent and reported `0` for real merge commits. A `ref` beginning with `-` raises `ValueError`: the trailing `--` does not stop git parsing it as an option, and returning `0` would collide with this function's "no commit was created" sentinel
 
 ### Graceful Degradation
 
@@ -1293,7 +1317,7 @@ result = subprocess.run(
 - `check_gh_available()` - Check gh CLI installed (for PR creation)
 
 **Git Operations**:
-- `create_commit_with_agent_message()` - Generate and create commit
+- `create_commit_with_agent_message(workflow_id, request, branch, push=False, issue_number=None, stage_all=True)` - Generate and create commit. `stage_all` is forwarded to `git_operations.auto_commit_and_push()`; `False` commits only the caller's existing index (Issue #1564, see [Staging scope](#staging-scope-issue-1564)). Returns `files_committed` alongside `commit_sha`
 - `push_and_create_pr()` - Push to remote and optionally create PR
 - `validate_agent_output()` - Validate the generated commit message / PR description
 
@@ -1440,6 +1464,8 @@ cat logs/security_audit.log | grep "commit_message_validation"
 - Confirm the implementation actually wrote/modified files (`git status`)
 - Stage your changes (`git add <files>`) and retry
 - If this fires on a legitimately no-op run (e.g. a re-run after an already-committed change), treat it as expected — there is nothing new to commit
+
+**Sibling error, `stage_all=False` only (Issue #1564)**: `"nothing to commit, staging area is empty (stage_all=False, so unstaged and untracked files are ignored)"`. Same shape, different question — this one means the working tree has changes but the *index* is empty, so the caller never staged anything. Stage explicitly (`git add <files>`) or use the `stage_all=True` default.
 
 ---
 

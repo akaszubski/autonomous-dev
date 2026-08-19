@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-08-19 (pipeline_completion_state.py — truncate-before-lock write race fixed via `_locked_rmw` self-wrapping and atomic writes — Issue #1544)
+**Last Updated**: 2026-08-19 (git_operations.py documented for the first time; `stage_all` / `files_committed` on the commit path — Issue #1564)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -1786,9 +1786,11 @@ See `docs/SECURITY.md` for comprehensive security guide
 - **Purpose**: New in Issue #1555. Helpers backing `generate_commit_message()` — classify the conventional-commit `type`, infer a `scope` from changed file paths, and format the `type(scope): description` subject line
 - **Returns**: `str` each
 
-#### `create_commit_with_agent_message(workflow_id, request, branch, push=False, issue_number=None)`
+#### `create_commit_with_agent_message(workflow_id, request, branch, push=False, issue_number=None, stage_all=True)`
 - **Purpose**: Generate the commit message (in-process), validate it, append `Closes #N` if `issue_number` is provided, and execute the commit via `git_operations.auto_commit_and_push()`. A clean working tree (nothing to commit) is now a hard failure (`success=False` with an actionable error) rather than the pre-Issue #1555 silent `success=True, commit_sha=''` no-op.
-- **Returns**: `dict` with `success`, `commit_sha`, `pushed`, `commit_message_generated`, `agent_succeeded`, `git_succeeded`, `error`, `manual_instructions`
+- **`stage_all` (Issue #1564)**: forwarded verbatim to `auto_commit_and_push()`. `True` (default, and what every caller including `/implement` STEP 12.7 uses) stages the whole working tree — untracked files included — before committing. `False` commits the caller's existing index verbatim and adds nothing to it, so unstaged and untracked files stay out of the commit.
+  - **Precondition for `False`**: the caller must have staged its files first. With an empty index no commit is created and this returns `success=False` with the "No commit created" error plus manual fallback instructions. `/implement` does not yet satisfy this — it has no staging step, and STEP 1 hard-blocks on a non-empty index — so STEP 12.7 keeps the default. See [GIT-AUTOMATION.md § Staging scope](GIT-AUTOMATION.md#staging-scope-issue-1564).
+- **Returns**: `dict` with `success`, `commit_sha`, `pushed`, `files_committed` (int; number of files in the resulting commit, `0` on every failure path — Issue #1564), `commit_message_generated`, `agent_succeeded`, `git_succeeded`, `error`, `manual_instructions`
 
 #### `push_and_create_pr(branch, pr_description, base_branch)`
 - **Purpose**: Push to remote and optionally create PR via gh CLI
@@ -17044,3 +17046,48 @@ Two-stage alignment gate for `/implement` STEP 2 (also L1/F1/I1.6), replacing co
 - `tests/regression/test_alignment_classifier_corpus.py` (20 tests) — seeded-corpus CI floors against `tests/fixtures/alignment_classifier_corpus.json`
 - `tests/regression/test_alignment_gate_backcompat.py` (27 tests) — legacy boolean-only pipeline state and consumer-repo (no classifier library, no `INVARIANTS` section) backward compatibility
 - `tests/unit/lib/test_alignment_integration_wiring.py` (17 tests) — end-to-end wiring between `alignment_classifier`, `pipeline_state`, and the hook gate
+
+## git_operations.py (Issue #1564 — first documented here)
+
+**Purpose**: Low-level git primitives behind the automated commit/push path. `auto_implement_git_integration.py` (section 11) is the orchestration layer; this module is where the git subprocesses actually run.
+
+**Location**: `plugins/autonomous-dev/lib/git_operations.py`
+
+**Coverage note**: this library had no entry in this document before Issue #1564 despite `covers:` claiming all of `plugins/autonomous-dev/lib/`. The cross-references elsewhere in this file to "git_operations.py Section 16" are stale — no such section marker exists in the module. Treat the enumeration below as the current public surface and verify against the filesystem rather than trusting it to stay current.
+
+### Public API
+
+**Preflight / state queries**:
+- `validate_git_repo() -> Tuple[bool, str]` — is this a git repository
+- `check_git_config() -> Tuple[bool, str]` — `user.name` / `user.email` configured
+- `detect_merge_conflict() -> Tuple[bool, List[str]]` — unmerged paths; the canonical query for conflicts
+- `is_detached_head() -> bool`
+- `has_uncommitted_changes() -> bool` — working tree, not index
+
+**Staging**:
+- `get_files_to_stage(cwd=None) -> Tuple[List[str], List[str]]`
+- `stage_all_changes(cwd=None, gitignore_aware=False) -> Tuple[bool, str]` — stages the whole working tree, untracked files included
+- `get_staged_files(cwd=None) -> List[str]` — **new in Issue #1564**. The index contents. Queried via `git status --porcelain -z` rather than `git diff --cached` so it works with no `HEAD` (root commits), and so `core.quotePath` cannot mangle non-ASCII or space-bearing paths into strings that do not exist on disk. The index status is the first porcelain column; ` `, `?`, and `!` mean not staged. Unmerged paths (`U` in either column, plus the `AA` and `DD` pairs that carry no `U`) are excluded — a conflicted path has no single staged blob, so it is not a staged path; use `detect_merge_conflict()` for those. Renames report the destination path
+
+**Commit / push**:
+- `commit_changes(message) -> Tuple[bool, str, str]`
+- `count_committed_files(ref='HEAD', cwd=None) -> int` — **new in Issue #1564**. Files actually changed by a commit, via `git diff-tree -r -m --root`. `git show --name-only` is not usable here: its combined diff suppresses every path matching a parent, returning `0` for a real merge commit. `--root` is required or a root commit reports nothing. A flag-shaped `ref` raises `ValueError` in-process (the trailing `--` does not prevent option parsing, and answering with `0` would collide with this function's "no commit was created" sentinel). Returns `0` only when no commit was measured
+- `get_remote_name() -> str`
+- `push_to_remote(...)`, `push_worktree_branch(...)`, `create_feature_branch(branch_name)`
+- `auto_commit_and_push(commit_message, branch, push=True, stage_all=True) -> Dict[str, Any]` — the full commit-and-push orchestration. `stage_all=True` (default) preserves commit-everything semantics; `stage_all=False` commits the caller's index verbatim and adds nothing to it. The emptiness precheck follows the mode: whole working tree when `stage_all=True`, index only when `False`. Returns `success`, `commit_sha`, `pushed`, `files_committed`, `error`
+- `auto_commit_and_push_worktree(...)` — worktree variant
+
+**Worktree helpers**:
+- `is_worktree() -> bool`, `get_worktree_parent() -> Optional[Path]`
+
+**Facade**: `GitOperations` — static-method wrappers (`validate_repo`, `check_config`, `detect_conflicts`, `is_detached`, `has_changes`, `stage_all`, `commit`, `push`, `auto_commit_push(commit_message, branch='main', push=True, stage_all=True)`).
+
+### Staging scope (Issue #1564)
+
+`auto_commit_and_push()` previously called `stage_all_changes()` unconditionally, discarding whatever the caller had staged and sweeping the working tree — untracked files included — into the commit. `stage_all` makes that conditional; the default is unchanged, so every existing caller (batch, worktree, drain, `/implement` STEP 12.7) behaves exactly as before. No caller passes `False` yet. Precondition and pipeline wiring caveats: [GIT-AUTOMATION.md § Staging scope](GIT-AUTOMATION.md#staging-scope-issue-1564).
+
+### Testing
+
+- `tests/unit/lib/test_git_operations_staging.py` — 34 test functions covering `get_staged_files()` porcelain parsing (rename/copy record pairing under `-z` for index-side `R `/`RM` **and** worktree-side ` R`, quoted and non-UTF-8 paths, unmerged-state exclusion), `count_committed_files()` (merge commits, root commits, flag-shaped refs), and `auto_commit_and_push()` under both `stage_all` modes
+- `tests/integration/test_auto_implement_git.py` — `create_commit_with_agent_message()` forwarding and `files_committed` propagation
+- `tests/regression/test_drain_commit_gate.py` — commit-path regression coverage for the drain loop

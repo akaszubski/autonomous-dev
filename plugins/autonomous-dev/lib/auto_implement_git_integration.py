@@ -1537,7 +1537,8 @@ def create_commit_with_agent_message(
     request: str,
     branch: str,
     push: bool = False,
-    issue_number: Optional[int] = None
+    issue_number: Optional[int] = None,
+    stage_all: bool = True
 ) -> Dict[str, Any]:
     """
     Create git commit using a generated message.
@@ -1554,12 +1555,45 @@ def create_commit_with_agent_message(
         branch: Git branch name
         push: Whether to push after committing
         issue_number: Optional GitHub issue number to auto-close (Issue #267)
+        stage_all: Forwarded to ``auto_commit_and_push``. True (default) stages
+            the whole working tree - the commit-everything semantics batch and
+            drain flows depend on. Pass False when the caller has already
+            staged exactly the files it wants committed, so unrelated modified
+            and untracked files are left out of the commit (Issue #1564).
+
+    Precondition:
+        ``stage_all=False`` commits the caller's index VERBATIM - nothing is
+        added to it on this path, so the caller must have staged exactly what
+        it wants committed FIRST. With an empty index no commit is created and
+        this function returns ``success=False`` with the "No commit created"
+        error and manual fallback instructions.
+
+        ``/implement`` does NOT yet satisfy this precondition, and the two
+        branches fail differently:
+
+        - **doc-master made no fixes** -> the index is empty. The pipeline has
+          no staging step of its own, and STEP 1 hard-blocks on a non-empty
+          ``git diff --cached --name-only`` and instructs ``git reset HEAD``.
+          The mandatory STEP 12.7 commit fails outright - loudly and visibly.
+        - **doc-master made fixes** -> the index holds ONLY those doc files.
+          The single ``git add`` in ``commands/implement.md`` is doc-master's
+          fix-collection step in STEP 12, which runs BEFORE the STEP 12.7
+          commit. ``stage_all=False`` would therefore commit the doc fixes and
+          SILENTLY DROP the entire implementation - ``success=True``, a real
+          sha, and the work missing. This branch is the dangerous one, and it
+          is the same hazard raised against auto-detecting the staging mode:
+          it applies to the explicit parameter too.
+
+        Wiring the pipeline to stage deliberately is tracked separately; STEP
+        12.7 keeps the ``stage_all=True`` default until then.
 
     Returns:
         Dict with:
             - success: Whether commit succeeded
             - commit_sha: Commit SHA (if success)
             - pushed: Whether pushed to remote (if success and push=True)
+            - files_committed: Number of files in the resulting commit; always
+              present, 0 on every failure path (Issue #1564)
             - commit_message_generated: Generated commit message
             - agent_succeeded: Whether agent invocation succeeded
             - git_succeeded: Whether git operations succeeded
@@ -1595,6 +1629,7 @@ def create_commit_with_agent_message(
             'success': False,
             'commit_sha': '',
             'pushed': False,
+            'files_committed': 0,
             'commit_message_generated': '',
             'agent_succeeded': False,
             'git_succeeded': False,
@@ -1628,11 +1663,15 @@ def create_commit_with_agent_message(
         if not already_has_closing:
             commit_message += f'\n\nCloses #{issue_number}'
 
-    # Step 3: Execute git operations
+    # Step 3: Execute git operations.
+    # Issue #1564: stage_all is passed explicitly, never left to the callee's
+    # default - this is the call site that committed 482 files when its caller
+    # had staged 9.
     git_result = auto_commit_and_push(
         commit_message=commit_message,
         branch=branch,
-        push=push
+        push=push,
+        stage_all=stage_all
     )
 
     # Build response
@@ -1644,6 +1683,7 @@ def create_commit_with_agent_message(
             'success': False,
             'commit_sha': '',
             'pushed': False,
+            'files_committed': 0,
             'commit_message_generated': commit_message,
             'agent_succeeded': True,
             'git_succeeded': False,
@@ -1665,6 +1705,7 @@ def create_commit_with_agent_message(
             'success': True,
             'commit_sha': git_result['commit_sha'],
             'pushed': git_result.get('pushed', False),
+            'files_committed': git_result.get('files_committed', 0),
             'commit_message_generated': commit_message,
             'agent_succeeded': True,
             'git_succeeded': True,
@@ -1676,6 +1717,7 @@ def create_commit_with_agent_message(
             'success': False,
             'commit_sha': '',
             'pushed': False,
+            'files_committed': 0,
             'commit_message_generated': commit_message,
             'agent_succeeded': True,
             'git_succeeded': False,

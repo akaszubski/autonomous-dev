@@ -70,6 +70,10 @@ class TestAutoImplementGitIntegration:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote
@@ -154,6 +158,10 @@ class TestAutoImplementGitIntegration:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
         ]
 
         # Act: Commit without push
@@ -209,6 +217,10 @@ class TestAutoImplementGitIntegration:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote
@@ -312,6 +324,10 @@ Unmerged paths:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote (fails)
@@ -353,6 +369,10 @@ Unmerged paths:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote (timeout)
@@ -393,6 +413,10 @@ Unmerged paths:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote (branch protection)
@@ -445,6 +469,10 @@ class TestAutoImplementWithPRCreation:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote
@@ -492,6 +520,10 @@ class TestAutoImplementWithPRCreation:
             Mock(returncode=0, stdout='', stderr=''),
             # commit_changes
             Mock(returncode=0, stdout='[main abc1234] feat: add feature\n', stderr=''),
+            # count_committed_files - Issue #1564 added this call so the result
+            # carries files_committed. -z output is NUL-separated, so this is
+            # one path, not two.
+            Mock(returncode=0, stdout='file1.py\x00', stderr=''),
             # get_remote_name
             Mock(returncode=0, stdout='origin\n', stderr=''),
             # push_to_remote

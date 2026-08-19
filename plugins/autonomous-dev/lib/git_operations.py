@@ -425,6 +425,217 @@ def stage_all_changes(cwd: Optional[Path] = None, gitignore_aware: bool = False)
         return (False, f'unexpected error: {str(e)}')
 
 
+def _is_unmerged(index_status: str, worktree_status: str) -> bool:
+    """
+    Report whether a porcelain status pair describes an unmerged path.
+
+    Issue #1564: git's seven unmerged states are ``DD``, ``AU``, ``UD``,
+    ``UA``, ``DU``, ``AA`` and ``UU``. Five carry a ``U``; ``AA`` and ``DD`` do
+    not, so a ``U``-only test misses them. A path in any of these states has no
+    single resolved blob in the index and cannot be committed, so it is not a
+    staged path.
+
+    Args:
+        index_status: First porcelain column (the index/staged status)
+        worktree_status: Second porcelain column (the working-tree status)
+
+    Returns:
+        True if the pair is one of git's unmerged states.
+
+    Example:
+        >>> _is_unmerged('U', 'D')
+        True
+        >>> _is_unmerged('A', ' ')
+        False
+    """
+    if 'U' in (index_status, worktree_status):
+        return True
+    return (index_status, worktree_status) in (('A', 'A'), ('D', 'D'))
+
+
+def get_staged_files(cwd: Optional[Path] = None) -> List[str]:
+    """
+    List the paths currently staged in the git index.
+
+    Issue #1564: ``auto_commit_and_push(stage_all=False)`` commits whatever the
+    caller staged. It needs a way to tell "the caller staged nothing" from
+    "the caller staged something" that does not depend on ``HEAD`` existing.
+    ``git status --porcelain`` answers both without a HEAD, so the same query
+    works for a root commit.
+
+    The ``-z`` form is mandatory, not a preference. Without it git applies
+    ``core.quotePath``: it wraps any path holding a non-ASCII byte, a space at
+    either end, a quote or a backslash in double quotes and C-style-escapes the
+    contents, so ``caf\xc3\xa9.txt`` arrives as ``"caf\\303\\251.txt"``.
+    Stripping the delimiters does not decode the escapes and ``.strip()``
+    destroys significant leading and trailing spaces, yielding paths that do
+    not exist on disk. ``-z`` emits the raw undecoded bytes and needs no
+    unquoting at all. They are decoded with ``surrogateescape`` so a path that
+    is not valid UTF-8 survives the round trip into ``os`` calls rather than
+    raising.
+
+    The index status is the FIRST porcelain column. A space (unstaged), ``?``
+    (untracked) or ``!`` (ignored) in that column means the path is not staged.
+    Unmerged paths (``U`` in either column, plus the ``AA`` and ``DD`` pairs)
+    are excluded: a conflicted path has no single staged blob, so it is not a
+    staged path. ``detect_merge_conflict()`` is the query for those.
+
+    Renames and copies emit their source path as a separate record which must
+    be consumed, and ``R``/``C`` can appear in EITHER column - ``R `` is
+    "renamed in index", `` R`` is "renamed in work tree". Both carry a source
+    record, and exactly ONE per entry: a path renamed in the index and again in
+    the work tree is reported as two separate entries, each with its own single
+    source record (measured, git 2.53). So one record is consumed, not one per
+    matching column.
+
+    Args:
+        cwd: Working directory (default: current directory)
+
+    Returns:
+        List of staged paths (renames report the destination path).
+        Empty list if nothing is staged or the query failed.
+
+    Example:
+        >>> staged = get_staged_files()
+        >>> print(f"{len(staged)} file(s) staged")
+    """
+    cwd_str = str(cwd) if cwd else None
+
+    try:
+        result = subprocess.run(
+            ['git', 'status', '--porcelain', '-z'],
+            capture_output=True,
+            encoding='utf-8',
+            errors='surrogateescape',
+            check=True,
+            cwd=cwd_str,
+            timeout=30
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return []
+
+    records = [record for record in result.stdout.split('\0') if record]
+
+    staged: List[str] = []
+    position = 0
+    while position < len(records):
+        entry = records[position]
+        position += 1
+
+        # Shortest possible entry is 'XY P' - two status columns, a space, a path.
+        if len(entry) < 4:
+            continue
+
+        index_status, worktree_status = entry[0], entry[1]
+        path = entry[3:]
+
+        # Under -z a rename or copy emits the source path as its OWN record
+        # immediately after the entry. Consume it unconditionally, even when
+        # the entry itself is skipped, or every later record is misaligned.
+        # BOTH columns must be tested: git emits worktree-side renames as
+        # ' R' ("renamed in work tree"), which carries a source record too.
+        # Checking only the index column left that record to be parsed as an
+        # entry, so a source name beginning with R or C - README.md,
+        # CHANGELOG.md, Cargo.toml - consumed the NEXT record and silently
+        # dropped a genuinely staged path.
+        if index_status in ('R', 'C') or worktree_status in ('R', 'C'):
+            position += 1
+
+        if _is_unmerged(index_status, worktree_status):
+            continue
+        if index_status in (' ', '?', '!'):
+            continue
+        if path:
+            staged.append(path)
+
+    return staged
+
+
+def count_committed_files(ref: str = 'HEAD', cwd: Optional[Path] = None) -> int:
+    """
+    Count the files changed by a commit.
+
+    Issue #1564: callers had no signal that ``auto_commit_and_push`` had swept
+    far more into the commit than they staged - the only way to find out was to
+    run ``git show --stat`` afterwards. This measures what actually landed. A 0
+    therefore has to mean "no commit was created" and nothing else, or the
+    signal the caller is asked to trust lies.
+
+    ``git show --name-only`` cannot provide that. For a merge commit it prints
+    a combined diff, which by design suppresses every path that matches one of
+    the parents - a real two-parent merge returned 0 for a commit that exists.
+    ``git diff-tree ... -m`` reports a diff per parent instead. Paths are
+    deduplicated because ``-m`` emits a path once per parent it differs from
+    (``--first-parent`` does NOT narrow this: verified inert on diff-tree,
+    git 2.53), so the count is the set of paths this commit changed relative to
+    at least one parent.
+
+    ``--root`` is required: diff-tree reports nothing for a root commit
+    WITHOUT it, and everything WITH it. ``-z`` sidesteps ``core.quotePath``
+    escaping, which would otherwise miscount a path containing a newline.
+    The trailing ``--`` marks the end of revisions so a caller-supplied ``ref``
+    cannot be reinterpreted as a pathspec.
+
+    A ``ref`` beginning with ``-`` is rejected in-process rather than being
+    interpolated into argv. The trailing ``--`` does NOT prevent this: git
+    parses options before it, so ``count_committed_files('--all')`` reached git
+    as the ``--all`` flag (measured). The check is done here rather than with
+    git's ``--end-of-options`` because that option needs git 2.24+, and on an
+    older git it would make EVERY call fail closed to 0 - reintroducing the
+    lying-zero this function was just fixed to stop producing.
+
+    A flag-shaped ref therefore raises rather than returning 0. Returning 0
+    would recreate the very ambiguity this function exists to remove: 0 is the
+    documented "no commit was created" sentinel, and a caller-side programming
+    error is not that. It is not reachable from any legitimate ref - no git
+    ref name may begin with ``-`` - so raising cannot break a working caller.
+
+    Args:
+        ref: Commit-ish to inspect (default: 'HEAD')
+        cwd: Working directory (default: current directory)
+
+    Returns:
+        Number of distinct files changed by the commit, or 0 if the query
+        failed or the ref does not name a commit.
+
+    Raises:
+        ValueError: If ``ref`` begins with ``-``, which git would parse as an
+            option rather than as a revision.
+
+    Example:
+        >>> count_committed_files()
+        3
+    """
+    if ref.startswith('-'):
+        raise ValueError(
+            f"Refusing flag-shaped ref: {ref!r}\n"
+            f"Expected a commit-ish (e.g. 'HEAD', 'HEAD~1', a SHA); git parses "
+            f"a leading '-' as an option, so this would silently inspect the "
+            f"wrong commits.\n"
+            f"See: docs/GIT-AUTOMATION.md"
+        )
+
+    cwd_str = str(cwd) if cwd else None
+
+    try:
+        result = subprocess.run(
+            [
+                'git', 'diff-tree', '-r', '--no-commit-id', '--name-only',
+                '-z', '--root', '-m', '--first-parent', ref, '--'
+            ],
+            capture_output=True,
+            encoding='utf-8',
+            errors='surrogateescape',
+            check=True,
+            cwd=cwd_str,
+            timeout=30
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return 0
+
+    return len({path for path in result.stdout.split('\0') if path})
+
+
 def commit_changes(message: str) -> Tuple[bool, str, str]:
     """
     Create a git commit with the given message.
@@ -844,7 +1055,8 @@ def auto_commit_and_push_worktree(
 def auto_commit_and_push(
     commit_message: str,
     branch: str,
-    push: bool = True
+    push: bool = True,
+    stage_all: bool = True
 ) -> Dict[str, Any]:
     """
     High-level function that orchestrates the full commit-and-push workflow.
@@ -857,8 +1069,8 @@ def auto_commit_and_push(
         2. Check git config
         3. Detect merge conflicts
         4. Check for detached HEAD
-        5. Check for uncommitted changes
-        6. Stage all changes
+        5. Check there is something to commit
+        6. Stage all changes (only when stage_all is True)
         7. Commit changes
         8. Get remote name (if push requested)
         9. Push to remote (if push requested)
@@ -867,12 +1079,47 @@ def auto_commit_and_push(
         commit_message: Commit message
         branch: Branch name to push to
         push: Whether to push after committing (default: True)
+        stage_all: When True (default) every change in the working tree,
+            including untracked files, is staged before committing - the
+            commit-everything semantics batch and worktree flows depend on.
+            When False the caller's staging area is used verbatim: nothing is
+            added to the index and unstaged or untracked files are left out of
+            the commit (Issue #1564).
+
+    Precondition:
+        ``stage_all=False`` commits the caller's index VERBATIM. Nothing is
+        added to it here, so the caller must have staged exactly what it wants
+        committed FIRST. With an empty index no commit is created: the call
+        returns ``success=True`` with an empty ``commit_sha`` and
+        ``files_committed=0``.
+
+        ``/implement`` does NOT yet satisfy this precondition, and it fails in
+        two different ways depending on the run:
+
+        - **doc-master made no fixes** -> the index is empty. The pipeline has
+          no staging step of its own, and STEP 1 hard-blocks when
+          ``git diff --cached --name-only`` is non-empty and instructs
+          ``git reset HEAD``. The mandatory STEP 12.7 commit produces no
+          commit at all - a loud, visible failure.
+        - **doc-master made fixes** -> the index holds ONLY those doc files.
+          The single ``git add`` in ``commands/implement.md`` belongs to
+          doc-master's fix-collection point in STEP 12, which runs BEFORE the
+          STEP 12.7 commit. ``stage_all=False`` would therefore commit the doc
+          fixes and SILENTLY DROP the entire implementation. This is the
+          dangerous branch: it succeeds, reports a sha, and loses the work.
+
+        The second branch is the same hazard that was raised against
+        auto-detecting the staging mode. It applies to the explicit parameter
+        too. Wiring the pipeline to stage deliberately is tracked separately;
+        until then the pipeline call site keeps the ``stage_all=True`` default.
 
     Returns:
         Dictionary with keys:
             - success (bool): Overall success (True if commit succeeded)
             - commit_sha (str): Commit SHA if committed, '' otherwise
             - pushed (bool): True if pushed successfully
+            - files_committed (int): Number of files in the resulting commit,
+              0 when no commit was created (Issue #1564)
             - error (str): Error message if any, '' otherwise
 
     Example:
@@ -881,11 +1128,19 @@ def auto_commit_and_push(
         ...     print(f"Committed: {result['commit_sha']}")
         ...     if result['pushed']:
         ...         print("Pushed to remote")
+
+        >>> # Commit only what the caller already staged (Issue #1564)
+        >>> staged_only = auto_commit_and_push(
+        ...     'fix: narrow change', 'main', push=False, stage_all=False
+        ... )
+        >>> staged_only['files_committed']
+        3
     """
     result = {
         'success': False,
         'commit_sha': '',
         'pushed': False,
+        'files_committed': 0,
         'error': ''
     }
 
@@ -912,17 +1167,31 @@ def auto_commit_and_push(
         result['error'] = 'repository is in detached HEAD state'
         return result
 
-    # Step 5: Check for uncommitted changes
-    if not has_uncommitted_changes():
-        result['success'] = True  # Not an error - just nothing to do
-        result['error'] = 'nothing to commit, working tree clean'
-        return result
+    # Step 5: Check there is something to commit.
+    # The emptiness question differs by mode: commit-everything asks about the
+    # whole working tree, commit-what-was-staged asks about the index only.
+    if stage_all:
+        if not has_uncommitted_changes():
+            result['success'] = True  # Not an error - just nothing to do
+            result['error'] = 'nothing to commit, working tree clean'
+            return result
+    else:
+        if not get_staged_files():
+            result['success'] = True  # Not an error - just nothing to do
+            result['error'] = (
+                'nothing to commit, staging area is empty '
+                '(stage_all=False, so unstaged and untracked files are ignored)'
+            )
+            return result
 
-    # Step 6: Stage all changes
-    stage_success, error = stage_all_changes()
-    if not stage_success:
-        result['error'] = f'failed to stage changes: {error}'
-        return result
+    # Step 6: Stage all changes (Issue #1564: skipped when the caller staged
+    # its own set - staging here would sweep the whole tree, untracked files
+    # included, and silently discard the caller's index).
+    if stage_all:
+        stage_success, error = stage_all_changes()
+        if not stage_success:
+            result['error'] = f'failed to stage changes: {error}'
+            return result
 
     # Step 7: Commit changes
     commit_success, commit_sha, error = commit_changes(commit_message)
@@ -933,6 +1202,7 @@ def auto_commit_and_push(
     # Commit succeeded - mark as success even if push fails
     result['success'] = True
     result['commit_sha'] = commit_sha
+    result['files_committed'] = count_committed_files()
 
     # Step 8-9: Push to remote (if requested)
     if push:
@@ -1007,10 +1277,22 @@ class GitOperations:
     def auto_commit_push(
         commit_message: str,
         branch: str = 'main',
-        push: bool = True
+        push: bool = True,
+        stage_all: bool = True
     ) -> Dict[str, Any]:
-        """Automated commit and push workflow."""
-        return auto_commit_and_push(commit_message, branch, push)
+        """Automated commit and push workflow.
+
+        Args:
+            commit_message: Commit message
+            branch: Branch name to push to (default: 'main')
+            push: Whether to push after committing (default: True)
+            stage_all: Stage the whole working tree before committing
+                (default: True). Pass False to commit only what is already
+                staged (Issue #1564).
+        """
+        return auto_commit_and_push(
+            commit_message, branch, push, stage_all=stage_all
+        )
 
 
 def is_worktree() -> bool:

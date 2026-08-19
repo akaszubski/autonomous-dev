@@ -928,6 +928,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 Generated in-process by `generate_commit_message()` in `auto_implement_git_integration.py` based on changed files and feature context — no subagent is dispatched (Issue #1555).
 
+**Staging scope**: batch commits stage the entire working tree, untracked files included. This is deliberate — a batch feature's output is whatever the worktree contains when the feature finishes, and there is no staging step to narrow it. Since Issue #1564 that behaviour is an explicit `stage_all=True` default on `auto_commit_and_push()` rather than unconditional staging, but the batch path is unchanged: it does not pass `stage_all=False`. See [GIT-AUTOMATION.md § Staging scope](GIT-AUTOMATION.md#staging-scope-issue-1564).
+
 ### Issue Auto-Close (NEW in v3.46.0 - Issue #168)
 
 **Automatic GitHub issue closing after successful push** - If a batch feature closes a GitHub issue (extracted from feature description or issue number list), the issue is automatically closed after push completes with a summary comment.

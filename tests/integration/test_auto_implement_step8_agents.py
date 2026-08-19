@@ -151,7 +151,12 @@ class TestStep8AgentIntegration:
         mock_git_ops.assert_called_once_with(
             commit_message=ANY,
             branch='main',
-            push=False  # Push disabled
+            push=False,  # Push disabled
+            # Issue #1564: the staging choice is recorded AT the call site, not
+            # inherited from the callee default. This is the call that committed
+            # 482 files when its caller had staged 9, so an implicit default
+            # here is exactly what must not come back.
+            stage_all=True
         )
         assert result['success'] is True
         assert result['commit_sha'] == 'abc1234'
