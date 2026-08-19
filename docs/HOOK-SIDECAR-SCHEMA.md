@@ -81,7 +81,9 @@ Lifecycle hooks register for one or more Claude Code events. They **must** have 
 
 ### Utility Modules
 
-Utility modules are deployed alongside hooks but are not registered with any lifecycle event. They are imported by other hooks. The `registrations` field **must not** be present.
+Utility modules are deployed alongside hooks but are not registered with any lifecycle event. They are typically imported by other hooks (`genai_utils`), though some are standalone CLI-invoked modules (`cloud_drain_telemetry`). The `registrations` field **must not** be present.
+
+`type` gates deployment: `generate_hook_config.py` includes **every** sidecar in `install_manifest.json` but emits settings registrations for `type: "lifecycle"` sidecars only. A utility therefore ships to `~/.claude/hooks/` but is never wired to an event — choose `utility` whenever no real Claude Code lifecycle event applies, rather than inventing an event name to satisfy the `lifecycle` shape.
 
 ```json
 {

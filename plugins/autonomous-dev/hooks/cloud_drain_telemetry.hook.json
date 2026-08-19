@@ -1,9 +1,7 @@
 {
   "name": "cloud_drain_telemetry",
-  "description": "Controls telemetry commit emission for cloud-drain fires (Issue #1437)",
-  "events": ["CloudSchedule"],
-  "enabled": true,
-  "priority": 10,
-  "retry": 0,
-  "timeout": 30
+  "type": "utility",
+  "description": "Cloud-drain telemetry controller (Issue #1437). CLI-invoked with --fire-type/--exit-reason; NOT registered on a Claude Code lifecycle event. 'CloudSchedule' is not a Claude Code event, so this cannot be type=lifecycle without fabricating a registration.",
+  "interpreter": "python3",
+  "active": true
 }
