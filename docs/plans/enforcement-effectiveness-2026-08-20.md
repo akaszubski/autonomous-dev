@@ -160,6 +160,80 @@ have been the fix scoped to the instance.
 
 ---
 
+## Corrected model — hook inventory and invocation graph (measured 2026-08-20, second pass)
+
+An earlier section of this document says "27 hooks". **That is wrong** — it counted
+`*.py` only. Recording the correction here rather than editing the original, so the
+error and its cause both stay visible.
+
+### There are 32 hooks
+
+```
+26 python + 6 shell = 32
+```
+
+The six shell hooks were invisible to every count in this document's first pass.
+One of them, `PreToolUseWrite-protect-sensitive.sh`, is **refusal-capable** and has
+never been measured.
+
+### Three registration surfaces, and none is complete alone
+
+| Surface | What it declares |
+|---|---|
+| settings files (5 of them, incl. global `~/.claude/settings.json`) | the **event** binding |
+| per-hook `.hook.json` sidecar (32) | `type` (utility 21 / lifecycle 12) and `active` — **never an event** |
+| programmatic invocation | utilities called by other code |
+
+Only **10 hooks are event-bound**. The rest are utilities invoked programmatically.
+A sidecar says *what a hook is*, never *when it fires* — so neither surface answers
+"does this run?" on its own.
+
+This resolved the `enforce_orchestrator` puzzle: 248 real blocks across 48 days from
+a hook registered in no settings file. It is `type: utility` with three programmatic
+invokers. Working as designed; the earlier confusion came from treating the settings
+template as the registry.
+
+### The refusal-capable set — six hooks, three proven
+
+| Hook | Protocol | Real blocks |
+|---|---|---|
+| `unified_pre_tool.py` | `permissionDecision: deny` | 8,093 |
+| `unified_prompt_validator.py` | `decision` (UserPromptSubmit) | 254 |
+| `enforce_orchestrator.py` | `exit 2` | 248 |
+| `plan_gate.py` | `permissionDecision: "block"` — **not in the enum** | **0** (#1589) |
+| `enforce_file_organization.py` | `_deny()`, no recording call | **0** — unknowable |
+| `PreToolUseWrite-protect-sensitive.sh` | shell | **unmeasured** |
+
+Three refuse and are observed doing it. Three do not appear in the block log at all,
+for three *different* reasons: an invalid enum value, a missing recording call, and
+never having been looked at.
+
+### Two protocols, not drift
+
+```
+PreToolUse       -> permissionDecision : allow | deny | ask
+UserPromptSubmit -> decision           : block
+```
+
+Both are genuine Claude Code contracts tied to different events. Any canonical sink
+must take the protocol as a parameter rather than collapsing them.
+
+### Corrections this pass made to this document's own numbers
+
+1. **"27 hooks"** -> 32. Counted `*.py` only.
+2. **"9,103 block records"** -> 9,163 rows, of which **8,595** are refusals. `mode_skip`
+   (488) is skip telemetry, not a block. `hook_perf_report.py:39` already encoded the
+   distinction in `BLOCK_SHAPES`.
+3. **"5 hooks have blocked"** -> 3. `plan_gate` and `plan_mode_exit_detector` appear in
+   the log only as `mode_skip`, and only from test-marked sessions.
+4. **A heuristic treating empty `session_id` as a test marker** was refuted by a positive
+   control: a genuine block from this session (the one that refused a write to
+   `plan-critic.md`) carries an empty `session_id`. It would have misclassified 8,594
+   real blocks as test noise.
+
+Every one of these is the same error: confirming that records exist, then assuming what
+they are. The positive control is what caught the fourth before it was published.
+
 ## Issues filed
 
 | # | Finding | Needs |
