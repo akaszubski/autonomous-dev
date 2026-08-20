@@ -23,12 +23,68 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 import pytest
 
 # Add scripts directory to path for imports (directory uses hyphen, not underscore)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "scripts"))
+
+
+class UnboundedWaitError(BaseException):
+    """Raised when ``Popen.wait()`` is called with no timeout.
+
+    Deliberately a ``BaseException``: ``stop_display`` catches ``Exception``,
+    so a normal exception would be swallowed and the test would pass while the
+    unbounded wait was still there. Inheriting from ``BaseException`` makes an
+    unbounded wait an unmissable, immediate test failure instead of a hang.
+    """
+
+
+class FakeUnreapableChild:
+    """A child process that ignores SIGTERM and is not reaped by SIGKILL.
+
+    ``wait(timeout=N)`` burns the full N seconds then raises
+    ``TimeoutExpired``, like the real ``Popen.wait``. ``wait()`` with no
+    timeout would block forever in reality; here it raises
+    ``UnboundedWaitError`` so the defect is reported rather than reproduced.
+    """
+
+    def __init__(self, pid: int = 12345) -> None:
+        self.pid = pid
+        self.terminate_calls = 0
+        self.kill_calls = 0
+        self.wait_timeouts: list = []
+
+    def poll(self):
+        return None  # Always running
+
+    def terminate(self) -> None:
+        self.terminate_calls += 1
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+
+    def wait(self, timeout=None):
+        self.wait_timeouts.append(timeout)
+        if timeout is None:
+            raise UnboundedWaitError(
+                "Popen.wait() called with no timeout - this blocks forever "
+                "when the child is not reaped (Issue #1567)"
+            )
+        time.sleep(timeout)
+        raise subprocess.TimeoutExpired("progress_display.py", timeout)
+
+
+class FakeWellBehavedChild(FakeUnreapableChild):
+    """A child that exits promptly on the first SIGTERM."""
+
+    def wait(self, timeout=None):
+        self.wait_timeouts.append(timeout)
+        if timeout is None:
+            raise UnboundedWaitError("Popen.wait() called with no timeout")
+        return 0
 
 
 class TestPipelineController:
@@ -329,6 +385,87 @@ class TestPipelineController:
 
             controller.start_display()
             controller.stop_display()  # Should handle gracefully
+
+    def test_regression_issue_1567_stop_display_bounded_when_kill_does_not_reap(
+        self, mock_session_file, tmp_path
+    ):
+        """Regression for Issue #1567: no unbounded wait after kill().
+
+        The child ignores SIGTERM *and* survives SIGKILL. Before the fix,
+        ``stop_display`` fell through to a bare ``wait()`` that blocks forever;
+        the fake raises ``UnboundedWaitError`` on that call, so the test goes
+        red immediately instead of hanging. After the fix every wait carries a
+        timeout and the call returns within the sum of the two bounds.
+        """
+        import pipeline_controller
+        from pipeline_controller import PipelineController
+
+        controller = PipelineController(session_file=mock_session_file, pid_dir=tmp_path)
+        child = FakeUnreapableChild()
+
+        with patch("subprocess.Popen", return_value=child):
+            controller.start_display()
+
+        graceful_timeout = 0.05
+        reap_bound = 0.05
+        with patch.object(pipeline_controller, "KILL_REAP_TIMEOUT_SECONDS", reap_bound):
+            started = time.monotonic()
+            result = controller.stop_display(timeout=graceful_timeout)
+            elapsed = time.monotonic() - started
+
+        # Escalation happened, and every wait was bounded.
+        assert child.terminate_calls == 1, "must try SIGTERM first"
+        assert child.kill_calls == 1, "must escalate to SIGKILL"
+        assert None not in child.wait_timeouts, (
+            f"every wait() must carry a timeout, got {child.wait_timeouts}"
+        )
+        assert child.wait_timeouts == [graceful_timeout, reap_bound]
+
+        # Bounded in wall-clock terms, and the failure is reported, not hidden.
+        assert elapsed < (graceful_timeout + reap_bound) * 10, (
+            f"stop_display took {elapsed:.2f}s - not bounded"
+        )
+        assert result is False, "an unreaped child must be reported as a failure"
+
+        # The real constant must itself be a finite, positive bound.
+        assert 0 < pipeline_controller.KILL_REAP_TIMEOUT_SECONDS < float("inf")
+
+        # stop_display keeps the handle so a caller can retry. Detach the
+        # wedged fake here so the atexit cleanup hook does not retry it with
+        # the unpatched (5s + 5s) bounds at interpreter shutdown.
+        controller.display_process = None
+
+    def test_stop_display_wellbehaved_child_exits_without_waiting_out_kill_bound(
+        self, mock_session_file, tmp_path
+    ):
+        """Negative control for Issue #1567: the new bound must not add latency.
+
+        A child that exits on the first SIGTERM must never reach kill() or the
+        SIGKILL reap bound. Guards against "fixing" the hang by always waiting
+        out the new timeout.
+        """
+        import pipeline_controller
+        from pipeline_controller import PipelineController
+
+        pid_file = tmp_path / "progress_display.pid"
+        controller = PipelineController(session_file=mock_session_file, pid_dir=tmp_path)
+        child = FakeWellBehavedChild()
+
+        with patch("subprocess.Popen", return_value=child):
+            controller.start_display()
+        assert pid_file.exists()
+
+        with patch.object(pipeline_controller, "KILL_REAP_TIMEOUT_SECONDS", 30.0):
+            started = time.monotonic()
+            result = controller.stop_display(timeout=5)
+            elapsed = time.monotonic() - started
+
+        assert result is True
+        assert child.kill_calls == 0, "well-behaved child must not be SIGKILLed"
+        assert child.wait_timeouts == [5], "must wait once, with the caller's timeout"
+        assert elapsed < 1.0, f"took {elapsed:.2f}s - waited out a bound it should skip"
+        assert controller.display_process is None
+        assert not pid_file.exists(), "PID file must be cleaned up"
 
     # ========================================
     # PID FILE TESTS

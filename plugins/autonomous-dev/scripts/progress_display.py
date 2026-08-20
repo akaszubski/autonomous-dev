@@ -23,10 +23,12 @@ Usage:
 """
 
 import json
+import signal
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from types import FrameType
 from typing import Dict, Any, Optional
 
 
@@ -263,6 +265,16 @@ class ProgressDisplay:
             sys.stdout.write("\033[2J\033[H")
             sys.stdout.flush()
 
+    def stop(self) -> None:
+        """Request the poll loop to exit after the current iteration.
+
+        ``run()`` re-checks ``should_continue`` at the top of every pass, so
+        this gives the loop a real, externally controllable termination
+        condition. Wired to SIGTERM by :func:`main`; also callable from another
+        thread or a test.
+        """
+        self.should_continue = False
+
     def run(self):
         """Run the display loop until pipeline completes or interrupted."""
         try:
@@ -326,6 +338,32 @@ def main():
             sys.exit(1)
 
     display = ProgressDisplay(session_file=session_file, refresh_interval=refresh_interval)
+
+    # SIGTERM is exactly what pipeline_controller.stop_display() sends this
+    # process (Popen.terminate()). Unhandled, its default action kills us
+    # mid-render: measured returncode -15 with 0 bytes of stdout, because when
+    # stdout is a pipe it is block-buffered and every rendered frame is
+    # discarded. Flipping the loop's own termination flag instead lets run()
+    # finish the current pass and fall out of the loop normally, so the
+    # interpreter's ordinary shutdown flushes stdout.
+    #
+    # The handler only sets a flag; it never raises. Raising would unwind from
+    # an arbitrary point inside run() and land in its broad `except Exception`,
+    # printing a spurious error and racing the render mid-write. Cooperating
+    # with the loop's existing exit check keeps shutdown on one path.
+    #
+    # Exit latency is bounded by one refresh_interval: PEP 475 makes
+    # time.sleep() resume the remainder of its nap after a handler returns
+    # rather than raising EINTR. At the 0.5s default that is well inside the
+    # 5s stop_display() grace period, so the escalation to SIGKILL is never
+    # reached. SIGINT already unwinds into run()'s KeyboardInterrupt branch,
+    # so SIGTERM is the only gap.
+    def handle_sigterm(signum: int, frame: Optional[FrameType]) -> None:
+        """Ask the poll loop to finish its current pass, then exit."""
+        display.stop()
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
     display.run()
 
 

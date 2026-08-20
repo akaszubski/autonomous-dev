@@ -18,7 +18,11 @@ These tests follow TDD - they WILL FAIL until progress_display.py is implemented
 """
 
 import json
+import signal
+import subprocess
 import sys
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, mock_open
@@ -26,6 +30,35 @@ import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Safety bounds for tests that drive ProgressDisplay.run().
+# Issue #1567: this loop hung CI for two months, so every test that enters it
+# must be able to leave it. MAX_POLL_ITERATIONS caps the loop from the inside;
+# RUN_JOIN_TIMEOUT_SECONDS caps it from the outside, so a regression in the
+# exit condition surfaces as a named assertion failure, never as a hang.
+MAX_POLL_ITERATIONS = 5
+RUN_JOIN_TIMEOUT_SECONDS = 5.0
+
+# Outer bound for the real-subprocess SIGTERM test. Deliberately equal to
+# stop_display()'s own grace period: if the display cannot exit within the
+# window its only production caller allows, the wiring is not working.
+SIGTERM_EXIT_TIMEOUT_SECONDS = 5.0
+
+
+def _run_display_bounded(display) -> threading.Thread:
+    """Run ``display.run()`` on a daemon thread and join with a hard bound.
+
+    Args:
+        display: A ``ProgressDisplay`` instance to drive.
+
+    Returns:
+        The thread. ``thread.is_alive()`` is True if ``run()`` never returned,
+        which callers MUST assert against.
+    """
+    thread = threading.Thread(target=display.run, daemon=True)
+    thread.start()
+    thread.join(timeout=RUN_JOIN_TIMEOUT_SECONDS)
+    return thread
 
 
 class TestProgressDisplay:
@@ -410,20 +443,219 @@ class TestProgressDisplay:
     # ========================================
 
     def test_display_loop_polls_file(self, tmp_path, mock_pipeline_state):
-        """Test that display loop polls the session file."""
+        """Test that display loop polls the session file.
+
+        Regression for Issue #1567. The previous version of this test patched
+        the ``should_continue`` *attribute* with ``side_effect=[True, False]``.
+        ``patch.object`` builds a MagicMock for that, but ``while
+        self.should_continue:`` only evaluates truthiness — a MagicMock is
+        always truthy and the side_effect list is never consumed, so the loop
+        span forever inside ``time.sleep()`` and burned every CI run.
+
+        The loop is now ended through the production ``stop()`` API, and the
+        real ``load_pipeline_state`` is spied on rather than mocked so the test
+        still proves the loop genuinely reads the session file.
+        """
         from plugins.autonomous_dev.scripts.progress_display import ProgressDisplay
 
         session_file = tmp_path / "session.json"
         session_file.write_text(json.dumps(mock_pipeline_state))
 
-        display = ProgressDisplay(session_file=session_file)
+        display = ProgressDisplay(session_file=session_file, refresh_interval=0.01)
 
-        # Mock the run loop to only execute once
-        with patch.object(display, 'should_continue', side_effect=[True, False]):
-            with patch.object(display, 'render_tree_view') as mock_render:
-                display.run()
-                # Should have called render at least once
-                assert mock_render.call_count >= 1
+        # Spy on the REAL loader: proves the loop actually polls the file.
+        polled_states = []
+        real_load = display.load_pipeline_state
+
+        def spy_load():
+            state = real_load()
+            polled_states.append(state)
+            return state
+
+        # End the loop after the first render, via the production API.
+        def stop_after_render(state):
+            display.stop()
+            return ""
+
+        # Inner bound: never sleep for real, and force an exit if the loop
+        # somehow keeps spinning past MAX_POLL_ITERATIONS.
+        sleep_calls = []
+
+        def bounded_sleep(seconds):
+            sleep_calls.append(seconds)
+            if len(sleep_calls) > MAX_POLL_ITERATIONS:
+                display.stop()
+
+        with patch.object(display, "load_pipeline_state", side_effect=spy_load), \
+                patch.object(display, "render_tree_view",
+                             side_effect=stop_after_render) as mock_render, \
+                patch("time.sleep", side_effect=bounded_sleep):
+            thread = _run_display_bounded(display)
+
+        assert not thread.is_alive(), (
+            f"ProgressDisplay.run() did not return within "
+            f"{RUN_JOIN_TIMEOUT_SECONDS}s - the poll loop has no working exit "
+            f"condition (Issue #1567)"
+        )
+        assert mock_render.call_count >= 1, "loop must render at least once"
+        assert polled_states, "loop must poll the session file at least once"
+        assert polled_states[0] == mock_pipeline_state, (
+            "poll must return the real contents of the session file"
+        )
+        assert len(sleep_calls) <= MAX_POLL_ITERATIONS, (
+            f"loop over-iterated: {len(sleep_calls)} sleeps for a single stop()"
+        )
+
+    def test_regression_issue_1567_stop_gives_poll_loop_bounded_exit(
+        self, tmp_path, mock_pipeline_state
+    ):
+        """Regression for Issue #1567: run() must honour a stop() request.
+
+        Fails before the fix (``ProgressDisplay`` has no ``stop()``), passes
+        after. Uses no mock of the loop body at all — real polling, real
+        rendering — so it cannot pass by neutering the behaviour under test.
+        """
+        from plugins.autonomous_dev.scripts.progress_display import ProgressDisplay
+
+        session_file = tmp_path / "session.json"
+        session_file.write_text(json.dumps(mock_pipeline_state))
+
+        display = ProgressDisplay(session_file=session_file, refresh_interval=0.01)
+
+        # A second thread stops the loop shortly after it starts.
+        stopper = threading.Timer(0.05, display.stop)
+
+        started = time.monotonic()
+        stopper.start()
+        thread = _run_display_bounded(display)
+        stopper.cancel()
+        elapsed = time.monotonic() - started
+
+        assert not thread.is_alive(), (
+            f"run() ignored stop() and was still looping after "
+            f"{RUN_JOIN_TIMEOUT_SECONDS}s"
+        )
+        assert display.should_continue is False, "stop() must clear should_continue"
+        assert elapsed < RUN_JOIN_TIMEOUT_SECONDS, (
+            f"run() took {elapsed:.2f}s to honour stop()"
+        )
+
+    def test_regression_issue_1567_main_registers_sigterm_handler_that_stops(
+        self, tmp_path, mock_pipeline_state
+    ):
+        """Regression for Issue #1567: ``main()`` must wire SIGTERM to ``stop()``.
+
+        ``stop()`` shipped with zero production callers — a method that exists,
+        reads as capability, and nothing invokes. SIGTERM is precisely what
+        ``pipeline_controller.stop_display()`` sends this process, so it is the
+        caller that makes the method real.
+
+        This asserts the wiring; the subprocess test below proves it fires.
+        """
+        from plugins.autonomous_dev.scripts import progress_display as pd
+
+        session_file = tmp_path / "session.json"
+        session_file.write_text(json.dumps(mock_pipeline_state))
+
+        registered = {}
+
+        def capture_signal(signum, handler):
+            registered[signum] = handler
+
+        # Capture the real instance main() built, via the stubbed run(), so the
+        # assertion below can check actual state rather than a mock call.
+        instances = []
+        with patch.object(sys, "argv", ["progress_display.py", str(session_file)]), \
+                patch.object(pd.signal, "signal", side_effect=capture_signal), \
+                patch.object(pd.ProgressDisplay, "run", autospec=True,
+                             side_effect=lambda self: instances.append(self)):
+            pd.main()
+
+        assert instances, "main() never reached display.run()"
+        display = instances[0]
+
+        assert signal.SIGTERM in registered, (
+            "main() registered no SIGTERM handler, so a terminating signal kills "
+            "the render mid-write and stop() keeps its zero production callers "
+            "(Issue #1567). Registered: "
+            f"{sorted(int(s) for s in registered)}"
+        )
+
+        handler = registered[signal.SIGTERM]
+        assert callable(handler), f"SIGTERM handler must be callable, got {handler!r}"
+        assert handler not in (signal.SIG_DFL, signal.SIG_IGN), (
+            "SIGTERM must map to a real handler, not SIG_DFL/SIG_IGN"
+        )
+
+        # The handler must ask the loop to stop — and must NOT raise, which
+        # would unwind from an arbitrary point inside run() and land in its
+        # broad `except Exception`, racing the render instead of cooperating.
+        assert display.should_continue is True, "precondition: loop not yet stopped"
+        handler(int(signal.SIGTERM), None)
+        assert display.should_continue is False, (
+            "SIGTERM handler did not stop the poll loop — run() re-checks "
+            "should_continue each pass, and that flag is the only exit the "
+            "handler can cooperate with (Issue #1567)"
+        )
+
+    def test_regression_issue_1567_real_sigterm_exits_cleanly_and_flushes(
+        self, tmp_path, mock_pipeline_state
+    ):
+        """Regression for Issue #1567: a REAL SIGTERM must produce a clean exit.
+
+        A handler nobody has watched run is the same class of defect as an
+        unwired method, so this spawns the actual script and signals it exactly
+        as ``stop_display()`` does (``Popen.terminate()``).
+
+        Measured before the fix: returncode -15 (killed by SIGTERM) with **0
+        bytes** of stdout — stdout is block-buffered on a pipe, so every
+        rendered frame was discarded. After: returncode 0 and the render
+        survives. Asserting on the flushed bytes, not merely on the exit code,
+        is what makes this test fail on the pre-fix behaviour.
+        """
+        script = (
+            Path(__file__).resolve().parents[2]
+            / "plugins" / "autonomous-dev" / "scripts" / "progress_display.py"
+        )
+        assert script.is_file(), f"progress_display.py not found at {script}"
+
+        session_file = tmp_path / "session.json"
+        session_file.write_text(json.dumps(mock_pipeline_state))
+
+        proc = subprocess.Popen(
+            [sys.executable, str(script), str(session_file), "--refresh", "0.05"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            time.sleep(0.4)  # let it render a few passes into the pipe buffer
+            proc.terminate()  # the real SIGTERM stop_display() sends
+            try:
+                out, err = proc.communicate(timeout=SIGTERM_EXIT_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                pytest.fail(
+                    f"progress_display.py ignored SIGTERM for "
+                    f"{SIGTERM_EXIT_TIMEOUT_SECONDS}s. stop_display() would then "
+                    f"escalate to SIGKILL (Issue #1567)."
+                )
+        finally:
+            if proc.poll() is None:  # pragma: no cover - only if the fail path missed
+                proc.kill()
+
+        assert proc.returncode == 0, (
+            f"SIGTERM did not produce a clean exit: returncode {proc.returncode} "
+            f"(negative means killed by signal "
+            f"{-proc.returncode if proc.returncode < 0 else 'n/a'}). The handler "
+            f"must let run() fall out of its loop normally.\nstderr: {err[-500:]}"
+        )
+        assert "Agent Pipeline Progress" in out, (
+            "Rendered output was lost on shutdown. stdout is block-buffered on a "
+            "pipe, so an abrupt kill discards every frame; a clean exit flushes "
+            f"them (Issue #1567). Got {len(out)} bytes: {out[-300:]!r}"
+        )
 
     def test_display_loop_refresh_rate(self, tmp_path, mock_pipeline_state):
         """Test that display refreshes at correct interval."""

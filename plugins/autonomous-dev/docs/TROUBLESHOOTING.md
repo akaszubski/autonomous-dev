@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-**Last Updated**: 2026-06-28
+**Last Updated**: 2026-08-20
 **For**: Users and developers encountering common issues
 
 ---
@@ -843,6 +843,34 @@ echo "Exit code: $?"
 ```
 
 If hooks are running but actively blocking every prompt, see [Recovery from Broken Hooks](#recovery-from-broken-hooks).
+
+### "Error stopping display: process ... survived SIGKILL and was not reaped within 5.0s"
+
+**Symptom**: `pipeline_controller.py`'s `stop_display()` prints this to stderr and returns `False` instead of hanging.
+
+**Cause**: `stop_display()` escalates the progress-display subprocess SIGTERM → SIGKILL. A killed child is normally reaped by `wait()` immediately, but a process stuck in an uninterruptible wait (D state — typically wedged NFS/FUSE I/O, or a kernel-level device wait) is not killable at all and never gets reaped. Before Issue #1567, the post-`kill()` `wait()` call had no timeout, so this hung the calling process forever with no error and no way to recover short of an external `kill -9` on the *caller*. `KILL_REAP_TIMEOUT_SECONDS` (5.0s, in `pipeline_controller.py`) now bounds that wait — past it, `stop_display()` reports the failure and returns instead of blocking.
+
+**Fix**: This is an OS-level wedge, not an application bug — `pipeline_controller.py` cannot force a reap that the kernel itself is refusing. From another terminal:
+
+```bash
+# Confirm the process is genuinely unkillable (state D)
+ps -o pid,stat,comm -p <pid>
+
+# If it's in D state, it will clear on its own once the blocking I/O
+# resolves (e.g. NFS mount recovers). It cannot be killed out from under
+# that wait. If it never clears, the underlying I/O path (NFS share,
+# FUSE mount, USB device) needs investigation independent of this tool.
+```
+
+If this fires routinely (not a one-off), it usually means the display subprocess is writing to a filesystem path that periodically stalls — check for network mounts in whatever path `progress_display.py` was launched against.
+
+**Recovering the controller**: `stop_display()` deliberately keeps `display_process` set when the reap fails, so `is_display_running()` keeps telling the truth rather than reporting a dead display that is still on the process table. The cost is that the controller stays pinned to a process it can never reap. Once you have confirmed the child is gone (`ps -p <pid>` returns nothing), clear the handle so the controller can start a fresh display:
+
+```python
+controller.display_process = None  # only after confirming the pid is gone
+```
+
+Note also that because the handle is retained, the `atexit` → `cleanup()` path retries `stop_display()` at interpreter shutdown. Each attempt on a wedged child pays both bounds in sequence — the 5s SIGTERM grace period (`timeout`) plus `KILL_REAP_TIMEOUT_SECONDS` (5s) — so the retry adds up to ~10s of shutdown latency on top of the ~10s the explicit call already spent. Every wait is bounded, so shutdown always completes: it is slow, not hung. Clearing `display_process` as above also skips the retry.
 
 ### "Feature doesn't align with PROJECT.md"
 

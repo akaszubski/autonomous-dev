@@ -43,7 +43,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pyyaml anthropic
+          # pytest-timeout (Issue #1567): required before any --timeout flag
+          # below — pytest hard-errors on an unrecognized argument.
+          pip install pytest pyyaml anthropic pytest-timeout
 
       - name: Validate test categorization
         run: |
@@ -60,10 +62,15 @@ jobs:
             --settings-path plugins/autonomous-dev/config/global_settings_template.json \
             --schema-path plugins/autonomous-dev/config/hook-metadata.schema.json
 
+      # --timeout=30, not 300 (Issue #1567): this job's cap is 5 min = 300s, so
+      # a 300s per-test bound races the job cancellation and can never fire —
+      # a decoration that reads as protection. 30s is 6x the smoke tier's
+      # documented 5s max (tier_registry.py) and 1/10th of the job cap, so a
+      # hang names itself with ~270s of budget left to report it.
       - name: Run smoke tests
         run: |
           echo "Running smoke tests (fast sanity check)..."
-          python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts="
+          python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts=" --timeout=30 --timeout-method=signal
 
       - name: Validate manifest-doc alignment
         env:
@@ -107,24 +114,38 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest openai pyyaml
+          # pytest-timeout (Issue #1567): required before any --timeout flag
+          # below — pytest hard-errors on an unrecognized argument.
+          pip install pytest openai pyyaml pytest-timeout
 
+      # --timeout=240, not 300 (Issue #1567): this job's cap is 10 min = 600s,
+      # so 300s sat exactly on the 0.5 ratio ceiling — legal with zero
+      # headroom, and any tightening of timeout-minutes below would have turned
+      # CI red with no warning margin. 240s is ratio 0.40.
+      #
+      # 240 is NOT derived from a tier budget: tests/genai/ has no documented
+      # max duration (tier_registry.py records max_duration=None for it). It is
+      # chosen as a round value comfortably inside the ceiling while still
+      # generous for LLM-judge calls, which are the slowest thing here.
       - name: Run GenAI intent tests
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GENAI_TESTS: 'true'
         run: |
           echo "Running GenAI intent validation tests..."
-          python -m pytest tests/genai/ -v --tb=short -o "addopts="
+          python -m pytest tests/genai/ -v --tb=short -o "addopts=" --timeout=240 --timeout-method=signal
 
   # Stage 2: Full test suite (only if smoke passes)
   test:
     name: Full Test Suite
     runs-on: ubuntu-latest
     needs: smoke
-    # 15-min timeout was too tight — unit+integration+regression suites
-    # take ~25-40 min. Job has been silently timing-out → "cancelled"
-    # status for months. Bumped to 60 min so runs actually complete.
+    # The job was never slow — it hung. A single test
+    # (test_display_loop_polls_file) span forever in a poll loop, so the job
+    # burned its whole budget and was recorded as "cancelled" with no results.
+    # Raising the ceiling (15 -> 60 min) only made each failure more expensive.
+    # Fixed in #1567; the per-test --timeout below is what makes the next hang
+    # name itself instead of cancelling the job.
     timeout-minutes: 60
 
     steps:
@@ -159,19 +180,23 @@ jobs:
         if: steps.route.outputs.skip_all != 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov pyyaml pytest-xdist
+          pip install pytest pytest-cov pyyaml pytest-xdist pytest-timeout
 
+      # --timeout=300 --timeout-method=signal (Issue #1567): a hung test fails
+      # by name with a stack trace and the rest of the suite still runs.
+      # signal, not thread: thread kills the whole pytest process, which
+      # reproduces the "no results at all" failure this is meant to end.
       - name: Run unit tests
         if: steps.route.outputs.skip_all != 'true'
         run: |
           echo "Running unit tests..."
-          python -m pytest tests/unit/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/unit/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
       - name: Run integration tests
         if: steps.route.outputs.skip_all != 'true'
         run: |
           echo "Running integration tests..."
-          python -m pytest tests/integration/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/integration/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
       - name: Run regression tests
         if: steps.route.outputs.skip_all != 'true'
@@ -179,7 +204,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "Running regression tests..."
-          python -m pytest tests/regression/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/
+          python -m pytest tests/regression/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
   # Stage 3: Summary
   summary:

@@ -32,6 +32,12 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Any
 
+# Seconds to wait for the OS to reap a child after SIGKILL. A killed child is
+# normally reaped immediately, but a process wedged in an uninterruptible wait
+# (D state, stuck NFS/FUSE I/O) never is. Bounding this wait means a failed
+# kill() degrades to a reported error instead of blocking the caller forever.
+KILL_REAP_TIMEOUT_SECONDS = 5.0
+
 
 class PipelineController:
     """Controller for managing progress display subprocess."""
@@ -146,8 +152,12 @@ class PipelineController:
         signal.signal(signal.SIGTERM, self.handle_signal)
         signal.signal(signal.SIGINT, self.handle_signal)
 
-    def stop_display(self, timeout: int = 5) -> bool:
+    def stop_display(self, timeout: float = 5) -> bool:
         """Stop the progress display subprocess.
+
+        Escalates SIGTERM -> SIGKILL. Every wait is bounded: if the child
+        survives SIGKILL (uninterruptible wait), this reports the failure and
+        returns instead of blocking the caller indefinitely.
 
         Args:
             timeout: Seconds to wait for graceful shutdown
@@ -167,7 +177,20 @@ class PipelineController:
             except subprocess.TimeoutExpired:
                 # Force kill if graceful shutdown failed
                 self.display_process.kill()
-                self.display_process.wait()
+                try:
+                    self.display_process.wait(timeout=KILL_REAP_TIMEOUT_SECONDS)
+                except subprocess.TimeoutExpired:
+                    # SIGKILL did not reap the child. Keep the handle so a
+                    # caller can retry, but never block here.
+                    print(
+                        f"Error stopping display: process "
+                        f"{self.display_process.pid} survived SIGKILL and was "
+                        f"not reaped within {KILL_REAP_TIMEOUT_SECONDS}s\n"
+                        f"Expected: the child to exit after kill()\n"
+                        f"See: plugins/autonomous-dev/docs/TROUBLESHOOTING.md",
+                        file=sys.stderr,
+                    )
+                    return False
 
             self.display_process = None
 

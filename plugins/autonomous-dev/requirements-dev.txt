@@ -2,6 +2,9 @@
 pytest>=7.0.0
 pytest-cov>=4.0.0
 pytest-xdist>=3.0.0
+# Issue #1567: converts a hung test from a silent 60-min job cancellation
+# into a named failure with a stack trace. Required by CI.
+pytest-timeout>=2.1.0
 syrupy>=4.0.0
 pytest-testmon>=2.0.0
 PyYAML>=6.0.0
