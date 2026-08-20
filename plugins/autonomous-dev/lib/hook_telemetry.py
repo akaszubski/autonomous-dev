@@ -267,6 +267,87 @@ def log_block_event(
             pass
 
 
+def deny_and_record(
+    *,
+    hook_name: str,
+    reason: str,
+    system_message: str = "",
+    decision_shape: str = "dict",
+    hook_event_name: str = "PreToolUse",
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    start_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Build a ``permissionDecision: "deny"`` envelope AND record it, as one act.
+
+    This is the canonical way for a standalone hook to refuse. Refusing and
+    recording the refusal are fused into a single call so that a caller
+    **cannot obtain a deny payload without the telemetry row happening**.
+    The defect class this closes (Issue #1587): hooks that call a payload
+    builder and then, separately, are supposed to remember to call
+    ``log_block_event``. Three of four pre-existing refusal paths deviated
+    from that convention precisely because it was two acts. A convention is
+    not a mechanism; this function is the mechanism.
+
+    Telemetry is strictly subordinate to enforcement. If ``log_block_event``
+    raises for any reason (unwritable log, patched-to-raise recorder, disk
+    full), the exception is swallowed and the deny envelope is still
+    returned. A telemetry failure converting a block into an allow would be
+    far worse than the missing row.
+
+    Args:
+        hook_name: Filename of the hook emitting the refusal (e.g.
+            ``"enforce_file_organization.py"``).
+        reason: Model-visible ``permissionDecisionReason``. Should include a
+            REQUIRED NEXT ACTION directive (stick+carrot pattern).
+        system_message: Optional user-visible ``systemMessage``. Omitted
+            from the envelope when empty.
+        decision_shape: Telemetry label for the refusal shape. Defaults to
+            ``"dict"`` — the shape of a printed JSON envelope, and a member
+            of ``scripts/hook_perf_report.py``'s ``BLOCK_SHAPES``, so the
+            row is counted as a block by the existing report. Callers that
+            refuse via a different shape should pass ``"tuple"`` or
+            ``"exit2"`` instead.
+        hook_event_name: ``hookEventName`` for the envelope. Defaults to
+            ``"PreToolUse"``.
+        metadata: Optional structured metadata (tool_name, file_path, ...).
+        session_id: Optional session id (defaults to ``CLAUDE_SESSION_ID``).
+        start_dir: Anchor for ``.claude/logs/hook-blocks.jsonl``. Defaults
+            to cwd. Pass the repo root so the row lands at the repo root
+            regardless of the hook's cwd — and so tests can redirect the
+            log away from the real one.
+
+    Returns:
+        The deny envelope, ready for ``json.dumps`` and printing to stdout.
+    """
+    hook_specific: Dict[str, Any] = {
+        "hookEventName": hook_event_name,
+        "permissionDecision": "deny",
+        "permissionDecisionReason": reason,
+    }
+    envelope: Dict[str, Any] = {"hookSpecificOutput": hook_specific}
+    if system_message:
+        envelope["systemMessage"] = system_message
+
+    try:
+        log_block_event(
+            hook_name=hook_name,
+            decision_shape=decision_shape,
+            reason=reason,
+            metadata=metadata,
+            session_id=session_id,
+            start_dir=start_dir,
+        )
+    except Exception:
+        # NEVER let telemetry break the refusal. log_block_event is
+        # documented never to raise, but this guard is load-bearing: a
+        # recorder regression must degrade to "block, unrecorded", never
+        # to "allow".
+        pass
+
+    return envelope
+
+
 def block_event_decorator(hook_name: str) -> Callable:
     """Decorator factory that emits a telemetry row on deny decisions.
 

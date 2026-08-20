@@ -91,6 +91,20 @@ except ImportError:  # pragma: no cover — stale-install fallback
         return []
 
 
+# Issue #1587: refusing and recording are ONE act. ``deny_and_record`` returns
+# the deny envelope and appends the hook-blocks.jsonl row in a single call, so
+# no caller can obtain a refusal payload without the record happening. On a
+# stale install the symbol is None and ``_deny_and_record`` falls through to an
+# inline envelope — the write is still refused, just unrecorded.
+try:
+    from hook_telemetry import deny_and_record as _deny_and_record_lib
+except ImportError:  # pragma: no cover — stale-install fallback
+    _deny_and_record_lib = None  # type: ignore[assignment]
+
+# Hook identity used for telemetry attribution.
+_HOOK_NAME = "enforce_file_organization.py"
+
+
 # ---------------------------------------------------------------------------
 # Configuration constants (hardcoded; project-structure.json supplies only the
 # exact-name allow-list — extensions and hidden-file policy live in code).
@@ -260,15 +274,21 @@ def _suggest_folder(basename: str) -> Optional[str]:
     return _SUGGEST_MAP.get(ext)
 
 
-def _deny(basename: str, suggested: Optional[str]) -> dict:
-    """Construct the JSON deny payload for the Claude Code hook protocol.
+def _deny_messages(basename: str, suggested: Optional[str]) -> tuple:
+    """Build the (reason, system_message) strings for a placement refusal.
+
+    Pure string construction — deliberately NOT a payload builder. The only
+    function in this module that yields a deny payload is
+    ``_deny_and_record``, which cannot return one without recording it.
 
     Args:
         basename: The disallowed file basename.
         suggested: Suggested folder (e.g. ``"scripts/"``), or None.
 
     Returns:
-        A dict suitable for ``json.dumps`` and printing to stdout.
+        ``(reason, system_message)``. ``reason`` is model-visible and
+        carries the REQUIRED NEXT ACTION directive; ``system_message`` is
+        user-visible.
     """
     if suggested:
         suggested_path = f"{suggested}{basename}"
@@ -293,6 +313,75 @@ def _deny(basename: str, suggested: Optional[str]) -> dict:
             f"Set AUTONOMOUS_DEV_BYPASS=1 to bypass."
         )
 
+    return reason, sys_msg
+
+
+def _deny_and_record(
+    basename: str,
+    suggested: Optional[str],
+    *,
+    repo_root: Optional[Path] = None,
+    tool_name: str = "",
+    file_path: str = "",
+    session_id: Optional[str] = None,
+) -> dict:
+    """Refuse the write AND record the refusal, as a single indivisible act.
+
+    Issue #1587: this hook emitted a valid ``permissionDecision: "deny"``
+    and recorded nothing, so every one of its refusals was invisible in
+    ``.claude/logs/hook-blocks.jsonl``. The fix is deliberately NOT "add a
+    ``log_block_event`` call next to the ``return``" — that reproduces the
+    defect class, where refusing and recording are two acts and the second
+    is forgettable. This is the ONLY function in this module that produces
+    a deny payload, so ``main`` has no path to a refusal that skips the
+    record.
+
+    Telemetry never outranks enforcement: if the shared helper is missing
+    (stale install) or raises, we fall through to an inline envelope and
+    the write is still refused — unrecorded, but refused.
+
+    Args:
+        basename: The disallowed file basename.
+        suggested: Suggested folder (e.g. ``"scripts/"``), or None.
+        repo_root: Repo root, used to anchor the telemetry log so the row
+            lands at ``<repo_root>/.claude/logs/hook-blocks.jsonl``
+            regardless of the hook's cwd.
+        tool_name: Originating tool name, recorded as metadata.
+        file_path: Full requested write target, recorded as metadata.
+        session_id: Session id from the PreToolUse payload, if present.
+
+    Returns:
+        The deny envelope, suitable for ``json.dumps`` and printing.
+    """
+    reason, sys_msg = _deny_messages(basename, suggested)
+
+    if _deny_and_record_lib is not None:
+        try:
+            return _deny_and_record_lib(
+                hook_name=_HOOK_NAME,
+                reason=reason,
+                system_message=sys_msg,
+                # "dict" == printed JSON envelope, and a member of
+                # scripts/hook_perf_report.py BLOCK_SHAPES, so this refusal
+                # is counted as a block by the existing report.
+                decision_shape="dict",
+                hook_event_name="PreToolUse",
+                metadata={
+                    "tool_name": tool_name,
+                    "file_path": file_path,
+                    "basename": basename,
+                    "suggested_folder": suggested or "",
+                    "envelope": "hookSpecificOutput.permissionDecision",
+                },
+                session_id=session_id,
+                start_dir=repo_root,
+            )
+        except Exception:
+            # Recorder failure MUST NOT convert a block into an allow.
+            pass
+
+    # Stale install (no hook_telemetry) or recorder failure. The refusal
+    # still ships; only the telemetry row is lost.
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -382,9 +471,18 @@ def main() -> int:
     if _is_allowed(basename, allowed_names):
         return 0
 
-    # 7. Block.
+    # 7. Block. Refusal and its telemetry row are one call (Issue #1587).
     suggested = _suggest_folder(basename)
-    print(json.dumps(_deny(basename, suggested)))
+    raw_session_id = payload.get("session_id")
+    envelope = _deny_and_record(
+        basename,
+        suggested,
+        repo_root=repo_resolved,
+        tool_name=str(tool_name),
+        file_path=file_path,
+        session_id=raw_session_id if isinstance(raw_session_id, str) else None,
+    )
+    print(json.dumps(envelope))
     return 0
 
 

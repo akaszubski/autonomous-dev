@@ -14,6 +14,7 @@ Mirrors ``tests/unit/lib/test_hook_recovery.py`` style.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -450,3 +451,98 @@ class TestCanUserRecover:
         assert hook_telemetry.can_user_recover(
             hook_name="h.py", block_reason="anything"
         ) is False
+
+
+# ---------------------------------------------------------------------------
+# deny_and_record() — Issue #1587
+# ---------------------------------------------------------------------------
+
+
+class TestDenyAndRecord:
+    """Refusing and recording MUST be one indivisible act.
+
+    Issue #1587: ``enforce_file_organization.py`` emitted a valid deny and
+    recorded nothing, because building the payload and logging it were two
+    separate acts and the second was forgettable. ``deny_and_record`` fuses
+    them so no caller can obtain a refusal payload without the row.
+    """
+
+    def test_returns_valid_deny_envelope(self, project_dir):
+        envelope = hook_telemetry.deny_and_record(
+            hook_name="h.py", reason="nope", system_message="user-visible"
+        )
+        block = envelope["hookSpecificOutput"]
+        assert block["hookEventName"] == "PreToolUse"
+        assert block["permissionDecision"] == "deny"
+        assert block["permissionDecisionReason"] == "nope"
+        assert envelope["systemMessage"] == "user-visible"
+
+    def test_omits_system_message_when_empty(self, project_dir):
+        envelope = hook_telemetry.deny_and_record(hook_name="h.py", reason="nope")
+        assert "systemMessage" not in envelope
+
+    def test_records_a_row_in_the_same_call(self, project_dir):
+        hook_telemetry.deny_and_record(
+            hook_name="h.py",
+            reason="nope",
+            metadata={"tool_name": "Write"},
+            start_dir=project_dir,
+        )
+        log_path = project_dir / hook_telemetry.LOG_FILE_RELATIVE
+        rows = [
+            json.loads(line)
+            for line in log_path.read_text().splitlines()
+            if line.strip()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["hook_name"] == "h.py"
+        assert rows[0]["reason"] == "nope"
+        assert rows[0]["metadata"]["tool_name"] == "Write"
+
+    def test_default_decision_shape_is_counted_as_a_block(self, project_dir):
+        """The default shape MUST be one hook_perf_report.py counts.
+
+        Read from the real script rather than a hardcoded copy: if the
+        report's BLOCK_SHAPES drifts, this test moves with it.
+        """
+        spec = importlib.util.spec_from_file_location(
+            "_hook_perf_report_for_unit_test",
+            REPO_ROOT / "scripts" / "hook_perf_report.py",
+        )
+        assert spec is not None and spec.loader is not None
+        report = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(report)
+
+        hook_telemetry.deny_and_record(
+            hook_name="h.py", reason="nope", start_dir=project_dir
+        )
+        log_path = project_dir / hook_telemetry.LOG_FILE_RELATIVE
+        row = json.loads(log_path.read_text().splitlines()[0])
+        assert row["decision_shape"] == "dict"
+        assert row["decision_shape"] in report.BLOCK_SHAPES
+
+    def test_raising_recorder_still_returns_the_deny(self, project_dir, monkeypatch):
+        """Telemetry failure MUST degrade to 'block, unrecorded' — never 'allow'."""
+        calls = []
+
+        def _boom(**kwargs):
+            calls.append(kwargs)
+            raise RuntimeError("recorder exploded")
+
+        monkeypatch.setattr(hook_telemetry, "log_block_event", _boom)
+
+        envelope = hook_telemetry.deny_and_record(hook_name="h.py", reason="nope")
+
+        # Positive control: the raising recorder was actually reached.
+        assert len(calls) == 1, "log_block_event was never called"
+        assert envelope["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def test_start_dir_redirects_the_log(self, project_dir, tmp_path):
+        """The log path is injectable, so tests never touch the real log."""
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        hook_telemetry.deny_and_record(
+            hook_name="h.py", reason="nope", start_dir=elsewhere
+        )
+        assert (elsewhere / hook_telemetry.LOG_FILE_RELATIVE).exists()
+        assert not (project_dir / hook_telemetry.LOG_FILE_RELATIVE).exists()
