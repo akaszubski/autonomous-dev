@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.plan_critic_axes import axis_names, critique_axes_section
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLAN_CRITIC_MD = PROJECT_ROOT / "plugins/autonomous-dev/agents/plan-critic.md"
 
@@ -54,15 +56,29 @@ class TestRubricPresence:
         assert "exemplary" in lower, "Level 5 must be described as exemplary"
 
     def test_all_axes_covered_by_rubric(self, content: str) -> None:
-        """All five critique axes MUST be referenced in the rubric coverage statement."""
-        lower = content.lower()
-        assert "assumption audit" in lower, "Assumption Audit axis must be referenced"
-        assert "scope creep" in lower, "Scope Creep Detection axis must be referenced"
-        assert "existing solution search" in lower, (
-            "Existing Solution Search axis must be referenced"
+        """Every live critique axis MUST be named in the rubric coverage statement.
+
+        The original form enumerated five axis names fixed at authoring time and
+        searched the whole file for each. Both halves were wrong once a sixth
+        and seventh axis landed: the roster was scoped to the instance, so
+        Operational Integration Test (#1067) and Reachability & Enforceability
+        (1e8720d1) were never checked, and file-wide substring matching would
+        have passed even if the rubric section itself named none of them.
+
+        The roster is now derived from the live ``## Critique Axes`` list and
+        matched against the ``## Scoring Rubric`` section only.
+        """
+        axes = axis_names(critique_axes_section(content))
+        assert axes, "Could not derive any axis names from '## Critique Axes'"
+
+        rubric = content.split("## Scoring Rubric")[1].split("## Verdict-Score Mapping")[0]
+        missing = [name for name in axes if name not in rubric]
+        assert not missing, (
+            f"plan-critic.md declares {len(axes)} critique axes, but the "
+            f"'## Scoring Rubric' coverage statement does not name: {missing}\n"
+            f"Expected: every axis in '## Critique Axes' to appear in the rubric "
+            f"coverage sentence so the 1-5 scale demonstrably applies to it."
         )
-        assert "minimalism pressure" in lower, "Minimalism Pressure axis must be referenced"
-        assert "uncertainty flagging" in lower, "Uncertainty Flagging axis must be referenced"
 
 
 class TestVerdictScoreMapping:
@@ -188,7 +204,11 @@ class TestBudgetModeCompatibility:
     def test_budget_mode_axes_specified(self, content: str) -> None:
         """Budget mode MUST specify which axes are evaluated."""
         lower = content.lower()
-        # Budget mode uses 3 axes: Assumption Audit, Existing Solution Search, Minimalism Pressure
+        # Budget mode scores a deliberate subset that does NOT grow with the full
+        # roster. It was 3 axes at #880 and is 4 since #1067 (Operational
+        # Integration Test). The three asserted below are the ones present in
+        # every budget-mode revision; see test_issue_1067_implement_step_5_5b_axes.py
+        # for the current full budget list.
         assert "assumption audit" in lower, (
             "Budget mode must reference Assumption Audit axis"
         )

@@ -14,6 +14,10 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.plan_critic_axes import NUMBER_WORDS as _NUMBER_WORDS
+from tests.helpers.plan_critic_axes import count_numbered_axes as _count_numbered_axes
+from tests.helpers.plan_critic_axes import critique_axes_section as _critique_axes_section
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 PLAN_CRITIC = REPO_ROOT / "plugins" / "autonomous-dev" / "agents" / "plan-critic.md"
@@ -42,13 +46,6 @@ def planning_workflow_text() -> str:
     return PLANNING_WORKFLOW.read_text()
 
 
-def _critique_axes_section(text: str) -> str:
-    """Return text between '## Critique Axes' and the next '## ' heading."""
-    m = re.search(r"##\s*Critique Axes\s*\n(.*?)(?=\n##\s)", text, re.DOTALL)
-    assert m, "plan-critic.md missing '## Critique Axes' section"
-    return m.group(1)
-
-
 # Criterion 1: plan-critic.md contains "Operational Integration Test" as a 6th axis
 def test_spec_issue_1067_criterion_01_axis_6_exists(plan_critic_text: str) -> None:
     axes = _critique_axes_section(plan_critic_text)
@@ -70,21 +67,11 @@ def test_spec_issue_1067_criterion_01_axis_6_exists(plan_critic_text: str) -> No
 # then blocks the change it should have been checking. Deriving the expected
 # count from the numbered list keeps the intent (intro must not lie about how
 # many axes exist) while surviving future additions.
-_NUMBER_WORDS = {
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-}
-
-
-def _count_numbered_axes(axes_section: str) -> int:
-    """Count top-level ``N. **Axis Name**`` entries in the Critique Axes section."""
-    return len(re.findall(r"^\d+\.\s*\*\*", axes_section, re.MULTILINE))
+#
+# The derivation helpers (_count_numbered_axes, _critique_axes_section,
+# _NUMBER_WORDS) now live in tests/helpers/plan_critic_axes.py so that the
+# regression-tier test for the same roster shares one implementation rather
+# than carrying a second copy that can drift.
 
 
 def test_spec_issue_1067_criterion_02_axis_count_intro_matches_list(

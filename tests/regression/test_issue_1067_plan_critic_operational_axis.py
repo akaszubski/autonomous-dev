@@ -1,9 +1,13 @@
 """Regression tests for Issue #1067 — Operational Integration Test axis in plan-critic."""
 
-from pathlib import Path
 import pytest
 
-PLAN_CRITIC_PATH = Path(__file__).resolve().parents[2] / "plugins" / "autonomous-dev" / "agents" / "plan-critic.md"
+from tests.helpers.plan_critic_axes import (
+    PLAN_CRITIC_PATH,
+    count_numbered_axes,
+    critique_axes_section,
+    stated_axis_counts,
+)
 
 
 @pytest.fixture(scope="module")
@@ -15,9 +19,42 @@ class TestOperationalAxisPresence:
     def test_operational_integration_test_axis_listed(self, content):
         assert "Operational Integration Test" in content
 
-    def test_axis_count_updated_to_six(self, content):
-        # Tolerate "six axes" or "6 axes"
-        assert ("six axes" in content) or ("6 axes" in content)
+    def test_stated_axis_count_matches_live_axis_list(self, content):
+        """Every full-roster axis count in the prose must equal the live list.
+
+        The original form of this assertion hardcoded "six axes"/"6 axes".
+        A hardcoded count is a guard scoped to the instance: it went stale the
+        moment axis 7 (Reachability & Enforceability) landed and then blocked
+        the very change it was meant to check. The intent — the file's prose
+        must not lie about how many axes exist — is preserved by deriving the
+        expected number from the ``## Critique Axes`` list.
+
+        Subjects are discovered by scanning the file, not from a list fixed
+        here, so a stale count written into a new sentence fails too.
+        """
+        expected = count_numbered_axes(critique_axes_section(content))
+        statements = stated_axis_counts(content)
+
+        assert statements, (
+            "plan-critic.md states no full-roster axis count anywhere. The "
+            "prose must tell the reader how many critique axes there are; a "
+            "check that finds nothing to compare passes by doing nothing."
+        )
+
+        mismatched = [
+            (lineno, stated, line)
+            for lineno, stated, line in statements
+            if stated != expected
+        ]
+        assert not mismatched, (
+            f"plan-critic.md lists {expected} numbered critique axes, but "
+            f"these prose statements disagree:\n"
+            + "\n".join(
+                f"  line {lineno}: says {stated} — {line[:120]!r}"
+                for lineno, stated, line in mismatched
+            )
+            + "\nUpdate every stated count when adding or removing an axis."
+        )
 
     def test_axis_description_mentions_subprocess(self, content):
         # Pull the axis description block
