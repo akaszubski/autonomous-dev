@@ -149,10 +149,16 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # id: on the setup steps (Issue #1580) — the three suites below carry
+      # `!cancelled()`, which REPLACES GitHub's implicit `success()` gate, so
+      # they must name each prerequisite they depend on explicitly. An `id:` is
+      # the only way to reference a step from a later `if:`.
       - name: Checkout code
+        id: checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup_python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -160,6 +166,17 @@ jobs:
           cache-dependency-path: 'plugins/autonomous-dev/requirements-dev.txt'
 
       # marker= emitted for future use; pytest -m wiring deferred per #1332 (see #1337).
+      #
+      # Fail direction, verified (Issue #1580): this step FAILS OPEN. Under the
+      # Actions default shell (`bash -e`, no pipefail) a crash in the python
+      # heredoc leaves grep with no match, so grep exits 1 and NOTHING is
+      # appended to $GITHUB_OUTPUT (measured: 0 bytes). `skip_all` is then
+      # unset, and per GitHub's expression rules an absent output is Null/'' —
+      # neither equals 'true' — so `skip_all != 'true'` is TRUE and every suite
+      # runs. `continue-on-error: true` keeps the step's CONCLUSION `success`,
+      # so the implicit `success()` on later steps is not tripped either.
+      # A broken router therefore runs all tests rather than presenting a green
+      # CI run that executed nothing.
       - name: Route tests
         id: route
         run: |
@@ -176,7 +193,17 @@ jobs:
           " | tee /dev/stderr | grep -E '^skip_all=|^marker=' >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
+      # The OPPOSITE fail direction to `route` above, deliberately (Issue
+      # #1580). `route` fails OPEN because a broken router must not silence the
+      # suites. This step must fail CLOSED: if the install breaks, every test
+      # in all three suites raises ModuleNotFoundError or the step dies with
+      # "pytest: command not found", and that output is indistinguishable in
+      # the log from genuine test failures. #1579 records that 77 of the 237
+      # current unit failures ALREADY are missing-dependency import errors, so
+      # real import noise and fake import noise would be unseparable by eye.
+      # One predecessor must not gate; the other must.
       - name: Install dependencies
+        id: install
         if: steps.route.outputs.skip_all != 'true'
         run: |
           python -m pip install --upgrade pip
@@ -186,20 +213,67 @@ jobs:
       # by name with a stack trace and the rest of the suite still runs.
       # signal, not thread: thread kills the whole pytest process, which
       # reproduces the "no results at all" failure this is meant to end.
+      #
+      # `!cancelled() &&` (Issue #1580): the three suites below are INDEPENDENT
+      # and must all report. GitHub applies a default status check of
+      # `success()` to any `if:` that contains no status-check function, so the
+      # bare `steps.route.outputs.skip_all != 'true'` these steps used to carry
+      # meant a red unit step silently SKIPPED integration and regression. Run
+      # 32333848238 recorded exactly that: unit failed with 237 failures,
+      # integration and regression = "skipped". #1567 removed the hang and we
+      # still could not see two thirds of the surface — different mechanism,
+      # same absence where a signal should be.
+      #
+      # `!cancelled()`, not `always()`: GitHub's own docs name `!cancelled()`
+      # the recommended alternative, because `always()` also runs steps after a
+      # human cancels the run — burning CI budget and reporting test results
+      # for a run somebody deliberately stopped.
+      #
+      # NOT `continue-on-error: true`: that would let this job report SUCCESS
+      # with a red suite underneath. A green check on top of failing tests is
+      # strictly worse than no check. Each step below still fails, and still
+      # fails the job — only the SUPPRESSION OF LATER STEPS is removed.
+      #
+      # Applied to unit too, though it is first of the three: two steps
+      # (`route`, `Install dependencies`) precede it, so "nothing before it can
+      # fail" is exactly the assumption that produced this bug. A uniform rule
+      # also survives reordering, whereas an ordering-dependent exemption
+      # reopens the hole the moment a step is inserted above.
+      #
+      # The `steps.<id>.outcome != 'failure'` clauses (Issue #1580): adding
+      # `!cancelled()` REMOVED the implicit `success()` these steps previously
+      # inherited, and that implicit gate was doing real work — it is what made
+      # a failed `Install dependencies` skip all three suites. Every
+      # prerequisite that must still gate is therefore named back explicitly.
+      # Only the ones that must: `route` is absent by design, because it is
+      # engineered to fail open (see its comment above).
+      #
+      # `outcome`, not `conclusion`: `conclusion` is the value AFTER
+      # `continue-on-error` is applied, so if a prerequisite ever gains
+      # `continue-on-error: true` its `conclusion` reads `success` while it is
+      # in fact broken. `outcome` reports what actually happened either way, so
+      # the gate cannot be silently disarmed by a one-line edit elsewhere.
+      #
+      # `!= 'failure'`, not `== 'success'`: a step's `outcome` is `skipped`
+      # when its own `if:` is false — which is exactly what happens to
+      # `Install dependencies` when the router sets skip_all. `== 'success'`
+      # would treat that skip as a reason to suppress the suites, silently,
+      # which is the #1580 disease re-entering through a third door. Gate on
+      # the failure case only and let the other clauses speak for themselves.
       - name: Run unit tests
-        if: steps.route.outputs.skip_all != 'true'
+        if: ${{ !cancelled() && steps.checkout.outcome != 'failure' && steps.setup_python.outcome != 'failure' && steps.install.outcome != 'failure' && steps.route.outputs.skip_all != 'true' }}
         run: |
           echo "Running unit tests..."
           python -m pytest tests/unit/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
       - name: Run integration tests
-        if: steps.route.outputs.skip_all != 'true'
+        if: ${{ !cancelled() && steps.checkout.outcome != 'failure' && steps.setup_python.outcome != 'failure' && steps.install.outcome != 'failure' && steps.route.outputs.skip_all != 'true' }}
         run: |
           echo "Running integration tests..."
           python -m pytest tests/integration/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
       - name: Run regression tests
-        if: steps.route.outputs.skip_all != 'true'
+        if: ${{ !cancelled() && steps.checkout.outcome != 'failure' && steps.setup_python.outcome != 'failure' && steps.install.outcome != 'failure' && steps.route.outputs.skip_all != 'true' }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
