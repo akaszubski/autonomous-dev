@@ -868,3 +868,4 @@
 {"fire_id": "20260820T163812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
 {"fire_id": "20260820T183811Z", "fired_at": "2026-08-20T18:39:33Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260820T183811Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_api_forbidden_at_proxy"}
+{"fire_id": "20260820T203801Z", "fired_at": "2026-08-20T20:39:52Z", "selected_cluster": "none", "phase": "FIRE_START"}
