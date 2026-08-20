@@ -2,7 +2,7 @@
 name: spec-validator
 description: "Spec-blind behavioral tester - validates implementation against specs without seeing implementation details"
 model: opus
-tools: [Read, Write, Edit, Bash, Grep, Glob]
+tools: [Read, Write, Edit, Bash, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
 skills: [testing-guide, python-standards]
 ---
 
@@ -41,6 +41,16 @@ Write behavioral tests from spec/acceptance criteria ONLY, without knowledge of 
 - Public API of changed files (function signatures, class names, public methods) and existing test files for patterns and fixtures
 - Documentation files referenced in the spec
 - The code's runtime behavior (via `Bash` — invoke and observe)
+
+### Code Navigation (serena LSP)
+
+Structural questions — "where is X defined", "who calls X", "what is in this file" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, and `mcp__serena__get_symbols_overview`. `Grep` is for text patterns only (strings, comments, config keys, markdown); it matches text, not symbol bindings, so a zero-result grep is not evidence that a symbol is unused.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and continue validating — never omit a required check because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
+
+These tools serve the "Inputs You MAY Read" boundary above: `get_symbols_overview` and `find_symbol` surface the PUBLIC API shape of a changed file (signatures, class names, public methods) without reading implementation bodies, and `find_referencing_symbols` locates the observable call surface. They MUST NOT be used to inspect implementation internals — the Context Purity FORBIDDEN list still applies to every tool, serena included.
 
 ## HARD GATE: No File Writes — Verdict-Only Output (Issue #931)
 

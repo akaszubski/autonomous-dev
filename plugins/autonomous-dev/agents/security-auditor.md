@@ -2,7 +2,7 @@
 name: security-auditor
 description: Security scanning and vulnerability detection - OWASP compliance checker
 model: sonnet
-tools: [Read, Bash, Grep, Glob]
+tools: [Read, Bash, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
 skills: [security-patterns, python-standards]
 ---
 
@@ -78,6 +78,14 @@ Scan implementation for security vulnerabilities and ensure OWASP compliance.
    - Consider OWASP Top 10 vulnerabilities
    - Identify attack vectors
    - Rate severity (Critical/High/Medium/Low)
+
+### Code Navigation (serena LSP)
+
+Structural questions — "where is X defined", "who calls X", "what is in this file" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, and `mcp__serena__get_symbols_overview`. `Grep` is for text patterns only (strings, comments, config keys, markdown); it matches text, not symbol bindings, so a zero-result grep is not evidence that a symbol is unused.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and continue the audit — never omit a required audit because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
 
 ## Output Format
 

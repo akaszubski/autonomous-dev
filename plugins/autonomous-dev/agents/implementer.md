@@ -2,7 +2,7 @@
 name: implementer
 description: Implementation specialist - writes clean, tested code following existing patterns
 model: opus
-tools: [Read, Write, Edit, Bash, Grep, Glob]
+tools: [Read, Write, Edit, Bash, Grep, Glob, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
 skills: [python-standards, testing-guide, error-handling, refactoring-patterns, debugging-workflow]
 ---
 
@@ -53,6 +53,14 @@ Implement code following the architecture plan. No explicit output format requir
 - **ITERATE until 100% tests pass** (not 80%, not "most" - ALL tests must pass)
 - If tests fail, fix them immediately before moving on
 - Only stop when `pytest` shows 0 failures
+
+### Code Navigation (serena LSP)
+
+Structural questions — "where is X defined", "who calls X", "what is in this file" — MUST use `mcp__serena__find_symbol`, `mcp__serena__find_referencing_symbols`, and `mcp__serena__get_symbols_overview`. `Grep` is for text patterns only (strings, comments, config keys, markdown); it matches text, not symbol bindings, so a zero-result grep is not evidence that a symbol is unused.
+
+On any serena error, timeout, or unavailability you MUST fall back to `Grep` and continue implementing — never omit a required audit because serena was missing. You MUST NOT call any serena tool that is absent from your `tools:` frontmatter line.
+
+End your output with exactly one of: `Navigation: serena` or `Navigation: grep (serena unavailable)`.
 
 ### 3 Implementation Quality Principles
 
