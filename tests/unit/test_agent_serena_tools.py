@@ -15,6 +15,13 @@ This module guards the three agents brought in scope by #1574 —
    degradation (serena unavailable -> silent grep fallback) into a greppable
    string, so a grep-derived answer is never mistaken for an authoritative one.
 
+``TestSentinelScalesToEveryGrantee`` then extends axis 2 to EVERY agent
+discovered granting a navigation tool, so a future grantee incurs the sentinel
+obligation with no edit here. ``SENTINEL_EXEMPT`` is now empty:
+``plan-critic`` — which received the grants in 1e8720d1 without the body rule,
+and was pinned as the sole exemption by 084b1b17 — was fixed rather than left
+parked behind the hatch.
+
 Deliberate non-duplication of prior art
 ---------------------------------------
 ``tests/unit/lib/test_agent_registry_consistency.py`` (Issue #1546) already
@@ -85,14 +92,21 @@ SERENA_NAV_AGENTS = ("implementer", "security-auditor", "spec-validator")
 SENTINEL_SERENA = "Navigation: serena"
 SENTINEL_GREP = "Navigation: grep (serena unavailable)"
 
-# Agents that grant the navigation triad but do NOT yet carry the sentinel.
+# Agents that grant the navigation triad but do NOT carry the sentinel.
 #
-# ``plan-critic`` received its serena grants in 1e8720d1 (#1574 priority 1)
-# without the body rule. Fixing it is out of scope for this change (#1574 scopes
-# the body-rule work to exactly three agents), so it is pinned here rather than
-# silently excluded — and ``test_exemption_set_only_shrinks`` is the ceiling on
-# this exemption mechanism, so the escape hatch cannot grow.
-SENTINEL_EXEMPT = frozenset({"plan-critic"})
+# EMPTY, and it must stay empty. ``plan-critic`` received its serena grants in
+# 1e8720d1 without the body rule and was pinned here by 084b1b17 as the sole
+# entry; it has since been FIXED (the Code Navigation section was added to
+# ``plan-critic.md``) rather than left parked behind the exemption. Every
+# discovered grantee now carries both sentinel arms with zero exclusions.
+#
+# The mechanism is retained, not deleted, because it is the thing
+# ``test_exemption_set_only_shrinks`` puts a ceiling on: an exemption list
+# without its own ratchet is decorative, and a deleted mechanism cannot be
+# ratcheted at all. ``test_control_the_exemption_mechanism_still_has_teeth``
+# proves the skip branch is load-bearing even though no live agent takes it,
+# so emptying the set is a strengthening rather than a quiet disabling.
+SENTINEL_EXEMPT: "frozenset[str]" = frozenset()
 
 
 def _agent_path(agent_name: str) -> Path:
@@ -138,7 +152,7 @@ def _body(agent_name: str) -> str:
     return _split_frontmatter(_agent_path(agent_name))[1]
 
 
-def _agents_granting_serena_navigation() -> "list[str]":
+def _agents_granting_serena_navigation(agents_dir: Path = AGENTS_DIR) -> "list[str]":
     """Discover every active agent granting AT LEAST ONE navigation tool.
 
     Derived from disk so the sentinel rule scales to agents that do not exist
@@ -151,6 +165,12 @@ def _agents_granting_serena_navigation() -> "list[str]":
     can produce a symbol answer, and therefore owes the reader a statement of
     which instrument produced it.
 
+    Args:
+        agents_dir: Directory of agent markdown files to scan. Defaults to the
+            tracked source corpus; overridden only by the synthetic-corpus
+            controls, which need to exercise the rule on agents that must not
+            exist on disk.
+
     Returns:
         Sorted list of agent names whose ``tools:`` intersects
         ``SERENA_NAV_TOOLS``.
@@ -159,13 +179,40 @@ def _agents_granting_serena_navigation() -> "list[str]":
         ValueError: If any active agent's frontmatter is missing or unparseable.
     """
     names = []
-    for path in sorted(AGENTS_DIR.glob("*.md")):
+    for path in sorted(agents_dir.glob("*.md")):
         if not path.is_file():
             continue
         frontmatter, _body_text = _split_frontmatter(path)
         if SERENA_NAV_TOOLS & set(_as_tool_list(frontmatter.get("tools"))):
             names.append(path.stem)
     return names
+
+
+def _sentinel_offenders(exempt: "frozenset[str]", agents_dir: Path = AGENTS_DIR) -> "list[str]":
+    """Return discovered grantees missing either sentinel arm, minus exemptions.
+
+    This is THE sentinel rule, factored out so the live corpus and a synthetic
+    corpus run the identical code path. A control that re-implements the rule
+    proves nothing about the rule.
+
+    Args:
+        exempt: Agent names excused from the sentinel obligation.
+        agents_dir: Directory of agent markdown files to scan.
+
+    Returns:
+        Sorted list of offending agent names (empty when the rule is satisfied).
+
+    Raises:
+        ValueError: If any scanned agent's frontmatter is missing or unparseable.
+    """
+    offenders = []
+    for agent_name in _agents_granting_serena_navigation(agents_dir):
+        if agent_name in exempt:
+            continue
+        body = _split_frontmatter(agents_dir / f"{agent_name}.md")[1]
+        if SENTINEL_SERENA not in body or SENTINEL_GREP not in body:
+            offenders.append(agent_name)
+    return sorted(offenders)
 
 
 class TestInScopeAgentsGrantSerenaNavigation:
@@ -316,16 +363,10 @@ class TestSentinelScalesToEveryGrantee:
 
     def test_every_serena_grantee_carries_the_sentinel(self):
         """Any agent granting the triad must emit a Navigation: line."""
-        offenders = []
-        for agent_name in _agents_granting_serena_navigation():
-            if agent_name in SENTINEL_EXEMPT:
-                continue
-            body = _body(agent_name)
-            if SENTINEL_SERENA not in body or SENTINEL_GREP not in body:
-                offenders.append(agent_name)
+        offenders = _sentinel_offenders(SENTINEL_EXEMPT)
         assert not offenders, (
             f"Agents granting serena navigation without the sentinel: "
-            f"{sorted(offenders)}\n"
+            f"{offenders}\n"
             f"Expected: every grantee ends its output with exactly one of "
             f"`{SENTINEL_SERENA}` or `{SENTINEL_GREP}`.\n"
             f"Granting the tools without the sentinel reintroduces the silent "
@@ -336,19 +377,50 @@ class TestSentinelScalesToEveryGrantee:
         """Ceiling on the exemption mechanism — the escape hatch cannot grow.
 
         An exemption list without its own ratchet is decorative: the next agent
-        that fails the rule gets added to the list instead of fixed. This pins
-        the exemption set to exactly the one known gap.
+        that fails the rule gets added to the list instead of fixed. The set is
+        now EMPTY — ``plan-critic``, its sole entry, was fixed rather than left
+        parked behind the hatch — and the equality assertion still refuses any
+        regrowth.
+
+        An equality-to-empty assertion alone would, however, be a ceiling that
+        stops guarding at the moment it succeeds: with nothing exempt, the
+        ``in SENTINEL_EXEMPT`` skip inside ``_sentinel_offenders`` becomes a
+        branch no live agent takes, and a broken skip would go unnoticed. So
+        this test also asserts the STRONGER property the empty set is supposed
+        to mean — the sentinel rule is evaluated against a non-empty roster and
+        clears it with zero exclusions — while
+        ``test_control_the_exemption_mechanism_still_has_teeth`` separately
+        proves the skip branch itself still works.
         """
-        assert SENTINEL_EXEMPT == frozenset({"plan-critic"}), (
+        assert SENTINEL_EXEMPT == frozenset(), (
             f"SENTINEL_EXEMPT changed to {sorted(SENTINEL_EXEMPT)}.\n"
             f"Adding an agent here is NOT an acceptable resolution — add the "
-            f"Code Navigation section to that agent instead. Removing "
-            f"'plan-critic' (after fixing it) requires updating this assertion "
-            f"to frozenset()."
+            f"Code Navigation section to that agent instead (copy it from "
+            f"plugins/autonomous-dev/agents/planner.md). The exemption set is "
+            f"a ratchet: it may shrink, never grow."
+        )
+
+        grantees = _agents_granting_serena_navigation()
+        assert grantees, (
+            "No serena grantees discovered, so 'zero exclusions' would be "
+            "vacuously true. Verify AGENTS_DIR points at the tracked source."
+        )
+        unexempted = _sentinel_offenders(frozenset())
+        assert not unexempted, (
+            f"With SENTINEL_EXEMPT empty, the sentinel rule must clear the "
+            f"entire discovered roster ({len(grantees)} grantees) with no "
+            f"exclusions. Still offending: {unexempted}"
         )
 
     def test_exempt_agents_actually_exist_and_actually_grant_serena(self):
-        """An exemption for a non-grantee would be dead weight hiding nothing."""
+        """An exemption for a non-grantee would be dead weight hiding nothing.
+
+        Vacuous by construction while ``SENTINEL_EXEMPT`` is empty — the loop
+        body never runs. That is intentional and safe ONLY because
+        ``test_exemption_set_only_shrinks`` pins the set to empty, so this test
+        is dormant rather than silently disabled: the moment an entry is added
+        (which that ceiling refuses) this reactivates and validates it.
+        """
         grantees = set(_agents_granting_serena_navigation())
         for agent_name in sorted(SENTINEL_EXEMPT):
             assert _agent_path(agent_name).exists(), (
@@ -359,6 +431,35 @@ class TestSentinelScalesToEveryGrantee:
                 f"SENTINEL_EXEMPT names {agent_name!r}, which does not grant the "
                 f"navigation triad. The exemption is unnecessary; remove it."
             )
+
+    def test_plan_critic_is_no_longer_exempt_and_genuinely_complies(self):
+        """The #1574 gap closed by fixing, not by exempting (1e8720d1 -> now).
+
+        ``plan-critic`` gained the read-only triad in 1e8720d1 with no Code
+        Navigation section, so it could fall back to grep with no visible
+        signal — capability without observability. 084b1b17 pinned it as the
+        sole ``SENTINEL_EXEMPT`` entry. This asserts the resolution was a FIX:
+        it is absent from the exemption set AND passes the rule on its own.
+        """
+        assert "plan-critic" not in SENTINEL_EXEMPT, (
+            "plan-critic must be fixed, not exempted — see 084b1b17's KNOWN GAP."
+        )
+        assert "plan-critic" in _agents_granting_serena_navigation(), (
+            "premise: plan-critic still grants serena navigation tools"
+        )
+        body = _body("plan-critic")
+        assert SENTINEL_SERENA in body and SENTINEL_GREP in body, (
+            "plan-critic.md must carry BOTH sentinel arms. Copy the Code "
+            "Navigation (serena LSP) section from planner.md verbatim, "
+            "adapting only the 'continue planning' verb."
+        )
+        assert "fall back to `Grep`" in body, (
+            "plan-critic.md must mandate the Grep fallback and CONTINUING."
+        )
+        assert (
+            "MUST NOT call any serena tool that is absent from your `tools:` "
+            "frontmatter line" in body
+        ), "plan-critic.md must bound the agent to its declared tool surface."
 
 
 class TestNegativeControls:
@@ -530,6 +631,71 @@ class TestNegativeControls:
         assert not SERENA_NAV_TOOLS <= granted, "premise: not a grantee"
         assert SENTINEL_SERENA not in body
         # A non-grantee carries no sentinel obligation; the derived rule skips it.
+
+    def test_control_derived_rule_catches_a_future_grantee(self, tmp_path):
+        """The rule must catch a grantee that does not exist yet.
+
+        Runs ``_sentinel_offenders`` — the SAME function the live rule uses —
+        over a synthetic corpus containing one compliant agent and one new
+        grantee with no sentinel. This is the "future grantee" case: the rule
+        is watched REFUSING an agent nobody edited this test to know about,
+        and PERMITTING the compliant one, so it is not scoped to today's eight.
+        """
+        self._write_agent(
+            tmp_path,
+            "future-grantee",
+            "name: future-grantee\n"
+            "tools: [Read, Grep, Glob, mcp__serena__find_symbol, "
+            "mcp__serena__find_referencing_symbols, "
+            "mcp__serena__get_symbols_overview]",
+            "Grants the triad, declares no Navigation sentinel.",
+        )
+        self._write_agent(
+            tmp_path,
+            "compliant-grantee",
+            "name: compliant-grantee\n"
+            "tools: [Read, Grep, Glob, mcp__serena__find_symbol]",
+            f"End your output with exactly one of: `{SENTINEL_SERENA}` or "
+            f"`{SENTINEL_GREP}`.",
+        )
+        discovered = _agents_granting_serena_navigation(tmp_path)
+        assert discovered == ["compliant-grantee", "future-grantee"], (
+            f"premise: both synthetic agents are discovered as grantees; "
+            f"got {discovered}"
+        )
+        # Watched refusing the bad case...
+        assert _sentinel_offenders(frozenset(), tmp_path) == ["future-grantee"], (
+            "the derived rule failed to flag a NEW grantee lacking the "
+            "sentinel — it would not cover future grantees"
+        )
+
+    def test_control_the_exemption_mechanism_still_has_teeth(self, tmp_path):
+        """The skip branch is load-bearing even though no live agent takes it.
+
+        ``SENTINEL_EXEMPT`` is empty, so ``_sentinel_offenders``'s exemption
+        branch is never exercised by the live corpus. An unexercised branch is
+        how a ceiling silently stops guarding at the moment it succeeds. This
+        drives the same function with a NON-empty exemption set over a
+        synthetic corpus and asserts the exemption genuinely suppresses a real
+        offender — which is what makes ``test_exemption_set_only_shrinks``'s
+        equality-to-empty a meaningful ratchet rather than a formality.
+        """
+        self._write_agent(
+            tmp_path,
+            "would-be-exempt",
+            "name: would-be-exempt\n"
+            "tools: [Read, mcp__serena__find_referencing_symbols]",
+            "Grants a nav tool, declares no Navigation sentinel.",
+        )
+        # Unexempted: refused.
+        assert _sentinel_offenders(frozenset(), tmp_path) == ["would-be-exempt"], (
+            "premise: this synthetic agent IS an offender under the live rule"
+        )
+        # Exempted: suppressed. The hatch works, therefore capping it matters.
+        assert _sentinel_offenders(frozenset({"would-be-exempt"}), tmp_path) == [], (
+            "the exemption branch did not suppress a known offender, so "
+            "SENTINEL_EXEMPT is decorative and its ceiling guards nothing"
+        )
 
     def test_control_malformed_frontmatter_fails_loudly(self, tmp_path):
         """A broken agent file must raise naming the file, never skip silently."""
