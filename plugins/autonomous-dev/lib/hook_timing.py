@@ -10,6 +10,49 @@ Each ``HookTimer`` context manager invocation emits one JSONL row to
 ``~/.claude/logs/hook_timings_YYYY-MM-DD.jsonl``. The schema is stable:
 ``{ts, hook, dur_ns, decision_shape, schema_version}``.
 
+``decision_shape`` semantics (schema_version 2)
+-----------------------------------------------
+
+Schema 1 classified *any* exception reaching ``HookTimer.__exit__`` as
+``"exception"`` — including ``SystemExit``. But ``sys.exit(0)`` inside the
+timer scope is the normal, correct **success** termination for most hooks,
+so successful invocations and genuine crashes were recorded identically and
+the column could not answer the one question it exists to answer. Schema 2
+separates them:
+
+===========================================  ====================
+Termination                                  ``decision_shape``
+===========================================  ====================
+Normal return from ``main()``                the hook's shape (default ``"allow"``)
+``sys.exit(0)`` / ``sys.exit(None)``         the hook's shape (default ``"allow"``)
+``sys.exit(N)`` for truthy ``N``             ``"exit_nonzero"`` (unless the hook set a shape)
+Unhandled non-``SystemExit`` exception       ``"exception"``
+``SystemExit`` marked as a crash conversion  ``"exception"``
+===========================================  ====================
+
+The last row is the subtle one. :func:`hook_safety.safe_main` converts an
+unhandled crash into ``SystemExit(0)`` so a broken hook never blocks Claude
+Code. Exempting ``SystemExit`` naively would therefore relabel real crashes
+as successes — strictly worse than the original defect, because it hides
+failures rather than merely over-reporting them. ``safe_main`` marks the
+``SystemExit`` it synthesises (see :func:`mark_crash_exit`) so a timer that
+observes it still records ``"exception"``.
+
+**Ordering note (established empirically, not by inspection).** In the
+production topology every hook uses ``safe_main(_timed_main)`` — the timer
+lives *inside* the wrap — so ``HookTimer.__exit__`` runs BEFORE
+``safe_main``'s handler and observes the raw exception (e.g.
+``RuntimeError``), never the converted ``SystemExit``. The crash marker is
+therefore belt-and-braces for that topology: it is load-bearing only if a
+hook ever nests ``safe_main`` *inside* the timer, where ``__exit__`` sees a
+bare ``SystemExit(0)`` that is indistinguishable from success without it.
+Both topologies are covered so the classification does not silently invert
+if the wrapping order is ever changed.
+
+Historical log files written under schema 1 are deliberately NOT rewritten;
+:data:`SCHEMA_VERSION` is how a reader tells the two eras apart and avoids
+averaging across the correction.
+
 Design constraints (mirrored from :mod:`hook_telemetry`):
 
 - Telemetry must NEVER raise. A logging or filesystem failure must NEVER
@@ -52,7 +95,25 @@ LOG_DIR_OVERRIDE_ENV_VAR: str = "HOOK_TIMING_DIR"
 
 MAX_DECISION_SHAPE_LENGTH: int = 64
 MAX_HOOK_NAME_LENGTH: int = 128
-SCHEMA_VERSION: int = 1
+
+# Schema 2 corrects ``decision_shape`` classification: ``sys.exit(0)`` inside
+# the timer scope is the SUCCESS path and no longer records ``"exception"``.
+# Rows with ``schema_version == 1`` predate the correction and over-report
+# ``"exception"`` for every hook that terminates via ``sys.exit()``; readers
+# MUST NOT aggregate shape counts across the two versions.
+SCHEMA_VERSION: int = 2
+
+# ``decision_shape`` values this module produces on its own (hooks may set
+# any other value via :meth:`HookTimer.set_decision_shape`).
+SHAPE_EXCEPTION: str = "exception"
+SHAPE_EXIT_NONZERO: str = "exit_nonzero"
+SHAPE_DEFAULT: str = "allow"
+
+# Attribute name stamped onto a ``SystemExit`` that :func:`hook_safety.safe_main`
+# synthesised from an unhandled crash. Kept as a module constant because
+# ``hook_safety`` must agree on the spelling; a cross-validation test locks
+# the two together.
+CRASH_EXIT_ATTR: str = "_hook_safety_crash"
 
 # Owner-only permissions for the timing log file (Issue #1056, Finding 2).
 # Multi-user systems must not expose internal hook timing data to other users.
@@ -188,6 +249,128 @@ def _sanitize_os_error(exc: BaseException) -> str:
     return sanitized
 
 
+# ---------------------------------------------------------------------------
+# Crash marking (Issue: sys.exit(0) misclassified as "exception")
+# ---------------------------------------------------------------------------
+
+# Process-global "a crash was converted to SystemExit" flag. Hooks are
+# single-shot, single-threaded processes, so a plain module global is
+# sufficient and avoids the ordering subtleties of context vars. The flag is
+# cleared by ``HookTimer.__enter__`` so a timer never inherits a crash that
+# happened before its own scope opened.
+_crash_noted: bool = False
+
+
+def note_crash() -> None:
+    """Record that an unhandled crash was converted into a ``SystemExit``.
+
+    Called by :func:`hook_safety.safe_main` on its crash path. A subsequent
+    :meth:`HookTimer.__exit__` that observes a ``SystemExit`` will record
+    ``"exception"`` rather than treating it as the success path.
+
+    NEVER raises.
+    """
+    global _crash_noted
+    _crash_noted = True
+
+
+def clear_crash() -> None:
+    """Reset the process-global crash flag. NEVER raises."""
+    global _crash_noted
+    _crash_noted = False
+
+
+def crash_noted() -> bool:
+    """Return True iff a crash-to-``SystemExit`` conversion was recorded."""
+    return _crash_noted
+
+
+def mark_crash_exit(exc: BaseException) -> BaseException:
+    """Stamp ``exc`` as a crash-converted exit and set the process flag.
+
+    Two redundant channels are used because they fail in different ways:
+    the attribute survives even if the exception is caught and re-raised
+    through code that does not know about this module, while the module
+    flag survives if the exception object itself is replaced en route.
+
+    Args:
+        exc: The ``SystemExit`` synthesised from an unhandled exception.
+
+    Returns:
+        The same ``exc``, for call-site chaining.
+    """
+    try:
+        setattr(exc, CRASH_EXIT_ATTR, True)
+    except Exception:
+        # Some exception types forbid attribute assignment; the module-level
+        # flag below is the fallback channel.
+        pass
+    note_crash()
+    return exc
+
+
+def _is_crash_exit(exc: Optional[BaseException]) -> bool:
+    """Return True iff this ``SystemExit`` represents a converted crash."""
+    try:
+        if getattr(exc, CRASH_EXIT_ATTR, False):
+            return True
+    except Exception:
+        pass
+    return crash_noted()
+
+
+def _classify_exit(
+    exc_type: Optional[type],
+    exc: Optional[BaseException],
+    *,
+    decision_shape: str,
+    explicitly_set: bool,
+) -> str:
+    """Map how a timed block terminated onto a ``decision_shape`` value.
+
+    See the module docstring for the full truth table and rationale.
+
+    Args:
+        exc_type: The exception type propagating out of the ``with`` block,
+            or ``None`` for a normal return.
+        exc: The exception instance (may be ``None`` even when ``exc_type``
+            is not, for hand-constructed ``__exit__`` calls).
+        decision_shape: The shape the hook reported for itself.
+        explicitly_set: Whether the hook actually called
+            :meth:`HookTimer.set_decision_shape` (as opposed to inheriting
+            the ``"allow"`` default).
+
+    Returns:
+        The ``decision_shape`` string to record.
+    """
+    # Normal return: the hook's own report stands.
+    if exc_type is None:
+        return decision_shape
+
+    # A genuine unhandled exception. This is the branch that catches real
+    # crashes in the production (outer-wrap) topology, where the timer sees
+    # the raw exception before ``safe_main`` ever converts it.
+    if not (isinstance(exc_type, type) and issubclass(exc_type, SystemExit)):
+        return SHAPE_EXCEPTION
+
+    # ``SystemExit`` is deliberate — UNLESS hook_safety manufactured it from
+    # a crash. Checking the marker first is what stops the fix from
+    # inverting the defect and relabelling crashes as successes.
+    if _is_crash_exit(exc):
+        return SHAPE_EXCEPTION
+
+    code = getattr(exc, "code", None)
+    if code is None or code == 0:
+        # ``sys.exit(0)`` is the normal success termination for hooks.
+        return decision_shape
+
+    # Deliberate non-zero exit: neither success nor crash. Recording it as
+    # "allow" would hide blocking behaviour; recording it as "exception"
+    # would repeat the original defect in miniature. A hook that reported a
+    # shape for itself is more specific than the exit code, so that wins.
+    return decision_shape if explicitly_set else SHAPE_EXIT_NONZERO
+
+
 def _normalize_decision_shape(shape: str) -> str:
     """Coerce ``shape`` to a short, well-formed ASCII string.
 
@@ -225,8 +408,9 @@ def emit_timing_event(
         hook_name: Filename of the hook (e.g. ``"unified_pre_tool.py"``).
         dur_ns: Duration of the hook invocation in nanoseconds.
         decision_shape: One of ``"allow"``, ``"tuple"``, ``"dict"``,
-            ``"exit2"``, ``"legacy_recovery"``, ``"mode_skip"``, or
-            ``"exception"``. Unknown values are logged as-is.
+            ``"exit2"``, ``"legacy_recovery"``, ``"mode_skip"``,
+            ``"exit_nonzero"``, or ``"exception"``. Unknown values are
+            logged as-is.
         log_dir: Optional directory override. Falls back to the
             ``HOOK_TIMING_DIR`` env var, then to
             ``~/.claude/logs``.
@@ -330,9 +514,15 @@ class HookTimer:
 
     Default ``decision_shape`` is ``"allow"``. Hooks that produce a
     non-allow outcome should call :meth:`set_decision_shape` before
-    leaving the ``with`` block. If the hook raises an exception, the
-    timer records ``decision_shape="exception"`` and the exception
-    propagates normally — the timer NEVER swallows errors.
+    leaving the ``with`` block.
+
+    Termination is classified by :func:`_classify_exit` (full truth table in
+    the module docstring). In short: a normal return and ``sys.exit(0)`` are
+    both the SUCCESS path and keep the hook's own shape; a genuine unhandled
+    exception — including a ``SystemExit`` that :func:`hook_safety.safe_main`
+    manufactured from a crash — records ``"exception"``; a deliberate
+    non-zero ``sys.exit(N)`` records ``"exit_nonzero"``. Whatever the shape,
+    the exception propagates normally — the timer NEVER swallows errors.
 
     Example:
 
@@ -352,7 +542,7 @@ class HookTimer:
     ) -> None:
         self.hook_name = hook_name
         self._log_dir = log_dir
-        self._decision_shape: str = "allow"
+        self._decision_shape: str = SHAPE_DEFAULT
         self._explicitly_set: bool = False
         self._start_ns: int = 0
         self._disabled: bool = False
@@ -362,6 +552,9 @@ class HookTimer:
         if is_timing_disabled():
             self._disabled = True
             return self
+        # A crash noted BEFORE this scope opened is not this invocation's
+        # crash. Clearing here keeps the marker scoped to the ``with`` body.
+        clear_crash()
         self._start_ns = time.perf_counter_ns()
         return self
 
@@ -372,7 +565,12 @@ class HookTimer:
 
         try:
             dur_ns = time.perf_counter_ns() - self._start_ns
-            shape = "exception" if exc_type is not None else self._decision_shape
+            shape = _classify_exit(
+                exc_type,
+                exc,
+                decision_shape=self._decision_shape,
+                explicitly_set=self._explicitly_set,
+            )
             emit_timing_event(
                 hook_name=self.hook_name,
                 dur_ns=dur_ns,

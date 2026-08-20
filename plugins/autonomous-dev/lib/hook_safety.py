@@ -24,6 +24,13 @@ function and converts any unhandled exception into ``SystemExit(0)`` plus a
 explicit ``int`` return values and explicit ``SystemExit``) is preserved
 verbatim — the wrap is a pure outer safety net.
 
+Because that conversion makes a crash exit indistinguishable from a healthy
+``sys.exit(0)``, the synthesised ``SystemExit`` is stamped with
+:data:`CRASH_EXIT_ATTR` (and mirrored into ``hook_timing``'s process-global
+crash flag). Per-invocation timing telemetry consults the marker so it can
+exempt genuine ``sys.exit(0)`` successes from the ``"exception"`` bucket
+without also whitewashing real crashes.
+
 Mode 2 is addressed by :func:`command_registered`, which probes the standard
 slash-command lookup paths. Hooks that would otherwise issue a
 ``deny`` decision telling the user to run ``/foo`` MUST first call
@@ -44,6 +51,49 @@ import os
 import sys
 from pathlib import Path
 from typing import Callable, Optional
+
+
+# Attribute stamped onto the ``SystemExit`` that :func:`safe_main` synthesises
+# from an unhandled crash, so per-invocation timing telemetry can still tell a
+# converted crash apart from a genuine ``sys.exit(0)`` success. The canonical
+# definition lives in ``hook_timing.CRASH_EXIT_ATTR``; this literal is the
+# fallback for the case where ``hook_timing`` is not importable. A
+# cross-validation test asserts the two spellings agree.
+CRASH_EXIT_ATTR: str = "_hook_safety_crash"
+
+
+def _mark_crash_exit(exit_exc: SystemExit) -> SystemExit:
+    """Stamp ``exit_exc`` as crash-converted for timing telemetry.
+
+    ``safe_main`` turns an unhandled crash into ``SystemExit(0)`` so a broken
+    hook never blocks Claude Code. Without a marker that exit is byte-for-byte
+    identical to the ``sys.exit(0)`` a healthy hook uses to finish, and any
+    timing consumer that (correctly) stops treating ``SystemExit`` as a crash
+    would silently relabel real failures as successes.
+
+    Best-effort in the strictest sense: this is the safety net's own crash
+    path, so every failure mode here is swallowed. Telemetry NEVER takes
+    precedence over exiting cleanly.
+
+    Args:
+        exit_exc: The ``SystemExit`` about to be raised in place of the crash.
+
+    Returns:
+        The same ``exit_exc``, for call-site chaining.
+    """
+    try:
+        import hook_timing  # noqa: PLC0415 — lazy: hook_safety must not hard-depend
+
+        hook_timing.mark_crash_exit(exit_exc)
+    except BaseException:  # noqa: BLE001 — telemetry must never break the exit
+        # ``hook_timing`` unavailable (missing, broken import, sys.path not
+        # set up). Fall back to the raw attribute so a timer that IS
+        # importable in the same process can still read the marker.
+        try:
+            setattr(exit_exc, CRASH_EXIT_ATTR, True)
+        except BaseException:  # noqa: BLE001
+            pass
+    return exit_exc
 
 
 # Hooks that issue deny decisions referencing a slash command MUST consult
@@ -71,7 +121,9 @@ def safe_main(fn: Callable[[], Optional[int]]) -> None:
       the core of the safety net: a missing import, a typo, or a runtime
       bug in the hook itself MUST NOT block Claude Code. A warning line of
       the form ``[hook warning] <hook_name>: <ExceptionType>: <message>`` is
-      written to stderr so operators can detect failures.
+      written to stderr so operators can detect failures. The synthesised
+      ``SystemExit(0)`` is stamped via :func:`_mark_crash_exit` so timing
+      telemetry can still distinguish it from a healthy ``sys.exit(0)``.
 
     Args:
         fn: The hook's ``main`` function. Conventionally takes no arguments
@@ -117,7 +169,10 @@ def safe_main(fn: Callable[[], Optional[int]]) -> None:
             f"See plugins/autonomous-dev/lib/hook_safety.py for rationale."
         )
         print(warning, file=sys.stderr)
-        sys.exit(0)
+        # Equivalent to ``sys.exit(0)`` (which is just ``raise SystemExit(0)``)
+        # except that the exception carries a crash marker, so per-invocation
+        # timing telemetry does not mistake this for a healthy exit.
+        raise _mark_crash_exit(SystemExit(0)) from exc
 
     # Preserve int return semantics (return 1 / return 2 patterns).
     if isinstance(result, int):

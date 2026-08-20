@@ -107,11 +107,24 @@ class TestHookTimerHappyPath:
         assert isinstance(row["dur_ns"], int)
         assert row["dur_ns"] >= 0
 
-    def test_schema_version_is_one(self, home_dir):
+    def test_schema_version_matches_module_constant(self, home_dir):
+        """Emitted rows carry the module's current SCHEMA_VERSION.
+
+        Was ``test_schema_version_is_one``, hardcoded to 1. The version was
+        bumped to 2 when ``sys.exit(0)`` stopped being misrecorded as
+        ``"exception"`` — 31 days of schema-1 history over-report the
+        ``"exception"`` bucket, and the version field is how a reader tells
+        the two eras apart. Asserting against the constant instead of a
+        literal keeps the test from re-breaking on the next correction.
+        """
         with hook_timing.HookTimer("test_hook.py"):
             pass
         row = _read_today_log(home_dir)[0]
-        assert row["schema_version"] == 1
+        assert row["schema_version"] == hook_timing.SCHEMA_VERSION
+        assert hook_timing.SCHEMA_VERSION >= 2, (
+            "SCHEMA_VERSION must be >= 2: version 1 rows predate the "
+            "decision_shape classification fix and are not comparable."
+        )
 
     def test_hook_name_recorded(self, home_dir):
         with hook_timing.HookTimer("auto_format.py"):
