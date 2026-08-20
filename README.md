@@ -260,7 +260,7 @@ Use `/plan` for changes touching >3 files, >100 lines, or with uncertain approac
 /plan-to-issues               # Thorough-mode fallback for batch issue creation
 ```
 
-The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 6 axes in `/plan`; the in-pipeline `/implement` gate uses a faster 4-axis budget subset, iterating the planner until PROCEED) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
+The `/plan` flow: problem statement → existing solutions search → minimal path → adversarial critique by plan-critic (1-5 Likert score across 7 axes in `/plan`; the in-pipeline `/implement` gate uses a faster 4-axis budget subset, iterating the planner until PROCEED) → on PROCEED, automatically creates GitHub issues when ≥2 independent work items exist. See [docs/PLANNING-WORKFLOW.md](docs/PLANNING-WORKFLOW.md).
 
 ### Plan-exit enforcement is default-ON in every repo (since #1361, flipped from #938)
 

@@ -66,14 +66,16 @@ Design the smallest change that achieves the goal:
 
 ### Step 5: Adversarial Critique
 
-The plan-critic agent reviews the plan across 5 axes:
+The plan-critic agent reviews the plan across 7 axes:
 - Assumption audit
 - Scope creep detection
 - Existing solution verification
 - Minimalism pressure
 - Uncertainty flagging
+- Operational integration test
+- Reachability and enforceability
 
-Minimum 2 critique rounds before PROCEED verdict.
+Minimum 3 critique rounds before PROCEED verdict.
 
 ### Step 6: Issue Decomposition
 

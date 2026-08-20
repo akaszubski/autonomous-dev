@@ -159,6 +159,68 @@ class TestParseVerdictFromOutput:
         }
         assert parsed.axis_scores["Assumption Audit"] == 4
 
+    def test_parses_axis_name_containing_ampersand(self):
+        """Regression: the 7th axis is named 'Reachability & Enforceability'.
+
+        The axis-name character class originally excluded ``&``, so the row
+        matched nothing and the axis was dropped from ``axis_scores`` without
+        any error. The hooks only require >= 3 numeric entries, so a 7-axis
+        critique persisted 6 scores and every gate still reported success —
+        an axis whose score cannot be recorded is an inert criterion. This
+        test fails against the pre-fix regex.
+        """
+        output = f"""Critique paragraphs.
+{SUBSTANTIVE_REASONING}
+
+## Verdict: REVISE
+
+### Scores
+| Axis | Score | Notes |
+|------|-------|-------|
+| Assumption Audit | 4 | serena and grep agreed |
+| Minimalism Pressure | 4 | irreducible |
+| Operational Integration Test | 3 | kwargs asserted |
+| Reachability & Enforceability | 2 | no firing margin stated |
+| **Composite** | **3.25** | |
+"""
+        parsed = parse_verdict_from_output(output)
+        assert parsed is not None
+        assert "Reachability & Enforceability" in parsed.axis_scores, (
+            f"axis names with '&' must survive parsing; got "
+            f"{sorted(parsed.axis_scores)}"
+        )
+        assert parsed.axis_scores["Reachability & Enforceability"] == 2
+        assert len(parsed.axis_scores) == 4, (
+            f"every scored axis must be recovered, not a silent subset: "
+            f"{parsed.axis_scores}"
+        )
+
+    def test_composite_row_still_excluded_with_widened_axis_class(self):
+        """Negative control: widening the class must not admit the total row.
+
+        The ampersand fix would be worthless if it also started recording
+        '**Composite**' as an axis, so the guard is watched refusing that row
+        as well as permitting the ampersand one.
+        """
+        output = f"""Critique paragraphs.
+{SUBSTANTIVE_REASONING}
+
+## Verdict: PROCEED
+
+| Axis | Score | Notes |
+|------|-------|-------|
+| Reachability & Enforceability | 5 | fully specified |
+| Minimalism Pressure | 4 | tight |
+| Assumption Audit | 4 | verified |
+| **Composite** | **4** | |
+"""
+        parsed = parse_verdict_from_output(output)
+        assert parsed is not None
+        lowered = {name.lower() for name in parsed.axis_scores}
+        assert "composite" not in lowered
+        assert "**composite**" not in lowered
+        assert "axis" not in lowered
+
     def test_returns_none_when_no_verdict_line(self):
         output = "Just a bunch of chat with no verdict line at all."
         assert parse_verdict_from_output(output) is None

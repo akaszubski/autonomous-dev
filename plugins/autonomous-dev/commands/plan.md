@@ -100,7 +100,7 @@ Run plan-critic in a **sequential iterative loop**. Each round is a SEPARATE age
 
 **Round protocol:**
 
-**Round 1**: Pass the full plan draft. Instruct: "This is your FIRST critique round — identify issues across all 5 critique axes."
+**Round 1**: Pass the full plan draft. Instruct: "This is your FIRST critique round — identify issues across all 7 critique axes."
 
 **Round 2+**: Pass the plan (revised if REVISE verdict) AND the previous round's full verdict output. Instruct: "This is ROUND N. Previous round verdict: {verdict}, score: {composite}. Previous findings: {key issues}. Verify fixes and probe deeper."
 

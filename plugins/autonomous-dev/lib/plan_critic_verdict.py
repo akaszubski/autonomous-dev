@@ -69,8 +69,15 @@ _COMPOSITE_LINE = re.compile(
     re.IGNORECASE,
 )
 # Axis-scores table row: | Axis Name | N | notes |
+#
+# The axis-name class includes ``&`` because the 7th axis is named
+# "Reachability & Enforceability". Without it the row parsed cleanly as
+# markdown, the row-level ``int()`` never raised, and the axis was simply
+# absent from ``axis_scores`` — the hooks only require >= 3 numeric entries,
+# so a 7-axis critique persisted 6 scores and every gate still reported
+# success. An axis whose score cannot be recorded is an inert criterion.
 _AXIS_TABLE_ROW = re.compile(
-    r"^\|\s*([A-Za-z][A-Za-z0-9 _\-/]*?)\s*\|\s*(?:\*\*)?"
+    r"^\|\s*([A-Za-z][A-Za-z0-9 _\-/&]*?)\s*\|\s*(?:\*\*)?"
     r"([1-5])(?:\*\*)?\s*\|",
     re.MULTILINE,
 )

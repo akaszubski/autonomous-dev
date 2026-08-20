@@ -41,13 +41,14 @@ Design the smallest set of changes that achieves the goal. List files in depende
 
 ### Step 5: Adversarial Critique
 
-The plan-critic agent reviews the plan across 6 axes:
+The plan-critic agent reviews the plan across 7 axes:
 - **Assumption audit**: What might not be true?
 - **Scope creep detection**: Is the plan doing more than needed?
 - **Existing solution search**: Has prior art been checked?
 - **Minimalism pressure**: What can be removed?
 - **Uncertainty flagging**: What's risky?
 - **Operational Integration Test**: Are subprocess/network/fs calls tested with runtime-context kwargs (cwd, env, credentials)?
+- **Reachability & Enforceability**: Once built, will each mechanism be reached, and can it fire? Named consumer, stated triggering margin, class-scoped subject discovery, "passed" distinguishable from "did not run", and both-ways verification.
 
 Minimum 3 critique rounds before PROCEED verdict.
 

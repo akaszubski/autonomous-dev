@@ -3,19 +3,69 @@
 Locks the Assumption Audit axis tool-use mandate in place. If a future
 edit removes the REQUIRED clause or weakens the score-3 anchor, these
 tests fail.
+
+Also locks the Reachability & Enforceability axis (axis 7) and the
+read-only Serena symbol-tool grants that axis depends on. A criterion its
+holder cannot check is a guard that cannot refuse, so the axis text and
+the frontmatter grants must not drift apart.
 """
 
 import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN_CRITIC = ROOT / "plugins" / "autonomous-dev" / "agents" / "plan-critic.md"
 
+# Read-only symbol tools the reachability criteria require.
+REQUIRED_SERENA_TOOLS = (
+    "mcp__serena__find_symbol",
+    "mcp__serena__find_referencing_symbols",
+    "mcp__serena__get_symbols_overview",
+)
+
+# Serena tools that mutate source or the filesystem. plan-critic is a
+# read-only adversarial reviewer and must never declare one of these.
+FORBIDDEN_WRITE_TOOLS = (
+    "mcp__serena__replace_symbol_body",
+    "mcp__serena__insert_after_symbol",
+    "mcp__serena__insert_before_symbol",
+    "mcp__serena__rename_symbol",
+    "mcp__serena__safe_delete_symbol",
+    "mcp__serena__replace_in_files",
+    "mcp__serena__replace_content",
+    "mcp__serena__write_memory",
+    "mcp__serena__execute_shell_command",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "NotebookEdit",
+)
+
 
 def _read() -> str:
     return PLAN_CRITIC.read_text(encoding="utf-8")
+
+
+def _declared_tools() -> list[str]:
+    """Return the ``tools:`` list from plan-critic.md frontmatter."""
+    content = _read()
+    parts = content.split("---", 2)
+    assert len(parts) >= 3, "plan-critic.md frontmatter is not terminated"
+    frontmatter = yaml.safe_load(parts[1])
+    assert isinstance(frontmatter, dict), "plan-critic.md frontmatter is not a mapping"
+    tools = frontmatter.get("tools")
+    assert isinstance(tools, list), f"plan-critic.md tools: must be a list, got {tools!r}"
+    return [str(t).strip() for t in tools]
+
+
+def _critique_axes_section(text: str) -> str:
+    """Return the '## Critique Axes' section body."""
+    m = re.search(r"##\s*Critique Axes\s*\n(.*?)(?=\n##\s)", text, re.DOTALL)
+    assert m, "plan-critic.md missing '## Critique Axes' section"
+    return m.group(1)
 
 
 def _assumption_audit_block(text: str) -> str:
@@ -93,4 +143,100 @@ class TestScoringAnchorRow:
         assert "grep shows it doesn't" in score1, (
             f"Score-1 anchor must still contain 'grep shows it doesn't' "
             f"(anti-regression). Got: {score1!r}"
+        )
+
+
+class TestSerenaSymbolToolGrants:
+    """plan-critic must hold the read-only instruments its criteria require."""
+
+    @pytest.mark.parametrize("tool", REQUIRED_SERENA_TOOLS)
+    def test_required_serena_tool_is_granted(self, tool: str):
+        tools = _declared_tools()
+        assert tool in tools, (
+            f"plan-critic.md must grant {tool!r} — the Reachability & "
+            f"Enforceability axis and the Assumption Audit instrument-adequacy "
+            f"check both require symbol-level verification, which grep cannot "
+            f"perform. Declared: {tools}"
+        )
+
+    def test_pre_existing_tools_preserved(self):
+        """Additive only: the original tool grants must survive."""
+        tools = _declared_tools()
+        for tool in ("WebSearch", "Read", "Grep", "Glob", "Bash"):
+            assert tool in tools, f"plan-critic.md lost pre-existing tool {tool!r}"
+
+    @pytest.mark.parametrize("tool", FORBIDDEN_WRITE_TOOLS)
+    def test_no_write_capable_tool_is_granted(self, tool: str):
+        """Negative control: the reviewer stays read-only.
+
+        The grant-side test above is only meaningful if the file could also
+        fail — a rule that accepted every tool list would pass it vacuously.
+        This watches the same declaration refuse write capability.
+        """
+        content = _read()
+        parts = content.split("---", 2)
+        frontmatter = yaml.safe_load(parts[1])
+        declared = set(_declared_tools()) | {
+            str(t).strip() for t in (frontmatter.get("optional_mcp") or [])
+        }
+        assert tool not in declared, (
+            f"plan-critic.md declares write-capable tool {tool!r}. plan-critic "
+            f"is a read-only adversarial reviewer and MUST NOT hold mutation "
+            f"capability."
+        )
+
+
+class TestReachabilityAxis:
+    """Axis 7 (Reachability & Enforceability) must exist and stay substantive."""
+
+    def test_axis_7_is_listed_in_critique_axes(self):
+        axes = _critique_axes_section(_read())
+        assert re.search(
+            r"^\s*7\.\s*\*\*Reachability & Enforceability\*\*", axes, re.MULTILINE
+        ), (
+            "plan-critic.md must list 'Reachability & Enforceability' as "
+            "numbered axis 7 in the ## Critique Axes section"
+        )
+
+    def test_axis_7_covers_all_five_probes(self):
+        axes = _critique_axes_section(_read())
+        m = re.search(
+            r"7\.\s*\*\*Reachability & Enforceability\*\*(.*)", axes, re.DOTALL
+        )
+        assert m, "Could not extract the Reachability & Enforceability axis block"
+        block = m.group(1).lower()
+        for probe in (
+            "consumer",       # dead-on-arrival check
+            "fire",           # inert-threshold check
+            "class",          # class-vs-instance scoping check
+            "did not run",    # success-by-doing-nothing check
+            "both",           # watched-both-ways check
+        ):
+            assert probe in block, (
+                f"Reachability & Enforceability axis must address {probe!r}; "
+                f"the axis block does not mention it"
+            )
+
+    def test_axis_7_is_scored_and_anchored(self):
+        content = _read()
+        assert re.search(
+            r"^\|\s*Reachability & Enforceability\s*\|", content, re.MULTILINE
+        ), (
+            "Scoring Anchors table must include a 'Reachability & Enforceability' row"
+        )
+        # One anchors row + REVISE/PROCEED/BLOCKED score tables + Delta table.
+        rows = re.findall(
+            r"^\|\s*Reachability & Enforceability\s*\|", content, re.MULTILINE
+        )
+        assert len(rows) >= 5, (
+            f"Expected the axis in the Scoring Anchors table, all three verdict "
+            f"templates, and the Delta Tracking template (>= 5 rows); found "
+            f"{len(rows)}"
+        )
+
+    def test_axis_7_named_in_rubric_coverage_statement(self):
+        content = _read()
+        assert "Reachability & Enforceability" in content.split("## Scoring Rubric")[1].split("## Verdict-Score Mapping")[0], (
+            "The Scoring Rubric coverage sentence must name the "
+            "Reachability & Enforceability axis"
         )

@@ -62,13 +62,55 @@ def test_spec_issue_1067_criterion_01_axis_6_exists(plan_critic_text: str) -> No
     )
 
 
-# Criterion 2: intro of "## Critique Axes" references "six axes" (or "6 axes")
-def test_spec_issue_1067_criterion_02_six_axes_intro(plan_critic_text: str) -> None:
+# Criterion 2: the "## Critique Axes" intro states an axis count, and that
+# count agrees with the number of numbered axes actually listed below it.
+#
+# The original form of this test hardcoded "six"/"6". A hardcoded count is a
+# guard scoped to the instance: it goes stale the moment a 7th axis lands and
+# then blocks the change it should have been checking. Deriving the expected
+# count from the numbered list keeps the intent (intro must not lie about how
+# many axes exist) while surviving future additions.
+_NUMBER_WORDS = {
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
+
+def _count_numbered_axes(axes_section: str) -> int:
+    """Count top-level ``N. **Axis Name**`` entries in the Critique Axes section."""
+    return len(re.findall(r"^\d+\.\s*\*\*", axes_section, re.MULTILINE))
+
+
+def test_spec_issue_1067_criterion_02_axis_count_intro_matches_list(
+    plan_critic_text: str,
+) -> None:
     axes = _critique_axes_section(plan_critic_text)
     # Get just intro before numbered list
     intro = axes.split("1.")[0]
-    assert re.search(r"\b(six|6)\s+axes\b", intro, re.IGNORECASE), (
-        f"Critique Axes intro must reference 'six axes' or '6 axes'; got: {intro!r}"
+    m = re.search(r"\b(\w+)\s+axes\b", intro, re.IGNORECASE)
+    assert m, f"Critique Axes intro must state an axis count; got: {intro!r}"
+
+    token = m.group(1).lower()
+    stated = _NUMBER_WORDS.get(token, int(token) if token.isdigit() else None)
+    assert stated is not None, (
+        f"Critique Axes intro states an unrecognised axis count {m.group(1)!r}; "
+        f"expected a digit or a number word"
+    )
+
+    listed = _count_numbered_axes(axes)
+    assert stated == listed, (
+        f"Critique Axes intro says {stated} axes but {listed} numbered axes are "
+        f"listed in the section. Update the intro when adding or removing an axis."
+    )
+    assert listed >= 6, (
+        f"Only {listed} numbered axes found — the six axes shipped through "
+        f"Issue #1067 must all remain present"
     )
 
 
@@ -344,12 +386,22 @@ def test_spec_issue_1067_criterion_21_includes_anti_pattern(testing_guide_text: 
     )
 
 
-# Bonus: docs/PLANNING-WORKFLOW.md line ~44 says "6 axes" with the new bullet
-def test_spec_issue_1067_planning_workflow_six_axes(planning_workflow_text: str) -> None:
-    # Find "X axes" reference
-    assert re.search(r"\b6\s+axes\b", planning_workflow_text) or re.search(
-        r"\bsix\s+axes\b", planning_workflow_text, re.IGNORECASE
-    ), "PLANNING-WORKFLOW.md must reference '6 axes' (or 'six axes')"
+# Bonus: docs/PLANNING-WORKFLOW.md states an axis count that agrees with
+# plan-critic.md. Hardcoding "6" here made the doc-sync check go stale the
+# moment a 7th axis landed; the count is now read from plan-critic.md.
+def test_spec_issue_1067_planning_workflow_axis_count_matches_agent(
+    planning_workflow_text: str, plan_critic_text: str
+) -> None:
+    expected = _count_numbered_axes(_critique_axes_section(plan_critic_text))
+
+    m = re.search(r"reviews the plan across\s+(\w+)\s+axes", planning_workflow_text)
+    assert m, "PLANNING-WORKFLOW.md must state 'reviews the plan across N axes'"
+    token = m.group(1).lower()
+    stated = _NUMBER_WORDS.get(token, int(token) if token.isdigit() else None)
+    assert stated == expected, (
+        f"PLANNING-WORKFLOW.md says {m.group(1)!r} axes but plan-critic.md lists "
+        f"{expected}. Keep the doc in sync with the agent definition."
+    )
     assert "Operational Integration Test" in planning_workflow_text, (
         "PLANNING-WORKFLOW.md must list 'Operational Integration Test' as a critique axis bullet"
     )
