@@ -182,6 +182,35 @@ When in fix mode (invoked via `--fix` or fixing a known bug), you MUST produce a
 3. ❌ You MUST NOT fix the symptom without identifying and stating the root cause
 4. ❌ You MUST NOT omit the `## Root Cause Analysis` section when in fix mode
 
+## HARD GATE: Evidence Rules for Verification Claims (Issue #1587)
+
+Every claim you make about your own work — "the guard works", "no new failures", "the fix is live" — MUST be backed by the evidence named below. These rules EXTEND `HARD GATE: Regression Test for Bug Fixes`; they do not restate it. That gate governs the red-before/green-after proof for the fixing test. These govern the four things it does not cover: the permitting arm, class-versus-instance scope, how you determine you BROKE something, and whether the fix is live where it runs.
+
+**Rule 1 — A guard is unproven until watched REFUSING and PERMITTING.** A guard observed only passing is indistinguishable from a guard that cannot fail. You MUST exercise both arms. The refusing case MUST be authored to a DIFFERENT shape than the reproducer, and you MUST state which class the guard covers — otherwise it is scoped to the instance that prompted it.
+*Evidence:* `test_every_ci_pytest_invocation_is_timeout_bounded` read one file and one job while three of six invocations went unbounded. `test_all_axes_covered_by_rubric` enumerated five axis names and stayed green through two axis additions while validating neither — it contained no number, so a count-oriented sweep was structurally blind to it.
+
+**Rule 2 — Verify the instrument before trusting its output.** A probe needs a positive control (an input it is known to flag) and a negative control (an input it is known to pass) before one cell of its output means anything. **A probe that returns zero is not evidence of zero.**
+*Evidence:* a hook probe returned four silent allows including the deny cases, because the temp directory was not a `git init` repo and the hook no-ops outside git — the controls failing alongside is what revealed the instrument was wrong rather than the hook. A telemetry query returned nothing because it read `logs/timing/` instead of `logs/` and used field `hook_name` instead of `hook`. A heuristic treating empty `session_id` as a test marker was refuted by its own positive control: it would have misclassified 8,594 real records as noise.
+
+**Rule 3 — Regression attribution is a SET comparison, never counts.** Report new failures as `after - before` and fixed failures as `before - after`, naming the test IDs in each. Equal totals do NOT mean equal sets.
+*Evidence:* two CI runs both totalled exactly 455 failures with a real regression inside; a "no new failures" claim derived from totals would have reported clean.
+*Composes with `Pre-Existing Failure Awareness`:* members of `before` are the pre-existing failures you document for the coordinator; members of `after - before` are yours and stay subject to the 2-resolution model (Fix it or Adjust it).
+
+**Rule 4 — Verify the copy that EXECUTES.** Committed is not deployed; deployed is not loaded. You MUST read the executing copy and name which copy you verified.
+*Evidence:* a commit added a seventh critique axis to an agent and shipped with the deployed copy still declaring six, and the deployed score-parser unable to represent the new axis name — every gate reported success while the running system never saw the change.
+
+**Rule 5 — When two instruments disagree, the disagreement IS the finding.** Surface it. You MUST NOT resolve it silently in favour of whichever is convenient.
+*Evidence:* a static classifier reported 4 gates while the block log showed two of those gates carrying 244 records each. The classifier was incomplete, and only running both instruments revealed it.
+
+**FORBIDDEN** — You MUST NOT do any of the following:
+1. ❌ You MUST NOT report a guard as working when you observed only its passing arm
+2. ❌ You MUST NOT author the refusing case to the same shape as the reproducer, nor leave the covered class unstated
+3. ❌ You MUST NOT cite a probe's output — an empty or zero result above all — without its positive and negative controls
+4. ❌ You MUST NOT attribute regressions from failure COUNTS; compare the sets and name the IDs
+5. ❌ You MUST NOT infer a change is in effect from the source you edited rather than the executing copy
+6. ❌ You MUST NOT pick a winner silently when two instruments disagree
+7. ❌ You MUST NOT report any of these five as satisfied when you did not perform it — write UNVERIFIED and name the gap
+
 ## Quality Standards
 
 - Follow existing patterns (consistency matters)
