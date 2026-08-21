@@ -21,6 +21,28 @@ Observed BEFORE the fix / AFTER the fix, executed against this repo's
     #1600 brief (verbatim)                        ESCALATE  ->  CLEAR
     #1586 brief (verbatim trigger sentence)       ESCALATE  ->  CLEAR
 
+REMEDIATION (same issue, second pass). The first pass gated on the first token
+alone and stocked the onset set with imperatives only, which silently killed
+true positives phrased as hedges. Measured against the reconstructed pre-#1600
+substring matcher, four proposals escalated BEFORE #1600 and CLEARED after it::
+
+    "Proposal to drop the hmac signature to save space."   ESCALATE -> CLEAR
+    "I want to drop the hmac signature to save space."     ESCALATE -> CLEAR
+    "Suggest we drop the hmac signature to save space."    ESCALATE -> CLEAR
+    "We should drop the hmac signature to simplify ..."    ESCALATE -> CLEAR
+
+Two further shapes were a PRE-EXISTING gap rather than a regression — the
+pre-#1600 substring matcher cleared them too, because a gerund hides the
+phrase ("dropping the hmac" does not contain "drop the hmac")::
+
+    "Consider dropping the hmac signature to simplify ..."    CLEAR -> CLEAR
+    "Propose dropping the hmac signature to save space."      CLEAR -> CLEAR
+
+All six escalate after the remediation. Re-measured in both directions: the
+30-row census stays 0/30, the named population stays 11/12, and corpus
+balanced accuracy is unchanged at 0.9714 tuning / 0.8750 holdout with
+identical miss SETS ({out-012, out-018} and {out-021}).
+
 ASSERT THE BRANCH, NOT THE VERDICT. Two sentences can both ESCALATE for
 entirely different reasons, so every descriptive assertion below checks that
 ``reason`` does *not* begin with the delta prefix, and every positive assertion
@@ -47,9 +69,12 @@ if str(_LIB_DIR) not in sys.path:
 
 from alignment_classifier import (  # noqa: E402
     ARCHITECTURE_DELTA_PHRASES,
+    PROPOSAL_FRAME_TOKENS,
     PROPOSAL_ONSET_VERBS,
     ProjectDoc,
     Stage0Outcome,
+    _degerund_variants,
+    _has_proposal_onset,
     detect_architecture_delta,
     parse_project_md,
     parse_project_md_text,
@@ -373,8 +398,338 @@ class TestDetectorCanStillFire:
         ) == "prompt-level advisory"
 
 
+# ---------------------------------------------------------------------------
+# 3b. Hedged and modal proposals — the recall hole the first pass shipped
+# ---------------------------------------------------------------------------
+
+#: Proposals to violate INV-7, phrased without a bare imperative.
+#:
+#: ``pre_1600`` records what the reconstructed pre-#1600 substring matcher did
+#: (see :func:`_pre_1600_substring_matcher`), so each row states honestly
+#: whether it is a REGRESSION the first pass introduced or a PRE-EXISTING gap
+#: the remediation additionally closes. All six escalate now; four of them were
+#: measured escalating before #1600 and clearing after it.
+MODAL_PROPOSALS: List[Tuple[str, str, str, str]] = [
+    ("mod-1", "regression", "drop the hmac",
+     "Proposal to drop the hmac signature to save space."),
+    ("mod-2", "regression", "drop the hmac",
+     "I want to drop the hmac signature to save space."),
+    ("mod-3", "regression", "drop the hmac",
+     "Suggest we drop the hmac signature to save space."),
+    ("mod-4", "regression", "drop the hmac",
+     "We should drop the hmac signature to simplify state handling."),
+    ("mod-5", "pre-existing-gap", "drop the hmac",
+     "Consider dropping the hmac signature to simplify state handling."),
+    ("mod-6", "pre-existing-gap", "drop the hmac",
+     "Propose dropping the hmac signature to save space."),
+]
+
+
+def _pre_1600_substring_matcher(text: str, doc: ProjectDoc) -> str | None:
+    """The detector body as it stood BEFORE Issue #1600, reconstructed.
+
+    A bare substring scan of the whole lowercased text with no context test.
+    It is the reference the onset gate must not lose ground against on genuine
+    proposals — it over-escalated on prose (30/30 of the census), which is the
+    defect #1600 fixed, but it never MISSED a proposal that names a phrase.
+
+    Args:
+        text: Feature text.
+        doc: Parsed PROJECT.md.
+
+    Returns:
+        The first phrase in tuple order occurring anywhere in ``text``.
+    """
+    if not text or not doc.has_invariants:
+        return None
+    lowered = text.lower()
+    for phrase in ARCHITECTURE_DELTA_PHRASES:
+        if phrase in lowered:
+            return phrase
+    return None
+
+
+class TestModalProposalsStillEscalate:
+    """Refusing arm for the HEDGED shape — the arm the first pass never watched.
+
+    ``TestDetectorCanStillFire`` proved the gate refuses bare imperatives. It
+    proved nothing about ``We should ...`` or ``Proposal to ...``, and those
+    cleared in production for the life of commit a7e7847f. A guard watched
+    refusing only one shape is scoped to that shape.
+    """
+
+    @pytest.mark.parametrize(
+        ("entry_id", "kind", "phrase", "text"),
+        MODAL_PROPOSALS,
+        ids=[i for i, _, _, _ in MODAL_PROPOSALS],
+    )
+    def test_modal_proposal_reaches_the_delta_branch(
+        self, entry_id: str, kind: str, phrase: str, text: str, doc: ProjectDoc
+    ) -> None:
+        """Each row observed CLEAR before this remediation, ESCALATE after."""
+        result = run_stage0(text, doc)
+        assert result.outcome is Stage0Outcome.ESCALATE, (
+            f"{entry_id} ({kind}) CLEARED — a genuine proposal to violate INV-7 "
+            f"reached no gate: {result.reason!r}"
+        )
+        assert result.reason.startswith(DELTA_REASON_PREFIX), (
+            f"{entry_id} escalated via a different branch: {result.reason}"
+        )
+        assert result.architecture_delta_phrase == phrase, (
+            f"{entry_id} reported {result.architecture_delta_phrase!r}"
+        )
+
+    @pytest.mark.parametrize(
+        ("entry_id", "kind", "phrase", "text"),
+        [row for row in MODAL_PROPOSALS if row[1] == "regression"],
+        ids=[i for i, k, _, _ in MODAL_PROPOSALS if k == "regression"],
+    )
+    def test_regression_rows_did_escalate_under_the_pre_1600_matcher(
+        self, entry_id: str, kind: str, phrase: str, text: str, doc: ProjectDoc
+    ) -> None:
+        """The BEFORE half, executed rather than asserted about.
+
+        Without this, ``kind="regression"`` would be a claim in a comment. The
+        pre-#1600 matcher is reconstructed and run: these four rows escalated
+        under it, so the onset gate genuinely lost them.
+        """
+        assert _pre_1600_substring_matcher(text, doc) == phrase, (
+            f"{entry_id} is labelled a regression but the pre-#1600 matcher did "
+            "not escalate it — relabel the row, do not weaken the assertion"
+        )
+
+    @pytest.mark.parametrize(
+        ("entry_id", "kind", "phrase", "text"),
+        [row for row in MODAL_PROPOSALS if row[1] == "pre-existing-gap"],
+        ids=[i for i, k, _, _ in MODAL_PROPOSALS if k == "pre-existing-gap"],
+    )
+    def test_gerund_rows_were_a_gap_not_a_regression(
+        self, entry_id: str, kind: str, phrase: str, text: str, doc: ProjectDoc
+    ) -> None:
+        """Honesty check on the two gerund rows.
+
+        The pre-#1600 substring matcher cleared these too — ``"dropping the
+        hmac"`` does not contain ``"drop the hmac"``. Labelling them
+        regressions would overstate what commit a7e7847f broke.
+        """
+        assert _pre_1600_substring_matcher(text, doc) is None, (
+            f"{entry_id} DID escalate under the pre-#1600 matcher — it is a "
+            "regression, not a pre-existing gap; relabel it"
+        )
+
+    def test_no_named_proposal_is_lost_versus_the_pre_1600_matcher(self, doc: ProjectDoc) -> None:
+        """The durable guard: onset gating must not lose ground on proposals.
+
+        Enumerating hedge words is a members list and will always be
+        incomplete. This asserts the CLASS property instead — over the named
+        proposal population, anything the unconditional substring matcher
+        escalated must still escalate. It fails the moment a future narrowing
+        of the onset rules drops a true positive, whatever its wording.
+        """
+        population = (
+            [(i, t) for i, t in STATED_PROPOSALS]
+            + [(i, t) for i, _, _, t in MODAL_PROPOSALS]
+            + [(i, t) for i, t in _arch_corpus_entries() if i != _ARCH_006_ID]
+        )
+        lost = [
+            (entry_id, _pre_1600_substring_matcher(text, doc))
+            for entry_id, text in population
+            if _pre_1600_substring_matcher(text, doc) is not None
+            and detect_architecture_delta(text, doc) is None
+        ]
+        assert not lost, (
+            f"onset gating lost true positives the pre-#1600 matcher found: {lost}"
+        )
+
+
+class TestHedgedOnsetDoesNotCostPrecision:
+    """Permitting arm for the hedged rules, re-measured not reasoned.
+
+    Adding ``should`` is the specific risk this class exists to bound: census
+    row 23 contains ``should`` mid-sentence. The whole reason onset matching
+    beat containment in the design analysis is that the modal sits under a
+    reporting verb there, four tokens in.
+    """
+
+    def test_reported_modal_under_a_reporting_verb_still_clears(
+        self, doc: ProjectDoc
+    ) -> None:
+        """Census row 23, asserted directly rather than only via the census."""
+        text = (
+            "A reviewer asked whether we should duplicate this content into the"
+            " runbook; the answer is no."
+        )
+        assert text == DESCRIPTIVE_SENTENCES[22][2], "row 23 drifted"
+        result = run_stage0(text, doc)
+        assert result.outcome is Stage0Outcome.CLEAR, result.reason
+        assert detect_architecture_delta(text, doc) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "We asked whether we should duplicate the content across two homes.",
+            "The team debated whether we should drop the hmac signature.",
+            "Nobody could say why the guards fail open under fault injection.",
+            "They should not drop the alignment step, per the runbook.",
+            "The RFC proposes we drop the hmac signature; it was rejected.",
+            "Everyone wondered whether we should merge the agents.",
+        ],
+    )
+    def test_embedded_modal_shapes_clear(self, text: str, doc: ProjectDoc) -> None:
+        """A modal reachable only past a reporting verb is not an onset.
+
+        The frame scan terminates at the first token outside
+        PROPOSAL_FRAME_TOKENS, so a reporting verb or third-person subject
+        stops it dead. A different shape from the census rows, so passing is
+        not an artifact of how the census was written.
+        """
+        result = run_stage0(text, doc)
+        assert result.outcome is Stage0Outcome.CLEAR, result.reason
+        assert detect_architecture_delta(text, doc) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "I think we should make the alignment gate fail open when the "
+            "classifier is unavailable.",
+            "Maybe we should drop the hmac signature.",
+            "Personally I think we should merge the agents.",
+            "Honestly we could just as well drop the acceptance tests.",
+        ],
+    )
+    def test_framed_proposal_still_escalates(self, text: str, doc: ProjectDoc) -> None:
+        """The hole this repo's own smoke test found, pinned.
+
+        ``I think we should make the alignment gate fail open`` CLEARED under
+        the first remediation draft, which allowed exactly ONE subject token
+        before the modal. Enumerating two-token patterns is a members list;
+        consuming a contiguous run of frame tokens fixes the class.
+        """
+        result = run_stage0(text, doc)
+        assert result.outcome is Stage0Outcome.ESCALATE, (
+            f"framed proposal CLEARED: {result.reason!r}"
+        )
+        assert result.reason.startswith(DELTA_REASON_PREFIX), result.reason
+
+    def test_frame_scan_stops_at_the_first_content_word(self) -> None:
+        """The mechanism itself, at the helper."""
+        assert _has_proposal_onset("we should drop the hmac") is True
+        assert _has_proposal_onset("i think we should drop the hmac") is True
+        assert _has_proposal_onset("we all should drop the hmac") is False
+        assert _has_proposal_onset("i want to drop the hmac") is True
+        assert _has_proposal_onset("a reviewer asked whether we should duplicate") is False
+        assert _has_proposal_onset("we asked whether we should duplicate") is False
+
+    def test_third_person_subject_is_not_a_proposer(self) -> None:
+        """First and second person only; ``they``/``the team`` report a view."""
+        assert _has_proposal_onset("they should drop the hmac") is False
+        assert _has_proposal_onset("you should drop the hmac") is True
+
+
+class TestProposalFrameIntegrity:
+    """Structural invariants of the frame set — the closed set IS the guard."""
+
+    #: Terminating the scan on these is what protects census row 23. A future
+    #: edit that admits one readmits reported speech as proposal.
+    REPORTING_AND_THIRD_PERSON = frozenset(
+        {
+            "asked", "asks", "debated", "wondered", "wonders", "notes",
+            "says", "said", "explains", "describes", "found", "whether",
+            "they", "the", "a", "an", "it", "this", "that", "nobody",
+            "everyone", "someone", "reviewer", "team",
+        }
+    )
+
+    def test_frame_set_is_frozen_lowercase_single_tokens(self) -> None:
+        assert isinstance(PROPOSAL_FRAME_TOKENS, frozenset)
+        assert PROPOSAL_FRAME_TOKENS, "an empty frame set disables hedged proposals"
+        for token in PROPOSAL_FRAME_TOKENS:
+            assert token == token.lower() and " " not in token, token
+
+    def test_no_reporting_or_third_person_token_is_a_frame_token(self) -> None:
+        overlap = self.REPORTING_AND_THIRD_PERSON & PROPOSAL_FRAME_TOKENS
+        assert not overlap, (
+            f"reported-speech tokens leaked into PROPOSAL_FRAME_TOKENS: "
+            f"{sorted(overlap)}. These are what stop the frame scan on "
+            "'A reviewer asked whether we should duplicate this content' — "
+            "admitting one readmits descriptive prose."
+        )
+
+    def test_no_frame_token_is_also_an_onset_verb(self) -> None:
+        """Disjoint sets — an overlap would make the frame scan ambiguous."""
+        overlap = PROPOSAL_FRAME_TOKENS & PROPOSAL_ONSET_VERBS
+        assert not overlap, f"frame/opener sets overlap: {sorted(overlap)}"
+
+
+class TestDegerundIsAdditiveOnly:
+    """The gerund rewrite may only ADD matches. Proven, not asserted."""
+
+    @pytest.mark.parametrize(
+        ("segment", "expected_base"),
+        [
+            ("consider dropping the hmac signature", "drop the hmac"),
+            ("propose merging the reviewer and the auditor", "merge the reviewer"),
+            ("suggest removing a pipeline step from the flow", "remove a pipeline step"),
+            ("recommend duplicating the content into the runbook", "duplicate the content"),
+        ],
+    )
+    def test_a_variant_recovers_the_base_phrase(
+        self, segment: str, expected_base: str
+    ) -> None:
+        variants = _degerund_variants(segment)
+        assert any(expected_base in v for v in variants), (
+            f"no de-gerunded variant of {segment!r} contains {expected_base!r}: {variants}"
+        )
+
+    def test_segment_without_a_gerund_yields_no_variants(self) -> None:
+        assert _degerund_variants("drop the hmac signature to save space") == ()
+
+    def test_variants_never_replace_the_raw_segment(self, doc: ProjectDoc) -> None:
+        """The raw segment is matched too, so a mangled rewrite cannot hide a
+        phrase. ``advisory instead of blocking`` contains a gerund that every
+        rule destroys — it must still escalate.
+        """
+        result = run_stage0(
+            "Make the tier gate advisory instead of blocking for batch runs.", doc
+        )
+        assert result.architecture_delta_phrase == "advisory instead of blocking", (
+            result.reason
+        )
+
+    def test_degerunding_adds_no_escalation_to_the_census(self, doc: ProjectDoc) -> None:
+        """Precision control for the rewrite over all 30 descriptive rows."""
+        offenders = [
+            (row, phrase)
+            for row, phrase, sentence in DESCRIPTIVE_SENTENCES
+            if detect_architecture_delta(sentence, doc) is not None
+        ]
+        assert not offenders, f"de-gerunding re-escalated descriptive prose: {offenders}"
+
+
 class TestOnsetVerbSetIntegrity:
     """The onset set is a PROPOSAL list, never a suppression list."""
+
+    #: Openers a hedged proposal uses. Their ABSENCE is what commit a7e7847f
+    #: shipped, and it silently cleared four measured proposals. This is the
+    #: members-list half of the guard; the class-level half is
+    #: ``test_no_named_proposal_is_lost_versus_the_pre_1600_matcher``.
+    HEDGE_OPENERS = frozenset(
+        {
+            "should", "could", "want", "wish", "need", "plan",
+            "suggest", "consider", "propose", "recommend",
+            "proposal", "suggestion", "recommendation",
+        }
+    )
+
+    def test_hedge_openers_are_present(self) -> None:
+        missing = self.HEDGE_OPENERS - PROPOSAL_ONSET_VERBS
+        assert not missing, (
+            f"hedged/modal openers missing from PROPOSAL_ONSET_VERBS: "
+            f"{sorted(missing)}. A missing opener is a SILENT lost true "
+            "positive — Stage 0's ESCALATE is un-overridable, so recall here "
+            "costs more than the noise a spurious opener adds."
+        )
+
 
     #: Verbs a repair brief opens with. Admitting any one recreates #1600.
     REPAIR_VERBS = frozenset(

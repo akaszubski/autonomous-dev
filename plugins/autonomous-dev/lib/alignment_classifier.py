@@ -706,10 +706,16 @@ ARCHITECTURE_DELTA_PHRASES: Tuple[str, ...] = (
 )
 
 
-#: Verbs that mark a segment as PROPOSING a change rather than describing one.
-#: English marks proposal positionally — imperatives open with the verb, while
-#: descriptions open with a subject or an adverbial — so this is a property of
-#: the segment, not of the phrase, and needs no per-phrase classification.
+#: Openers that mark a segment as PROPOSING a change rather than describing one.
+#: English marks proposal positionally, in three shapes, all covered here:
+#: bare imperative (``Drop the hmac ...``), first/second-person subject plus a
+#: modal or volitional verb (``We should drop ...``, ``I want to drop ...`` —
+#: see :data:`PROPOSER_SUBJECT_ONSETS`), and a proposal noun (``Proposal to
+#: drop ...``). Descriptions open with a third-person subject or an adverbial.
+#: So this is a property of the segment, not of the phrase, and needs no
+#: per-phrase classification. Despite the name the set holds a few nouns
+#: (``proposal``, ``suggestion``, ``recommendation``); the name is public API
+#: and is kept for compatibility.
 #:
 #: REPAIR VERBS ARE DELIBERATELY EXCLUDED (Issue #1600): ``fix``, ``add``,
 #: ``document``, ``test``, ``harden``, ``strengthen``, ``block``, ``enforce``,
@@ -717,12 +723,31 @@ ARCHITECTURE_DELTA_PHRASES: Tuple[str, ...] = (
 #: repairs an invariant violation opens with exactly those verbs; admitting one
 #: recreates the defect this constant exists to fix.
 #:
-#: Every error in this set over-escalates. It is a *proposal* list, never a
-#: suppression list: a missing verb costs recall, a spurious verb costs an
-#: extra escalation, and no lexical mistake here can silently kill a true
-#: positive. Stage 0's ESCALATE stays un-overridable by an LLM (INV-6).
+#: A MISSING ENTRY COSTS RECALL, SILENTLY. This set is the ONLY route by which
+#: a phrase can reach an escalation, so a genuine proposal phrased with an
+#: opener that is absent CLEARS leaving no trace — there is no second detector
+#: behind it. That is not hypothetical: the first pass of Issue #1600 shipped
+#: an imperatives-only set, and four measured proposals ("Proposal to drop the
+#: hmac ...", "I want to drop ...", "Suggest we drop ...", "We should drop
+#: ...") escalated under the pre-#1600 substring matcher and CLEARED after it.
+#: Stage 0's ESCALATE is un-overridable by an LLM (INV-6), so a lost true
+#: positive costs strictly more than a spurious escalation. The set therefore
+#: MUST cover hedged and modal openers, not only bare imperatives.
+#:
+#: Errors here are NOT one-directional, and the earlier claim that they were is
+#: what hid the hole: a spurious entry over-escalates (cheap, visible), a
+#: missing entry under-escalates (expensive, invisible). Every edit is
+#: re-measured in BOTH directions — the 30-row descriptive census and the named
+#: 12-entry positive population in
+#: ``tests/regression/test_alignment_delta_precision.py``.
+#:
+#: ``must`` is deliberately absent: it reads as policy statement at least as
+#: often as proposal ("We must not self-attest a judgment"), and unlike a
+#: missing entry a spurious one here is measurable, so it is excluded until a
+#: measured proposal needs it.
 PROPOSAL_ONSET_VERBS: FrozenSet[str] = frozenset(
     {
+        # Imperative openers.
         "replace",
         "reorder",
         "drop",
@@ -750,8 +775,68 @@ PROPOSAL_ONSET_VERBS: FrozenSet[str] = frozenset(
         "downgrade",
         "bypass",
         "let",
+        # Modal / volitional openers, reached either bare or after one
+        # PROPOSER_SUBJECT_ONSETS token ("we should", "I want to").
+        "should",
+        "could",
+        "want",
+        "wish",
+        "need",
+        "plan",
+        # Suggestion openers.
+        "suggest",
+        "consider",
+        "propose",
+        "recommend",
+        # Proposal nouns, for "<noun> to <verb> ..." with no colon. A colon
+        # lead-in ("Proposal: drop the hmac") is already handled by
+        # segmentation, which makes "drop" the onset of the next segment.
+        "proposal",
+        "suggestion",
+        "recommendation",
     }
 )
+
+#: Tokens a proposal may place BEFORE its opener — first/second-person
+#: subjects, opinion verbs and hedging adverbs. The opener is located by
+#: skipping a CONTIGUOUS run of these and nothing else, so "I think we should
+#: drop the hmac" reaches ``should`` while census row 23, "A reviewer asked
+#: whether we should duplicate this content into the runbook; the answer is
+#: no", stops dead at ``a``.
+#:
+#: THE CLOSED SET IS THE PROTECTION, not :data:`_MAX_FRAME_TOKENS`. Reporting
+#: verbs (``asked``, ``debated``, ``wondered``), third-person subjects
+#: (``they``, ``the``, ``a``) and every other content word terminate the scan
+#: immediately, which is what keeps the gate positional. Row 23 is the sentence
+#: that made onset matching beat containment in the original design analysis;
+#: it is re-measured on every change to this module.
+#:
+#: First and second person only. A third-person subject ("they should ...",
+#: "the reviewer should ...") reports someone else's position rather than
+#: making a proposal; those are left to the imperative and noun shapes.
+PROPOSAL_FRAME_TOKENS: FrozenSet[str] = frozenset(
+    {
+        # First/second-person subjects.
+        "i",
+        "we",
+        "you",
+        # Opinion verbs — "I think we should ...".
+        "think",
+        "believe",
+        "feel",
+        # Hedging adverbs — "Maybe we should ...".
+        "maybe",
+        "perhaps",
+        "ideally",
+        "honestly",
+        "personally",
+    }
+)
+
+#: Secondary cap on the frame run. Belt-and-braces only: the closed set above
+#: already terminates the scan at the first content word. Four covers the
+#: longest natural frame ("personally I think we should ...").
+_MAX_FRAME_TOKENS = 4
 
 #: Sentence/clause boundaries. No entry in :data:`ARCHITECTURE_DELTA_PHRASES`
 #: contains any of these characters (asserted by the regression suite), so
@@ -762,6 +847,17 @@ _SEGMENT_DELIMITERS = re.compile(r"[\n.;:!?,]")
 #: Characters trimmed from both ends of a candidate onset token — quotes,
 #: markdown emphasis, list bullets, blockquote markers and brackets.
 _ONSET_TOKEN_TRIM = "\"'`*_-([{<>}])!.,;:?/\\|~#&+="
+
+#: A gerund/participle token: at least three stem characters plus ``ing``. The
+#: floor keeps short function words ("being", "using") from being restemmed
+#: into noise; nothing in ARCHITECTURE_DELTA_PHRASES depends on them.
+_GERUND_TOKEN = re.compile(r"\b([a-z][a-z-]{2,})ing\b")
+
+#: The three spelling changes English ``-ing`` makes, each reversed by one
+#: rule. ``bare``: none ("reordering" -> "reorder"). ``undouble``: a final
+#: consonant was doubled ("dropping" -> "dropp" -> "drop"). ``silent_e``: a
+#: final ``e`` was dropped ("merging" -> "merg" -> "merge").
+_DEGERUND_RULES: Tuple[str, ...] = ("bare", "undouble", "silent_e")
 
 
 def _segments(text: str) -> List[str]:
@@ -776,34 +872,116 @@ def _segments(text: str) -> List[str]:
     return [seg.strip() for seg in _SEGMENT_DELIMITERS.split(text) if seg.strip()]
 
 
-def _has_proposal_onset(segment: str) -> bool:
-    """Report whether a segment OPENS with a proposal verb.
+def _leading_tokens(segment: str, limit: int) -> List[str]:
+    """Return up to ``limit`` normalized word-bearing tokens from the opening.
 
-    The first word-bearing token is lowercased, stripped of surrounding
-    non-alphanumerics (quotes, markdown emphasis, list bullets) and truncated at
-    an apostrophe, then compared by EXACT equality — so ``Let's`` matches
-    ``let`` while the third-person ``Replaces`` does not match ``replace``.
-    That distinction is load-bearing: it is what lets a brief reporting
-    *"Replaces prompt-level advisory text with a hook"* clear the gate.
+    Each token is lowercased, stripped of surrounding non-alphanumerics (quotes,
+    markdown emphasis, list bullets, blockquote markers) and truncated at an
+    apostrophe, so ``Let's`` normalizes to ``let``.
 
     Purely punctuational leading tokens (``-``, ``*``, ``>``, ``#``) are skipped
     rather than treated as the onset, so a proposal written as a markdown list
-    item or blockquote is not silently exempted. Skipping can only ADD
-    escalations, never suppress one.
+    item or blockquote is not silently exempted.
+
+    Args:
+        segment: One segment from :func:`_segments`.
+        limit: Maximum number of tokens to return.
+
+    Returns:
+        The normalized leading tokens, in source order.
+    """
+    tokens: List[str] = []
+    for token in segment.split():
+        normalized = token.lower().strip(_ONSET_TOKEN_TRIM)
+        if not normalized:
+            continue  # markdown bullet / blockquote marker, not the onset
+        tokens.append(normalized.split("'", 1)[0])
+        if len(tokens) == limit:
+            break
+    return tokens
+
+
+def _has_proposal_onset(segment: str) -> bool:
+    """Report whether a segment OPENS with a proposal.
+
+    The opener is the first word-bearing token that is not part of a proposal
+    frame. Leading tokens are consumed while they are in
+    :data:`PROPOSAL_FRAME_TOKENS`; the scan stops at the first token that is
+    not, and that token must be in :data:`PROPOSAL_ONSET_VERBS`. So all of
+    ``Drop the hmac ...``, ``We should drop ...``, ``Maybe we should drop ...``
+    and ``I think we should drop ...`` qualify, while ``A reviewer asked
+    whether we should duplicate ...`` stops at ``a`` and does not.
+
+    Comparison is by EXACT token equality, so ``Let's`` matches ``let`` while
+    the third-person ``Replaces`` does not match ``replace``. That distinction
+    is load-bearing: it is what lets a brief reporting *"Replaces prompt-level
+    advisory text with a hook"* clear the gate.
 
     Args:
         segment: One segment from :func:`_segments`.
 
     Returns:
-        True if the segment's first word-bearing token is in
-        :data:`PROPOSAL_ONSET_VERBS`.
+        True if the segment opens with a proposal.
     """
-    for token in segment.split():
-        first = token.lower().strip(_ONSET_TOKEN_TRIM)
-        if not first:
-            continue  # markdown bullet / blockquote marker, not the onset
-        return first.split("'", 1)[0] in PROPOSAL_ONSET_VERBS
+    for index, token in enumerate(_leading_tokens(segment, _MAX_FRAME_TOKENS + 1)):
+        if token in PROPOSAL_ONSET_VERBS:
+            return True
+        if index >= _MAX_FRAME_TOKENS or token not in PROPOSAL_FRAME_TOKENS:
+            return False
     return False
+
+
+def _degerund_stem(stem: str, rule: str) -> str:
+    """Reverse one ``-ing`` spelling change on an already ``ing``-stripped stem.
+
+    Args:
+        stem: The token with its trailing ``ing`` removed (``dropp``, ``merg``).
+        rule: One of :data:`_DEGERUND_RULES`.
+
+    Returns:
+        The candidate base form under that rule.
+    """
+    if rule == "undouble":
+        if len(stem) >= 3 and stem[-1] == stem[-2] and stem[-1] not in "aeiou":
+            return stem[:-1]
+        return stem
+    if rule == "silent_e":
+        return stem + "e"
+    return stem
+
+
+def _degerund_variants(segment: str) -> Tuple[str, ...]:
+    """Return de-inflected rewrites of ``segment``, at most one per rule.
+
+    A gerund hides a phrase from substring matching: ``"dropping the hmac"``
+    does not contain ``"drop the hmac"``, so ``Consider dropping the hmac
+    signature`` cleared both before and after Issue #1600's first pass. The
+    suggestion openers added in its remediation (``consider``, ``propose``,
+    ``suggest``, ``recommend``) take a gerund complement in ordinary English,
+    which makes the two changes only useful together.
+
+    Purely ADDITIVE: :func:`detect_architecture_delta` matches the original
+    segment as well, so a rewrite can only ADD a match, never remove one. A
+    rewrite that mangles an unrelated word (``handling`` -> ``handl``) is
+    therefore harmless.
+
+    Args:
+        segment: One lowercased segment from :func:`_segments`.
+
+    Returns:
+        Distinct rewrites, excluding any identical to ``segment``. Empty when
+        the segment contains no gerund.
+    """
+    if "ing" not in segment:
+        return ()
+    variants: List[str] = []
+    for rule in _DEGERUND_RULES:
+        rewritten = _GERUND_TOKEN.sub(
+            lambda match, _rule=rule: _degerund_stem(match.group(1), _rule), segment
+        )
+        if rewritten != segment and rewritten not in variants:
+            variants.append(rewritten)
+    return tuple(variants)
 
 
 def detect_architecture_delta(feature_text: str, doc: ProjectDoc) -> Optional[str]:
@@ -812,6 +990,13 @@ def detect_architecture_delta(feature_text: str, doc: ProjectDoc) -> Optional[st
     A phrase escalates only when the segment containing it begins with a
     proposal onset (Issue #1600). Merely *describing* an invariant violation —
     the shape of every brief that sets out to repair one — no longer escalates.
+
+    "Begins with a proposal onset" covers the imperative (``Drop the hmac
+    ...``), the hedged/modal (``We should drop ...``, ``I want to drop ...``)
+    and the proposal-noun (``Proposal to drop ...``) shapes; see
+    :func:`_has_proposal_onset`. Each segment is matched both as written and
+    de-gerunded (:func:`_degerund_variants`), so ``Consider dropping the hmac
+    signature`` reaches ``drop the hmac``.
 
     Always returns None for repositories with no INVARIANTS section: without a
     documented invariant there is nothing for a change to violate, and consumer
@@ -829,11 +1014,13 @@ def detect_architecture_delta(feature_text: str, doc: ProjectDoc) -> Optional[st
     for segment in _segments(feature_text.lower()):
         if not _has_proposal_onset(segment):
             continue
+        # The raw segment FIRST, so de-gerunding can only add matches.
+        candidates = (segment,) + _degerund_variants(segment)
         # Tuple order, not segment order, decides which phrase is reported —
         # test_zero_width_architecture_delta_still_escalates pins the exact
         # return value for a segment matching two phrases.
         for phrase in ARCHITECTURE_DELTA_PHRASES:
-            if phrase in segment:
+            if any(phrase in candidate for candidate in candidates):
                 return phrase
     return None
 
