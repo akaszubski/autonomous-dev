@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Canonical injection-marker surface (Issue #960, reused per Issue #1467).
@@ -652,12 +652,18 @@ def detect_standard_change(feature_text: str) -> bool:
 # Stage 0 detector: architecture delta
 # ---------------------------------------------------------------------------
 
-#: Phrases proposing a change to a documented architecture invariant. Each maps
+#: Phrases naming a change to a documented architecture invariant. Each maps
 #: to an INV-* clause: enforcement strength (INV-1), agent isolation (INV-2),
 #: pipeline shape (INV-3), protected infrastructure (INV-4), one-topic-one-home
 #: (INV-5), deterministic-first (INV-6), signed state (INV-7), local-and-free
-#: (INV-8). Scope words (SaaS, paid features) live in the OUT-of-scope detector
-#: instead, so a doc edit that merely mentions them does not escalate here.
+#: (INV-8).
+#:
+#: A phrase here is NOT sufficient on its own (Issue #1600). Matching is gated
+#: on sentence onset: the segment carrying the phrase must OPEN with a proposal
+#: verb (see :data:`PROPOSAL_ONSET_VERBS`). Before that gate every one of these
+#: 30 phrases admitted a plain descriptive sentence — measured 30/30 — so any
+#: brief *describing* an invariant violation escalated, which is exactly the
+#: brief needed to *repair* one.
 ARCHITECTURE_DELTA_PHRASES: Tuple[str, ...] = (
     # INV-1 — enforcement is hooks, not nudges
     "prompt-level advisory",
@@ -700,8 +706,112 @@ ARCHITECTURE_DELTA_PHRASES: Tuple[str, ...] = (
 )
 
 
+#: Verbs that mark a segment as PROPOSING a change rather than describing one.
+#: English marks proposal positionally — imperatives open with the verb, while
+#: descriptions open with a subject or an adverbial — so this is a property of
+#: the segment, not of the phrase, and needs no per-phrase classification.
+#:
+#: REPAIR VERBS ARE DELIBERATELY EXCLUDED (Issue #1600): ``fix``, ``add``,
+#: ``document``, ``test``, ``harden``, ``strengthen``, ``block``, ``enforce``,
+#: ``restore``, ``gate`` and ``tighten`` must never appear here. A brief that
+#: repairs an invariant violation opens with exactly those verbs; admitting one
+#: recreates the defect this constant exists to fix.
+#:
+#: Every error in this set over-escalates. It is a *proposal* list, never a
+#: suppression list: a missing verb costs recall, a spurious verb costs an
+#: extra escalation, and no lexical mistake here can silently kill a true
+#: positive. Stage 0's ESCALATE stays un-overridable by an LLM (INV-6).
+PROPOSAL_ONSET_VERBS: FrozenSet[str] = frozenset(
+    {
+        "replace",
+        "reorder",
+        "drop",
+        "remove",
+        "delete",
+        "merge",
+        "consolidate",
+        "duplicate",
+        "allow",
+        "permit",
+        "require",
+        "override",
+        "switch",
+        "move",
+        "make",
+        "use",
+        "skip",
+        "disable",
+        "relax",
+        "loosen",
+        "weaken",
+        "share",
+        "split",
+        "swap",
+        "downgrade",
+        "bypass",
+        "let",
+    }
+)
+
+#: Sentence/clause boundaries. No entry in :data:`ARCHITECTURE_DELTA_PHRASES`
+#: contains any of these characters (asserted by the regression suite), so
+#: every phrase occurrence lies wholly inside one segment and segmentation
+#: cannot lose a match the previous whole-text matcher would have found.
+_SEGMENT_DELIMITERS = re.compile(r"[\n.;:!?,]")
+
+#: Characters trimmed from both ends of a candidate onset token — quotes,
+#: markdown emphasis, list bullets, blockquote markers and brackets.
+_ONSET_TOKEN_TRIM = "\"'`*_-([{<>}])!.,;:?/\\|~#&+="
+
+
+def _segments(text: str) -> List[str]:
+    """Split text into sentence-like segments on punctuation and newlines.
+
+    Args:
+        text: Text to segment.
+
+    Returns:
+        Non-empty, stripped segments in source order.
+    """
+    return [seg.strip() for seg in _SEGMENT_DELIMITERS.split(text) if seg.strip()]
+
+
+def _has_proposal_onset(segment: str) -> bool:
+    """Report whether a segment OPENS with a proposal verb.
+
+    The first word-bearing token is lowercased, stripped of surrounding
+    non-alphanumerics (quotes, markdown emphasis, list bullets) and truncated at
+    an apostrophe, then compared by EXACT equality — so ``Let's`` matches
+    ``let`` while the third-person ``Replaces`` does not match ``replace``.
+    That distinction is load-bearing: it is what lets a brief reporting
+    *"Replaces prompt-level advisory text with a hook"* clear the gate.
+
+    Purely punctuational leading tokens (``-``, ``*``, ``>``, ``#``) are skipped
+    rather than treated as the onset, so a proposal written as a markdown list
+    item or blockquote is not silently exempted. Skipping can only ADD
+    escalations, never suppress one.
+
+    Args:
+        segment: One segment from :func:`_segments`.
+
+    Returns:
+        True if the segment's first word-bearing token is in
+        :data:`PROPOSAL_ONSET_VERBS`.
+    """
+    for token in segment.split():
+        first = token.lower().strip(_ONSET_TOKEN_TRIM)
+        if not first:
+            continue  # markdown bullet / blockquote marker, not the onset
+        return first.split("'", 1)[0] in PROPOSAL_ONSET_VERBS
+    return False
+
+
 def detect_architecture_delta(feature_text: str, doc: ProjectDoc) -> Optional[str]:
-    """Return the architecture-delta phrase a feature matches, or None.
+    """Return the architecture-delta phrase a feature PROPOSES, or None.
+
+    A phrase escalates only when the segment containing it begins with a
+    proposal onset (Issue #1600). Merely *describing* an invariant violation —
+    the shape of every brief that sets out to repair one — no longer escalates.
 
     Always returns None for repositories with no INVARIANTS section: without a
     documented invariant there is nothing for a change to violate, and consumer
@@ -716,10 +826,15 @@ def detect_architecture_delta(feature_text: str, doc: ProjectDoc) -> Optional[st
     """
     if not feature_text or not doc.has_invariants:
         return None
-    lowered = feature_text.lower()
-    for phrase in ARCHITECTURE_DELTA_PHRASES:
-        if phrase in lowered:
-            return phrase
+    for segment in _segments(feature_text.lower()):
+        if not _has_proposal_onset(segment):
+            continue
+        # Tuple order, not segment order, decides which phrase is reported —
+        # test_zero_width_architecture_delta_still_escalates pins the exact
+        # return value for a segment matching two phrases.
+        for phrase in ARCHITECTURE_DELTA_PHRASES:
+            if phrase in segment:
+                return phrase
     return None
 
 
