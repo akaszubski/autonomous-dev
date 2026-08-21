@@ -46,6 +46,16 @@ WALK_DEPTH_LIMIT = 30  # safety cap for parent walk
 # ``is_bypassed()`` NEVER consults it — mirrors ``drain_pending.is_stale``.
 STALE_HOURS_DEFAULT = 24
 STALE_HOURS_ENV_VAR = "AUTONOMOUS_DEV_BYPASS_STALE_HOURS"
+
+# Staleness threshold for a COMMITTED ``.claude/.bypass`` file (Issue #1601).
+# A committed bypass is treated as a deliberate opt-out — but a zero-byte flag
+# committed with a message like "test" and forgotten for months is the
+# signature of an accident, not a policy decision. Past this age we emit a
+# loud SessionStart WARNING regardless of git-tracked status. Default 30 days.
+# Overridable via ``AUTONOMOUS_DEV_BYPASS_COMMITTED_STALE_DAYS``.
+COMMITTED_STALE_DAYS_DEFAULT = 30
+COMMITTED_STALE_DAYS_ENV_VAR = "AUTONOMOUS_DEV_BYPASS_COMMITTED_STALE_DAYS"
+
 _GIT_TRACK_CHECK_TIMEOUT_SECONDS = 5
 
 # Values that count as "explicitly off" when set as the env var.
@@ -171,6 +181,28 @@ def _stale_hours_threshold() -> float:
     return value
 
 
+def _committed_stale_days_threshold() -> float:
+    """Resolve the committed-bypass staleness threshold in days (Issue #1601).
+
+    Reads ``AUTONOMOUS_DEV_BYPASS_COMMITTED_STALE_DAYS`` at call time.
+    Unparseable, blank, or non-positive values fall back to
+    ``COMMITTED_STALE_DAYS_DEFAULT``. NEVER raises.
+
+    Returns:
+        A positive number of days.
+    """
+    raw = os.environ.get(COMMITTED_STALE_DAYS_ENV_VAR)
+    if raw is None:
+        return float(COMMITTED_STALE_DAYS_DEFAULT)
+    try:
+        value = float(raw.strip())
+    except (ValueError, AttributeError):
+        return float(COMMITTED_STALE_DAYS_DEFAULT)
+    if value <= 0:
+        return float(COMMITTED_STALE_DAYS_DEFAULT)
+    return value
+
+
 def _is_git_tracked(path: Path) -> bool:
     """Return True iff ``path`` is tracked by git (committed / staged).
 
@@ -210,18 +242,26 @@ def _is_git_tracked(path: Path) -> bool:
 
 
 def check_bypass_staleness(start_dir: Path | None = None) -> Optional[str]:
-    """Return a WARNING string for a stale, uncommitted ``.claude/.bypass``.
+    """Return a WARNING string for a stale ``.claude/.bypass`` file.
 
-    SessionStart entry point (Issue #1434). Emits a non-blocking warning when a
-    ``.claude/.bypass`` file is BOTH uncommitted (not git-tracked) AND older
-    than the staleness threshold (default 24h, override via
-    ``AUTONOMOUS_DEV_BYPASS_STALE_HOURS``). Returns ``None`` in every other
-    case:
+    SessionStart entry point (Issue #1434 for uncommitted; Issue #1601 for
+    committed). Emits a non-blocking warning in TWO cases:
+
+    - **Uncommitted + older than ``STALE_HOURS_DEFAULT`` (default 24h)** —
+      classic accidental-leftover reaper (Issue #1434). Override via
+      ``AUTONOMOUS_DEV_BYPASS_STALE_HOURS``.
+    - **Committed + older than ``COMMITTED_STALE_DAYS_DEFAULT`` (default 30d)**
+      — a committed opt-out that has aged past the threshold is loudly
+      surfaced (Issue #1601). The reasoning that "committing implies intent"
+      breaks down when a zero-byte flag with commit message ``"test"`` sits in
+      a repo for months disabling all hook enforcement. Override via
+      ``AUTONOMOUS_DEV_BYPASS_COMMITTED_STALE_DAYS``.
+
+    Returns ``None`` in every other case:
 
     - env-var bypass active (transient, process-scoped — nothing to warn about)
     - no ``.bypass`` file found up the chain
-    - the ``.bypass`` file is git-tracked (a legitimate durable opt-out)
-    - the ``.bypass`` file is younger than the threshold
+    - the ``.bypass`` file is younger than its applicable threshold
 
     This is a reaper-style helper — the hot path :func:`is_bypassed` NEVER
     consults it (mirrors ``drain_pending.is_stale``). The whole body is wrapped
@@ -244,21 +284,33 @@ def check_bypass_staleness(start_dir: Path | None = None) -> Optional[str]:
         if flag is None:
             return None
 
-        # 3. A committed opt-out is legitimate — never warn.
-        if _is_git_tracked(flag):
-            return None
-
-        # 4. Compute age; younger than threshold → no warning.
+        # 3. Compute age up front; both paths need it.
         try:
             mtime = flag.stat().st_mtime
         except OSError:
             return None
         age_seconds = time.time() - mtime
+
+        # 4. Committed bypass path (Issue #1601): warn past the day threshold.
+        if _is_git_tracked(flag):
+            threshold_days = _committed_stale_days_threshold()
+            if age_seconds < threshold_days * 86400:
+                return None
+            age_days = age_seconds / 86400
+            return (
+                f"WARNING: Committed hook-bypass file {flag} is "
+                f"{age_days:.1f} days old (threshold {threshold_days:.0f}d) — "
+                f"autonomous-dev hook enforcement is DISABLED in this repo. "
+                f"A committed .bypass this old is often an accidental leftover "
+                f"(e.g. a zero-byte flag committed with an unrelated message). "
+                f"If it's intentional, refresh it: touch {flag} && git commit -am 'refresh bypass'. "
+                f"If it's not, remove it: git rm {flag} && git commit."
+            )
+
+        # 5. Uncommitted bypass path (Issue #1434): warn past the hour threshold.
         threshold_hours = _stale_hours_threshold()
         if age_seconds < threshold_hours * 3600:
             return None
-
-        # 5. Stale + uncommitted → emit the warning.
         age_hours = age_seconds / 3600
         return (
             f"WARNING: Uncommitted hook-bypass file {flag} is "

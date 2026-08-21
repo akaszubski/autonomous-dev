@@ -174,7 +174,7 @@
         ]
       },
       {
-        "matcher": "Task|Agent",
+        "matcher": "Task|Agent|Bash",
         "hooks": [
           {
             "type": "command",
