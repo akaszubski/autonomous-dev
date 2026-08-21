@@ -28,7 +28,11 @@ _BUGFIX_COMMIT_PATTERN = re.compile(
 )
 
 # Pattern for counting test functions in Python files.
-_TEST_FUNCTION_PATTERN = re.compile(r"^\s*def\s+test_", re.MULTILINE)
+# Issue #1601: match both sync `def test_` and `async def test_` — the previous
+# sync-only pattern under-counted by ~60% in async-heavy test suites (e.g.,
+# IBKR/trading), silently weakening the regression-test HARD GATE in
+# enforce_regression_test.py that consumes get_test_count().
+_TEST_FUNCTION_PATTERN = re.compile(r"^\s*(async\s+)?def\s+test_", re.MULTILINE)
 
 
 def is_bugfix_feature(description: str, labels: list[str] | None = None) -> bool:
