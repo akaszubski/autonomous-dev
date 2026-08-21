@@ -13,6 +13,11 @@
 #                                              # (Issue #995: default is project-local hooks only;
 #                                              #  --no-global wins over --global-settings)
 #   ./scripts/deploy-all.sh --skip-validate    # Skip post-deploy validation
+#   ./scripts/deploy-all.sh --dirty            # Ship uncommitted work (Issue #1610).
+#                                              # Without it, a dirty deployed subdir is
+#                                              # REFUSED by name: this script copies the
+#                                              # working tree, so uncommitted code would
+#                                              # reach the executing hook stack unreviewed.
 #
 # Configuration (override via env vars):
 #   REMOTE_HOST  - SSH host (auto-detects: 10.55.0.2 on LAN, 100.103.205.63 via Tailscale)
@@ -43,6 +48,52 @@ REMOTE_REPOS="${REMOTE_REPOS:-autonomous-dev realign spektiv homeassistant vllm-
 SUBDIRS="hooks commands agents lib templates config skills scripts"
 GLOBAL_SUBDIRS="hooks lib config"
 
+# Issue #1610: these patterns are the DEPLOYED SET's definition. They are the
+# single source of truth shared with plugins/autonomous-dev/scripts/deploy_state.py
+# (`rsync_exclude_patterns()`); a regression test asserts set equality, because a
+# pattern added to one and not the other silently changes what the provenance
+# gate measures relative to what rsync actually ships.
+#
+# Measured 2026-08-22: without these, rsync shipped 38 `,cover` files, 13
+# .DS_Store, an htmlcov/ tree and a stray coverage.xml into every consumer
+# repo's executing .claude/. They are gitignored, so `git status` could not see
+# them and the gate reported a clean tree while they were deployed.
+#
+# NOTE: --delete does NOT remove already-deployed copies of excluded files
+# (rsync protects excluded paths on the receiver). Existing strays in consumer
+# repos need a one-time manual clean; --delete-excluded is deliberately NOT
+# used because it would also delete hooks/extensions/, which is consumer-local
+# state that Issue #560 exists to preserve.
+DEPLOY_EXCLUDES=(
+    --exclude='__pycache__/'
+    --exclude='extensions/'
+    --exclude='htmlcov/'
+    --exclude='.pytest_cache/'
+    --exclude='.mypy_cache/'
+    --exclude='.ruff_cache/'
+    --exclude='*.pyc'
+    --exclude='*.pyo'
+    --exclude='*,cover'
+    --exclude='.DS_Store'
+    --exclude='.coverage'
+    --exclude='.coverage.*'
+    --exclude='coverage.xml'
+    --exclude='*.backup'
+    --exclude='*.orig'
+    --exclude='*.rej'
+    --exclude='*.swp'
+    # NARROWED (Issue #1610 final remediation): was three FILENAME globs
+    # (*-session.md, *-pipeline.json, *.pipeline.json). A filename class is a
+    # blind spot with a public name — anything excluded is invisible to the
+    # provenance record AND to `check`'s reverse comparison, in both
+    # directions, so an attacker-named `payload-session.md` rode in unmeasured.
+    # Measured 2026-08-22: every file matching any of the three globs, in the
+    # repo and in every deployed tree, lived under docs/sessions/ (one
+    # instance); zero instances of either pipeline glob existed anywhere. The
+    # path form loses no coverage and closes the naming class.
+    --exclude='docs/sessions/'
+)
+
 # Key files to validate after deploy
 KEY_FILES="hooks/unified_pre_tool.py hooks/session_activity_logger.py lib/pipeline_intent_validator.py"
 # Stale hooks that should have been removed in previous cleanup
@@ -60,6 +111,14 @@ DO_GLOBAL_SETTINGS=false
 DRY_RUN=false
 SKIP_VALIDATE=false
 ERRORS=0
+# Issue #1610: this script copies the WORKING TREE, not HEAD. Uncommitted work
+# under the deployed subdirs therefore reaches the executing hook stack,
+# bypassing the reviewer, the security auditor, doc-master and the commit gate
+# at once. Default is refuse-and-name; --dirty is the explicit opt-in for the
+# legitimate iterate-and-test loop on hook code.
+ALLOW_DIRTY=false
+DEPLOY_STATE="$PLUGIN_SRC/scripts/deploy_state.py"
+DEPLOYED_TARGETS=()
 
 for arg in "$@"; do
     case "$arg" in
@@ -69,8 +128,20 @@ for arg in "$@"; do
         --no-global) DO_GLOBAL=false; DO_GLOBAL_SETTINGS=false ;;
         --global-settings) DO_GLOBAL_SETTINGS=true ;;
         --skip-validate) SKIP_VALIDATE=true ;;
+        --dirty) ALLOW_DIRTY=true ;;
         --help|-h)
-            head -21 "$0" | tail -20
+            # Print the leading comment block (line 2 through the first line
+            # that is not a comment).
+            #
+            # OUT-OF-SCOPE CHANGE, stated rather than smuggled (Issue #1610):
+            # this replaced `head -21 "$0" | tail -20`, which was already
+            # truncating --help output — the --dirty usage lines this issue adds
+            # pushed the block past line 21, so the fixed line numbers would have
+            # silently cut the last entries. The awk form is line-number-free, so
+            # adding usage lines can never truncate --help again. It is a fix for
+            # a class the issue's own change would otherwise have triggered, not
+            # a drive-by cleanup.
+            awk 'NR>1 { if ($0 !~ /^#/) exit; print }' "$0"
             exit 0
             ;;
         *) echo "Unknown flag: $arg"; exit 1 ;;
@@ -96,6 +167,50 @@ checksum() {
 }
 
 # --- Deploy functions ---
+
+# Issue #1610 (final remediation, BLOCKING C): remove compiled-bytecode caches
+# from the deployed tree after every copy.
+#
+# WHY. `.pyc` is the one excluded class that executes with NO registration step.
+# It is excluded from the deployed set, so `deploy_state.py` never digests it and
+# `check`'s reverse comparison cannot see it — in either direction. A tampered
+# `__pycache__/<mod>.cpython-3XX.pyc` whose 16-byte header is forged to match an
+# untouched `.py` is loaded in preference to that source, and the tool reports
+# "N files match the deploy record", exit 0, because the `.py` digest genuinely
+# does match. A bare sourceless `<mod>.pyc` on the path is importable too, so
+# both shapes are removed, not just the cache directory.
+#
+# The precondition is write access to `.claude/` — identical to the injected-`.py`
+# case, which is already treated as blocking. Exposure is not theoretical: 995
+# `.pyc` under this repo's `.claude/{hooks,lib}`, 1,001 under `~/.claude`, and
+# `unified_pre_tool.py` inserts those directories at `sys.path[0]` at five sites.
+# `rsync -a --delete` does NOT clear them, because rsync protects excluded paths
+# on the receiver and `--delete-excluded` is deliberately not used (Issue #560).
+#
+# CHOSEN over the stronger alternative (have `check` recompile each recorded
+# `.py` and compare against any cache entry whose magic matches the running
+# interpreter). That alternative must report "unverifiable" for every cache entry
+# built by a different interpreter — which across a 3.13/3.14, two-machine fleet
+# is the COMMON case, not the edge case. A check that says "unverifiable"
+# routinely is the cry-wolf failure this project treats as a defect in its own
+# right. Purging bounds a planted `.pyc` to a single deploy cycle, is
+# deterministic, and has no false-positive surface. It cannot detect one planted
+# BETWEEN deploys; nothing cheap can, because the running interpreter regenerates
+# these constantly, so presence alone carries no signal.
+#
+# `extensions/` is pruned: Issue #560 makes it consumer-local state.
+purge_bytecode() {
+    local target="$1"
+    local subdir
+    for subdir in $SUBDIRS; do
+        [ -d "$target/$subdir" ] || continue
+        find "$target/$subdir" \
+            -name extensions -type d -prune -o \
+            \( -name '__pycache__' -type d -o -name '*.pyc' -o -name '*.pyo' \) \
+            -print0 2>/dev/null \
+            | xargs -0 rm -rf 2>/dev/null || true
+    done
+}
 
 fix_permissions() {
     local target="$1"
@@ -123,10 +238,12 @@ deploy_global() {
     for subdir in $GLOBAL_SUBDIRS; do
         if [ -d "$PLUGIN_SRC/$subdir" ]; then
             mkdir -p "$GLOBAL_DEST/$subdir"
-            rsync -a "$PLUGIN_SRC/$subdir/" "$GLOBAL_DEST/$subdir/"
+            rsync -a "${DEPLOY_EXCLUDES[@]}" "$PLUGIN_SRC/$subdir/" "$GLOBAL_DEST/$subdir/"
         fi
     done
+    purge_bytecode "$GLOBAL_DEST"
     fix_permissions "$GLOBAL_DEST"
+    DEPLOYED_TARGETS+=("$GLOBAL_DEST")
     echo "  Synced: $GLOBAL_SUBDIRS"
 
     # Sync settings.json hook registrations (opt-in via --global-settings, Issue #995)
@@ -161,10 +278,12 @@ deploy_repo() {
     for subdir in $SUBDIRS; do
         if [ -d "$PLUGIN_SRC/$subdir" ]; then
             mkdir -p "$target/$subdir"
-            rsync -a --delete --exclude=extensions/ "$PLUGIN_SRC/$subdir/" "$target/$subdir/"
+            rsync -a --delete --exclude=extensions/ "${DEPLOY_EXCLUDES[@]}" "$PLUGIN_SRC/$subdir/" "$target/$subdir/"
         fi
     done
+    purge_bytecode "$target"
     fix_permissions "$target"
+    DEPLOYED_TARGETS+=("$target")
     echo "  Deployed: $name"
 
     # Sync settings.json hook registrations
@@ -232,10 +351,83 @@ fi
 "
     fi
 
+    # Issue #1610 (remediation of W-B): the remote is NOT immune to the defect
+    # this gate exists for. `git pull --ff-only` succeeds with modified-tracked
+    # and untracked files present, and the `cp -rf` below then copies the
+    # REMOTE's working tree (with no --delete). So the remote needs the same
+    # gate and the same stamp — otherwise /health-check on the Mac Studio prints
+    # UNKNOWN in every repo forever, with a REQUIRED NEXT ACTION that deploying
+    # from the laptop can never satisfy. Both run from the remote's own checkout
+    # so the recorded commit belongs to the bytes that were copied.
+    #
+    # Deliberately array-free and word-splitting-free: `ssh host "cmd"` runs cmd
+    # under the remote user's LOGIN shell (zsh on current macOS), which does not
+    # split unquoted parameters on IFS. Everything variable is interpolated
+    # locally into literal text before the heredoc is sent.
+    local remote_dirty=""
+    if $ALLOW_DIRTY; then
+        remote_dirty="--dirty"
+    fi
+
+    # Issue #1610 (final remediation, BLOCKING B): the remote copy was
+    # `cp -rf plugins/autonomous-dev/$subdir/* "$target/$subdir/"` with NO
+    # exclusions, while the remote gate added above measures
+    # `source_deployed_files()` — the walk MINUS these same patterns. So the gate
+    # printed "clean tree" on the Mac Studio while `cp -rf` shipped the excluded
+    # set into all five remote repos, and the remote stamp then recorded a digest
+    # map that omitted them. That is #1610's own defect, still live on one of the
+    # two deploy paths, now MASKED by a gate affirming cleanliness. Driven, same
+    # source through both mechanisms: `cp -rf` delivered a `.pyc`, a `,cover` and
+    # a session markdown that rsync did not.
+    #
+    # The comment on the main gate claiming parity "by construction" covered only
+    # rsync. This closes it by using the same tool with the same patterns on both
+    # sides. Verified on the remote before choosing this: rsync 3.4.1 at
+    # /opt/homebrew/bin/rsync. The `command -v rsync` guard below is not
+    # defensive padding — without rsync the remote CANNOT be made measurable, and
+    # shipping unmeasured content is precisely the defect, so it aborts and says
+    # so rather than silently falling back to the copy that caused this.
+    #
+    # `--delete` is deliberately NOT added: `cp -rf` never deleted, and adding it
+    # would newly remove consumer-local files across five remote repos. That is a
+    # destructive change this finding did not ask for. Strays that accumulate are
+    # now REPORTED instead, via the target_only arm added in the same pass.
+    #
+    # Built as literal text locally, like $remote_dirty and $SUBDIRS above: the
+    # remote runs a LOGIN shell (zsh), so no array or IFS behaviour is relied on.
+    local remote_excludes=""
+    local pat
+    for pat in "${DEPLOY_EXCLUDES[@]}"; do
+        remote_excludes="$remote_excludes --exclude='${pat#--exclude=}'"
+    done
+
     ssh "$REMOTE_HOST" "$(cat <<REMOTE_EOF
 set -euo pipefail
 echo "  Pulling latest from master..."
 cd ~/Dev/autonomous-dev && git pull --ff-only || { echo '  git pull failed'; exit 1; }
+
+if ! command -v rsync >/dev/null 2>&1; then
+    echo '  REMOTE ABORT: rsync not found. The remote copy must apply the same'
+    echo '  exclusions the remote provenance gate measures, or the gate affirms a'
+    echo '  cleanliness that the copy does not deliver (Issue #1610). Install rsync'
+    echo '  on the remote, then re-run.'
+    exit 1
+fi
+
+REMOTE_DEPLOY_STATE="\$PWD/plugins/autonomous-dev/scripts/deploy_state.py"
+if [ -f "\$REMOTE_DEPLOY_STATE" ]; then
+    remote_gate_rc=0
+    python3 "\$REMOTE_DEPLOY_STATE" gate --source "\$PWD" \
+        --plugin-src "\$PWD/plugins/autonomous-dev" $remote_dirty || remote_gate_rc=\$?
+    if [ "\$remote_gate_rc" -eq 1 ]; then
+        echo '  REMOTE DEPLOY-GATE REFUSED — nothing was copied on the remote'
+        exit 1
+    elif [ "\$remote_gate_rc" -ne 0 ]; then
+        echo "  ⚠ remote DEPLOY-GATE broke (exit \$remote_gate_rc) — proceeding WITHOUT provenance verification"
+    fi
+else
+    echo '  ⚠ deploy_state.py missing on remote — remote provenance will NOT be recorded'
+fi
 
 echo "  Deploying to repos..."
 for repo in $REMOTE_REPOS; do
@@ -247,8 +439,16 @@ for repo in $REMOTE_REPOS; do
     for subdir in $SUBDIRS; do
         if [ -d "plugins/autonomous-dev/\$subdir" ]; then
             mkdir -p "\$target/\$subdir"
-            cp -rf plugins/autonomous-dev/\$subdir/* "\$target/\$subdir/" 2>/dev/null || true
+            rsync -a --exclude='extensions/' $remote_excludes "plugins/autonomous-dev/\$subdir/" "\$target/\$subdir/"
         fi
+    done
+    # Issue #1610 BLOCKING C: bytecode caches execute with no registration step
+    # and survive an excluded-pattern sync. Bound their life to one deploy cycle.
+    for subdir in $SUBDIRS; do
+        [ -d "\$target/\$subdir" ] || continue
+        find "\$target/\$subdir" -name extensions -type d -prune -o \
+            \( -name '__pycache__' -type d -o -name '*.pyc' -o -name '*.pyo' \) -print0 2>/dev/null \
+            | xargs -0 rm -rf 2>/dev/null || true
     done
     # Fix permissions
     find "\$target/hooks" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || true
@@ -259,6 +459,16 @@ for repo in $REMOTE_REPOS; do
     echo "  Deployed: \$repo"
     # Sync settings.json hook registrations
     python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --repo "\$HOME/Dev/\$repo" 2>/dev/null && echo "  Synced \$repo settings.json hooks" || echo "  ⚠ \$repo settings hook sync failed"
+    # Issue #1610: stamp from the checkout on the REMOTE, one invocation per
+    # target (no arrays — see the login-shell note above). NOTE: no apostrophes
+    # anywhere inside this heredoc — bash 3.2 scans \$( ... ) without honouring
+    # comments, so a lone apostrophe in a COMMENT here is read as an unbalanced
+    # quote and the whole script fails to parse under /bin/bash on macOS.
+    if [ -f "\$REMOTE_DEPLOY_STATE" ]; then
+        python3 "\$REMOTE_DEPLOY_STATE" stamp --source "\$PWD" \
+            --plugin-src "\$PWD/plugins/autonomous-dev" --target "\$target" $remote_dirty \
+            || echo "  ⚠ \$repo deploy provenance stamp failed"
+    fi
 done
 
 # Issue #938: Global hook deployment is intentional but scope-aware.
@@ -277,13 +487,24 @@ echo "  Deploying global (~/.claude)..."
 for subdir in hooks lib config; do
     if [ -d "plugins/autonomous-dev/\$subdir" ]; then
         mkdir -p "\$HOME/.claude/\$subdir"
-        cp -rf plugins/autonomous-dev/\$subdir/* "\$HOME/.claude/\$subdir/" 2>/dev/null || true
+        rsync -a --exclude='extensions/' $remote_excludes "plugins/autonomous-dev/\$subdir/" "\$HOME/.claude/\$subdir/"
     fi
+done
+for subdir in hooks lib config; do
+    [ -d "\$HOME/.claude/\$subdir" ] || continue
+    find "\$HOME/.claude/\$subdir" -name extensions -type d -prune -o \
+        \( -name '__pycache__' -type d -o -name '*.pyc' -o -name '*.pyo' \) -print0 2>/dev/null \
+        | xargs -0 rm -rf 2>/dev/null || true
 done
 find "\$HOME/.claude/hooks" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || true
 find "\$HOME/.claude/hooks" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
 find "\$HOME/.claude/lib" -name "*.py" -exec chmod 644 {} \; 2>/dev/null || true
 echo "  Synced global: hooks lib config"
+if [ -f "\$REMOTE_DEPLOY_STATE" ]; then
+    python3 "\$REMOTE_DEPLOY_STATE" stamp --source "\$PWD" \
+        --plugin-src "\$PWD/plugins/autonomous-dev" --target "\$HOME/.claude" --log-activity $remote_dirty \
+        || echo '  ⚠ remote global deploy provenance stamp failed'
+fi
 # Sync global settings.json hook registrations (opt-in via --global-settings, Issue #995)
 # Note: \$DO_GLOBAL_SETTINGS is interpolated LOCALLY before the SSH heredoc is sent,
 # so the remote shell sees a literal "true" or "false".
@@ -484,6 +705,42 @@ echo "Local repos: $LOCAL_REPOS"
 echo "Remote repos: $REMOTE_REPOS ($REMOTE_HOST)"
 echo ""
 
+# 0. Provenance gate (Issue #1610) — MUST run before anything is copied.
+#    Refusal (not a warning) is deliberate: a warning that fires routinely is
+#    ignored, and this one would fire on every ordinary dev cycle.
+#
+#    CORRECTION (remediation of #1610): this comment previously claimed that a
+#    clean `git status` meant the working tree was byte-identical to HEAD for
+#    every path this script copies. That was FALSE and is left recorded rather
+#    than quietly deleted, because a false safety claim in a comment is exactly
+#    what lets a live defect past review. `git status` omits gitignored paths;
+#    `rsync -a` shipped 46 of them (38 `,cover`, 13 .DS_Store, a stray session
+#    markdown) into consumer repos while the gate printed "clean tree".
+#
+#    The claim is true NOW, by a different construction: the gate compares the
+#    set rsync actually ships (filesystem walk, minus $DEPLOY_EXCLUDES above)
+#    against `git ls-tree HEAD` plus `git diff HEAD`. Anything shipped that is
+#    not in HEAD is named. So a permitted deploy really does carry HEAD content
+#    for every copied path — still WITHOUT changing where anything is copied.
+if [ -f "$DEPLOY_STATE" ]; then
+    gate_args=(gate --source "$REPO_DIR" --plugin-src "$PLUGIN_SRC")
+    $ALLOW_DIRTY && gate_args+=(--dirty)
+    gate_rc=0
+    python3 "$DEPLOY_STATE" "${gate_args[@]}" || gate_rc=$?
+    # 0 = permitted, 1 = REFUSED, anything else = the gate itself broke.
+    # A broken gate must not lock the operator out of deploying, but it must
+    # NOT be indistinguishable from a pass either (#1471's silent fail-open).
+    if [ "$gate_rc" -eq 1 ]; then
+        exit 1
+    elif [ "$gate_rc" -ne 0 ]; then
+        echo "  ⚠ DEPLOY-GATE broke (exit $gate_rc) — proceeding WITHOUT provenance verification"
+    fi
+    echo ""
+else
+    echo "  ⚠ deploy_state.py missing — deploy provenance will NOT be recorded"
+    echo ""
+fi
+
 # 1. Global deploy
 if $DO_GLOBAL; then
     deploy_global
@@ -499,9 +756,42 @@ if $DO_LOCAL; then
     echo ""
 fi
 
+# 2b. Stamp provenance onto every LOCAL target we just wrote (Issue #1610).
+#     Converts "what is running?" from unanswerable into a file read.
+#     Remote targets are stamped by deploy_remote() from the remote's OWN
+#     checkout — see the gate+stamp block inside its ssh heredoc. Stamping them
+#     from here would record this machine's commit against that machine's bytes.
+if [ ${#DEPLOYED_TARGETS[@]} -gt 0 ] && [ -f "$DEPLOY_STATE" ]; then
+    stamp_args=(stamp --source "$REPO_DIR" --plugin-src "$PLUGIN_SRC" --log-activity)
+    $ALLOW_DIRTY && stamp_args+=(--dirty)
+    for t in "${DEPLOYED_TARGETS[@]}"; do
+        stamp_args+=(--target "$t")
+    done
+    python3 "$DEPLOY_STATE" "${stamp_args[@]}" || echo "  ⚠ deploy provenance stamp failed"
+    echo ""
+fi
+
 # 3. Remote
+#
+#    ORDERING DECISION (Issue #1610 final remediation). A remote gate refusal
+#    exits the ssh heredoc with 1, so `ssh` returns 1, so under `set -euo
+#    pipefail` the whole script died HERE — before step 4 validated the LOCAL
+#    deploy that steps 1-2 already completed and stamped. That ordering is
+#    wrong: a remote-side problem left a finished local deploy unvalidated, and
+#    the operator saw a bare non-zero exit with no local summary.
+#
+#    It is wrong in the other direction too — silently continuing would make a
+#    remote refusal invisible. So: capture the failure, keep going so the local
+#    deploy IS validated, surface it in the summary, and still exit non-zero at
+#    the end. The refusal keeps its teeth; the local validation stops being
+#    collateral damage.
+REMOTE_FAILED=false
 if $DO_REMOTE; then
-    deploy_remote
+    deploy_remote || REMOTE_FAILED=true
+    if $REMOTE_FAILED; then
+        echo "  ✗ remote deploy FAILED (gate refusal or transport error) — see above"
+        ERRORS=$((ERRORS + 1))
+    fi
     echo ""
 fi
 
@@ -545,3 +835,10 @@ fi
 
 echo ""
 echo "Done. Restart Claude Code (Cmd+Q) in affected repos to pick up changes."
+
+# A remote refusal must still fail the command — it just no longer cancels the
+# local post-deploy validation on its way out (see the step 3 ordering note).
+if $REMOTE_FAILED; then
+    echo "Remote deploy did not succeed. Local deploy above was still validated."
+    exit 1
+fi

@@ -1,0 +1,2185 @@
+"""Regression tests for Issue #1610 — deploy-all.sh shipped the working tree.
+
+WHAT WENT WRONG
+---------------
+``scripts/deploy-all.sh`` rsyncs from ``plugins/autonomous-dev/`` — the WORKING
+TREE — not from ``HEAD``. Uncommitted work-in-progress therefore reached the
+executing hook stack the moment anyone deployed, bypassing the reviewer, the
+security auditor, doc-master and the commit gate simultaneously.
+
+The measured instance: ``lib/hook_safety.py`` executing at 684 lines, an
+intermediate state present in NO commit — between HEAD's 347 and the staged
+892. ``git`` could not revert it because it corresponded to no object. Partial
+deployment produced something strictly worse than either endpoint: it carried
+the silent fail-open defect and none of the fixes.
+
+WHAT WENT WRONG WITH THE FIRST FIX
+----------------------------------
+The first version of the guard reported "clean" in six situations where it
+could not tell, or where the answer was "not clean". Every one was the same
+shape — a derivation that fails open — so the tests below are organised around
+that shape rather than around the six instances:
+
+  BLOCKING 1  ``git status`` omits gitignored paths; ``rsync -a`` ships them.
+              46 such files were already executing in a consumer repo.
+  BLOCKING 2  ``--source`` not being the git toplevel discarded every entry and
+              returned ``[]``, read as clean.
+  BLOCKING 3  ``stamp`` dropped uncommitted entries it could not name-match
+              (C-quoted unicode, directory entries) and recorded dirty: false.
+  BLOCKING 4  ``check`` iterated the record only, so a file ADDED to the
+              executing tree was invisible; symlinks were never recorded.
+  BLOCKING 5  ``check`` reported OK on a record whose digest map was empty.
+  BLOCKING 6  the script went into the manifest neither installer reads, and
+              the test asserted the same wrong path.
+
+WHAT THESE TESTS LOCK
+---------------------
+Both arms of every guard, per the project's rule (a guard watched only refusing
+is unproven, and here the PERMITTING arm matters most — breaking the
+hook-iteration loop would make people stop using the script).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PLUGIN_SRC = REPO_ROOT / "plugins" / "autonomous-dev"
+DEPLOY_STATE_SRC = PLUGIN_SRC / "scripts" / "deploy_state.py"
+DEPLOY_ALL_SH = REPO_ROOT / "scripts" / "deploy-all.sh"
+HEALTH_CHECK_MD = PLUGIN_SRC / "commands" / "health-check.md"
+INSTALL_PY = PLUGIN_SRC / "scripts" / "install.py"
+INSTALL_SH = REPO_ROOT / "install.sh"
+
+sys.path.insert(0, str(PLUGIN_SRC / "scripts"))
+
+import deploy_state  # noqa: E402  (path set above)
+
+
+# --------------------------------------------------------------------------
+# Fixtures: a throwaway source repo + a throwaway "executing" consumer tree.
+# Nothing here touches the real repo, ~/.claude, $HOME/Dev, or the remote.
+# --------------------------------------------------------------------------
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
+def _make_source_repo(tmp_path: Path, name: str = "src") -> Path:
+    """Build a minimal autonomous-dev-shaped git repo with a committed plugin."""
+    src = tmp_path / name
+    (src / "plugins" / "autonomous-dev" / "hooks").mkdir(parents=True)
+    (src / "plugins" / "autonomous-dev" / "lib").mkdir(parents=True)
+    (src / "plugins" / "autonomous-dev" / "scripts").mkdir(parents=True)
+    (src / "scripts").mkdir(parents=True)
+
+    plugin = src / "plugins" / "autonomous-dev"
+    (plugin / "hooks" / "unified_pre_tool.py").write_text("# committed hook\n")
+    (plugin / "lib" / "hook_safety.py").write_text("# committed: 347-line shape\n")
+    shutil.copy2(DEPLOY_STATE_SRC, plugin / "scripts" / "deploy_state.py")
+    shutil.copy2(DEPLOY_ALL_SH, src / "scripts" / "deploy-all.sh")
+    # The same ignore classes the real repo carries, so "gitignored but shipped"
+    # is reproducible rather than hypothetical.
+    (src / ".gitignore").write_text("*.junkext\n*,cover\n.DS_Store\n__pycache__/\n")
+
+    _git(src, "init", "-q")
+    _git(src, "config", "user.email", "t@example.com")
+    _git(src, "config", "user.name", "t")
+    _git(src, "add", "-A")
+    _git(src, "commit", "-q", "-m", "initial")
+    return src
+
+
+def _fake_deploy(plugin: Path, target: Path) -> None:
+    """Simulate deploy-all.sh's copy step: rsync -a with $DEPLOY_EXCLUDES.
+
+    Copies exactly ``source_deployed_files()`` — the same set the gate measures
+    — so the fixture cannot disagree with the thing under test about what
+    "deployed" means.
+    """
+    for rel in sorted(deploy_state.source_deployed_files(plugin)):
+        dest = target / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        src_path = plugin / rel
+        if src_path.is_symlink():
+            if dest.is_symlink() or dest.exists():
+                dest.unlink()
+            os.symlink(os.readlink(src_path), dest)
+        else:
+            shutil.copy2(src_path, dest)
+
+
+@pytest.fixture
+def source_repo(tmp_path: Path) -> Path:
+    return _make_source_repo(tmp_path)
+
+
+@pytest.fixture
+def consumer(tmp_path: Path) -> Path:
+    """A consumer repo root whose .claude/ is the EXECUTING tree."""
+    root = tmp_path / "consumer"
+    (root / ".claude").mkdir(parents=True)
+    return root
+
+
+def _gate(source_repo: Path, *extra: str) -> int:
+    return deploy_state.main(
+        [
+            "gate",
+            "--source",
+            str(source_repo),
+            "--plugin-src",
+            str(source_repo / "plugins" / "autonomous-dev"),
+            *extra,
+        ]
+    )
+
+
+def _stamp(source_repo: Path, consumer: Path, *, dirty: bool = False) -> int:
+    argv = [
+        "stamp",
+        "--source",
+        str(source_repo),
+        "--plugin-src",
+        str(source_repo / "plugins" / "autonomous-dev"),
+        "--target",
+        str(consumer / ".claude"),
+    ]
+    if dirty:
+        argv.append("--dirty")
+    return deploy_state.main(argv)
+
+
+def _check(consumer: Path, capsys) -> tuple[int, str]:
+    code = deploy_state.main(["check", "--repo", str(consumer)])
+    return code, capsys.readouterr().out
+
+
+def _read_state(consumer: Path) -> dict:
+    return json.loads((consumer / ".claude" / ".deploy-state.json").read_text())
+
+
+def _write_state(consumer: Path, payload) -> None:
+    (consumer / ".claude" / ".deploy-state.json").write_text(json.dumps(payload))
+
+
+# --------------------------------------------------------------------------
+# 1. The REFUSING arm
+# --------------------------------------------------------------------------
+
+
+def test_gate_refuses_dirty_tree_and_names_the_modified_file(source_repo: Path, capsys):
+    """A modified tracked file under a deployed subdir is refused BY NAME."""
+    (source_repo / "plugins" / "autonomous-dev" / "lib" / "hook_safety.py").write_text(
+        "# 684-line intermediate state that exists in no commit\n"
+    )
+
+    code = _gate(source_repo)
+    captured = capsys.readouterr()
+    out = captured.out + captured.err  # refusals belong on stderr
+
+    assert code == 1, "dirty tree without --dirty MUST be refused"
+    assert "lib/hook_safety.py" in out, f"refusal must NAME the file; got:\n{out}"
+    assert "--dirty" in out, "refusal must state the escape hatch (REQUIRED NEXT ACTION)"
+
+
+def test_gate_refuses_untracked_file_a_different_shape(source_repo: Path, capsys):
+    """Negative control of a DIFFERENT shape than the reproducer.
+
+    The #1610 reproducer was a MODIFIED tracked file. An untracked NEW file
+    under a deployed subdir is equally never-committed and equally deployed by
+    ``rsync -a`` — a guard that only saw modified files would be scoped to the
+    instance that prompted it.
+    """
+    (source_repo / "plugins" / "autonomous-dev" / "hooks" / "brand_new_hook.py").write_text(
+        "# never added to git, but rsync -a ships it\n"
+    )
+
+    code = _gate(source_repo)
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+
+    assert code == 1, "untracked file under a deployed subdir MUST be refused"
+    assert "hooks/brand_new_hook.py" in out, f"refusal must NAME the file; got:\n{out}"
+
+
+def test_gate_refuses_a_gitignored_file_that_rsync_ships(source_repo: Path, capsys):
+    """BLOCKING 1: the third shape — ignored, and therefore previously invisible.
+
+    Measured on the real repo 2026-08-22: ``git status --porcelain -uall``
+    reported 2 entries under the deployed subdirs while 55 gitignored files sat
+    there, 46 outside ``__pycache__``. 38 ``,cover`` files, 13 ``.DS_Store`` and
+    a stray session markdown were ALREADY EXECUTING in a consumer repo, shipped
+    by ``rsync -a``, present in no commit, and the gate printed "clean tree".
+
+    The instrument check is part of the test: it asserts git itself cannot see
+    the file, so a future refactor back to a ``git status`` parse fails here
+    rather than silently reopening the hole.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "hooks" / "shadow_payload.junkext").write_text("# ignored, but shipped\n")
+
+    # POSITIVE CONTROL on the instrument: git is blind to this file.
+    porcelain = _git(
+        source_repo,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        str(plugin / "hooks"),
+    )
+    assert "shadow_payload" not in porcelain, (
+        "fixture is wrong: the file must be gitignored for this test to mean anything\n"
+        f"porcelain:\n{porcelain}"
+    )
+    # ...and it really is in the set rsync ships.
+    assert "hooks/shadow_payload.junkext" in deploy_state.source_deployed_files(plugin)
+
+    code = _gate(source_repo)
+    out = capsys.readouterr().err
+    assert code == 1, "a gitignored file in the deployed set MUST be refused"
+    assert "hooks/shadow_payload.junkext" in out, f"must NAME it; got:\n{out}"
+
+
+def test_gate_ignores_dirt_outside_the_deployed_subdirs(source_repo: Path, capsys):
+    """Scoping control: dirt that is NOT deployed must not refuse the deploy.
+
+    ``README.md`` and ``docs/`` are never copied by deploy-all.sh, so treating
+    them as dirty would make the gate fire routinely — the cry-wolf failure.
+    """
+    (source_repo / "README.md").write_text("unrelated local edit\n")
+
+    assert _gate(source_repo) == 0, capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# 2. The PERMITTING arm — the development loop must still work
+# --------------------------------------------------------------------------
+
+
+def test_gate_permits_clean_tree(source_repo: Path, capsys):
+    assert _gate(source_repo) == 0, capsys.readouterr().out
+
+
+def test_gate_permits_a_tree_carrying_only_build_artifacts(source_repo: Path, capsys):
+    """BLOCKING 1's PERMITTING half — the no-cry-wolf control.
+
+    Closing the ignored-file hole traded one failure mode for another unless
+    the recurring, machine-generated members of that class stop being SHIPPED.
+    They are excluded from the deployed set (rsync is given the same patterns),
+    not merely from the gate, so this tree is genuinely clean rather than
+    clean-by-exception. If this test goes red, the gate has become permanently
+    red on any developer machine that has ever run pytest, which is the
+    cry-wolf failure this project treats as a defect in its own right.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "hooks" / "unified_pre_tool.py,cover").write_text("> # coverage annotation\n")
+    (plugin / "hooks" / ".DS_Store").write_bytes(b"\x00\x01macOS turd")
+    cache = plugin / "lib" / "__pycache__"
+    cache.mkdir()
+    (cache / "hook_safety.cpython-313.pyc").write_bytes(b"\x00compiled")
+    (plugin / "lib" / "coverage.xml").write_text("<coverage/>\n")
+    # The observed instance: several hooks write to the RELATIVE path
+    # Path("docs/sessions"), so a hook run with cwd=<plugin>/hooks creates one
+    # of these. One was already deployed into a consumer repo.
+    sessions = plugin / "hooks" / "docs" / "sessions"
+    sessions.mkdir(parents=True)
+    (sessions / "20260606-132224-session.md").write_text("# Session\n")
+
+    assert _gate(source_repo) == 0, capsys.readouterr().out + capsys.readouterr().err
+
+    shipped = deploy_state.source_deployed_files(plugin)
+    for artifact in (
+        "hooks/unified_pre_tool.py,cover",
+        "hooks/.DS_Store",
+        "lib/__pycache__/hook_safety.cpython-313.pyc",
+        "lib/coverage.xml",
+        "hooks/docs/sessions/20260606-132224-session.md",
+    ):
+        assert artifact not in shipped, f"{artifact} must not be in the DEPLOYED SET"
+    assert "hooks/unified_pre_tool.py" in shipped, "real source must still ship"
+
+
+def test_a_real_source_file_under_a_docs_subdir_still_ships(source_repo: Path):
+    """SCOPING CONTROL for the session-log exclusion.
+
+    Excluding ``docs/`` wholesale would drop the tracked ``skills/*/docs``
+    trees. The exclusion is a filename CLASS, so ordinary documentation under
+    a deployed subdir must still be in the deployed set.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    docs = plugin / "hooks" / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "authentication.md").write_text("# Real shipped doc\n")
+
+    shipped = deploy_state.source_deployed_files(plugin)
+    assert "hooks/docs/authentication.md" in shipped, (
+        "the exclusion is scoped to session/pipeline working files, not to docs/"
+    )
+
+
+def test_gate_permits_dirty_tree_with_explicit_flag(source_repo: Path, capsys):
+    """The iterate-and-test loop on hook code stays open behind an explicit flag."""
+    (source_repo / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py").write_text(
+        "# work in progress\n"
+    )
+
+    code = _gate(source_repo, "--dirty")
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "hooks/unified_pre_tool.py" in out, "the permitting arm must still NAME what it ships"
+
+
+def test_dirty_deploy_records_every_uncommitted_file_by_name_and_digest(
+    source_repo: Path, consumer: Path
+):
+    """The permitting arm's obligation: attribution, not silence."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "hook_safety.py").write_text("# 684-line intermediate\n")
+    (plugin / "hooks" / "brand_new_hook.py").write_text("# untracked\n")
+
+    _fake_deploy(plugin, consumer / ".claude")
+    assert _stamp(source_repo, consumer, dirty=True) == 0
+
+    state = _read_state(consumer)
+    assert state["dirty"] is True
+    assert set(state["uncommitted_files"]) == {
+        "lib/hook_safety.py",
+        "hooks/brand_new_hook.py",
+    }
+    assert state["unmatched_uncommitted"] == []
+    for rel in state["uncommitted_files"]:
+        assert rel in state["digests"], f"{rel} recorded as uncommitted but has no digest"
+        expected = hashlib.sha256((consumer / ".claude" / rel).read_bytes()).hexdigest()
+        assert state["digests"][rel] == expected
+
+
+# --------------------------------------------------------------------------
+# 3. BLOCKING 2 — refuse to guess when --source is not the git toplevel
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def nested_source_repo(tmp_path: Path) -> Path:
+    """A checkout that lives INSIDE another git repository.
+
+    Latent on this machine today (no parent of the repo is a git repo) and live
+    the moment the clone sits inside one — including the remote Mac Studio
+    checkout.
+    """
+    outer = tmp_path / "outer"
+    inner_plugin = outer / "inner" / "plugins" / "autonomous-dev" / "hooks"
+    inner_plugin.mkdir(parents=True)
+    (inner_plugin / "legit.py").write_text("ok\n")
+    _git(outer, "init", "-q")
+    _git(outer, "config", "user.email", "t@example.com")
+    _git(outer, "config", "user.name", "t")
+    _git(outer, "add", "-A")
+    _git(outer, "commit", "-q", "-m", "init")
+    # Now make the INNER tree dirty in both shapes.
+    (inner_plugin / "legit.py").write_text("modified, in no commit\n")
+    (inner_plugin / "uncommitted.py").write_text("untracked, in no commit\n")
+    return outer / "inner"
+
+
+def test_gate_refuses_to_guess_when_source_is_not_the_git_toplevel(
+    nested_source_repo: Path, capsys
+):
+    """BLOCKING 2: it did not break loudly — it asserted the opposite and permitted.
+
+    git finds a repository by walking UP, so porcelain paths were relative to
+    the OUTER toplevel. Every entry failed the inner-root prefix filter, the
+    function returned ``[]``, and that read as clean.
+    """
+    code = _gate(nested_source_repo)
+    err = capsys.readouterr().err
+
+    assert code != 0, "returning 0 here is the silent fail-open this fixes"
+    assert code == deploy_state.EXIT_UNKNOWN, "cannot-tell is UNKNOWN, not permitted"
+    assert "toplevel" in err.lower(), f"must say WHY it refused to guess; got:\n{err}"
+
+
+def test_stamp_refuses_to_guess_when_source_is_not_the_git_toplevel(
+    nested_source_repo: Path, consumer: Path, capsys
+):
+    """The same function feeds stamp, so the record would also read dirty: false."""
+    code = deploy_state.main(
+        [
+            "stamp",
+            "--source",
+            str(nested_source_repo),
+            "--plugin-src",
+            str(nested_source_repo / "plugins" / "autonomous-dev"),
+            "--target",
+            str(consumer / ".claude"),
+        ]
+    )
+    assert code == deploy_state.EXIT_UNKNOWN, capsys.readouterr().err
+    assert not (consumer / ".claude" / ".deploy-state.json").exists(), (
+        "a record that would have lied must not be written at all"
+    )
+
+
+def test_gate_permits_a_normal_top_level_checkout(source_repo: Path, capsys):
+    """PERMITTING control for the toplevel check: the ordinary layout still works."""
+    assert _gate(source_repo) == 0, capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# 4. BLOCKING 3 — stamp must not silently discard what it cannot name-match
+# --------------------------------------------------------------------------
+
+
+def test_stamp_records_a_c_quoted_unicode_filename_as_dirty(source_repo: Path, consumer: Path):
+    """BLOCKING 3a: default ``core.quotePath`` C-quotes non-ASCII names.
+
+    The old parse produced ``templates/caf\\303\\251.py`` while the digest key
+    was ``templates/café.py``, so the intersection filter dropped it and the
+    record said ``dirty: false`` — on the ``--dirty`` path, which is exactly
+    when the operator is relying on the record to say otherwise.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "café.py").write_text("# uncommitted, non-ASCII name\n")
+
+    _fake_deploy(plugin, consumer / ".claude")
+    assert _stamp(source_repo, consumer, dirty=True) == 0
+
+    state = _read_state(consumer)
+    assert state["dirty"] is True, "a shipped uncommitted file must mark the record dirty"
+    assert "lib/café.py" in state["uncommitted_files"]
+    assert "lib/café.py" in state["digests"]
+
+
+def test_stamp_expands_a_directory_entry_to_the_files_it_shipped(
+    source_repo: Path, consumer: Path
+):
+    """BLOCKING 3b: an embedded repo is ONE porcelain entry; rsync ships its contents."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    nested = plugin / "lib" / "vendored"
+    nested.mkdir()
+    (nested / "payload.py").write_text("# shipped, in no commit\n")
+    (nested / "helper.py").write_text("# shipped, in no commit\n")
+
+    _fake_deploy(plugin, consumer / ".claude")
+    assert _stamp(source_repo, consumer, dirty=True) == 0
+
+    state = _read_state(consumer)
+    assert state["dirty"] is True
+    assert {"lib/vendored/payload.py", "lib/vendored/helper.py"} <= set(
+        state["uncommitted_files"]
+    ), f"contents must be named individually; got {state['uncommitted_files']}"
+
+
+def test_unattributable_uncommitted_path_fails_closed_instead_of_vanishing(tmp_path: Path):
+    """The durable property: an intersection filter must never discard silently.
+
+    Even if some future shape escapes every expansion rule, it lands in
+    ``unmatched_uncommitted`` and forces ``dirty: true`` rather than
+    disappearing from the artifact — which is what produced ``dirty: false``
+    on a tree that was executing uncommitted content.
+    """
+    target = tmp_path / ".claude"
+    (target / "lib").mkdir(parents=True)
+    (target / "lib" / "known.py").write_text("x\n")
+
+    shipped, unmatched = deploy_state.match_uncommitted_to_target(
+        ["lib/mystery.py", "lib/known.py"],
+        {"lib/known.py": "a" * 64},
+        target,
+    )
+    assert shipped == ["lib/known.py"]
+    assert unmatched == ["lib/mystery.py"], "unnameable != not shipped"
+
+
+def test_uncommitted_path_for_a_subdir_this_target_never_receives_is_not_claimed(
+    tmp_path: Path,
+):
+    """PERMITTING control for the fail-closed rule.
+
+    The global target receives three subdirs, not eight. An uncommitted
+    ``commands/foo.md`` is genuinely not executing there and must not be
+    claimed as such — otherwise fail-closed becomes cry-wolf.
+    """
+    target = tmp_path / "global"
+    (target / "lib").mkdir(parents=True)
+    (target / "lib" / "known.py").write_text("x\n")
+
+    shipped, unmatched = deploy_state.match_uncommitted_to_target(
+        ["commands/foo.md"], {"lib/known.py": "a" * 64}, target
+    )
+    assert shipped == [] and unmatched == [], (
+        "a subdir this target never receives is a legitimate drop, not a finding"
+    )
+
+
+# --------------------------------------------------------------------------
+# 5. The stamp
+# --------------------------------------------------------------------------
+
+
+def test_clean_deploy_records_head_sha_and_dirty_false(source_repo: Path, consumer: Path):
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    assert _stamp(source_repo, consumer) == 0
+
+    state = _read_state(consumer)
+    head = _git(source_repo, "rev-parse", "HEAD").strip()
+    assert state["source_commit"] == head
+    assert state["dirty"] is False
+    assert state["uncommitted_files"] == []
+    assert state["unmatched_uncommitted"] == []
+    assert state["digest_algorithm"] == "sha256"
+    assert state["file_count"] == len(state["digests"]) > 0
+
+
+def test_state_records_what_the_digest_walk_excluded(source_repo: Path, consumer: Path):
+    """Measure-before-you-exclude, made durable in the artifact itself.
+
+    The executing tree regenerates ``__pycache__`` at runtime even when the
+    deploy never shipped it, so the count is taken from the TARGET.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    cache = consumer / ".claude" / "lib" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "hook_safety.cpython-313.pyc").write_bytes(b"\x00compiled")
+    (consumer / ".claude" / "hooks" / ".DS_Store").write_bytes(b"\x00turd")
+
+    _stamp(source_repo, consumer)
+
+    state = _read_state(consumer)
+    patterns = state["excluded"]["patterns"]
+    assert "__pycache__/" in patterns and ".DS_Store" in patterns
+    assert state["excluded"]["file_count"] == 2
+    assert not any("__pycache__" in key for key in state["digests"])
+    assert not any(key.endswith(".DS_Store") for key in state["digests"])
+
+
+def test_symlinks_are_recorded_not_skipped(source_repo: Path, consumer: Path):
+    """BLOCKING 4 (second half): ``rsync -a`` preserves symlinks.
+
+    Skipping them left a deployed entry permanently unrecorded and therefore
+    permanently unverifiable — a blind spot inside the tool built to remove
+    blind spots.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    os.symlink("hook_safety.py", plugin / "lib" / "alias.py")
+
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+
+    state = _read_state(consumer)
+    assert "lib/alias.py" in state["digests"], "a deployed symlink must be recorded"
+    assert state["digests"]["lib/alias.py"] == "symlink:hook_safety.py"
+
+
+# --------------------------------------------------------------------------
+# 6. /health-check reporting — including the no-cry-wolf negative control
+# --------------------------------------------------------------------------
+
+
+def test_check_is_quiet_on_a_correctly_deployed_tree(source_repo: Path, consumer: Path, capsys):
+    """NEGATIVE CONTROL. A check that fires on a healthy tree gets ignored."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer)
+
+    code, out = _check(consumer, capsys)
+    assert code == 0, out
+    assert "OK" in out
+    head_short = _git(source_repo, "rev-parse", "--short", "HEAD").strip()
+    assert head_short in out, "must report the deployed commit"
+    for noisy in ("DRIFT", "uncommitted", "WARN", "differ", "NOT in the deploy record"):
+        assert noisy not in out, f"cry-wolf: healthy tree emitted {noisy!r}:\n{out}"
+
+
+def test_check_names_a_file_edited_after_deploy(source_repo: Path, consumer: Path, capsys):
+    """POSITIVE CONTROL for the drift arm."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer)
+
+    (consumer / ".claude" / "hooks" / "unified_pre_tool.py").write_text("# hand-edited live\n")
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "hooks/unified_pre_tool.py" in out, f"drift must be NAMED; got:\n{out}"
+
+
+def test_check_names_a_recorded_file_missing_from_the_executing_tree(
+    source_repo: Path, consumer: Path, capsys
+):
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer)
+
+    (consumer / ".claude" / "lib" / "hook_safety.py").unlink()
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "lib/hook_safety.py" in out
+
+
+def test_check_names_a_module_injected_into_the_executing_lib_after_the_stamp(
+    source_repo: Path, consumer: Path, capsys
+):
+    """BLOCKING 4: ``check`` could only ever see what the record already listed.
+
+    Exploitability is concrete, not theoretical: hooks insert the deployed lib
+    directory at ``sys.path[0]`` (``unified_pre_tool.py`` does it at five call
+    sites), so an added ``.claude/lib/<module>.py`` shadowing a lazily-imported
+    module executes INSIDE the enforcement layer. Before the reverse
+    comparison, this printed ``OK ... 2 files match`` and exited 0.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer)
+
+    injected = consumer / ".claude" / "lib" / "hook_bypass.py"
+    injected.write_text("def is_bypassed(*a, **k):\n    return True\n")
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, f"an unrecorded executing module MUST be a finding; got:\n{out}"
+    assert "lib/hook_bypass.py" in out, f"must NAME the injected module; got:\n{out}"
+
+
+def test_check_still_catches_a_recorded_file_replaced_by_a_symlink(
+    source_repo: Path, consumer: Path, capsys, tmp_path: Path
+):
+    """The counterpart that already worked and must keep working."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer)
+
+    drifted = tmp_path / "elsewhere.py"
+    drifted.write_text("# attacker-controlled content\n")
+    recorded = consumer / ".claude" / "lib" / "hook_safety.py"
+    recorded.unlink()
+    os.symlink(drifted, recorded)
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "lib/hook_safety.py" in out
+
+
+def test_check_reports_unknown_when_no_deploy_ever_stamped(consumer: Path, capsys):
+    code, out = _check(consumer, capsys)
+    assert code == 2, out
+    assert "UNKNOWN" in out
+
+
+def test_check_does_not_demand_an_impossible_action_without_a_local_source(
+    consumer: Path, capsys
+):
+    """W-B: the remote gap must be self-describing, not alarming.
+
+    Remote repos have no autonomous-dev source of their own, so a directive to
+    "re-deploy with scripts/deploy-all.sh" from there could never be satisfied.
+    A permanently-red directive that cannot be cleared trains bypass of the
+    whole command.
+    """
+    (consumer / ".claude" / "hooks").mkdir(parents=True, exist_ok=True)
+    code, out = _check(consumer, capsys)
+    assert code == 2, out
+    assert "deploy-all.sh" not in out, (
+        "must not order an action this tree cannot perform:\n" + out
+    )
+    assert "elsewhere" in out or "another" in out, (
+        f"must explain WHERE the answer comes from instead; got:\n{out}"
+    )
+
+
+def test_check_directs_a_source_checkout_to_redeploy(tmp_path: Path, capsys):
+    """PERMITTING control for the message above: where the action IS possible, give it."""
+    root = tmp_path / "src-checkout"
+    (root / ".claude" / "hooks").mkdir(parents=True)
+    (root / "plugins" / "autonomous-dev").mkdir(parents=True)
+
+    code = deploy_state.main(["check", "--repo", str(root)])
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "deploy-all.sh" in out, f"a tree that CAN redeploy must be told to; got:\n{out}"
+
+
+# --------------------------------------------------------------------------
+# 7. BLOCKING 5 — a probe that verified nothing must never announce success
+# --------------------------------------------------------------------------
+
+
+def test_check_reports_unknown_for_a_record_that_verifies_zero_files(consumer: Path, capsys):
+    """Driven with controls in BOTH directions, because a probe that cannot
+    fail cannot inform.
+
+    ``.claude/*`` is gitignored, so this artifact is never committed and never
+    reviewed — nothing else would have noticed the empty-map success branch.
+    """
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "x.py").write_text("hello\n")
+    digest = hashlib.sha256(b"hello\n").hexdigest()
+
+    # CONTROL: a matching record passes.
+    _write_state(consumer, {"source_commit_short": "abc123", "digests": {"lib/x.py": digest}})
+    assert deploy_state.main(["check", "--repo", str(consumer)]) == 0
+    capsys.readouterr()
+
+    # CONTROL: a mismatching record fails.
+    _write_state(consumer, {"source_commit_short": "abc123", "digests": {"lib/x.py": "0" * 64}})
+    assert deploy_state.main(["check", "--repo", str(consumer)]) == 1
+    capsys.readouterr()
+
+    # PROBE: an empty map verified nothing, and must not say OK.
+    _write_state(consumer, {"source_commit_short": "abc123", "digests": {}})
+    code = deploy_state.main(["check", "--repo", str(consumer)])
+    out = capsys.readouterr().out
+    assert code == deploy_state.EXIT_UNKNOWN, f"0 files verified is never OK; got:\n{out}"
+    assert "OK" not in out
+    assert "malformed or empty" in out
+
+
+def test_check_reports_unknown_when_digests_key_is_absent(consumer: Path, capsys):
+    _write_state(consumer, {"source_commit_short": "abc123"})
+    code, out = _check(consumer, capsys)
+    assert code == deploy_state.EXIT_UNKNOWN, out
+    assert "OK" not in out
+
+
+# --------------------------------------------------------------------------
+# 8. W-A — the record must not keep asserting something that stopped being true
+# --------------------------------------------------------------------------
+
+
+def test_check_says_uncommitted_at_deploy_time_not_present_in_no_commit(
+    source_repo: Path, consumer: Path, capsys
+):
+    """The claim must be unconditionally true whenever it is printed."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "hook_safety.py").write_text("# 684-line intermediate\n")
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "uncommitted at deploy time" in out, out
+    assert "git cannot revert this" not in out, (
+        "the old wording asserted a present-tense fact that expires:\n" + out
+    )
+
+
+def test_check_downgrades_a_file_that_has_since_been_committed(
+    source_repo: Path, consumer: Path, capsys
+):
+    """W-A: a check that stays red after you did the right thing gets skipped.
+
+    The executing bytes are byte-identical to a real commit and no redeploy has
+    happened. Reporting "executing uncommitted content" here is simply false.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "hook_safety.py").write_text("# 684-line intermediate\n")
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+
+    # RED BEFORE: the record says uncommitted, and it is.
+    assert _check(consumer, capsys)[0] == 1
+
+    # The operator does the right thing. No redeploy.
+    _git(source_repo, "add", "-A")
+    _git(source_repo, "commit", "-q", "-m", "commit the hook fix")
+
+    code, out = _check(consumer, capsys)
+    assert code == 0, f"bytes now match a commit; the claim expired:\n{out}"
+    assert "since committed" in out, out
+
+
+def test_check_does_not_downgrade_a_file_that_is_still_uncommitted(
+    source_repo: Path, consumer: Path, capsys
+):
+    """NEGATIVE CONTROL for the self-heal: it must not downgrade everything."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "hook_safety.py").write_text("# 684-line intermediate\n")
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+
+    # Commit something ELSE. The deployed file is still in no commit.
+    (source_repo / "README.md").write_text("unrelated\n")
+    _git(source_repo, "add", "README.md")
+    _git(source_repo, "commit", "-q", "-m", "unrelated")
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, f"still uncommitted, must still be reported:\n{out}"
+    assert "lib/hook_safety.py" in out
+
+
+# --------------------------------------------------------------------------
+# 9. W-E / W-F / W-G — the record is untrusted input
+# --------------------------------------------------------------------------
+
+
+def test_a_corrupt_state_file_is_not_reported_as_an_absent_one(consumer: Path, capsys):
+    """W-E: "no record" sends the operator to re-deploy; "truncated" does not.
+
+    A truncated write or tampering is inside this feature's threat model, and
+    conflating it with an unstamped tree misdirects the diagnosis.
+    """
+    (consumer / ".claude" / ".deploy-state.json").write_text('{"digests": {"a": ')
+
+    code, out = _check(consumer, capsys)
+    assert code == deploy_state.EXIT_UNKNOWN, out
+    assert "no .claude/.deploy-state.json" not in out, (
+        "a file that EXISTS must not be reported as absent:\n" + out
+    )
+    assert "not valid JSON" in out
+
+
+def test_check_refuses_digest_keys_that_escape_the_deployed_tree(consumer: Path, capsys):
+    """W-F (CWE-22): ``Path(target) / key`` with an absolute key replaces the base."""
+    _write_state(
+        consumer,
+        {
+            "source_commit_short": "abc123",
+            "digests": {"/etc/hosts": "0" * 64, "../../../evil.txt": "1" * 64},
+        },
+    )
+
+    code, out = _check(consumer, capsys)
+    assert code == deploy_state.EXIT_FINDING, out
+    assert "/etc/hosts" in out and "../../../evil.txt" in out
+    assert "OK" not in out
+
+
+def test_safe_relative_keys_are_still_accepted(consumer: Path, capsys):
+    """PERMITTING control for the traversal check: normal keys must still work."""
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "x.py").write_text("hello\n")
+    _write_state(
+        consumer,
+        {
+            "source_commit_short": "abc123",
+            "digests": {"lib/x.py": hashlib.sha256(b"hello\n").hexdigest()},
+        },
+    )
+    code, out = _check(consumer, capsys)
+    assert code == 0, out
+
+
+def test_type_confused_digests_return_unknown_not_a_traceback(consumer: Path, capsys):
+    """W-G: a traceback with exit 1 is indistinguishable from a drift finding."""
+    _write_state(consumer, {"source_commit_short": "abc", "digests": ["not", "a", "dict"]})
+    code, out = _check(consumer, capsys)
+    assert code == deploy_state.EXIT_UNKNOWN, out
+    assert "Traceback" not in out
+
+
+def test_type_confused_digest_values_return_unknown(consumer: Path, capsys):
+    _write_state(consumer, {"source_commit_short": "abc", "digests": {"lib/x.py": 12345}})
+    code = deploy_state.main(["check", "--repo", str(consumer)])
+    combined = capsys.readouterr()
+    assert code in (deploy_state.EXIT_FINDING, deploy_state.EXIT_UNKNOWN)
+    assert "Traceback" not in combined.out + combined.err
+
+
+# --------------------------------------------------------------------------
+# 10. THE #1610 REPRODUCTION — an intermediate tree that exists in no commit
+# --------------------------------------------------------------------------
+
+
+def test_reproduces_issue_1610_health_check_names_executing_uncommitted_content(
+    source_repo: Path, consumer: Path, capsys
+):
+    """Deploy an intermediate working tree; /health-check must name the file.
+
+    This is the measured state in miniature: HEAD has one shape, the working
+    tree has another that was never committed, and the SECOND is what executes.
+    Before this change nothing recorded that, so the question "what is
+    running?" had no answer in the repository.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    committed = _git(source_repo, "rev-parse", "HEAD").strip()
+
+    (plugin / "lib" / "hook_safety.py").write_text(
+        "class HookDecision:\n    pass\n\n"
+        "try:\n    emit()\nexcept (OSError, ValueError, TypeError):\n    pass\n"
+    )
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+
+    code, out = _check(consumer, capsys)
+
+    assert code == 1, out
+    assert "lib/hook_safety.py" in out, f"must NAME the file executing uncommitted; got:\n{out}"
+    assert "uncommitted" in out.lower()
+    assert committed[:8] in out, "must still report which commit the rest came from"
+
+    state = _read_state(consumer)
+    assert state["uncommitted_files"] == ["lib/hook_safety.py"]
+    assert (
+        state["digests"]["lib/hook_safety.py"]
+        == hashlib.sha256(
+            (consumer / ".claude" / "lib" / "hook_safety.py").read_bytes()
+        ).hexdigest()
+    )
+
+
+# --------------------------------------------------------------------------
+# 11. Consumer-repo portability (#1586 pattern: shipped and per-repo runnable)
+# --------------------------------------------------------------------------
+
+
+def test_check_runs_from_an_installed_tree_with_no_git_and_no_plugin_source(
+    source_repo: Path, tmp_path: Path
+):
+    """The executing copy is `.claude/scripts/deploy_state.py` in a foreign repo."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    installed = tmp_path / "foreign-repo"
+    (installed / ".claude").mkdir(parents=True)
+    _fake_deploy(plugin, installed / ".claude")
+
+    deploy_state.main(
+        [
+            "stamp",
+            "--source",
+            str(source_repo),
+            "--plugin-src",
+            str(plugin),
+            "--target",
+            str(installed / ".claude"),
+        ]
+    )
+
+    assert not (installed / ".git").exists()
+    assert not (installed / "plugins").exists()
+
+    # Run the DEPLOYED copy as a subprocess, the way /health-check does.
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(installed / ".claude" / "scripts" / "deploy_state.py"),
+            "check",
+            "--repo",
+            str(installed),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(installed),
+    )
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert "OK" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# 12. BLOCKING 6 — the manifest the installers ACTUALLY read
+# --------------------------------------------------------------------------
+
+
+def _installer_manifest_paths() -> dict[str, str]:
+    """Derive the manifest path each installer declares, from its own source.
+
+    Not hardcoded: the previous test asserted ``PLUGIN_SRC/install_manifest.json``
+    — a path neither installer reads — so it was GREEN while the property its
+    own docstring named was false. Reading the declaration means the test
+    cannot drift from the code again.
+    """
+    found: dict[str, str] = {}
+    py = re.search(r'^MANIFEST_FILE\s*=\s*"([^"]+)"', INSTALL_PY.read_text(), re.M)
+    if py:
+        found["install.py"] = py.group(1)
+    sh = re.search(r'^MANIFEST_FILE="([^"]+)"', INSTALL_SH.read_text(), re.M)
+    if sh:
+        found["install.sh"] = sh.group(1)
+    return found
+
+
+def test_both_installers_declare_a_manifest_path():
+    """Instrument check: if this regex stops matching, the test below means nothing."""
+    declared = _installer_manifest_paths()
+    assert set(declared) == {"install.py", "install.sh"}, (
+        f"could not read MANIFEST_FILE from both installers; got {declared}"
+    )
+
+
+def test_deploy_state_is_in_the_manifest_each_installer_reads():
+    """BLOCKING 6: the script went into a fossil manifest nobody reads.
+
+    ``deploy-all.sh`` rsyncs the whole ``scripts/`` directory, so the file
+    lands in consumer repos on THIS machine regardless of the manifest. The
+    ``curl | bash`` and ``/sync`` paths copy only manifest entries — so
+    ``/health-check`` in a freshly installed repo printed
+    ``DEPLOY-STATE: not installed (run /sync)``, and ``/sync`` never fixed it.
+
+    Measured 2026-08-22: the root ``plugins/autonomous-dev/install_manifest.json``
+    is version 3.50.0 against the config manifest's 3.51.0, and is missing 167
+    entries including ``commands/plan.md`` and ``agents/plan-critic.md``. That
+    divergence is a separate defect and is NOT fixed here.
+    """
+    for installer, rel in _installer_manifest_paths().items():
+        manifest_path = REPO_ROOT / rel
+        assert manifest_path.is_file(), f"{installer} reads a manifest that is not there: {rel}"
+        manifest = json.loads(manifest_path.read_text())
+        names = {Path(f).name for f in manifest["components"]["scripts"]["files"]}
+        assert "deploy_state.py" in names, (
+            f"deploy_state.py missing from {rel}, which {installer} reads.\n"
+            "A shipped check absent from the install path is unreachable in "
+            "every consumer repo installed by curl|bash or /sync."
+        )
+
+
+def test_deploy_state_is_in_the_deployed_manifest_copy_that_executes():
+    """Committed is not deployed. Verify the copy /sync actually reads at runtime."""
+    deployed = REPO_ROOT / ".claude" / "config" / "install_manifest.json"
+    if not deployed.is_file():
+        pytest.fail(f"deployed manifest copy is missing: {deployed}")
+    manifest = json.loads(deployed.read_text())
+    names = {Path(f).name for f in manifest["components"]["scripts"]["files"]}
+    assert "deploy_state.py" in names, (
+        "the EXECUTING manifest copy under .claude/config/ does not carry "
+        "deploy_state.py — the source was updated but the running copy was not"
+    )
+
+
+# --------------------------------------------------------------------------
+# 13. Activity log — a row without a `type` is unfindable in a 24k-row/day sink
+# --------------------------------------------------------------------------
+
+
+def test_deploy_writes_a_findable_activity_row(source_repo: Path, consumer: Path):
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+
+    deploy_state.main(
+        [
+            "stamp",
+            "--source",
+            str(source_repo),
+            "--plugin-src",
+            str(plugin),
+            "--target",
+            str(consumer / ".claude"),
+            "--log-activity",
+        ]
+    )
+
+    logs = sorted((source_repo / ".claude" / "logs" / "activity").glob("*.jsonl"))
+    assert logs, "deploy must leave a correlatable trace"
+    rows = [json.loads(line) for line in logs[-1].read_text().splitlines() if line.strip()]
+    deploys = [r for r in rows if r.get("type") == "deploy"]
+    assert len(deploys) == 1, "row MUST carry top-level type='deploy' or it is unfindable"
+    row = deploys[0]
+    assert row["source_commit"] == _git(source_repo, "rev-parse", "HEAD").strip()
+    assert row["dirty"] is False
+    assert str(consumer / ".claude") in row["targets"]
+
+
+# --------------------------------------------------------------------------
+# 14. Wiring — the gate is useless if deploy-all.sh does not call it
+# --------------------------------------------------------------------------
+
+
+def test_deploy_all_sh_gates_before_it_deploys():
+    text = DEPLOY_ALL_SH.read_text()
+    assert "--dirty" in text, "deploy-all.sh must expose the explicit escape hatch"
+    assert "deploy_state.py" in text, "deploy-all.sh must invoke the gate"
+
+    main_pos = text.index("# --- Main ---")
+    first_deploy = text.index("    deploy_global\n", main_pos)
+    gate_call = text.index('"${gate_args[@]}"', main_pos)
+    stamp_call = text.index('"${stamp_args[@]}"', main_pos)
+    assert gate_call < first_deploy, "the gate MUST run before the first deploy"
+    assert stamp_call > first_deploy, "provenance is stamped after the copy, from the target"
+
+
+def test_health_check_surfaces_the_deployed_commit():
+    text = HEALTH_CHECK_MD.read_text()
+    assert "deploy_state.py" in text, "/health-check must report what is executing"
+    assert "DEPLOY-STATE" in text
+
+
+def test_health_check_exit_status_is_not_gated_by_deploy_state(tmp_path: Path):
+    """#1586 precedent, asserted BEHAVIOURALLY rather than by source text.
+
+    The previous version asserted ``"DEPLOY_RC" not in exit_line[0]`` — an
+    absence-check on a variable name that appears nowhere in the file, so it
+    passed no matter what, including if someone added ``DS_RC`` to the exit OR.
+    This runs the extracted exit expression with the deploy-state code set to
+    the worst case and asserts the command's status is unchanged.
+    """
+    text = HEALTH_CHECK_MD.read_text()
+    exit_lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("exit $((")]
+    assert exit_lines, "health-check must still compute an explicit exit status"
+    expression = exit_lines[0]
+
+    script = tmp_path / "exit_probe.sh"
+    # Every input that legitimately gates the exit is 0; deploy-state is 1 and 2.
+    script.write_text(
+        "STRUCT_RC=0\nHOOK_RC=0\nPLUGIN_REGISTERED=0\n"
+        "DEPLOY_RC=1\nDS_RC=2\nDEPLOY_STATE_RC=1\n" + expression + "\n"
+    )
+    result = subprocess.run(["bash", str(script)], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        "a deploy-state finding must NOT turn /health-check red — a consumer-side "
+        f"check that goes permanently red trains bypass of the whole command.\n"
+        f"expression: {expression}\nexit: {result.returncode}"
+    )
+
+    # POSITIVE CONTROL: the expression is not simply always 0.
+    script.write_text("STRUCT_RC=1\nHOOK_RC=0\nPLUGIN_REGISTERED=0\n" + expression + "\n")
+    control = subprocess.run(["bash", str(script)], capture_output=True, text=True)
+    assert control.returncode != 0, (
+        "instrument check failed: the exit expression ignores its real inputs too"
+    )
+
+
+def test_gate_reports_broken_instrument_distinguishably_from_a_pass(tmp_path: Path, capsys):
+    """A guard that BROKE must not be indistinguishable from a guard that PASSED.
+
+    This is #1471's shape: the machinery fails, the exception is swallowed, and
+    control falls through to allow. Here the gate returns 2, never 0, so
+    deploy-all.sh can fail open *loudly* instead of silently.
+    """
+    not_a_repo = tmp_path / "tarball"
+    (not_a_repo / "plugins" / "autonomous-dev" / "lib").mkdir(parents=True)
+
+    code = deploy_state.main(
+        [
+            "gate",
+            "--source",
+            str(not_a_repo),
+            "--plugin-src",
+            str(not_a_repo / "plugins" / "autonomous-dev"),
+        ]
+    )
+    err = capsys.readouterr().err
+    assert code == 2, "a broken gate MUST NOT return 0 (that is a silent fail-open)"
+    assert "UNKNOWN" in err, "a fail-open must leave a trace"
+
+
+def test_deploy_all_sh_distinguishes_refusal_from_gate_breakage():
+    """Behavioural: exit 1 aborts, other non-zero codes fail open loudly."""
+    text = DEPLOY_ALL_SH.read_text()
+    assert "proceeding WITHOUT provenance verification" in text, (
+        "a gate that broke must announce it rather than look like a pass"
+    )
+
+
+@pytest.mark.parametrize("interpreter", ["bash", "/bin/bash"])
+def test_deploy_all_sh_is_valid_bash(interpreter: str):
+    """Parse under BOTH the ambient bash and the system bash.
+
+    Not redundant: ``bash`` on this machine is Homebrew 5.3 and ``/bin/bash`` is
+    Apple's 3.2.57. bash 3.2 scans ``$( ... )`` WITHOUT honouring ``#``
+    comments, so a lone apostrophe in a comment inside the remote heredoc makes
+    the whole script unparseable — and it really happened during this
+    remediation. Checking only the ambient bash was green while every
+    ``/bin/bash`` invocation, including the remote, was broken.
+    """
+    if not Path(interpreter).exists() and interpreter.startswith("/"):
+        pytest.fail(f"{interpreter} is expected to exist on macOS")
+    result = subprocess.run(
+        [interpreter, "-n", str(DEPLOY_ALL_SH)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"{interpreter} cannot parse deploy-all.sh:\n{result.stderr}"
+
+
+# --------------------------------------------------------------------------
+# 15. W-H — the duplicated lists must not drift
+# --------------------------------------------------------------------------
+
+
+def _extract_shell_function(name: str) -> str:
+    """Return the source text of a shell function defined in deploy-all.sh.
+
+    Lets a test drive the REAL function rather than a paraphrase of it, so the
+    test cannot pass against a copy that has drifted from the deployed script.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    start = text.index(f"{name}() {{")
+    end = text.index("\n}\n", start) + len("\n}\n")
+    return text[start:end]
+
+
+def _shell_assignment(name: str) -> str:
+    match = re.search(rf'^{name}="([^"]*)"', DEPLOY_ALL_SH.read_text(), re.M)
+    assert match, f"could not find {name}= in deploy-all.sh"
+    return match.group(1)
+
+
+def test_deploy_subdirs_match_deploy_all_sh():
+    """W-H: adding a subdir to the shell list would silently remove it from coverage."""
+    shell_subdirs = set(_shell_assignment("SUBDIRS").split())
+    assert shell_subdirs == set(deploy_state.DEPLOY_SUBDIRS), (
+        "deploy-all.sh $SUBDIRS and deploy_state.DEPLOY_SUBDIRS have drifted.\n"
+        f"  shell only:  {sorted(shell_subdirs - set(deploy_state.DEPLOY_SUBDIRS))}\n"
+        f"  python only: {sorted(set(deploy_state.DEPLOY_SUBDIRS) - shell_subdirs)}"
+    )
+
+
+def test_global_subdirs_are_a_subset_of_the_deployed_subdirs():
+    shell_global = set(_shell_assignment("GLOBAL_SUBDIRS").split())
+    assert shell_global <= set(deploy_state.DEPLOY_SUBDIRS)
+
+
+def test_rsync_exclude_patterns_match_deploy_all_sh():
+    """The exclusions define the DEPLOYED SET; the gate measures the same set.
+
+    If they drift, the gate is measuring something rsync does not ship (false
+    refusals) or missing something rsync does (a silent hole — the exact shape
+    of BLOCKING 1).
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    block = re.search(r"^DEPLOY_EXCLUDES=\((.*?)^\)", text, re.M | re.S)
+    assert block, "could not find the DEPLOY_EXCLUDES array in deploy-all.sh"
+    shell_patterns = set(re.findall(r"--exclude='([^']*)'", block.group(1)))
+    python_patterns = set(deploy_state.rsync_exclude_patterns())
+    assert shell_patterns == python_patterns, (
+        "deploy-all.sh $DEPLOY_EXCLUDES and deploy_state.rsync_exclude_patterns() drifted.\n"
+        f"  shell only:  {sorted(shell_patterns - python_patterns)}\n"
+        f"  python only: {sorted(python_patterns - shell_patterns)}"
+    )
+
+
+def _plugin_copy_invocations() -> list[str]:
+    """Every line in deploy-all.sh that copies plugin source into a deploy target.
+
+    Deliberately tool-agnostic. The previous version of this helper's caller
+    inspected only lines starting with ``rsync ``, which is why the remote
+    ``cp -rf`` path went both unfixed AND untested: a probe scoped to one tool
+    cannot see a defect in the other.
+    """
+    found: list[str] = []
+    for raw in DEPLOY_ALL_SH.read_text().splitlines():
+        line = raw.strip()
+        if not re.match(r"^(rsync|cp)\s", line):
+            continue  # comments and everything else
+        if "$PLUGIN_SRC/" in line or "plugins/autonomous-dev" in line:
+            found.append(line)
+    return found
+
+
+def test_every_copy_invocation_applies_the_shared_exclusions():
+    """BLOCKING B: exclusions on the measured path only is a gate that lies.
+
+    ``deploy-all.sh`` has THREE copy sites, not two: global rsync, per-repo
+    rsync, and the remote copy inside the ssh heredoc. The remote one was
+    ``cp -rf plugins/autonomous-dev/$subdir/* ...`` with no exclusions, while
+    the remote gate measures ``source_deployed_files()`` — the walk MINUS those
+    same exclusions. The gate therefore affirmed a cleanliness the copy did not
+    deliver, into five remote repos.
+
+    The instrument check matters here: the previous test filtered to lines
+    starting with ``rsync ``, which is exactly why it stayed green through the
+    defect. This asserts over EVERY copy invocation.
+    """
+    invocations = _plugin_copy_invocations()
+    assert len(invocations) >= 3, (
+        "expected global + per-repo + remote copy sites; the filter found "
+        f"{len(invocations)}: {invocations}"
+    )
+    for line in invocations:
+        applies_array = '"${DEPLOY_EXCLUDES[@]}"' in line
+        applies_literal = "$remote_excludes" in line
+        assert applies_array or applies_literal, (
+            "a copy invocation ships content the provenance gate does not "
+            f"measure: {line}"
+        )
+
+
+def test_no_copy_invocation_uses_bare_cp_for_plugin_subdirs():
+    """The durable half: remove the primitive, do not just fix this call site.
+
+    ``cp`` has no exclusion mechanism at all, so any reintroduction of it here
+    re-opens the whole class rather than one instance.
+    """
+    offenders = [
+        line.strip()
+        for line in DEPLOY_ALL_SH.read_text().splitlines()
+        if line.strip().startswith("cp ") and "plugins/autonomous-dev" in line
+    ]
+    assert offenders == [], (
+        "cp cannot apply the deploy exclusions, so anything it copies is shipped "
+        f"but unmeasured. Use rsync with the shared patterns:\n{offenders}"
+    )
+
+
+# --------------------------------------------------------------------------
+# 16. W-B — the remote path is gated and stamped from the remote's own checkout
+# --------------------------------------------------------------------------
+
+
+def test_remote_deploy_script_gates_and_stamps(source_repo: Path, tmp_path: Path):
+    """Drive the remote path with ssh shimmed: no network, no remote writes.
+
+    Remote targets were never stamped, so ``/health-check`` on the Mac Studio
+    printed UNKNOWN in all five repos forever, with a directive that running
+    deploy from the laptop could never satisfy.
+    """
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    capture = tmp_path / "remote_script.sh"
+    shim = shim_dir / "ssh"
+    shim.write_text(
+        "#!/usr/bin/env bash\n"
+        'cmd="${@: -1}"\n'
+        'if [ "$cmd" = "echo ok" ] || [ "$cmd" = "true" ]; then exit 0; fi\n'
+        'printf "%s" "$cmd" > "$SSH_CAPTURE"\n'
+    )
+    shim.chmod(0o755)
+
+    result = subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy-all.sh"), "--remote", "--skip-validate"],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": f"{shim_dir}:/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(source_repo / "fake-home"),
+            "REMOTE_HOST": "unused.invalid",
+            "REMOTE_REPOS": "somerepo",
+            "SSH_CAPTURE": str(capture),
+        },
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert capture.is_file(), f"ssh shim captured nothing:\n{result.stdout}{result.stderr}"
+
+    remote_script = capture.read_text()
+    # NOTE: a fourth assertion stood here —
+    #   assert "deploy_state.py" not in remote_script or "REMOTE_DEPLOY_STATE" in remote_script
+    # It was DEAD: the left disjunct is true whenever the remote script does not
+    # mention deploy_state.py at all, so the whole expression passed for a remote
+    # script with no provenance wiring whatsoever. The three assertions below
+    # carry the real property. Removed rather than repaired (Issue #1610).
+    assert "gate --source" in remote_script, "the remote must be gated too"
+    assert "stamp --source" in remote_script, "remote targets must be stamped"
+    assert "REMOTE DEPLOY-GATE REFUSED" in remote_script
+
+    # Under BOTH bashes: the remote may well be running Apple's 3.2.
+    for interpreter in ("bash", "/bin/bash"):
+        syntax = subprocess.run(
+            [interpreter, "-n", str(capture)], capture_output=True, text=True
+        )
+        assert syntax.returncode == 0, (
+            f"the generated remote script is not valid shell under {interpreter}:\n"
+            f"{syntax.stderr}"
+        )
+
+
+def test_remote_deploy_script_forwards_the_dirty_flag(source_repo: Path, tmp_path: Path):
+    """PERMITTING arm of the remote gate: --dirty must reach the remote too."""
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    capture = tmp_path / "remote_script.sh"
+    shim = shim_dir / "ssh"
+    shim.write_text(
+        "#!/usr/bin/env bash\n"
+        'cmd="${@: -1}"\n'
+        'if [ "$cmd" = "echo ok" ] || [ "$cmd" = "true" ]; then exit 0; fi\n'
+        'printf "%s" "$cmd" > "$SSH_CAPTURE"\n'
+    )
+    shim.chmod(0o755)
+
+    env = {
+        "PATH": f"{shim_dir}:/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+        "HOME": str(source_repo / "fake-home"),
+        "REMOTE_HOST": "unused.invalid",
+        "REMOTE_REPOS": "somerepo",
+        "SSH_CAPTURE": str(capture),
+    }
+    subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy-all.sh"), "--remote", "--skip-validate"],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env=env,
+        timeout=120,
+    )
+    without = capture.read_text()
+
+    subprocess.run(
+        [
+            "bash",
+            str(source_repo / "scripts" / "deploy-all.sh"),
+            "--remote",
+            "--skip-validate",
+            "--dirty",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env=env,
+        timeout=120,
+    )
+    with_dirty = capture.read_text()
+
+    assert "--dirty" not in without, "default remote deploy must NOT ship uncommitted work"
+    assert "--dirty" in with_dirty, "the explicit opt-in must reach the remote gate"
+
+
+# --------------------------------------------------------------------------
+# 17. End-to-end through the real script (dry-run, no ssh, no writes)
+# --------------------------------------------------------------------------
+
+
+def _run_deploy_all(source_repo: Path, *flags: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy-all.sh"), "--local", "--dry-run", *flags],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(source_repo / "fake-home"),
+            "REMOTE_HOST": "unused.invalid",
+            "LOCAL_REPOS": "nonexistent-repo",
+            "REMOTE_REPOS": "nonexistent-repo",
+        },
+        timeout=120,
+    )
+
+
+def test_deploy_all_sh_refuses_dirty_tree_end_to_end(source_repo: Path):
+    (source_repo / "plugins" / "autonomous-dev" / "lib" / "hook_safety.py").write_text(
+        "# uncommitted\n"
+    )
+    result = _run_deploy_all(source_repo)
+    combined = result.stdout + result.stderr
+    assert result.returncode != 0, combined
+    assert "lib/hook_safety.py" in combined, combined
+    assert "[dry-run] Would deploy" not in combined, "must refuse BEFORE deploying"
+
+
+def test_deploy_all_sh_permits_dirty_tree_with_flag_end_to_end(source_repo: Path):
+    (source_repo / "plugins" / "autonomous-dev" / "lib" / "hook_safety.py").write_text(
+        "# uncommitted\n"
+    )
+    result = _run_deploy_all(source_repo, "--dirty")
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "lib/hook_safety.py" in combined, "must name what it is shipping uncommitted"
+
+
+def test_deploy_all_sh_permits_clean_tree_end_to_end(source_repo: Path):
+    result = _run_deploy_all(source_repo)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "[dry-run]" in combined
+
+
+def test_a_missing_gate_is_detectable_from_the_output(source_repo: Path):
+    """NEGATIVE CONTROL for the ``--dirty`` guard assertions in the other suites.
+
+    ``tests/integration/scripts/test_deploy_all_global_settings.py`` and
+    ``tests/spec_validation/test_spec_issue995_project_local_hooks.py`` inject
+    ``--dirty`` into every deploy they run, and assert in their shared helper
+    that ``DEPLOY-GATE`` appeared and did not say REFUSED. That assertion is
+    only worth something if a MISSING gate actually changes the output — a
+    probe that cannot fail cannot inform. This deletes the gate and proves the
+    marker disappears.
+    """
+    (source_repo / "plugins" / "autonomous-dev" / "scripts" / "deploy_state.py").unlink()
+    result = _run_deploy_all(source_repo, "--dirty")
+    combined = result.stdout + result.stderr
+
+    assert "DEPLOY-GATE" not in combined, (
+        "the guard assertion in the other suites is vacuous: the marker appears "
+        f"even with the gate deleted:\n{combined}"
+    )
+    assert "deploy_state.py missing" in combined, (
+        "a missing gate must announce itself, not vanish silently:\n" + combined
+    )
+
+
+def test_deploy_all_sh_help_is_not_truncated(source_repo: Path):
+    """The --help block must list every flag, including the last one added."""
+    result = subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy-all.sh"), "--help"],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    for flag in ("--local", "--remote", "--dry-run", "--skip-validate", "--dirty"):
+        assert flag in result.stdout, f"--help omits {flag}:\n{result.stdout}"
+
+
+# --------------------------------------------------------------------------
+# 18. BLOCKING A — a target-only file present AT STAMP TIME is not legitimate
+# --------------------------------------------------------------------------
+
+
+def test_a_stray_already_in_the_target_at_stamp_time_is_recorded_not_adopted(
+    source_repo: Path, consumer: Path, capsys
+):
+    """BLOCKING A: ``executing - recorded`` is empty BY CONSTRUCTION for this shape.
+
+    ``check``'s reverse comparison (BLOCKING 4) catches a file INJECTED after
+    the stamp. It cannot catch one PRESENT at the stamp: ``digest_tree`` walks
+    the target and records whatever it finds, so the stray is adopted into
+    ``recorded`` and ``executing - recorded`` is empty. Before this fix the run
+    below printed ``stamped 1 target(s) ... (clean)`` and ``OK — 3 files match
+    the deploy record``, exit 0.
+
+    Live on the two transports that do not delete — ``deploy_global`` (rsync
+    without ``--delete``) and the remote copy. Remote targets have never been
+    stamped, so the first remote stamp adopts whatever has accumulated. The
+    instance this reproduces exists on this machine now:
+    ``~/.claude/hooks/.claude/logs/activity/2026-06-06.jsonl``, 52,502 bytes, in
+    no commit, matching no exclusion glob.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+
+    stray = consumer / ".claude" / "lib" / ".claude" / "logs" / "activity" / "2026-06-06.jsonl"
+    stray.parent.mkdir(parents=True, exist_ok=True)
+    stray.write_text('{"leftover": true}\n')
+    rel = "lib/.claude/logs/activity/2026-06-06.jsonl"
+
+    # INSTRUMENT CHECK: the stray must be in the measured set for this to mean
+    # anything. If a future exclusion hides it, this test would pass vacuously.
+    assert not deploy_state.is_excluded(Path(rel)), (
+        "fixture is vacuous: the stray matches an exclusion, so nothing measures it"
+    )
+
+    assert _stamp(source_repo, consumer) == 0
+    state = _read_state(consumer)
+
+    assert state["target_only"] == [rel], (
+        f"a file no source accounts for must be named, not adopted; got {state}"
+    )
+    assert state["dirty"] is True, "target-only content must fail CLOSED like unmatched does"
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, f"check must be non-zero for an unaccounted-for file; got:\n{out}"
+    assert rel in out, f"check must NAME the stray; got:\n{out}"
+
+
+def test_a_clean_target_reports_no_target_only_files(source_repo: Path, consumer: Path, capsys):
+    """PERMITTING half of BLOCKING A. A tree the source fully accounts for is clean.
+
+    Without this, the new arm could be satisfied by marking every tree dirty —
+    the cry-wolf failure. Deliberately includes the two shapes most likely to
+    trip a naive ``set(digests) - expected``: a symlink, and a nested subdir.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    nested = plugin / "lib" / "nested" / "deeper"
+    nested.mkdir(parents=True)
+    (nested / "mod.py").write_text("# real source, deeply nested\n")
+    os.symlink("hook_safety.py", plugin / "lib" / "alias.py")
+    # Commit them: this test is about target_only, and leaving them uncommitted
+    # would make `check` non-zero for an unrelated (correct) reason.
+    _git(source_repo, "add", "-A")
+    _git(source_repo, "commit", "-q", "-m", "add nested source and an alias")
+
+    _fake_deploy(plugin, consumer / ".claude")
+    assert _stamp(source_repo, consumer) == 0
+
+    state = _read_state(consumer)
+    assert state["target_only"] == [], (
+        f"every deployed file came from the source; got {state['target_only']}"
+    )
+    assert "lib/nested/deeper/mod.py" in state["digests"]
+    assert "lib/alias.py" in state["digests"]
+
+    code, out = _check(consumer, capsys)
+    assert code == 0, f"a fully-accounted-for tree must stay quiet; got:\n{out}"
+    assert "ALREADY in the target" not in out
+
+
+def test_target_only_ignores_subdirs_this_target_never_receives(tmp_path: Path):
+    """Scoping control: the global target receives three subdirs, not eight.
+
+    ``expected`` covers all eight, so an unscoped comparison is still correct in
+    this direction — but scoping is what makes the assertion meaningful rather
+    than accidental, so it is pinned.
+    """
+    target = tmp_path / "global"
+    (target / "lib").mkdir(parents=True)
+
+    digests = {"lib/known.py": "a" * 64, "lib/stray.py": "b" * 64}
+    expected = {"lib/known.py", "commands/never-here.md", "agents/never-here.md"}
+
+    assert deploy_state.target_only_files(digests, expected, target) == ["lib/stray.py"]
+
+
+def test_deploy_activity_row_carries_target_only(source_repo: Path, consumer: Path):
+    """A finding that is not in the correlatable sink is a finding nobody reads."""
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    _fake_deploy(plugin, consumer / ".claude")
+    stray = consumer / ".claude" / "lib" / "orphan.py"
+    stray.write_text("# no source accounts for this\n")
+
+    deploy_state.main(
+        [
+            "stamp",
+            "--source",
+            str(source_repo),
+            "--plugin-src",
+            str(plugin),
+            "--target",
+            str(consumer / ".claude"),
+            "--log-activity",
+        ]
+    )
+
+    logs = sorted((source_repo / ".claude" / "logs" / "activity").glob("*.jsonl"))
+    rows = [json.loads(line) for line in logs[-1].read_text().splitlines() if line.strip()]
+    deploys = [r for r in rows if r.get("type") == "deploy"]
+    assert deploys[0]["target_only"] == ["lib/orphan.py"]
+    assert deploys[0]["dirty"] is True
+
+
+# --------------------------------------------------------------------------
+# 19. BLOCKING B — the remote path must ship exactly what the remote gate measures
+# --------------------------------------------------------------------------
+
+
+def _capture_remote_script(source_repo: Path, tmp_path: Path, *flags: str) -> str:
+    """Run deploy-all.sh --remote with ssh shimmed and return the remote script."""
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir(exist_ok=True)
+    capture = tmp_path / "remote_script.sh"
+    shim = shim_dir / "ssh"
+    shim.write_text(
+        "#!/usr/bin/env bash\n"
+        'cmd="${@: -1}"\n'
+        'if [ "$cmd" = "echo ok" ] || [ "$cmd" = "true" ]; then exit 0; fi\n'
+        'printf "%s" "$cmd" > "$SSH_CAPTURE"\n'
+    )
+    shim.chmod(0o755)
+    subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy-all.sh"), "--remote", "--skip-validate",
+         *flags],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": f"{shim_dir}:/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(source_repo / "fake-home"),
+            "REMOTE_HOST": "unused.invalid",
+            "REMOTE_REPOS": "somerepo",
+            "SSH_CAPTURE": str(capture),
+        },
+        timeout=120,
+    )
+    assert capture.is_file(), "ssh shim captured nothing"
+    return capture.read_text()
+
+
+def test_remote_copy_carries_the_same_exclusions_the_remote_gate_measures(
+    source_repo: Path, tmp_path: Path
+):
+    """BLOCKING B, on the generated remote script itself."""
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+
+    assert "cp -rf plugins/autonomous-dev" not in remote_script, (
+        "the remote still copies with a tool that cannot exclude anything:\n"
+        + remote_script
+    )
+    copy_lines = [
+        ln.strip()
+        for ln in remote_script.splitlines()
+        if ln.strip().startswith("rsync ") and "plugins/autonomous-dev" in ln
+    ]
+    assert len(copy_lines) >= 2, (
+        f"expected per-repo + global remote copies; got {copy_lines}"
+    )
+    for pattern in deploy_state.rsync_exclude_patterns():
+        for line in copy_lines:
+            assert f"--exclude='{pattern}'" in line, (
+                f"remote copy omits exclusion {pattern!r}, so it ships what the "
+                f"remote gate does not measure:\n{line}"
+            )
+
+
+def test_remote_copy_delivers_exactly_the_measured_set(source_repo: Path, tmp_path: Path):
+    """BEHAVIOURAL, both arms — the structural test above cannot prove delivery.
+
+    Extracts the real per-repo copy line from the GENERATED remote script and
+    runs it against a fixture tree. The refusing arm: none of the excluded
+    classes arrive. The PERMITTING arm, which matters at least as much: the
+    remote must still actually deploy the real files.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    copy_line = next(
+        ln.strip()
+        for ln in remote_script.splitlines()
+        if ln.strip().startswith("rsync ") and 'target/$subdir/"' in ln
+    )
+
+    src = tmp_path / "plugins" / "autonomous-dev" / "templates"
+    (src / "sub").mkdir(parents=True)
+    (src / "__pycache__").mkdir(parents=True)
+    (src / "docs" / "sessions").mkdir(parents=True)
+    (src / "extensions").mkdir(parents=True)
+    (src / "real.py").write_text("# real\n")
+    (src / "sub" / "nested.py").write_text("# real, nested\n")
+    (src / "real.py,cover").write_text("> annotation\n")
+    (src / "__pycache__" / "real.cpython-314.pyc").write_bytes(b"\x00compiled")
+    (src / ".DS_Store").write_bytes(b"\x00turd")
+    (src / "docs" / "sessions" / "20260822-session.md").write_text("# session\n")
+    (src / "extensions" / "consumer_local.py").write_text("# consumer-local\n")
+
+    target = tmp_path / "remote-target"
+    (target / "templates").mkdir(parents=True)
+
+    runner = tmp_path / "run_copy.sh"
+    runner.write_text(
+        "set -euo pipefail\nsubdir=templates\ntarget='" + str(target) + "'\n" + copy_line + "\n"
+    )
+    result = subprocess.run(
+        ["bash", str(runner)], capture_output=True, text=True, cwd=str(tmp_path), timeout=120
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    delivered = {
+        p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()
+    }
+
+    # PERMITTING ARM: the remote must still deploy.
+    assert "templates/real.py" in delivered, f"remote stopped deploying: {delivered}"
+    assert "templates/sub/nested.py" in delivered, f"nested source dropped: {delivered}"
+
+    # REFUSING ARM: every excluded class stays off the remote.
+    for stray in (
+        "templates/real.py,cover",
+        "templates/__pycache__/real.cpython-314.pyc",
+        "templates/.DS_Store",
+        "templates/docs/sessions/20260822-session.md",
+        "templates/extensions/consumer_local.py",
+    ):
+        assert stray not in delivered, (
+            f"{stray} reached the remote target, unmeasured by the remote gate"
+        )
+
+
+def test_remote_aborts_rather_than_falling_back_to_an_unmeasurable_copy(
+    source_repo: Path, tmp_path: Path
+):
+    """The absent-rsync arm is explicit, not silent.
+
+    rsync 3.4.1 is present on the real remote (verified before choosing this
+    transport), but a fallback to ``cp`` would silently reinstate the exact
+    defect, so the script refuses instead. Driven by running the generated
+    remote script's guard with rsync removed from PATH.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    assert "command -v rsync" in remote_script, "the remote must check its transport"
+
+    lines = remote_script.splitlines()
+    start = next(i for i, ln in enumerate(lines) if "command -v rsync" in ln)
+    end = next(i for i in range(start, len(lines)) if lines[i].strip() == "fi")
+    guard = tmp_path / "guard.sh"
+    guard.write_text("\n".join(lines[start : end + 1]) + "\necho REACHED_COPY\n")
+
+    # An EMPTY PATH is the point: `command -v` is a shell builtin, so the guard
+    # still runs, but rsync is unreachable. bash is invoked by absolute path
+    # precisely because PATH cannot be used to find it.
+    empty_bin = tmp_path / "emptybin"
+    empty_bin.mkdir()
+    result = subprocess.run(
+        ["/bin/bash", str(guard)],
+        capture_output=True,
+        text=True,
+        env={"PATH": str(empty_bin)},
+        timeout=60,
+    )
+    assert result.returncode == 1, (
+        f"a remote with no rsync must ABORT, not fall through:\n{result.stdout}"
+    )
+    assert "REACHED_COPY" not in result.stdout
+    assert "REMOTE ABORT" in result.stdout
+
+    # PERMITTING CONTROL: with rsync on PATH the guard falls through.
+    ok = subprocess.run(
+        ["/bin/bash", str(guard)],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"},
+        timeout=60,
+    )
+    assert ok.returncode == 0 and "REACHED_COPY" in ok.stdout, (
+        f"instrument check failed: the guard blocks even WITH rsync:\n{ok.stdout}{ok.stderr}"
+    )
+
+
+# --------------------------------------------------------------------------
+# 20. BLOCKING C — bytecode is the excluded class that needs no registration
+# --------------------------------------------------------------------------
+
+
+def test_a_planted_pyc_shadows_an_untouched_source_file_and_check_cannot_see_it(
+    tmp_path: Path,
+):
+    """POSITIVE CONTROL for the purge: prove the vector is real before fixing it.
+
+    Forges the 16-byte header of a tampered ``.pyc`` to match an UNTOUCHED
+    ``.py``. The interpreter loads the cache; the tool's digest of the ``.py``
+    genuinely matches; ``check`` exits 0 over a subverted module.
+
+    This test asserts the EXPLOIT still works in a bare directory — it is the
+    instrument that makes the purge test below meaningful. If it ever goes red,
+    CPython changed its cache validation and the purge rationale must be
+    re-derived rather than assumed.
+    """
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    victim = lib / "victim.py"
+    victim.write_text('def guard():\n    return "ALLOW-ONLY-SAFE"\n')
+
+    # Let the interpreter build a legitimate cache, then overwrite the code
+    # object while keeping the validation header byte-identical.
+    subprocess.run(
+        [sys.executable, "-c", "import victim"], cwd=str(lib), check=True, capture_output=True
+    )
+    cached = next((lib / "__pycache__").glob("victim.*.pyc"))
+    header = cached.read_bytes()[:16]
+
+    import importlib.util
+    import marshal
+
+    evil = compile(
+        'def guard():\n    return "PWNED-ALLOW-EVERYTHING"\n', "victim.py", "exec"
+    )
+    cached.write_bytes(header + marshal.dumps(evil))
+    assert importlib.util.MAGIC_NUMBER == header[:4], "fixture built a stale magic"
+
+    assert victim.read_text() == 'def guard():\n    return "ALLOW-ONLY-SAFE"\n', (
+        "the source on disk must be untouched — that is the whole point"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", "import victim; print(victim.guard())"],
+        cwd=str(lib),
+        capture_output=True,
+        text=True,
+    )
+    assert "PWNED-ALLOW-EVERYTHING" in result.stdout, (
+        f"the shadowing vector did not reproduce: {result.stdout}{result.stderr}"
+    )
+
+
+def test_deploy_purges_bytecode_from_every_deployed_subdir(tmp_path: Path):
+    """Both arms of the purge, driven through deploy-all.sh's own function.
+
+    REFUSING: a planted ``__pycache__`` entry AND a bare sourceless ``.pyc``
+    (importable in its own right) are both gone after a deploy.
+    PERMITTING: real source, and consumer-local ``extensions/`` that Issue #560
+    exists to preserve, are untouched.
+    """
+    target = tmp_path / ".claude"
+    for sub in ("hooks", "lib"):
+        (target / sub / "__pycache__").mkdir(parents=True)
+        (target / sub / "__pycache__" / "mod.cpython-314.pyc").write_bytes(b"\x00evil")
+        (target / sub / "real.py").write_text("# real\n")
+    (target / "lib" / "sourceless.pyc").write_bytes(b"\x00importable-on-its-own")
+    (target / "hooks" / "extensions").mkdir(parents=True)
+    (target / "hooks" / "extensions" / "consumer_local.py").write_text("# keep me\n")
+    (target / "hooks" / "extensions" / "__pycache__").mkdir()
+    keeper = target / "hooks" / "extensions" / "__pycache__" / "local.cpython-314.pyc"
+    keeper.write_bytes(b"\x00consumer-local")
+
+    runner = tmp_path / "purge.sh"
+    runner.write_text(
+        "set -euo pipefail\n"
+        f'SUBDIRS="{" ".join(deploy_state.DEPLOY_SUBDIRS)}"\n'
+        + _extract_shell_function("purge_bytecode")
+        + f'\npurge_bytecode "{target}"\n'
+    )
+    result = subprocess.run(["bash", str(runner)], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    # REFUSING ARM
+    assert not (target / "lib" / "__pycache__").exists(), "cache dir survived the purge"
+    assert not (target / "hooks" / "__pycache__").exists(), "cache dir survived the purge"
+    assert not (target / "lib" / "sourceless.pyc").exists(), (
+        "a bare sourceless .pyc is importable on its own and must go too"
+    )
+
+    # PERMITTING ARM
+    assert (target / "lib" / "real.py").is_file(), "the purge ate real source"
+    assert (target / "hooks" / "real.py").is_file(), "the purge ate real source"
+    assert keeper.is_file(), (
+        "extensions/ is consumer-local state Issue #560 exists to preserve"
+    )
+
+
+def test_both_deploy_paths_purge_bytecode_after_copying():
+    """Wiring: the purge must run on EVERY transport, not just the one tested."""
+    text = DEPLOY_ALL_SH.read_text()
+    assert text.count("purge_bytecode ") >= 2, (
+        "purge_bytecode must run for both the global and the per-repo local deploy"
+    )
+    # The remote heredoc cannot call a local shell function, so it inlines the
+    # same find; assert the remote carries it rather than assuming parity.
+    remote_block = text[text.index("deploy_remote()") : text.index("validate_local()")]
+    assert remote_block.count("-name '__pycache__' -type d") >= 2, (
+        "the remote path must purge bytecode for per-repo AND global targets"
+    )
+
+
+# --------------------------------------------------------------------------
+# 21. The exclusion list is measured, not asserted
+# --------------------------------------------------------------------------
+
+
+def test_exactly_one_tracked_file_is_hidden_by_the_exclusions():
+    """The claim in the artifact must be enforced, not written down.
+
+    Both validators measured 1; the report to them said 0, because the
+    measurement reimplemented the predicate with ``fnmatch`` instead of calling
+    ``is_excluded()`` — ``extensions/`` carries a trailing slash and does not
+    fnmatch a bare path component. This calls the REAL predicate over
+    ``git ls-files``, so adding a pattern that starts hiding a tracked file
+    fails here instead of relying on someone re-counting by hand.
+    """
+    allowlist = {"hooks/extensions/.gitkeep"}
+
+    raw = subprocess.run(
+        ["git", "ls-files", "-z", "--"]
+        + [f"plugins/autonomous-dev/{s}" for s in deploy_state.DEPLOY_SUBDIRS],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    prefix = "plugins/autonomous-dev/"
+    tracked = [e[len(prefix) :] for e in raw.split("\0") if e.startswith(prefix)]
+
+    # INSTRUMENT CHECK: an empty tracked set would make the assertion vacuous.
+    assert len(tracked) > 100, f"git ls-files returned {len(tracked)} paths; probe is broken"
+
+    excluded = {rel for rel in tracked if deploy_state.is_excluded(Path(rel))}
+    assert excluded == allowlist, (
+        "the set of TRACKED files hidden by DEPLOY_EXCLUDES changed.\n"
+        f"  newly hidden: {sorted(excluded - allowlist)}\n"
+        f"  no longer hidden: {sorted(allowlist - excluded)}\n"
+        "Anything hidden here is invisible to the digest map AND to check's "
+        "reverse comparison, in both directions."
+    )
+
+
+def test_the_artifact_does_not_claim_zero_source_files_are_excluded():
+    """The false claim shipped in the artifact; the correction must ship too."""
+    text = DEPLOY_STATE_SRC.read_text()
+    assert "zero source files are excluded" not in text
+    assert "no source file is excluded" not in text
+    assert "hooks/extensions/.gitkeep" in text, (
+        "the artifact must NAME the one excluded tracked file and why"
+    )
+
+
+def test_session_exclusion_is_a_path_not_a_filename_class(source_repo: Path):
+    """Narrowing: an attacker-named file must no longer ride the exclusion in.
+
+    REFUSING arm of the narrowing is the SCOPING control below; this is the arm
+    that matters for measurement — a file named like a session log but living
+    anywhere else is now in the deployed set, and therefore measured.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "hooks" / "payload-session.md").write_text("# not a session log\n")
+    (plugin / "lib" / "run-pipeline.json").write_text("{}\n")
+
+    shipped = deploy_state.source_deployed_files(plugin)
+    assert "hooks/payload-session.md" in shipped, (
+        "a filename class let an attacker-named file into the executing tree "
+        "unmeasured; the exclusion is now scoped to docs/sessions/"
+    )
+    assert "lib/run-pipeline.json" in shipped
+
+
+def test_the_real_session_log_path_is_still_excluded(source_repo: Path):
+    """PERMITTING half of the narrowing: the recurring machine-generated class stays out.
+
+    Several hooks write to the RELATIVE path ``Path("docs/sessions")``, so a hook
+    run with cwd=<plugin>/hooks creates these. If they came back into the
+    deployed set the gate would go permanently red on any machine that has run
+    a hook — the cry-wolf failure.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    sessions = plugin / "hooks" / "docs" / "sessions"
+    sessions.mkdir(parents=True)
+    (sessions / "20260822-132224-session.md").write_text("# Session\n")
+    (sessions / "abc123-pipeline.json").write_text("{}\n")
+
+    shipped = deploy_state.source_deployed_files(plugin)
+    assert not any("docs/sessions" in rel for rel in shipped), (
+        f"docs/sessions/ must stay out of the deployed set; got {sorted(shipped)}"
+    )
+    # SCOPING CONTROL: excluding docs/ wholesale would drop tracked skills docs.
+    skill_docs = plugin / "skills" / "x" / "docs"
+    skill_docs.mkdir(parents=True)
+    (skill_docs / "reference.md").write_text("# real doc\n")
+    assert "skills/x/docs/reference.md" in deploy_state.source_deployed_files(plugin)
+
+
+# --------------------------------------------------------------------------
+# 22. The record is untrusted input — including the two fields check TRUSTED
+# --------------------------------------------------------------------------
+
+
+def test_self_heal_refuses_a_source_repo_that_is_not_a_git_toplevel(
+    consumer: Path, tmp_path: Path, capsys
+):
+    """``check`` policed the digest keys and trusted the cwd it ran git in.
+
+    ``source_repo`` and ``source_plugin_rel`` come from the same gitignored,
+    unreviewed record that ``unsafe_digest_keys`` exists to sanitise, and the
+    self-heal feeds the first to git as a subprocess cwd.
+    """
+    outer = tmp_path / "outer"
+    inner = outer / "inner"
+    inner.mkdir(parents=True)
+    _git(outer, "init", "-q")
+    _git(outer, "config", "user.email", "t@e.com")
+    _git(outer, "config", "user.name", "t")
+    (outer / "f.txt").write_text("x\n")
+    _git(outer, "add", "-A")
+    _git(outer, "commit", "-q", "-m", "init")
+    (inner / ".git").mkdir()  # looks like a checkout, is not a toplevel
+
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "x.py").write_text("hello\n")
+    _write_state(
+        consumer,
+        {
+            "source_commit_short": "abc123",
+            "source_repo": str(inner),
+            "source_plugin_rel": "plugins/autonomous-dev",
+            "uncommitted_files": ["lib/x.py"],
+            "digests": {"lib/x.py": hashlib.sha256(b"hello\n").hexdigest()},
+        },
+    )
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "not a git toplevel" in out, f"the refusal must be visible, not silent:\n{out}"
+    assert "lib/x.py" in out, "refusing to self-heal must fail CLOSED (still reported)"
+
+
+def test_self_heal_refuses_a_traversing_plugin_rel(consumer: Path, tmp_path: Path, capsys):
+    """A DIFFERENT shape: the rel is interpolated into a ``HEAD:<rel>/<file>`` rev."""
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "x.py").write_text("hello\n")
+    _write_state(
+        consumer,
+        {
+            "source_commit_short": "abc123",
+            "source_repo": str(tmp_path),
+            "source_plugin_rel": "../../../etc",
+            "uncommitted_files": ["lib/x.py"],
+            "digests": {"lib/x.py": hashlib.sha256(b"hello\n").hexdigest()},
+        },
+    )
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, out
+    assert "escapes the repo" in out, f"must name WHY it refused; got:\n{out}"
+
+
+def test_self_heal_still_runs_for_a_legitimate_record(
+    source_repo: Path, consumer: Path, capsys
+):
+    """PERMITTING control: hardening must not disable the self-heal it guards.
+
+    Without this, the two tests above are satisfied by refusing everything.
+    """
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    (plugin / "lib" / "hook_safety.py").write_text("# 684-line intermediate\n")
+    _fake_deploy(plugin, consumer / ".claude")
+    _stamp(source_repo, consumer, dirty=True)
+    assert _check(consumer, capsys)[0] == 1
+
+    _git(source_repo, "add", "-A")
+    _git(source_repo, "commit", "-q", "-m", "commit it")
+
+    code, out = _check(consumer, capsys)
+    assert code == 0, f"a trustworthy record must still self-heal:\n{out}"
+    assert "since committed" in out
+    assert "not re-verifying" not in out, "a legitimate record must not be refused"
+
+
+def test_check_reports_a_recorded_symlink_that_escapes_the_deployed_tree(
+    consumer: Path, tmp_path: Path, capsys
+):
+    """The record is HONEST here and still governs nothing.
+
+    ``symlink:<target>`` matches, so drift detection passes, but the pointee is
+    never digested. Latent — zero symlinks exist under any deployed subdir today
+    — so this is reported rather than treated as tampering.
+    """
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    outside = tmp_path / "ungoverned.py"
+    outside.write_text("# nothing digests this\n")
+    os.symlink(outside, lib / "escapee.py")
+
+    _write_state(
+        consumer,
+        {"source_commit_short": "abc123", "digests": {"lib/escapee.py": f"symlink:{outside}"}},
+    )
+
+    code, out = _check(consumer, capsys)
+    assert code == 1, f"an escaping recorded symlink must be a finding; got:\n{out}"
+    assert "lib/escapee.py" in out
+    assert "OUTSIDE the deployed tree" in out
+
+
+def test_a_symlink_inside_the_deployed_tree_is_not_reported(consumer: Path, capsys):
+    """PERMITTING control: an in-tree symlink is fully governed and must stay quiet."""
+    lib = consumer / ".claude" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "real.py").write_text("# governed\n")
+    os.symlink("real.py", lib / "alias.py")
+
+    _write_state(
+        consumer,
+        {
+            "source_commit_short": "abc123",
+            "digests": {
+                "lib/real.py": hashlib.sha256(b"# governed\n").hexdigest(),
+                "lib/alias.py": "symlink:real.py",
+            },
+        },
+    )
+
+    code, out = _check(consumer, capsys)
+    assert code == 0, f"an in-tree symlink is governed and must not fire:\n{out}"
+
+
+# --------------------------------------------------------------------------
+# 23. Ordering — a remote refusal must not cancel local post-deploy validation
+# --------------------------------------------------------------------------
+
+
+def test_a_remote_failure_still_lets_local_validation_run(source_repo: Path):
+    """A remote-side problem left a COMPLETED local deploy unvalidated.
+
+    The remote gate refusal exits the heredoc with 1, so ``ssh`` returns 1, so
+    under ``set -euo pipefail`` the script died before step 4. The refusal keeps
+    its teeth (non-zero exit, counted in ERRORS); it just stops taking the local
+    validation down with it.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    remote_call = text.index("    deploy_remote || REMOTE_FAILED=true")
+    validation = text.index("=== Post-deploy validation ===")
+    assert remote_call < validation, "step 3 must still precede step 4"
+    assert "$REMOTE_FAILED; then" in text and "exit 1" in text[validation:], (
+        "a remote failure must still fail the command at the end"
+    )

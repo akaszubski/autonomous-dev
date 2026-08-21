@@ -52,17 +52,47 @@ def _run_deploy_dry_run(*args: str, env: dict | None = None) -> subprocess.Compl
 
     --dry-run is mandatory for these tests so we never actually rsync anything
     to the live ~/.claude/. We are testing what the script REPORTS it would do.
+
+    ``--dirty`` is always passed (Issue #1610). These tests exercise the REAL
+    worktree, which is dirty during any development cycle, and the provenance
+    gate refuses a dirty deploy — including in ``--dry-run``, because a preview
+    that hides a refusal is a lying preview. The subject here is the
+    ``--global-settings`` opt-in, not provenance, so they opt in explicitly.
+
+    The guard assertions live HERE rather than in the callers, so every present
+    and future caller is covered by construction. Placing them in one of three
+    call sites left the others able to turn ``--dirty`` into an undetectable
+    bypass without any test noticing.
     """
     full_env = os.environ.copy()
     if env:
         full_env.update(env)
-    return subprocess.run(
-        ["bash", str(DEPLOY_SCRIPT), *args],
+    result = subprocess.run(
+        ["bash", str(DEPLOY_SCRIPT), "--dirty", *args],
         cwd=str(REPO_ROOT),
         text=True,
         capture_output=True,
         timeout=60,
         env=full_env,
+    )
+    _assert_gate_ran_and_permitted(result)
+    return result
+
+
+def _assert_gate_ran_and_permitted(result: subprocess.CompletedProcess) -> None:
+    """The provenance gate must have RUN and PERMITTED — never been skipped.
+
+    Without this, the ``--dirty`` injected above would be an undetectable
+    bypass: these tests would pass identically whether the gate existed or not.
+    """
+    combined = result.stdout + result.stderr
+    assert "DEPLOY-GATE" in combined, (
+        "provenance gate did not run — --dirty must PERMIT, not bypass (Issue #1610)\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert "REFUSED" not in combined, (
+        "--dirty must permit the deploy\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 

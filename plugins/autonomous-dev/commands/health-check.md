@@ -70,6 +70,32 @@ else
   echo "PROOF-OF-BLOCK: not installed (run /sync)"
 fi
 
+# Deploy provenance (Issue #1610): deploy-all.sh copies the WORKING TREE, so
+# code that no validator approved can be the code that enforces. This reports
+# the commit the executing .claude/ tree came from and NAMES any file running
+# uncommitted content or drifting from the deploy record.
+#
+# Resolves across both layouts, same as proof-of-block above: installed
+# (.claude/scripts) and source (plugins/autonomous-dev/scripts). Pure stdlib,
+# no git required in the consumer repo — it reads .claude/.deploy-state.json.
+#
+# Deliberately NOT part of the exit OR below, for the same reason as
+# proof-of-block: a consumer-side check that turns /health-check permanently
+# red trains bypass of the whole command. On a correctly deployed tree it
+# prints one OK line and nothing else.
+DEPLOY_STATE_CHECK=""
+for CANDIDATE in \
+  "$PROJECT_ROOT/.claude/scripts/deploy_state.py" \
+  "$PROJECT_ROOT/plugins/autonomous-dev/scripts/deploy_state.py"; do
+  if [[ -f "$CANDIDATE" ]]; then DEPLOY_STATE_CHECK="$CANDIDATE"; break; fi
+done
+if [[ -n "$DEPLOY_STATE_CHECK" ]]; then
+  python3 "$DEPLOY_STATE_CHECK" check --repo "$PROJECT_ROOT"
+  echo "DEPLOY-STATE: exit $?"
+else
+  echo "DEPLOY-STATE: not installed (run /sync)"
+fi
+
 exit $(( STRUCT_RC | HOOK_RC | PLUGIN_REGISTERED ))
 ```
 ```
@@ -135,6 +161,37 @@ Validates 3 critical component types:
    - Prints resolved `REPO`/`HOOKS`/`ARTIFACTS` and `bypass: present|absent`
      first. Under a committed `.claude/.bypass` every guard legitimately allows,
      and that must be distinguishable from breakage
+
+8. **Deploy Provenance** (Issue #1610)
+   - `deploy-all.sh` copies the **working tree**, not `HEAD`, so uncommitted
+     code can be the code that enforces. Measured instance: a hook library
+     executing at 684 lines that existed in no commit — `git` could not revert it
+   - Reports the commit the executing `.claude/` tree was deployed from, and
+     NAMES any file running uncommitted content, drifting from
+     `.claude/.deploy-state.json`, or **present in the executing tree but
+     absent from the record** — the reverse direction, which is how a file
+     dropped into `.claude/lib/` after the deploy gets caught (hooks insert
+     that directory at `sys.path[0]`)
+   - Prints `DEPLOY-STATE: exit N`. **Does NOT affect this command's exit
+     status** — same no-cry-wolf reasoning as proof-of-block
+   - Also names files that were **already in the target when the deploy was
+     stamped** and that no source file accounts for. The reverse comparison
+     above cannot see those: the stamp walks the target, so a stray already
+     present is adopted into the record as legitimate and `executing − recorded`
+     is empty by construction. This arm compares against the **source** instead
+   - `exit 0` = executing tree matches a clean deploy record (one OK line, no
+     noise); `exit 1` = uncommitted, drifted, missing or unrecorded files, files
+     no source accounts for, or a recorded symlink pointing outside the deployed
+     tree — all named; `exit 2` = provenance unknown — no deploy record, a
+     record that is unparseable, or a record whose digest map is empty and
+     therefore verifies nothing. An empty record NEVER reports OK
+   - Files recorded as uncommitted **at deploy time** that have since been
+     committed, with the executing bytes untouched, are re-verified against the
+     source repo when it is reachable and stop being reported. A check that
+     stays red after the operator did the right thing is the one people learn
+     to skip
+   - Pure stdlib and git-free in the consumer repo: it reads the stamped
+     artifact, so it works from an installed tree with no plugin source
 
 ## Expected Output
 

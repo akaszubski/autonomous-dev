@@ -38,18 +38,27 @@ def test_rsync_commands_exclude_extensions():
 
     content = DEPLOY_SCRIPT.read_text()
 
-    # Find all rsync lines that use --delete
+    # Find all rsync INVOCATIONS that use --delete.
+    #
+    # Comments are excluded deliberately (Issue #1610). The previous filter was
+    # `"rsync" in line and "--delete" in line`, which matched prose: a comment
+    # explaining that `rsync -a --delete` does not clear excluded paths was
+    # reported as a command missing its exclusion. A guard that fires on a
+    # sentence is a guard people learn to route around by not writing the
+    # sentence, which is worse than the guard not existing.
     rsync_delete_lines = [
         line.strip()
         for line in content.splitlines()
-        if "rsync" in line and "--delete" in line
+        if line.strip().startswith("rsync ") and "--delete" in line
     ]
 
     assert rsync_delete_lines, "No rsync --delete lines found in deploy-all.sh"
 
+    # Both quoting forms are the same argument to rsync.
     violations = [
-        line for line in rsync_delete_lines
-        if "--exclude=extensions/" not in line
+        line
+        for line in rsync_delete_lines
+        if "--exclude=extensions/" not in line and "--exclude='extensions/'" not in line
     ]
 
     assert not violations, (

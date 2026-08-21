@@ -34,13 +34,44 @@ INSTALL_SCRIPT = REPO_ROOT / "install.sh"
 
 
 def _run_deploy(*args: str) -> subprocess.CompletedProcess:
-    """Run deploy-all.sh from the worktree root with the given args."""
-    return subprocess.run(
-        ["bash", str(DEPLOY_SCRIPT), *args],
+    """Run deploy-all.sh from the worktree root with the given args.
+
+    ``--dirty`` is always passed (Issue #1610). These tests exercise the REAL
+    worktree, which is dirty during any development cycle, and the provenance
+    gate now refuses a dirty deploy — including in ``--dry-run``, because a
+    preview that hides a refusal is a lying preview. Their subject is the
+    ``--global-settings`` flag, not provenance, so they opt in explicitly.
+
+    The guard assertions live HERE rather than in the callers, so every present
+    and future caller is covered by construction. Placing them in two of four
+    call sites left the other two able to turn ``--dirty`` into an undetectable
+    bypass without any test noticing.
+    """
+    result = subprocess.run(
+        ["bash", str(DEPLOY_SCRIPT), "--dirty", *args],
         cwd=str(REPO_ROOT),
         text=True,
         capture_output=True,
-        timeout=30,
+        timeout=60,
+    )
+    _assert_gate_ran_and_permitted(result)
+    return result
+
+
+def _assert_gate_ran_and_permitted(result: subprocess.CompletedProcess) -> None:
+    """The provenance gate must have RUN and PERMITTED — never been skipped.
+
+    Without this, the ``--dirty`` injected above would be an undetectable
+    bypass: the tests would pass identically whether the gate existed or not.
+    """
+    combined = result.stdout + result.stderr
+    assert "DEPLOY-GATE" in combined, (
+        "provenance gate did not run — --dirty must PERMIT, not bypass (Issue #1610)\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert "REFUSED" not in combined, (
+        "--dirty must permit the deploy\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 

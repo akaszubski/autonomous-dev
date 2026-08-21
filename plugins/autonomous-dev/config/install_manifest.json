@@ -402,6 +402,7 @@
         "plugins/autonomous-dev/scripts/align_project_retrofit.py",
         "plugins/autonomous-dev/scripts/complexity_assessor.py",
         "plugins/autonomous-dev/scripts/configure_global_settings.py",
+        "plugins/autonomous-dev/scripts/deploy_state.py",
         "plugins/autonomous-dev/scripts/drain_regression_check.py",
         "plugins/autonomous-dev/scripts/genai_install_wrapper.py",
         "plugins/autonomous-dev/scripts/install.py",
