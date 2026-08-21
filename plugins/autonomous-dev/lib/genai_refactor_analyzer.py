@@ -881,9 +881,17 @@ class GenAIRefactorAnalyzer:
             return None
 
         try:
-            from anthropic import Anthropic
+            # Issue #1593: the sanctioned construction site. A bare Anthropic()
+            # returns a truthy client with no credential and fails only at
+            # request time, where the except below would swallow it as a
+            # "batch submission failure".
+            from genai_credentials import get_anthropic_client
 
-            client = Anthropic()
+            client = get_anthropic_client(purpose="refactor_batch_submit")
+            if client is None:
+                logger.debug("Batch submission skipped: no Anthropic credential")
+                return None
+
             batch_requests = []
 
             for req in requests:
@@ -914,9 +922,14 @@ class GenAIRefactorAnalyzer:
             List of result dicts or None if not ready/failed.
         """
         try:
-            from anthropic import Anthropic
+            # Issue #1593: sanctioned construction site (see _submit_batch).
+            from genai_credentials import get_anthropic_client
 
-            client = Anthropic()
+            client = get_anthropic_client(purpose="refactor_batch_poll")
+            if client is None:
+                logger.debug("Batch poll skipped: no Anthropic credential")
+                return None
+
             batch = client.batches.retrieve(batch_id)
 
             if batch.processing_status != "ended":

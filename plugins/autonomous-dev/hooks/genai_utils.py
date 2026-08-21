@@ -243,31 +243,53 @@ class GenAIAnalyzer:
             return None
 
     def _initialize_client(self):
-        """Initialize Anthropic SDK client.
+        """Initialize the Anthropic SDK client via the sanctioned helper.
 
-        Handles:
-        - SDK import errors
-        - Authentication errors
-        - Environment configuration
+        Delegates to ``lib/genai_credentials.get_anthropic_client`` (Issue
+        #1593) rather than constructing ``Anthropic()`` directly. That matters
+        because ``Anthropic()`` does NOT raise when no credential is present --
+        it returns a truthy client whose ``api_key`` is ``None``, and the
+        ``TypeError`` only fires at request time where ``analyze()`` swallows
+        it. Constructing here therefore made ``self.client`` permanently
+        truthy, so the ``if not self.client`` guard at the top of ``analyze()``
+        could never fire and a missing credential was indistinguishable from a
+        model refusal.
+
+        Sets ``self.client`` to ``None`` when the SDK is unavailable, no
+        credential resolves, or the ``lib`` bridge cannot be reached. Never
+        raises.
         """
         try:
-            from anthropic import Anthropic
-
-            self.client = Anthropic()
-            if self.debug:
-                print("✅ Anthropic SDK initialized", file=sys.stderr)
-
+            # Resolved via the hooks -> lib sys.path bridge established above.
+            from genai_credentials import get_anthropic_client
         except ImportError:
             if self.debug:
                 print(
-                    "⚠️  Anthropic SDK not installed: pip install anthropic",
+                    "⚠️  genai_credentials helper unavailable; GenAI disabled",
                     file=sys.stderr,
                 )
             self.client = None
-        except Exception as e:
+            return
+
+        try:
+            self.client = get_anthropic_client(purpose="genai_utils")
+        except Exception as e:  # noqa: BLE001 - INV-8: hooks never raise
             if self.debug:
                 print(f"⚠️  Failed to initialize Anthropic SDK: {e}", file=sys.stderr)
             self.client = None
+            return
+
+        if self.debug:
+            if self.client is None:
+                # The helper emits the specific reason (SDK missing vs no
+                # credential) on the line above when DEBUG_GENAI is set.
+                print(
+                    "⚠️  No Anthropic client available; GenAI disabled "
+                    "(check ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN)",
+                    file=sys.stderr,
+                )
+            else:
+                print("✅ Anthropic SDK initialized", file=sys.stderr)
 
 
 def should_use_genai(feature_flag_var: str) -> bool:
