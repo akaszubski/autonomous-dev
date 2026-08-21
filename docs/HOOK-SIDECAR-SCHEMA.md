@@ -85,6 +85,8 @@ Utility modules are deployed alongside hooks but are not registered with any lif
 
 `type` gates deployment: `generate_hook_config.py` includes **every** sidecar in `install_manifest.json` but emits settings registrations for `type: "lifecycle"` sidecars only. A utility therefore ships to `~/.claude/hooks/` but is never wired to an event — choose `utility` whenever no real Claude Code lifecycle event applies, rather than inventing an event name to satisfy the `lifecycle` shape.
 
+**The declaration alone is not enough if the hook can refuse (Issue #1612).** `type: "utility"` is a schema-level claim of "imported by other hooks, not registered directly" — nothing enforces that a real importer exists. Commit `51743c87` declared two hooks `utility` on the strength of a module-docstring line and two comments that merely *mentioned* the hook's filename; no code actually imported or invoked either one, so both were unreachable by any path. `tests/unit/hooks/test_hook_reachability_ratchet.py` now checks this for every hook that can refuse (returns a deny/block/exit-nonzero decision, per the #1588 refusal instruments): a `utility` declaration only counts as reachable when a real `import`/`from-import` naming the hook's module, or a string constant naming the file passed as an argument to an **invocation-shaped** call — `run`, `Popen`, `call`, `check_call`, `check_output`, `run_path`, `execv`, `execvp`, `spawn`, or `system` (the module's `INVOCATION_CALLEES`) — or an executing shell line (not a `[ -f ... ]` existence check) resolves somewhere in the hook/lib/scripts corpus. A filename constant passed to any *other* call (a log line, a `print`, an `argparse` `help=` string) does not count — only an argument to one of those callees does. The importer chain must also be **grounded**: a `utility` hook whose only importer is another unregistered `utility` hook is still flagged, because that importer's own chain has to terminate at a `lib/`/`scripts/` consumer or a lifecycle-registered hook before it can vouch for anything. A refusal-capable hook that is neither registered on a lifecycle event nor genuinely (and groundedly) imported fails the ratchet, named, with the surfaces searched. A hook that cannot refuse (a pure library or observer) is unaffected — the check is scoped to hooks that can block.
+
 ```json
 {
   "name": "genai_utils",
@@ -128,6 +130,8 @@ Each registration entry can have its own matcher and timeout, allowing fine-grai
 2. Create the sidecar: `plugins/autonomous-dev/hooks/my_hook.hook.json`
 3. Generate configuration files from sidecar metadata (see **Configuration Generator** below)
 4. Verify the generated files and commit
+
+**If the hook can refuse** (returns a deny/block decision or a non-zero exit meant to stop the caller), it must also be *reachable*, or it silently never fires: give it `type: "lifecycle"` with at least one real `registrations` entry, or `type: "utility"` **and** a genuine importer/invoker elsewhere in the hooks/lib/scripts corpus (see the note under [Utility Modules](#utility-modules) above). `tests/unit/hooks/test_hook_reachability_ratchet.py` enforces this for every refusal-capable hook and will name yours if it fails either route.
 
 ## Configuration Generator
 
