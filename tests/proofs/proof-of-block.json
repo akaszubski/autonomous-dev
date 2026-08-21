@@ -1,6 +1,67 @@
 {
-  "recorded": "2026-08-16T04:56:21.581515+00:00",
-  "commit": "7c745c51",
+  "recorded": "2026-08-21T07:37:43.245133+00:00",
+  "commit": "c67bc8bd",
+  "instrument": {
+    "scenario": "protected-infrastructure-hard-floor / Write",
+    "baseline_decision": "deny",
+    "trace_probe": {
+      "positive": {
+        "aimed_at": "a run that denies (must log an attributable row)",
+        "observed": "2 row(s) tagged 'proof-of-block'",
+        "ok": true
+      },
+      "negative": {
+        "aimed_at": "the same count with no hook run in between",
+        "observed": "667 -> 667",
+        "ok": true
+      }
+    },
+    "positive_control": {
+      "aimed_at": "tool_intent (hook path-loads it)",
+      "markers": [
+        "POB_SHIM_INSTALLED:tool_intent",
+        "POB_FAULT_HIT:tool_intent"
+      ],
+      "ok": true,
+      "detail": "FAULT_HIT observed"
+    },
+    "negative_control": {
+      "aimed_at": "pob_module_that_does_not_exist (nothing imports it)",
+      "markers": [
+        "POB_SHIM_INSTALLED:pob_module_that_does_not_exist"
+      ],
+      "decision": "deny",
+      "ok": true,
+      "detail": "shim installed, never fired, decision unchanged"
+    },
+    "classifier": {
+      "cases": [
+        {
+          "case": "refuses",
+          "expected": "REFUSES",
+          "got": "REFUSES",
+          "ok": true,
+          "trace": "denied; 0 log row(s)"
+        },
+        {
+          "case": "loud",
+          "expected": "FAILS OPEN LOUDLY",
+          "got": "FAILS OPEN LOUDLY",
+          "ok": true,
+          "trace": "stderr: [stub] allowing because a dependency broke"
+        },
+        {
+          "case": "silent",
+          "expected": "FAILS OPEN SILENTLY",
+          "got": "FAILS OPEN SILENTLY",
+          "ok": true,
+          "trace": "none -- 0 log row(s) vs 0 ambient, no stderr; indistinguishable from an ordinary permitted call"
+        }
+      ],
+      "ok": true
+    },
+    "ok": true
+  },
   "results": [
     {
       "guard": "protected-infrastructure-hard-floor",
@@ -20,7 +81,21 @@
         "why": "an ordinary docs write must NOT be refused",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "import_raises:tool_intent",
+        "what": "the tool_intent import raises ImportError (a required import raises -- the #1471 shape)",
+        "touches": "_ti_is_write() delegates every write classification to tool_intent.is_write; on import failure it falls back to the literal 4-tuple ('Write','Edit','MultiEdit','NotebookEdit')",
+        "tool": "Write",
+        "injection_landed": "POB_FAULT_HIT:tool_intent",
+        "decision": "deny",
+        "reason": "BLOCKED: Direct edit to 'pipeline_state.py' denied. Infrastructure files (agents/, commands/, hooks/, lib/, skills/) require the /implement pipeline. Run: /implement \"description\" ",
+        "log_rows": 2,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "REFUSES",
+        "trace": "denied; 2 log row(s)"
+      }
     },
     {
       "guard": "mcp-write-classification",
@@ -40,7 +115,21 @@
         "why": "a read-only MCP tool must NOT be refused",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "import_raises:tool_intent",
+        "what": "the tool_intent import raises ImportError (a required import raises -- the #1471 shape)",
+        "touches": "_ti_is_write() delegates every write classification to tool_intent.is_write; on import failure it falls back to the literal 4-tuple ('Write','Edit','MultiEdit','NotebookEdit')",
+        "tool": "mcp__serena__replace_content",
+        "injection_landed": "POB_FAULT_HIT:tool_intent",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__serena__replace_content' not subject to ",
+        "log_rows": 1,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "FAILS OPEN SILENTLY",
+        "trace": "none -- 1 log row(s) vs 1 ambient, no stderr; indistinguishable from an ordinary permitted call"
+      }
     },
     {
       "guard": "plan-exit-gate",
@@ -60,7 +149,21 @@
         "why": "at plan_exited the mandated search path must still work; reading is not acting",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "state_corrupt:.claude/plan_mode_exit.json",
+        "what": "the plan-exit state file is unreadable (truncated garbage)",
+        "touches": "_read_plan_exit_marker() is the sole source of the stage this gate switches on; its corruption branch unlinks the marker and returns None",
+        "tool": "mcp__serena__replace_content",
+        "injection_landed": ".claude/plan_mode_exit.json consumed (unlinked) by the hook",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__serena__replace_content' not subject to ",
+        "log_rows": 1,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "FAILS OPEN SILENTLY",
+        "trace": "none -- 1 log row(s) vs 1 ambient, no stderr; indistinguishable from an ordinary permitted call"
+      }
     },
     {
       "guard": "write-pipeline-gate",
@@ -80,7 +183,21 @@
         "why": "a markdown doc must NOT be refused",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "import_raises:edit_tier_classifier",
+        "what": "the edit_tier_classifier import raises ImportError",
+        "touches": "_check_write_pipeline_required() calls _safe_classify_edit_tier() to pick the fix/light/full tier printed in the deny directive",
+        "tool": "Write",
+        "injection_landed": "POB_FAULT_HIT:edit_tier_classifier",
+        "decision": "deny",
+        "reason": "BLOCKED: Write/Edit to code file 'pob_probe_newfile.py' requires the /implement pipeline. File: /Users/akaszubski/Dev/autonomous-dev/scripts/pob_probe_newfile.py Tier: full. REQUIR",
+        "log_rows": 2,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "REFUSES",
+        "trace": "denied; 2 log row(s)"
+      }
     },
     {
       "guard": "mcp-rename-symbol-is-a-write",
@@ -100,7 +217,21 @@
         "why": "get_symbols_overview only reads",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "attr_missing:tool_intent.is_write",
+        "what": "tool_intent loads but no longer exposes is_write (a helper that no longer has the attribute -- the #1471 mechanism precisely)",
+        "touches": "_ti_is_write() capability-probes with hasattr because tool_intent is spec_from_file_location-loaded; a stale install can expose classify/write_targets but not is_write",
+        "tool": "mcp__serena__rename_symbol",
+        "injection_landed": "POB_FAULT_HIT:tool_intent",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__serena__rename_symbol' not subject to wo",
+        "log_rows": 1,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "FAILS OPEN SILENTLY",
+        "trace": "none -- 1 log row(s) vs 1 ambient, no stderr; indistinguishable from an ordinary permitted call"
+      }
     },
     {
       "guard": "mcp-side-effect-set",
@@ -120,7 +251,21 @@
         "why": "browser_snapshot only observes",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "logs_unwritable",
+        "what": "every write/append open() under a logs/ directory raises OSError(EACCES) -- does enforcement survive telemetry failure?",
+        "touches": "output_decision is wrapped by hook_telemetry's block_event_decorator, which appends to .claude/logs/hook-blocks.jsonl on every deny; _log_pretool_activity appends to .claude/logs/activity/",
+        "tool": "mcp__playwright__browser_evaluate",
+        "injection_landed": "POB_FAULT_HIT:<log destination>",
+        "decision": "deny",
+        "reason": "Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1",
+        "log_rows": 0,
+        "ambient_rows": 1,
+        "stderr": "[hook-telemetry] {\"ts\": \"2026-08-21T07:37:42.729996+00:00\", \"hook_name\": \"unified_pre_tool.py\", \"decision_shape\": \"tuple\", \"reason\": \"Run plan-critic, /implement --skip-review, or set AUTONOMOUS_DEV_SKIP_PLAN_REVIEW=1\", \"metadata\": {}, \"ses",
+        "outcome": "REFUSES",
+        "trace": "denied; 0 log row(s)"
+      }
     },
     {
       "guard": "unenumerated-mcp-writer-by-shape",
@@ -140,7 +285,21 @@
         "why": "the same unknown server's read tool must NOT be refused",
         "ok": true
       },
-      "verdict": "PROVEN"
+      "verdict": "PROVEN",
+      "fault": {
+        "fault": "import_raises:tool_intent",
+        "what": "the tool_intent import raises ImportError (a required import raises -- the #1471 shape)",
+        "touches": "_ti_is_write() delegates every write classification to tool_intent.is_write; on import failure it falls back to the literal 4-tuple ('Write','Edit','MultiEdit','NotebookEdit')",
+        "tool": "mcp__someserver__apply_patch",
+        "injection_landed": "POB_FAULT_HIT:tool_intent",
+        "decision": "allow",
+        "reason": "[Sandbox] Sandbox layer disabled - pass through; [MCP Security] MCP security validator unavailable \u2014 default allow; [Agent Auth] Tool 'mcp__someserver__apply_patch' not subject to ",
+        "log_rows": 1,
+        "ambient_rows": 1,
+        "stderr": "",
+        "outcome": "FAILS OPEN SILENTLY",
+        "trace": "none -- 1 log row(s) vs 1 ambient, no stderr; indistinguishable from an ordinary permitted call"
+      }
     }
   ]
 }

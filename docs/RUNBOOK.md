@@ -288,6 +288,42 @@ The script is **idempotent**: if the latest tag matches the state file, it exits
 
 ---
 
+## Guard Enforcement Verification (proof-of-block, Issue #1586)
+
+A guard is not enforcement until it has been watched refusing something. `proof_of_block.py`
+drives each block-capable guard end-to-end and reports whether it both refused a realistic bad
+action and permitted the closest legitimate one — the only artifact in this repo that
+demonstrates both control arms, and the only one that runs the same way in a consumer repo.
+
+**Run it**:
+```bash
+# Source checkout
+python3 plugins/autonomous-dev/scripts/proof_of_block.py
+
+# Installed (this repo or a consumer repo, after deploy-all.sh / /sync)
+python3 .claude/scripts/proof_of_block.py
+```
+Exit 0 = every guard PROVEN. Non-zero = see stderr for which guard and why; `--json` for
+machine-readable output; `--no-fault` for the faster happy-path-only run used by `/health-check`.
+
+**Re-record the baseline** after adding/removing a guard, or after an intentional change to which
+guards fail open silently:
+```bash
+python3 plugins/autonomous-dev/scripts/proof_of_block.py --record --artifacts tests/proofs
+```
+Commit the result at `tests/proofs/proof-of-block.json` — deliberately **not** under
+`.claude/proofs/` (the harness's own default `--record` target), which `.gitignore:147` ignores;
+a baseline recorded there could never be re-committed and the pin would go silently stale.
+
+**CI**: the `smoke` job in `.github/workflows/ci.yml` runs it with `continue-on-error: true`
+(tracked: #1604). A pristine `actions/checkout` has no installed `.claude/` marker, so four
+protected-infrastructure guards correctly decline to fire and the run reports 3/7 rather than
+7/7 — an environment difference, not a regression. The `--check-silent-regression --baseline
+tests/proofs/proof-of-block.json` ratchet is deliberately not yet passed in CI for the same
+reason; see the workflow file for the closing condition.
+
+---
+
 ## Enforcement
 
 **PROJECT.md is the gatekeeper** — All work validates against this file before execution.

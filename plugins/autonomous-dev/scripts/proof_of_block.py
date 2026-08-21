@@ -83,12 +83,24 @@ FAULT_HIT) and a shim aimed at a module nothing imports (must show
 SHIM_INSTALLED, must NOT show FAULT_HIT, and must reproduce the unfaulted
 decision exactly). A probe that returns zero is not evidence of zero.
 
+PORTABILITY (Issue #1586)
+-------------------------
+This harness ships to consumer repos, so it may NOT assume the autonomous-dev
+source layout. Every path is resolved at runtime -- no fixed-depth parent-index
+arithmetic, which silently resolves to the wrong directory the moment the file
+moves or is installed at a different depth. ``REPO`` comes from the canonical
+``path_utils.find_project_root()`` (the sanctioned sink, not a private copy),
+and ``HOOKS``/``ARTIFACTS`` are resolved against candidate lists that cover
+both the source tree and the installed ``.claude/`` tree.
+
 USAGE
 -----
     python3 proof_of_block.py            # replay, exit 1 on any failure
     python3 proof_of_block.py --record   # write artifacts
     python3 proof_of_block.py --json
     python3 proof_of_block.py --no-fault # happy-path arms only
+    python3 proof_of_block.py --artifacts DIR       # redirect --record
+    python3 proof_of_block.py --check-silent-regression --baseline P
 """
 
 from __future__ import annotations
@@ -99,13 +111,152 @@ import os
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-REPO = Path(__file__).resolve().parents[1]
-HOOKS = REPO / "plugins" / "autonomous-dev" / "hooks"
-ARTIFACTS = REPO / "tests" / "proofs"
+# --------------------------------------------------------------------------
+# path resolution
+# --------------------------------------------------------------------------
+# Exit code used for every "cannot resolve a required directory" case. Distinct
+# from 1 (a guard finding) so a caller can tell "the harness could not run"
+# apart from "the harness ran and found something".
+EXIT_UNRESOLVABLE = 2
+
+
+def _find_lib_dir() -> Optional[Path]:
+    """Locate the autonomous-dev ``lib`` directory across both layouts.
+
+    Mirrors the verified idiom in ``persist_intent_answer.py``: the install
+    manifest maps ``scripts`` -> ``.claude/scripts`` and ``lib`` -> ``.claude/lib``
+    as siblings, so ``<this file>/../lib`` resolves in the installed tree, and
+    the same relative step resolves in the source tree
+    (``plugins/autonomous-dev/scripts`` -> ``plugins/autonomous-dev/lib``).
+
+    Returns:
+        The first existing candidate directory, or None if none exist.
+    """
+    for candidate in _lib_dir_candidates():
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _lib_dir_candidates() -> list:
+    """Candidate ``lib`` directories, in priority order.
+
+    Split out from :func:`_find_lib_dir` so the failure path can print exactly
+    what was tried rather than a bare "not found".
+    """
+    return [
+        # Sibling of this script: works in BOTH source and installed layouts.
+        Path(__file__).resolve().parent.parent / "lib",
+        # Running from a source checkout with a different cwd.
+        Path.cwd() / "plugins" / "autonomous-dev" / "lib",
+        # Installed into a consumer repo.
+        Path.cwd() / ".claude" / "lib",
+        # Global install.
+        Path.home() / ".autonomous-dev" / "lib",
+        # Marketplace install.
+        Path.home() / ".claude" / "plugins" / "autonomous-dev" / "lib",
+    ]
+
+
+_LIB_DIR = _find_lib_dir()
+if _LIB_DIR is not None and str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    from path_utils import find_project_root
+except ImportError:  # pragma: no cover - exercised by the exit-2 path below
+    # D1: no inline fallback. A fallback here would be a third copy of
+    # _detect_project_root, and if lib/ is unreachable the hooks under test
+    # cannot load their own dependencies either -- so failing is correct.
+    sys.stderr.write(
+        "proof_of_block: cannot import path_utils.find_project_root\n"
+        "Expected the autonomous-dev lib/ directory at one of:\n"
+        + "".join(f"  {c}\n" for c in _lib_dir_candidates())
+        + "See: plugins/autonomous-dev/config/install_manifest.json "
+          "(components.lib.target)\n"
+    )
+    sys.exit(EXIT_UNRESOLVABLE)
+
+
+def resolve_hooks_dir(repo: Path, script: Optional[Path] = None) -> Optional[Path]:
+    """Resolve the directory holding the hooks under test.
+
+    Args:
+        repo: Project root, as returned by ``find_project_root()``.
+        script: Path of this script; defaults to ``__file__``. Injectable so
+            the tests can drive synthetic source/installed trees.
+
+    Returns:
+        The first existing candidate, or None when none exist.
+    """
+    for candidate in hooks_dir_candidates(repo, script):
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def hooks_dir_candidates(repo: Path, script: Optional[Path] = None) -> list:
+    """Candidate hook directories, in priority order.
+
+    Sibling-of-script comes first so an INSTALLED copy tests the installed
+    hooks (the ones that actually run) rather than a source tree that may also
+    be present. Verifying the copy that executes is the entire point.
+    """
+    here = Path(script).resolve() if script is not None else Path(__file__).resolve()
+    return [
+        here.parent.parent / "hooks",
+        repo / "plugins" / "autonomous-dev" / "hooks",
+        repo / ".claude" / "hooks",
+    ]
+
+
+def resolve_artifacts_dir(repo: Path, override: Optional[str] = None) -> Path:
+    """Resolve where ``--record`` writes.
+
+    D2: always ``<repo>/.claude/proofs`` unless overridden. ``.claude/`` exists
+    wherever the plugin is installed; ``tests/`` does not, so keying off
+    ``tests/`` would make the artifact path depend on whether the consumer repo
+    happens to have a test suite.
+
+    Args:
+        repo: Project root.
+        override: Value of ``--artifacts``, if supplied.
+
+    Returns:
+        Directory path (not created here; ``--record`` creates it).
+    """
+    if override:
+        return Path(override).expanduser().resolve()
+    return repo / ".claude" / "proofs"
+
+
+try:
+    REPO = find_project_root()
+except FileNotFoundError:
+    sys.stderr.write(
+        "proof_of_block: cannot locate a project root\n"
+        f"Expected a .git or .claude directory at or above: {Path.cwd()}\n"
+        "Run this from inside a repository.\n"
+    )
+    sys.exit(EXIT_UNRESOLVABLE)
+
+HOOKS = resolve_hooks_dir(REPO)
+if HOOKS is None:
+    sys.stderr.write(
+        "proof_of_block: cannot locate the hooks directory\n"
+        "Tried:\n"
+        + "".join(f"  {c}\n" for c in hooks_dir_candidates(REPO))
+        + "Install the plugin (/sync) so .claude/hooks/ exists.\n"
+    )
+    sys.exit(EXIT_UNRESOLVABLE)
+
+# Default only; main() re-resolves once --artifacts is parsed.
+ARTIFACTS = resolve_artifacts_dir(REPO)
 
 BLOCKED = {"deny", "block", "ask"}
 
@@ -121,7 +272,32 @@ def _adev_repo(root: Path) -> Path:
     contains the string "autonomous-dev". Learned the hard way: an empty
     ``{}`` passes the exists() check, fails the content check, and silently
     reproduces nothing -- a fixture that cannot observe the behaviour it names.
+
+    Args:
+        root: Throwaway directory to build the fixture in.
+
+    Returns:
+        ``root``, populated.
+
+    Raises:
+        RuntimeError: If ``root`` is the real repository. This function runs
+            ``git init`` and OVERWRITES ``marketplace.json`` with a 31-byte
+            stub; the real file is the marker CLAUDE.md documents as the
+            detector for self-maintenance mode. The refusal lives HERE rather
+            than at a call site because a call-site check only covers the call
+            sites that exist today -- ``_plan_exited`` also delegates here, and
+            reordering ``GUARDS`` is an ordinary maintenance edit.
     """
+    if Path(root).resolve() == REPO.resolve():
+        raise RuntimeError(
+            f"refusing to build the autonomous-dev fixture inside the real "
+            f"repo: {REPO}\n"
+            f"This fixture runs `git init` and overwrites "
+            f"plugins/autonomous-dev/.claude-plugin/marketplace.json with a "
+            f"stub.\n"
+            f"Expected: a throwaway temp directory. Guards that must target "
+            f"the canonical source use the _real_repo fixture instead."
+        )
     (root / ".claude").mkdir(parents=True, exist_ok=True)
     (root / "src").mkdir(exist_ok=True)
     (root / "docs").mkdir(exist_ok=True)
@@ -153,9 +329,28 @@ def _real_repo(root: Path) -> Path:
     so the guard correctly declines to fire there -- and a harness using a temp
     fixture reports a false FAILS-OPEN.
 
-    This is safe: PreToolUse only RETURNS a decision. The hook never performs
-    the tool call, so pointing at real protected paths mutates nothing. Both
-    scenarios below are decision-only.
+    The hook never performs the tool call -- PreToolUse only RETURNS a
+    decision -- so the ACTION under test mutates nothing.
+
+    That is not the same as "this mutates nothing", and an earlier revision of
+    this docstring claimed the stronger thing. It was false. Deciding is not
+    free: the hook reads and prunes its own state on the way to a decision, and
+    two of those pruning arms delete real files under this cwd.
+
+      - ``_is_stale_session()`` treats the driven ``session_id`` as an
+        OWNERSHIP CLAIM and unlinks ``.claude/local/implement_pipeline_state.json``
+        when the stored id differs. Measured: a sentinel carrying a real
+        session id was DELETED, while one carrying the probe's own tag, one
+        carrying ``unknown``, and one driven with a matching id all SURVIVED.
+      - ``_read_plan_exit_marker()`` unlinks ``.claude/plan_mode_exit.json``
+        when it is stale-by-TTL or corrupt. Measured: 5 of 8 real-repo runs
+        deleted a planted stale marker; a fresh marker and a no-hook-run
+        control both survived.
+
+    Both are neutralised in :func:`drive_raw` -- by redirecting
+    ``PIPELINE_STATE_FILE`` to a throwaway path, and by snapshot/restore of the
+    marker -- so the claim above is now true BY CONSTRUCTION rather than by
+    assertion. See :func:`drive_raw` and :func:`_preserved_plan_exit_marker`.
 
     Caught by comparing against a control that ran the same payload against the
     real repo and got `deny` -- the first draft of this harness reported two
@@ -644,9 +839,85 @@ def _write_shim(fault: Optional[dict], stage: Path) -> dict:
     }
 
 
+_PLAN_EXIT_MARKER_REL = ".claude/plan_mode_exit.json"
+
+
+@contextmanager
+def _preserved_plan_exit_marker(cwd: Path):
+    """Snapshot and restore the REAL repo's plan-mode-exit marker.
+
+    ``unified_pre_tool._read_plan_exit_marker()`` resolves
+    ``.claude/plan_mode_exit.json`` from ``os.getcwd()`` and UNLINKS it when it
+    is stale-by-TTL or corrupt. For the four ``_real_repo`` guards that cwd is
+    the user's repository, so an ordinary probe run silently consumed real
+    plan-mode state. Measured: 5 of 8 real-repo guard runs deleted a planted
+    stale marker; a planted-but-not-driven marker and a fresh (in-TTL) marker
+    both survived, so the deletions were signal and not an artefact.
+
+    Unlike the pipeline sentinel there is no environment override to redirect
+    (the path is a module constant joined to the cwd), so the hazard is removed
+    by snapshot/restore instead.
+
+    Scoped to ``cwd == REPO`` deliberately. Temp fixtures are throwaway, AND
+    restoring there would break :func:`run_fault`'s positive control for
+    ``FAULT_PLAN_MARKER_CORRUPT``, which proves the fault landed precisely BY
+    the hook having consumed the fixture's marker.
+
+    Args:
+        cwd: Working directory the hook subprocess will run in.
+
+    Yields:
+        None.
+    """
+    if Path(cwd).resolve() != REPO.resolve():
+        yield
+        return
+
+    marker = REPO / _PLAN_EXIT_MARKER_REL
+    try:
+        snapshot = marker.read_bytes()
+    except OSError:
+        snapshot = None
+
+    try:
+        yield
+    finally:
+        try:
+            if snapshot is None:
+                # The probe must not LEAVE one either: a plan-exit marker this
+                # harness created would gate the user's next write.
+                marker.unlink(missing_ok=True)
+            elif not marker.exists() or marker.read_bytes() != snapshot:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_bytes(snapshot)
+        except OSError as exc:
+            sys.stderr.write(
+                f"proof_of_block: could not restore {marker}: {exc}\n"
+                f"Real plan-mode state may have been consumed by a probe run.\n"
+            )
+
+
 def drive_raw(hook: Path, tool_name: str, tool_input: dict, cwd: Path,
               *, env_overrides: Optional[dict] = None) -> dict:
     """Run the hook the way Claude Code does, keeping stderr and log deltas.
+
+    Every run is isolated from the REAL repository's pipeline state by
+    construction. ``session_id`` below is not merely a label: the hook reads it
+    as an OWNERSHIP CLAIM over the sentinel, and ``_is_stale_session()`` unlinks
+    ``.claude/local/implement_pipeline_state.json`` outright when the stored id
+    differs from the incoming one. Every run of this harness therefore used to
+    DELETE the live sentinel of whatever session happened to be in flight --
+    against the real repo for four of the seven guards -- reaching the exact
+    deletion Issue #803's Bash guard hard-blocks, without ever traversing it.
+    ``/health-check`` invokes this script, so a developer could degrade their
+    own enforcement posture mid-``/implement`` with no indication.
+
+    ``PIPELINE_STATE_FILE`` is already honoured by ``unified_pre_tool`` (it is
+    the sanctioned override), so pointing it at a throwaway directory removes
+    the hazard by construction rather than by remembering to avoid it. It also
+    makes the harness DETERMINISTIC: results no longer depend on whether a
+    pipeline happens to be active on the machine at the moment it runs, which is
+    an uncontrolled variable in an instrument whose whole purpose is measurement.
 
     Args:
         hook: Path to the hook script.
@@ -657,10 +928,11 @@ def drive_raw(hook: Path, tool_name: str, tool_input: dict, cwd: Path,
 
     Returns:
         dict with ``decision``, ``reason``, ``stderr`` (shim markers removed),
-        ``markers`` (the shim lines), and ``log_growth`` in bytes.
+        ``markers`` (the shim lines), and ``log_rows``.
     """
     payload = {
-        "session_id": "proof-of-block",
+        # Same value _log_rows() filters on -- see its docstring.
+        "session_id": SESSION_TAG,
         "transcript_path": "/dev/null",
         "cwd": str(cwd),
         "hook_event_name": "PreToolUse",
@@ -672,13 +944,20 @@ def drive_raw(hook: Path, tool_name: str, tool_input: dict, cwd: Path,
     for k in ("AUTONOMOUS_DEV_BYPASS", "ENFORCEMENT_LEVEL", "SKIP_PLAN_CHECK",
               "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW"):
         env.pop(k, None)
-    env.update(env_overrides or {})
 
-    before = _log_rows(cwd)
-    p = subprocess.run([sys.executable, str(hook)], input=json.dumps(payload),
-                       capture_output=True, text=True, timeout=120,
-                       cwd=str(cwd), env=env)
-    after = _log_rows(cwd)
+    with tempfile.TemporaryDirectory(prefix="pob-state-") as state_dir:
+        env["PIPELINE_STATE_FILE"] = str(
+            Path(state_dir) / "implement_pipeline_state.json")
+        # env_overrides last so a caller can still aim a fault at the sentinel
+        # deliberately; nothing in this module does.
+        env.update(env_overrides or {})
+
+        with _preserved_plan_exit_marker(cwd):
+            before = _log_rows(cwd)
+            p = subprocess.run([sys.executable, str(hook)],
+                               input=json.dumps(payload), capture_output=True,
+                               text=True, timeout=120, cwd=str(cwd), env=env)
+            after = _log_rows(cwd)
 
     decision, reason = "allow", ""
     for line in p.stdout.splitlines():
@@ -925,6 +1204,34 @@ def verify_classifier() -> dict:
     return out
 
 
+def _first_real_repo_guard() -> dict:
+    """The guard :func:`verify_injection_instrument` drives, selected BY FIXTURE.
+
+    This was ``GUARDS[0]``, which was safe for one accidental reason:
+    ``GUARDS[0]``'s fixture happens to be :func:`_real_repo`, which ignores the
+    root it is handed. Reordering ``GUARDS`` -- an ordinary maintenance edit --
+    would have handed the real repository to a temp-dir fixture. Selecting by
+    fixture identity removes the positional coupling rather than documenting it.
+
+    Returns:
+        The first guard whose fixture is :func:`_real_repo`.
+
+    Raises:
+        RuntimeError: If no guard uses it. Caught in :func:`main` and reported
+            as EXIT_UNRESOLVABLE, because a harness that cannot verify its own
+            instrument has not run -- it has not found anything.
+    """
+    for guard in GUARDS:
+        if guard["fixture"] is _real_repo:
+            return guard
+    raise RuntimeError(
+        "no guard uses the _real_repo fixture\n"
+        "Expected at least one, because the injection instrument must be "
+        "verified against a scenario that exercises the canonical source.\n"
+        "See GUARDS in this file."
+    )
+
+
 def verify_injection_instrument() -> dict:
     """Prove the injection mechanism before trusting a single fault result.
 
@@ -954,7 +1261,7 @@ def verify_injection_instrument() -> dict:
         dict with ``ok`` plus the observed evidence for each control.
     """
     hook = HOOKS / "unified_pre_tool.py"
-    spec = GUARDS[0]                      # protected-infra floor, deny expected
+    spec = _first_real_repo_guard()       # protected-infra floor, deny expected
     pos = spec["positive"]
     root = spec["fixture"](REPO)
     out = {"scenario": f"{spec['guard']} / {pos['tool_name']}"}
@@ -1069,17 +1376,265 @@ def run_guard(spec: dict, *, with_fault: bool = True) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------
+# exit floor
+# --------------------------------------------------------------------------
+
+def compute_exit_code(results: list, instrument: Optional[dict]) -> int:
+    """Decide the process exit code from the run's results.
+
+    Extracted so the floor is testable. The floor is RUNTIME-ENUMERATED --
+    ``proven == len(results)`` -- and must stay that way. A literal (e.g. "7")
+    rots the moment ``GUARDS`` changes and would silently pass a run that lost
+    a guard. ``test_compute_exit_code_three_guards_all_proven`` is the
+    anti-substitution control: it exits 0 with only three guards, which a
+    hardcoded 7 cannot do.
+
+    Exit code polarity: the fault OUTCOMES never gate. Fail-open is often the
+    right call, and the deliverable is the classification -- a guard that fails
+    open silently is a FINDING for a human, not a build break. A broken
+    INSTRUMENT does gate, because unverified injection makes every fault result
+    vacuous, which is the exact defect that arm exists to find.
+
+    Args:
+        results: Per-guard result dicts from :func:`run_guard`.
+        instrument: Instrument health dict, or None when ``--no-fault``.
+
+    Returns:
+        0 when every guard is PROVEN and the instrument is trustworthy, else 1.
+    """
+    # An empty result set is NOT a pass. `proven == len(results)` alone is
+    # vacuously true for zero guards, which would report success for a run that
+    # proved nothing -- a probe returning zero is not evidence of zero.
+    if not results:
+        return 1
+
+    proven = sum(1 for r in results if r["verdict"] == "PROVEN")
+    ok = proven == len(results)
+
+    if instrument is not None:
+        ok = ok and bool(instrument.get("ok"))
+        unverified = sum(1 for r in results
+                         if r.get("fault", {}).get("outcome")
+                         == UNVERIFIED_INJECTION)
+        ok = ok and unverified == 0
+
+    return 0 if ok else 1
+
+
+def silent_set(results: list) -> set:
+    """Names of guards classified FAILS OPEN SILENTLY in ``results``."""
+    return {r["guard"] for r in results
+            if r.get("fault", {}).get("outcome") == SILENT}
+
+
+def compare_silent_set(current_results: list, baseline_path: Path) -> tuple:
+    """Compare the current SILENT set against a recorded baseline.
+
+    Membership is compared as a SET, never as a count: one guard going silent
+    while another is fixed nets out to an unchanged count, which is exactly the
+    regression this ratchet exists to catch.
+
+    Args:
+        current_results: Per-guard results from the current run.
+        baseline_path: Path to a recorded ``proof-of-block.json``.
+
+    Returns:
+        ``(newly_silent, no_longer_silent)`` as sets of guard names.
+
+    Raises:
+        FileNotFoundError: If the baseline does not exist.
+        ValueError: If the baseline is unusable -- unparseable, not a JSON
+            object, ``results`` not an array, empty, carrying non-object
+            entries, or carrying no fault data. The last case matters most: a
+            baseline recorded with ``--no-fault`` has an empty SILENT set for
+            the trivial reason that nothing was classified, so reporting "no
+            new silent guards" from it would be a vacuous pass -- the precise
+            failure mode this ratchet exists to prevent.
+
+    Note:
+        The shape checks below exist so that a MALFORMED INSTRUMENT is never
+        reported as a GUARD FINDING. Only ``json.JSONDecodeError`` was caught
+        originally; a baseline of ``5``, ``[]`` or ``{"results": [1, 2]}``
+        raised AttributeError/TypeError straight past ``main()``'s
+        ``except (FileNotFoundError, ValueError)`` and exited 1 -- the code that
+        means "the harness ran and found a guard problem" -- sending an operator
+        hunting for a broken guard that does not exist. Every case below raises
+        ``ValueError`` in the established message shape so the existing handler
+        catches it and the run exits ``EXIT_UNRESOLVABLE``.
+    """
+    if not baseline_path.exists():
+        raise FileNotFoundError(
+            f"proof-of-block baseline not found: {baseline_path}\n"
+            f"Expected a recorded artifact with fault data.\n"
+            f"Record one with: proof_of_block.py --record --artifacts "
+            f"{baseline_path.parent}"
+        )
+
+    try:
+        baseline = json.loads(baseline_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"proof-of-block baseline is not valid JSON: {baseline_path}\n"
+            f"Parse error: {exc}\n"
+            f"Re-record it with: proof_of_block.py --record --artifacts "
+            f"{baseline_path.parent}"
+        ) from exc
+
+    if not isinstance(baseline, dict):
+        raise ValueError(
+            f"proof-of-block baseline is not a JSON object: {baseline_path}\n"
+            f"Expected a top-level object carrying a 'results' array; got "
+            f"{type(baseline).__name__}.\n"
+            f"Re-record it with: proof_of_block.py --record --artifacts "
+            f"{baseline_path.parent}"
+        )
+
+    baseline_results = baseline.get("results") or []
+    if not isinstance(baseline_results, list):
+        raise ValueError(
+            f"proof-of-block baseline 'results' is not an array: "
+            f"{baseline_path}\n"
+            f"Expected a list of per-guard result objects; got "
+            f"{type(baseline_results).__name__}.\n"
+            f"Re-record it with: proof_of_block.py --record"
+        )
+    if not baseline_results:
+        raise ValueError(
+            f"proof-of-block baseline has no results: {baseline_path}\n"
+            f"Expected at least one recorded guard.\n"
+            f"Re-record it with: proof_of_block.py --record"
+        )
+
+    malformed = [i for i, r in enumerate(baseline_results)
+                 if not isinstance(r, dict)]
+    if malformed:
+        raise ValueError(
+            f"proof-of-block baseline has non-object result entries: "
+            f"{baseline_path}\n"
+            f"Expected every entry in 'results' to be an object; indices "
+            f"{malformed} are not.\n"
+            f"Re-record it with: proof_of_block.py --record"
+        )
+
+    with_fault = [r for r in baseline_results if "fault" in r]
+    if not with_fault:
+        raise ValueError(
+            f"proof-of-block baseline carries no fault data: {baseline_path}\n"
+            f"Expected a 'fault' key on each of its {len(baseline_results)} "
+            f"result(s); found 0. It was recorded with --no-fault, so its "
+            f"SILENT set is empty for a trivial reason and comparing against "
+            f"it would pass vacuously.\n"
+            f"Re-record it WITHOUT --no-fault: proof_of_block.py --record"
+        )
+
+    base_silent = silent_set(baseline_results)
+    cur_silent = silent_set(current_results)
+    return cur_silent - base_silent, base_silent - cur_silent
+
+
+def log_activity_row(repo: Path, results: list, exit_code: int) -> Optional[Path]:
+    """Append one findable row to the activity sink (D4's machine reader).
+
+    The sink carries 6,472-23,997 rows/day and its existing readers are
+    pipeline-intent-shaped, so the row MUST carry a top-level
+    ``"type": "proof_of_block"`` -- a row that is written but unfindable is the
+    same defect as one never written. No existing row in that sink carries a
+    ``type`` field, so this value selects exactly this harness's rows.
+
+    Failure to write is swallowed deliberately: observability must never break
+    the thing it observes. The path is returned so callers can report it.
+
+    Args:
+        repo: Project root.
+        results: Per-guard results.
+        exit_code: The exit code this run will return.
+
+    Returns:
+        The log file written, or None if the write failed.
+    """
+    # The fault arm may be off (--no-fault, which is what /health-check uses).
+    # In that case the SILENT set is empty for a TRIVIAL reason -- nothing was
+    # classified -- and emitting `"silent": []` would tell a reader "no guards
+    # fail open silently", which is the vacuous-empty-set trap this harness
+    # exists to detect. Emit null plus an explicit fault_arm flag instead, so
+    # "not measured" and "measured, none found" are distinguishable.
+    fault_arm = any("fault" in r for r in results)
+    row = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "type": "proof_of_block",
+        "hook": "proof_of_block",
+        "session_id": SESSION_TAG,
+        "exit_code": exit_code,
+        "proven": sum(1 for r in results if r["verdict"] == "PROVEN"),
+        "total": len(results),
+        "verdicts": {r["guard"]: r["verdict"] for r in results},
+        "fault_arm": fault_arm,
+        "silent": sorted(silent_set(results)) if fault_arm else None,
+    }
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = repo / ".claude" / "logs" / "activity" / f"{day}.jsonl"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except OSError as exc:
+        sys.stderr.write(f"proof_of_block: could not log activity row: {exc}\n")
+        return None
+    return path
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--record", action="store_true", help="write artifacts")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-fault", action="store_true",
                     help="skip the fault-injection arm (happy path only)")
+    ap.add_argument("--artifacts", metavar="DIR", default=None,
+                    help="directory --record writes to "
+                         "(default: <project root>/.claude/proofs)")
+    ap.add_argument("--baseline", metavar="PATH", default=None,
+                    help="recorded artifact to ratchet the SILENT set against "
+                         "(default: <artifacts>/proof-of-block.json)")
+    ap.add_argument("--check-silent-regression", action="store_true",
+                    help="exit 1 if any guard is newly SILENT vs --baseline")
+    ap.add_argument("--log-activity", action="store_true",
+                    help="append one 'type: proof_of_block' row to "
+                         ".claude/logs/activity/ for the improvement loop")
     args = ap.parse_args()
+
+    artifacts = resolve_artifacts_dir(REPO, args.artifacts)
+
+    # Header: every run states which copy it resolved, BEFORE any verdict.
+    # Committed is not deployed and deployed is not loaded -- a reader must be
+    # able to tell which tree was actually exercised. The bypass line matters
+    # because under a committed durable opt-out every guard legitimately
+    # allows, and that must be distinguishable from breakage.
+    bypass = REPO / ".claude" / ".bypass"
+    print("--- proof-of-block ---")
+    print(f"  REPO      : {REPO}")
+    print(f"  HOOKS     : {HOOKS}")
+    print(f"  ARTIFACTS : {artifacts}")
+    print(f"  bypass    : {'present' if bypass.exists() else 'absent'}"
+          f"   ({bypass})")
+
+    if args.check_silent_regression and args.no_fault:
+        sys.stderr.write(
+            "proof_of_block: --check-silent-regression requires the fault "
+            "arm\nExpected: drop --no-fault. With no fault data the current "
+            "SILENT set is empty for a trivial reason and the ratchet would "
+            "pass vacuously.\n"
+        )
+        return EXIT_UNRESOLVABLE
 
     instrument = None
     if not args.no_fault:
-        instrument = verify_injection_instrument()
+        try:
+            instrument = verify_injection_instrument()
+        except RuntimeError as exc:
+            # Instrument-broken is NOT a guard finding. Exit 2, not 1.
+            sys.stderr.write(f"\nproof_of_block: {exc}\n")
+            return EXIT_UNRESOLVABLE
 
     results = [run_guard(g, with_fault=not args.no_fault) for g in GUARDS]
 
@@ -1117,7 +1672,6 @@ def main() -> int:
         if r["verdict"] != "PROVEN":
             print(f"  {r['verdict']}: {r['guard']}")
 
-    instrument_ok = True
     if instrument is not None:
         instrument_ok = instrument["ok"]
         print("\n--- fault injection ---")
@@ -1160,26 +1714,51 @@ def main() -> int:
             print(f"\n  INJECTION-UNVERIFIED for: {', '.join(bad)}")
 
     if args.record:
-        ARTIFACTS.mkdir(parents=True, exist_ok=True)
+        artifacts.mkdir(parents=True, exist_ok=True)
         sha = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True).stdout.strip()
         art = {"recorded": datetime.now(timezone.utc).isoformat(),
                "commit": sha, "instrument": instrument, "results": results}
-        (ARTIFACTS / "proof-of-block.json").write_text(json.dumps(art, indent=2) + "\n")
-        print(f"\nrecorded -> {ARTIFACTS / 'proof-of-block.json'} @ {sha}")
+        (artifacts / "proof-of-block.json").write_text(json.dumps(art, indent=2) + "\n")
+        print(f"\nrecorded -> {artifacts / 'proof-of-block.json'} @ {sha}")
 
-    # Exit code polarity: the fault OUTCOMES never gate. Fail-open is often
-    # the right call, and the deliverable is the classification -- a guard
-    # that fails open silently is a FINDING for a human, not a build break.
-    # A broken INSTRUMENT does gate, because unverified injection makes every
-    # fault result vacuous, which is the exact defect this arm exists to find.
-    ok = proven == len(results) and instrument_ok
-    if instrument is not None:
-        unverified = sum(1 for r in results
-                         if r.get("fault", {}).get("outcome")
-                         == UNVERIFIED_INJECTION)
-        ok = ok and unverified == 0
-    return 0 if ok else 1
+    exit_code = compute_exit_code(results, instrument)
+
+    # D5: the exit code above gates on PROVEN count + instrument health only,
+    # so it gives ZERO protection against a guard becoming newly SILENT. The
+    # ratchet closes that, as a SET comparison against a recorded baseline.
+    if args.check_silent_regression:
+        baseline_path = (Path(args.baseline).expanduser().resolve()
+                         if args.baseline
+                         else artifacts / "proof-of-block.json")
+        try:
+            newly_silent, no_longer_silent = compare_silent_set(
+                results, baseline_path)
+        except (FileNotFoundError, ValueError) as exc:
+            sys.stderr.write(f"\nproof_of_block: {exc}\n")
+            return EXIT_UNRESOLVABLE
+
+        print(f"\n--- silent-set ratchet (baseline: {baseline_path}) ---")
+        print(f"  newly SILENT     : {sorted(newly_silent) or '(none)'}")
+        print(f"  no longer SILENT : {sorted(no_longer_silent) or '(none)'}")
+        if no_longer_silent:
+            print("  a guard recovered -- re-record the baseline in this same "
+                  "PR so the pin ratchets down:")
+            print(f"    proof_of_block.py --record --artifacts "
+                  f"{baseline_path.parent}")
+        if newly_silent:
+            print("  FAIL -- these guards began failing open SILENTLY since "
+                  "the baseline:")
+            for g in sorted(newly_silent):
+                print(f"    {g}")
+            exit_code = 1
+
+    if args.log_activity:
+        written = log_activity_row(REPO, results, exit_code)
+        if written is not None:
+            print(f"\nactivity row -> {written}  (type: proof_of_block)")
+
+    return exit_code
 
 
 if __name__ == "__main__":

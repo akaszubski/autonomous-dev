@@ -412,6 +412,7 @@
         "plugins/autonomous-dev/scripts/persist_intent_answer.py",
         "plugins/autonomous-dev/scripts/pipeline_controller.py",
         "plugins/autonomous-dev/scripts/progress_display.py",
+        "plugins/autonomous-dev/scripts/proof_of_block.py",
         "plugins/autonomous-dev/scripts/reset_global_hooks.py",
         "plugins/autonomous-dev/scripts/session_tracker.py",
         "plugins/autonomous-dev/scripts/strip_duplicate_hooks.py",

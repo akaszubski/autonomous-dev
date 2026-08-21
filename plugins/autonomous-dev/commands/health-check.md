@@ -39,6 +39,37 @@ else
   PLUGIN_REGISTERED=1
 fi
 
+# Proof-of-block (Issue #1586): the ONLY per-repo invocation point that
+# demonstrates a guard REFUSING the bad case and PERMITTING the legitimate one.
+# Resolves across both layouts: installed (.claude/scripts) and source
+# (plugins/autonomous-dev/scripts).
+#
+# --no-fault is a MEASURED branch, not a preference. Measured 2026-08-21 on
+# this repo: full run 22.9s, --no-fault 10.2s. The rest of this command runs in
+# under 1s and the doc below budgets the whole thing. --no-fault still drives
+# both control arms for every guard (positive must refuse / negative must
+# permit), so the REFUSING+PERMITTING evidence is intact; only the fault
+# CLASSIFICATION arm is skipped, and that arm's consumer is the CI ratchet,
+# which passes --check-silent-regression and never runs here.
+#
+# Deliberately NOT part of the exit OR below. A consumer-side check that turns
+# /health-check permanently red would train bypass of the whole command -- the
+# failure mode already visible in a committed .claude/.bypass elsewhere. The
+# machine reader is --log-activity, which appends one `"type": "proof_of_block"`
+# row to .claude/logs/activity/ for continuous-improvement-analyst and /improve.
+POB=""
+for CANDIDATE in \
+  "$PROJECT_ROOT/.claude/scripts/proof_of_block.py" \
+  "$PROJECT_ROOT/plugins/autonomous-dev/scripts/proof_of_block.py"; do
+  if [[ -f "$CANDIDATE" ]]; then POB="$CANDIDATE"; break; fi
+done
+if [[ -n "$POB" ]]; then
+  python3 "$POB" --no-fault --log-activity
+  echo "PROOF-OF-BLOCK: exit $?"
+else
+  echo "PROOF-OF-BLOCK: not installed (run /sync)"
+fi
+
 exit $(( STRUCT_RC | HOOK_RC | PLUGIN_REGISTERED ))
 ```
 ```
@@ -53,8 +84,8 @@ Validates all autonomous-dev plugin components to ensure the system is functioni
 /health-check
 ```
 
-**Time**: < 5 seconds
-**Scope**: All plugin components (agents, hooks, commands)
+**Time**: ~12 seconds (component validation < 1s, plus a ~10s proof-of-block run — measured 2026-08-21)
+**Scope**: All plugin components (agents, hooks, commands) plus live guard enforcement
 
 ## What This Does
 
@@ -88,6 +119,23 @@ Validates 3 critical component types:
    - Verifies autonomous-dev entry exists in ~/.claude/plugins/installed_plugins.json
    - Reports if plugin is not registered (slash commands won't work)
    - Shows registered version and source path
+
+7. **Proof-of-Block** (Issue #1586)
+   - Drives each block-capable guard END-TO-END as a subprocess and watches it
+     REFUSE a realistic bad action and PERMIT the closest legitimate one
+   - A guard is not enforcement until it has been watched refusing something;
+     unit tests prove a function runs, not that a guard is registered, reachable
+     and loaded from the copy production uses
+   - Prints `PROOF-OF-BLOCK: exit N`. **Does NOT affect this command's exit
+     status** — a permanently-red consumer check would train bypass of the whole
+     command
+   - Appends one `"type": "proof_of_block"` row to `.claude/logs/activity/` so
+     `continuous-improvement-analyst` and `/improve` can see a repo's enforcement
+     state without a new channel. Filter on `type == "proof_of_block"`
+   - Prints resolved `REPO`/`HOOKS`/`ARTIFACTS` and `bypass: present|absent`
+     first. Under a committed `.claude/.bypass` every guard legitimately allows,
+     and that must be distinguishable from breakage
+
 ## Expected Output
 
 ```

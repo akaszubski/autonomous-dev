@@ -48,8 +48,11 @@ load is an equally good explanation and was never ruled out.
 **One command answers "is enforcement working?"**
 
 ```
-python3 /Users/akaszubski/Dev/autonomous-dev/scripts/proof_of_block.py
+python3 /Users/akaszubski/Dev/autonomous-dev/plugins/autonomous-dev/scripts/proof_of_block.py
 ```
+
+(Moved from top-level `scripts/` to `plugins/autonomous-dev/scripts/` in #1586 so it ships via
+`install_manifest.json`; the old path no longer exists.)
 
 Currently `7/7 guards PROVEN`. Each watched refusing a real action AND permitting
 the legitimate one.

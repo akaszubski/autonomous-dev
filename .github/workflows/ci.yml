@@ -62,6 +62,65 @@ jobs:
             --settings-path plugins/autonomous-dev/config/global_settings_template.json \
             --schema-path plugins/autonomous-dev/config/hook-metadata.schema.json
 
+      # Proof-of-block (Issue #1586): the only artifact here that demonstrates
+      # a guard REFUSING the bad case and PERMITTING the legitimate one. It ran
+      # in 0 CI jobs before this step existed.
+      #
+      # continue-on-error: true, per a MEASUREMENT in the environment this step
+      # actually runs in -- not an intention, and not the developer-machine
+      # number. D4 of the plan: "blocking if the measured exit is 0;
+      # continue-on-error with a filed issue naming the exact non-PROVEN guards
+      # otherwise". Measured on a pristine `git clone` (tracked files only,
+      # exactly what actions/checkout produces):
+      #
+      #   developer machine (plugin deployed) : 7/7 PROVEN, exit 0
+      #   pristine clone (no .claude/ tree)   : 3/7 PROVEN, exit 1
+      #     FAILS-OPEN: protected-infrastructure-hard-floor
+      #     FAILS-OPEN: mcp-write-classification
+      #     FAILS-OPEN: write-pipeline-gate
+      #     FAILS-OPEN: mcp-rename-symbol-is-a-write
+      #
+      # Root cause: unified_pre_tool.py:1750-1751 (_is_autonomous_dev_repo)
+      # STATS the installed marker `.claude/commands/implement.md`, and
+      # .gitignore:147 ignores `.claude/*`. A fresh checkout has no marker, so
+      # _is_protected_infrastructure() returns False and those guards correctly
+      # decline to fire. Bisected: overlaying .claude/{config,lib,hooks} alone
+      # leaves it at 3/7; adding .claude/commands/implement.md takes it to 6/7.
+      #
+      # Tracked as #1604. Closing condition: make the scope-check not depend on a
+      # gitignored path (or install the plugin into the workspace inside this
+      # job), confirm 7/7, then drop continue-on-error AND add back:
+      #   --check-silent-regression --baseline tests/proofs/proof-of-block.json
+      #
+      # Those ratchet flags are deliberately NOT passed today. The SILENT set
+      # measured without an installed tree is 6; the recorded baseline is 4. The
+      # difference is guards not firing, not guards regressing, so ratcheting
+      # here would report environment noise as a regression -- a check that
+      # cries wolf. The ratchet itself is shipped and tested
+      # (tests/unit/scripts/test_proof_of_block_portability.py, watched both
+      # refusing and permitting); only its CI activation waits on the marker.
+      #
+      # Under no circumstances is the harness weakened to make this step green.
+      #
+      # Baseline note for whoever re-enables the ratchet: it lives at
+      # tests/proofs/proof-of-block.json, which is TRACKED, and deliberately NOT
+      # at .claude/proofs/ despite that being the harness's default write target.
+      # .gitignore:147 would make a baseline there un-re-recordable -- `git add`
+      # refuses ignored paths, so the pin would silently go stale. Re-record with:
+      #   python3 plugins/autonomous-dev/scripts/proof_of_block.py \
+      #     --record --artifacts tests/proofs
+      - name: Proof-of-block (guards watched refusing and permitting)
+        continue-on-error: true
+        run: |
+          echo "Driving each guard end-to-end as a subprocess..."
+          # Capture before echoing: Actions runs `bash -e`, so a non-zero exit
+          # aborts this block immediately and a trailing `echo "... $?"` would
+          # never fire in the failing case -- the one case it exists to report.
+          # `|| ec=$?` keeps the block alive; continue-on-error keeps the job green.
+          ec=0
+          python3 plugins/autonomous-dev/scripts/proof_of_block.py || ec=$?
+          echo "PROOF-OF-BLOCK: exit $ec"
+
       # --timeout=30, not 300 (Issue #1567): this job's cap is 5 min = 300s, so
       # a 300s per-test bound races the job cancellation and can never fire —
       # a decoration that reads as protection. 30s is 6x the smoke tier's
