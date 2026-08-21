@@ -6,7 +6,7 @@ covers:
 
 # Automation Hooks Reference
 
-**Last Updated**: 2026-08-21 (genai_utils.py credential-construction fix — Issue #1593)
+**Last Updated**: 2026-08-21 (sanctioned refusal path via `hook_safety.HookDecision` — Issue #1588)
 **Location**: `plugins/autonomous-dev/hooks/`
 
 See [CLAUDE.md](../CLAUDE.md) for current counts. See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for environment variables and activation status.
@@ -421,6 +421,26 @@ if __name__ == "__main__":
 ```
 
 See `plugins/autonomous-dev/lib/hook_safety.py` for full API documentation.
+
+**The sanctioned way to refuse (Issue #1588)**: before #1588, refusing a tool call had four different emitter functions across three vocabularies (`deny`/`ask`/`block`) and two recording paths — one hook (`enforce_file_organization.py`) could issue a valid `deny` decision and record zero rows in `.claude/logs/hook-blocks.jsonl`, indistinguishable from a hook that never fired. A new hook (or a hook migrating off a hand-rolled `print(json.dumps(...))` refusal) should have `main()` **return** a `hook_safety.HookDecision` instead of printing:
+
+```python
+from hook_safety import HookDecision, safe_main
+
+def main():
+    ...
+    if disallowed:
+        return HookDecision.deny(
+            hook_name="my_hook.py",
+            reason="... REQUIRED NEXT ACTION: ...",
+        )
+    return 0
+
+if __name__ == "__main__":
+    safe_main(main)
+```
+
+`safe_main` owns the output channel for a returned `HookDecision`: it writes the protocol-correct stdout payload and records the refusal via the existing `hook_telemetry.deny_and_record`/`log_block_event` sinks in one indivisible act, so a hook that never touches stdout cannot refuse without a matching telemetry row. This is purely additive — hooks that already `print()` and `return`/`sys.exit()` an int are unaffected. `tests/unit/hooks/test_refusal_sink_ratchet.py` is the enforcement ratchet: it enumerates every hook on disk, classifies its refusal shape by six instruments (dict-literal, emitter-call, `sys.exit(2)`, `return 2`, `@block_event_decorator`, and the `HookDecision` return form), and fails the build if a hook refuses outside `deny_and_record`/`block_event_decorator`/`HookDecision` — with a small, ceiling-capped, name-pinned exemption list (`PINNED_OUT_OF_SINK`) for the handful of commit-gate hooks whose refusal channel genuinely is process exit status.
 
 ---
 

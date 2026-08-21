@@ -29,16 +29,31 @@ problem is downstream of the consistency problem.** This module therefore does
 not pretend to be a detector. It is a RATCHET over the union of every
 instrument available, pinned to a known set that may only shrink.
 
-Sanctioned sink: a SET of two, on the FUSION property
-------------------------------------------------------
+Sanctioned sink: a SET, on the FUSION property
+----------------------------------------------
 The sink is not "whatever writes a row". It is "a path on which a refusal
-cannot be obtained without the recording happening in the same act". Two paths
-have that property and are sanctioned (``SANCTIONED_SINKS``):
+cannot be obtained without the recording happening in the same act". Three
+paths have that property and are sanctioned (``SANCTIONED_SINKS``):
 
 * ``hook_telemetry.deny_and_record`` — returns the deny envelope AND records,
   in one call. A caller cannot get the payload without the row.
 * ``hook_telemetry.block_event_decorator`` — wraps the hook's sole refusal
   emitter, so every refusal through that emitter records by construction.
+* ``hook_safety.HookDecision`` (Issue #1588) — the hook RETURNS its decision
+  instead of printing it, and ``hook_safety.safe_main`` owns the output
+  channel: it emits the payload and records the refusal in one act. This one
+  fuses more strongly than the other two. ``deny_and_record`` fuses the record
+  to the *payload* and still trusts the caller to print what it was handed; a
+  hook that never reaches stdout has no way to refuse at all except by
+  returning a decision. That is the point of #1588 — "is this payload a
+  refusal?" is an open question no detector can settle, while "does this file
+  write to stdout?" is closed and decidable by an AST walk.
+
+Admitting the third member is NOT a loosening. The membership rule is
+unchanged and is still FUSION; a genuinely new fusing mechanism was built, and
+a ratchet that refused to learn about it would flag the sanctioned path — the
+"guard refusing a legitimate case" failure that
+``test_in_sink_refusers_are_permitted`` exists to catch.
 
 Two paths are DELIBERATELY EXCLUDED, and this contradicts the framing in the
 brief, which described ``log_block_with_recovery`` as already fusing recording
@@ -72,17 +87,30 @@ Stated here rather than papered over; each is a real hole, not a hypothetical:
 2. **Shell beyond regex.** ``*.sh`` hooks are scanned line-wise with ``#``
    comments stripped. Shell is not parsed; a refusal assembled across
    variables or emitted from a nested heredoc can be missed.
-3. **Refusal forms nobody has named yet.** The instruments enumerate the four
-   *known* forms. A fifth form invented tomorrow is outside all of them. This
-   is the irreducible limit of the approach and the reason the pinned set has
-   a ceiling rather than the guard claiming completeness.
+3. **Refusal forms nobody has named yet.** The instruments enumerate the
+   *known* forms — six: #1588 added the returned-decision-object form
+   (instrument E) and its remediation added the returned-exit-code form
+   (``return2``, instrument F) after the latter was found to be both
+   documented by ``hook_safety`` and used by a live hook while being invisible
+   here. A seventh form invented tomorrow is outside all of them. This is the
+   irreducible limit of the approach and the reason the pinned set has a
+   ceiling rather than the guard claiming completeness. Note what adding F
+   cost: three hooks that had always refused outside the sink became visible
+   at once, which is the honest measure of how much an unnamed form can hide.
 4. **Intra-file granularity.** Sink classification is per-FILE and per-NAME: a
    file referencing a sanctioned sink is treated as in-sink. The guard does
    NOT prove every refusal path *within* such a file is fused, only that the
    file's refusals are meant to route through one. A new unfused path added to
    an already-in-sink file will not be flagged.
 5. **Name-level, not identity-level, sink matching.** A function coincidentally
-   named ``deny_and_record`` that records nothing would read as in-sink.
+   named ``deny_and_record`` that records nothing would read as in-sink. For
+   Python this is now narrowed: the name must both ARRIVE from ``hook_safety``
+   or ``hook_telemetry`` (import or module-qualified access) and appear in
+   CALL position, so a bare identifier no longer launders a refusal — the
+   previous rule classified any file containing ``HookDecision = None`` as
+   in-sink, and that line is shipped by the reference implementation itself.
+   Shell keeps the bare regex, because shell has no imports and the one shell
+   refuser defines its own fusing ``deny_and_record`` function.
 6. **Non-hook refusers.** Scope is the top-level hooks directory. Refusals
    emitted from ``lib/`` or ``scripts/`` are out of scope.
 
@@ -94,6 +122,8 @@ finishing the migration rather than living on the ratchet.
 
 import ast
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -131,8 +161,24 @@ REFUSAL_EMITTER_NAMES = frozenset(
 )
 
 # The sanctioned sink — a SET, on the fusion property. See the module
-# docstring for why this is two and not one, and not four.
-SANCTIONED_SINKS = frozenset({"deny_and_record", "block_event_decorator"})
+# docstring for why these three and not the bare recorders.
+SANCTIONED_SINKS = frozenset(
+    {"deny_and_record", "block_event_decorator", "HookDecision"}
+)
+
+# Modules the sanctioned sinks are defined in. Sink membership requires the
+# name to ARRIVE from one of these (import or module-qualified access) as well
+# as to be CALLED — a bare identifier is not membership. See _sink_evidence.
+SINK_MODULES = frozenset({"hook_safety", "hook_telemetry"})
+
+# Issue #1588's refusal form: the hook returns a decision object and
+# ``hook_safety.safe_main`` owns stdout. Named here so instrument E below can
+# see it — limitation 3 (unnamed forms) bites immediately otherwise.
+DECISION_OBJECT_NAME = "HookDecision"
+
+# Classmethod factories on the decision object that refuse by construction,
+# with no decision argument to inspect.
+DECISION_OBJECT_REFUSAL_FACTORIES = frozenset({"deny"})
 
 # Recorders that are NOT sinks: real, legitimate, but unfused. Named so the
 # distinction is enforced by a test rather than left in prose.
@@ -157,18 +203,66 @@ UNFUSED_RECORDERS = frozenset({"log_block_event", "log_block_with_recovery"})
 #  * enforce_orchestrator.py — refuses via ``sys.exit(2)`` (line 320) and
 #    records via a separate preceding ``_log_block_event_972`` call (line
 #    313). Two acts.
+#
+# The three below were NOT added because a hook regressed. They were always
+# out of sink; instrument ``return2`` is the first instrument able to SEE
+# them. Their evidence is ``['return2']`` and no telemetry call of any kind
+# appears in any of the three files, so each refuses today with ZERO rows —
+# the same unknowable zero ``enforce_file_organization.py`` had before #1588.
+# All three are commit gates that refuse from ``main()`` and print to stderr:
+#
+#  * enforce_tdd.py                 — ``return 2  # Block commit`` (line 458)
+#  * enforce_prunable_threshold.py  — ``return 2`` (line 157)
+#  * enforce_regression_test.py     — ``return 2`` (line 183)
 PINNED_OUT_OF_SINK: "frozenset[str]" = frozenset(
     {
         "plan_gate.py",
         "unified_prompt_validator.py",
         "enforce_orchestrator.py",
+        "enforce_tdd.py",
+        "enforce_prunable_threshold.py",
+        "enforce_regression_test.py",
     }
 )
 
 # Ceiling on the pinned set. The set is an escape hatch, and an escape hatch
 # without its own ceiling is decorative — the next hook that fails gets added
 # to the list instead of migrated.
-PINNED_CEILING = 3
+#
+# It moved 3 -> 6 in the #1588 remediation, and the distinction that makes
+# that legitimate is the ONLY one this constant is allowed to encode:
+#
+#   * A hook that starts refusing outside the sink is a REGRESSION. The
+#     ceiling refuses it. Migrate the hook.
+#   * An instrument that starts SEEING a hook which was always out of sink is
+#     a BASELINE CORRECTION. The old number was an under-count, and refusing
+#     to record the true one just keeps the guard blind — which is the defect
+#     ``return2`` was added to fix.
+#
+# So the raise is admissible only in the same change that adds a member to
+# INSTRUMENTS. What is MECHANICAL is that a raise cannot happen quietly:
+# ``test_pinned_set_has_a_ceiling`` pins this constant against a literal, so
+# any raise turns that test red and its failure message states the one
+# admissible justification. Whether the justification offered is real is a
+# judgement the reviewer of that diff makes — it is not, and is not claimed to
+# be, machine-checked. Lowering needs no justification at all and is not
+# blocked by anything here.
+PINNED_CEILING = 6
+
+# The evidence vocabulary of the union. Pinned so that adding an instrument is
+# a deliberate, visible edit — the ceiling above may only be raised in a change
+# that also lands here, which is what separates a baseline correction from a
+# regression being waved through.
+INSTRUMENTS = frozenset(
+    {
+        "dict_literal",
+        "emitter_call",
+        "exit2",
+        "return2",
+        "decorated_emitter",
+        "decision_object",
+    }
+)
 
 _SHELL_COMMENT = re.compile(r"(?<!\\)#.*$")
 
@@ -216,9 +310,17 @@ def _python_refusal_evidence(source: str) -> "list[str]":
     * ``dict_literal`` — a decision key bound to a refusing literal value.
     * ``emitter_call`` — a known emitter called with a refusing first literal.
     * ``exit2`` — ``sys.exit(2)`` / ``exit(2)``, the exit-code refusal form.
+    * ``return2`` — ``return 2`` from a ``safe_main``-wrapped hook, which
+      ``hook_safety`` converts to ``sys.exit(2)``. Documented at
+      ``hook_safety.py:439`` and implemented at ``hook_safety.py:514-516``;
+      ``unified_prompt_validator.py:828`` refuses this way today. Bools are
+      excluded explicitly, because ``True == 1`` in Python.
     * ``decorated_emitter`` — a function wrapped by ``block_event_decorator``,
       which is by definition a refusal emitter. This instrument alone catches
       ``unified_pre_tool.py``, whose refusals carry no literal anywhere.
+    * ``decision_object`` (#1588) — a ``HookDecision`` refusal constructed for
+      ``safe_main`` to emit. A migrated hook prints nothing, so without this
+      instrument its refusal would be invisible to every other one.
 
     Args:
         source: Python source text.
@@ -259,11 +361,21 @@ def _python_refusal_evidence(source: str) -> "list[str]":
             if name in ("deny_and_record", "_deny_and_record"):
                 evidence.add(f"emitter_call:{name}()")
 
+            # Instrument E: the returned-decision-object refusal form.
+            if decision_evidence := _decision_object_refusal(node):
+                evidence.add(decision_evidence)
+
             # Instrument C: exit-code refusal.
             if name == "exit" and len(node.args) == 1:
                 arg = node.args[0]
                 if isinstance(arg, ast.Constant) and arg.value == 2:
                     evidence.add("exit2")
+
+        # Instrument F: the RETURNED exit-code refusal form. safe_main turns
+        # ``return 2`` into ``sys.exit(2)``, so this is the same refusal C
+        # catches, written the way hook_safety's own docstring recommends.
+        if isinstance(node, ast.Return) and _is_refusing_exit_constant(node.value):
+            evidence.add("return2")
 
         # Instrument D: a function fused to the recorder by decoration is,
         # necessarily, the hook's refusal emitter.
@@ -274,6 +386,78 @@ def _python_refusal_evidence(source: str) -> "list[str]":
                     evidence.add(f"decorated_emitter:{node.name}")
 
     return sorted(evidence)
+
+
+def _is_refusing_exit_constant(value: "ast.expr | None") -> bool:
+    """Return True iff ``value`` is the literal ``2``, and not a bool.
+
+    ``isinstance(True, int)`` is True in Python and ``True == 1``, so an
+    identity check on the constant is not enough — the bool type must be
+    excluded explicitly or a ``return True`` would be read as an exit code.
+    No bool equals 2, so this cannot currently misfire; the guard is here
+    because the *class* of confusion is one edit away, not because ``True``
+    is a live hazard.
+
+    Args:
+        value: The returned expression, or None for a bare ``return``.
+
+    Returns:
+        True when the expression is the integer constant 2.
+    """
+    return (
+        isinstance(value, ast.Constant)
+        and not isinstance(value.value, bool)
+        and value.value == 2
+    )
+
+
+def _decision_object_refusal(node: ast.Call) -> str:
+    """Return evidence that ``node`` builds a ``HookDecision`` REFUSAL.
+
+    Value-aware for the same reason instrument A is: a migrated hook may build
+    ``HookDecision(decision="allow", ...)`` on its permitting path, and a
+    name-only match would report every such hook as a refuser.
+
+    Two shapes are recognised:
+
+    * ``HookDecision.deny(...)`` — a factory that refuses by construction and
+      carries no decision argument to inspect.
+    * ``HookDecision(decision="deny"|"ask"|"block", ...)`` — the direct
+      constructor, positional or keyword.
+
+    Args:
+        node: A call node.
+
+    Returns:
+        An evidence string, or ``""`` when the call is not a refusal.
+    """
+    func = node.func
+
+    if (
+        isinstance(func, ast.Attribute)
+        and isinstance(func.value, ast.Name)
+        and func.value.id == DECISION_OBJECT_NAME
+    ):
+        if func.attr in DECISION_OBJECT_REFUSAL_FACTORIES:
+            return f"decision_object:{DECISION_OBJECT_NAME}.{func.attr}()"
+        return ""
+
+    if isinstance(func, ast.Name) and func.id == DECISION_OBJECT_NAME:
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "decision"
+                and isinstance(keyword.value, ast.Constant)
+                and keyword.value.value in REFUSAL_DECISION_VALUES
+            ):
+                return (
+                    f"decision_object:{DECISION_OBJECT_NAME}"
+                    f"(decision={keyword.value.value!r})"
+                )
+        for arg in node.args:
+            if isinstance(arg, ast.Constant) and arg.value in REFUSAL_DECISION_VALUES:
+                return f"decision_object:{DECISION_OBJECT_NAME}({arg.value!r})"
+
+    return ""
 
 
 def _called_name(func: ast.expr) -> str:
@@ -350,16 +534,34 @@ def _refusal_evidence(path: Path) -> "list[str]":
 
 
 def _sink_evidence(path: Path) -> "list[str]":
-    """Return which sanctioned sinks a hook references.
+    """Return which sanctioned sinks a hook actually USES.
 
-    Name-level and file-level. See limitations 4 and 5 in the module
-    docstring for exactly what this does and does not establish.
+    Two independent facts are required, because either alone is launderable
+    by a token:
+
+    1. **Binding** — the name arrives from the module that defines it, either
+       as ``from hook_safety|hook_telemetry import <sink>`` (alias honoured)
+       or as a module-qualified attribute access (``mod.block_event_decorator``,
+       which is how ``unified_pre_tool.py`` obtains its decorator).
+    2. **Call position** — the bound name is called, is the receiver of a
+       called attribute (``HookDecision.deny(...)``), or is applied as a
+       decorator.
+
+    Bare-name matching was the previous rule, and it classified as in-sink any
+    file containing ``HookDecision = None`` — the exact line the migrated
+    reference hook ships, so an author copying it inherits the laundering
+    token without intending to. Requiring the call closes that; requiring the
+    binding closes the variant where the import is copied too.
+
+    Shell hooks keep the bare regex: they have no imports, and
+    ``PreToolUseWrite-protect-sensitive.sh`` defines its own fusing
+    ``deny_and_record`` shell function. See limitation 5.
 
     Args:
         path: Hook script path.
 
     Returns:
-        Sorted sanctioned-sink names referenced anywhere in the file.
+        Sorted sanctioned-sink names the file both binds and calls.
     """
     source = path.read_text(encoding="utf-8", errors="replace")
     if path.suffix == ".sh":
@@ -371,19 +573,41 @@ def _sink_evidence(path: Path) -> "list[str]":
     except SyntaxError:
         return []
 
-    names: "set[str]" = set()
+    # local name -> canonical sink name
+    bound: "dict[str, str]" = {}
+    called: "set[str]" = set()
+
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            names.add(node.attr)
-        elif isinstance(node, ast.alias):
-            names.add(node.name.rsplit(".", 1)[-1])
-            if node.asname:
-                names.add(node.asname)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            names.add(node.name)
-    return sorted(SANCTIONED_SINKS & names)
+        if isinstance(node, ast.ImportFrom):
+            module = (node.module or "").rsplit(".", 1)[-1]
+            if module in SINK_MODULES:
+                for alias in node.names:
+                    if alias.name in SANCTIONED_SINKS:
+                        bound[alias.asname or alias.name] = alias.name
+        elif isinstance(node, ast.Attribute) and node.attr in SANCTIONED_SINKS:
+            # ``_hook_telemetry_mod.block_event_decorator`` — module-qualified
+            # access is provenance evidence just as an import is.
+            bound.setdefault(node.attr, node.attr)
+
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name):
+                called.add(func.id)
+            elif isinstance(func, ast.Attribute):
+                called.add(func.attr)
+                if isinstance(func.value, ast.Name):
+                    called.add(func.value.id)
+                elif isinstance(func.value, ast.Attribute):
+                    called.add(func.value.attr)
+
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for decorator in node.decorator_list:
+                target = decorator.func if isinstance(decorator, ast.Call) else decorator
+                name = _called_name(target)
+                if name:
+                    called.add(name)
+
+    return sorted({sink for local, sink in bound.items() if local in called})
 
 
 def refusal_candidates(hooks_dir: Path = HOOKS_DIR) -> "dict[str, list[str]]":
@@ -521,15 +745,21 @@ class TestInstrumentPremises:
 class TestSanctionedSinkDefinition:
     """Pin the sink-versus-set decision so it cannot drift silently."""
 
-    def test_sink_is_a_set_of_exactly_the_two_fusing_paths(self):
-        """The sink is two, on the fusion property — not one, and not four."""
-        assert SANCTIONED_SINKS == {"deny_and_record", "block_event_decorator"}, (
+    def test_sink_is_exactly_the_fusing_paths(self):
+        """The sink is the fusing paths and nothing else — not the recorders."""
+        assert SANCTIONED_SINKS == {
+            "deny_and_record",
+            "block_event_decorator",
+            "HookDecision",
+        }, (
             f"SANCTIONED_SINKS changed to {sorted(SANCTIONED_SINKS)}. The "
             f"membership rule is FUSION: a refusal cannot be obtained without "
             f"the recording happening in the same act. Adding a bare recorder "
             f"here would collapse a distinct property into a weaker one and "
             f"the ratchet would stop tracking the hooks it exists to track. "
-            f"See the module docstring."
+            f"Adding a genuinely new fusing MECHANISM (as #1588 did with "
+            f"HookDecision) is legitimate and must be accompanied by a "
+            f"fusion-premise test below. See the module docstring."
         )
 
     def test_bare_recorders_are_not_sinks(self):
@@ -589,6 +819,63 @@ class TestSanctionedSinkDefinition:
         )
 
 
+    def test_hook_decision_really_does_fuse(self):
+        """Premise: ``safe_main`` emits AND records a returned refusal.
+
+        The other two premises above are satisfied by an AST check because
+        those sinks fuse *within one function*. This one fuses across the
+        wrapper boundary, so the check is behavioural: drive the real
+        ``safe_main`` with a real refusal and assert BOTH acts happened.
+
+        Without this, ``HookDecision`` would be a name on a list, and every
+        in-sink classification that rests on it would be unverified.
+        """
+        import io
+        import json as _json
+        import sys as _sys
+        from contextlib import redirect_stdout
+
+        # Import the modules the hooks themselves import, from the tracked
+        # source tree — not a bespoke importlib copy. Verify the code that
+        # executes.
+        lib = PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"
+        if str(lib) not in _sys.path:
+            _sys.path.insert(0, str(lib))
+        import hook_safety
+        import hook_telemetry
+
+        assert Path(hook_safety.__file__).resolve() == (lib / "hook_safety.py"), (
+            f"imported hook_safety from {hook_safety.__file__}, not the "
+            f"tracked source — the premise would be about the wrong copy"
+        )
+
+        recorded: "list[dict]" = []
+
+        original = hook_telemetry.log_block_event
+        hook_telemetry.log_block_event = (
+            lambda **kw: recorded.append(kw)  # type: ignore[assignment]
+        )
+        buffer = io.StringIO()
+        try:
+            with redirect_stdout(buffer), pytest.raises(SystemExit):
+                hook_safety.safe_main(
+                    lambda: hook_safety.HookDecision.deny(
+                        hook_name="premise.py", reason="nope"
+                    )
+                )
+        finally:
+            hook_telemetry.log_block_event = original
+
+        emitted = _json.loads(buffer.getvalue().strip())
+        assert (
+            emitted["hookSpecificOutput"]["permissionDecision"] == "deny"
+        ), "safe_main did not EMIT the returned refusal — half the fusion"
+        assert recorded and recorded[0]["hook_name"] == "premise.py", (
+            "safe_main did not RECORD the returned refusal, so HookDecision "
+            "does not fuse and is not a sink."
+        )
+
+
 class TestRatchet:
     """The pinned out-of-sink set may only shrink."""
 
@@ -628,18 +915,110 @@ class TestRatchet:
         )
 
     def test_pinned_set_has_a_ceiling(self):
-        """The escape hatch cannot grow. An uncapped hatch is decorative."""
+        """The escape hatch cannot grow SILENTLY. An uncapped hatch is decorative.
+
+        Two assertions, guarding two different failures. Neither replaces the
+        other, and the first one is why:
+
+        * **The literal is the anti-GROWTH tripwire.** Tying the ceiling only
+          to ``len(PINNED_OUT_OF_SINK)`` makes both operands constants in this
+          file, so a change that adds a pinned entry and bumps the ceiling in
+          the same edit moves them together and nothing fires. That bypass was
+          measured green. ``<=`` rather than ``==`` because the direction is
+          the whole point: LOWERING is the ratchet advancing and must never be
+          blocked, while raising has exactly one honest justification, named in
+          the message below.
+        * **The equality is the anti-SLACK tripwire.** A ceiling above the set
+          is a pre-authorised exemption for the next hook that fails.
+
+        See ``TestCeilingIsNotATautology`` for both arms driven end to end.
+        """
         assert len(PINNED_OUT_OF_SINK) <= PINNED_CEILING, (
             f"PINNED_OUT_OF_SINK has grown to {len(PINNED_OUT_OF_SINK)} entries "
             f"{sorted(PINNED_OUT_OF_SINK)}, over the ceiling of "
             f"{PINNED_CEILING}. A hook was added to the exemption list instead "
             f"of being migrated to the sink. Migrate it."
         )
-        assert PINNED_CEILING == 3, (
-            f"PINNED_CEILING was raised to {PINNED_CEILING}. The ceiling exists "
-            f"to make growth impossible; raising it defeats it. Lower it as "
-            f"hooks migrate — never raise it."
+        assert PINNED_CEILING <= 6, (
+            f"PINNED_CEILING was RAISED to {PINNED_CEILING}. LOWER it freely — "
+            f"that is the ratchet advancing and this assertion never sees it. "
+            f"RAISING it is honest in exactly one case: a NEW INSTRUMENT made "
+            f"PRE-EXISTING offenders visible. To take that case, in ONE diff: "
+            f"name the instrument here, add it to INSTRUMENTS, and justify each "
+            f"new entry in the PINNED_OUT_OF_SINK comment. Anything else is a "
+            f"hook being pinned instead of migrated — migrate it. 3 -> 6 was "
+            f"such a case (`return2`, revealing enforce_tdd.py / "
+            f"enforce_prunable_threshold.py / enforce_regression_test.py, all "
+            f"pre-existing bare `return 2` with zero recorder calls; see "
+            f"test_return_two_pins_are_genuinely_unrecorded)."
         )
+        assert PINNED_CEILING == len(PINNED_OUT_OF_SINK), (
+            f"PINNED_CEILING ({PINNED_CEILING}) no longer equals the pinned set "
+            f"size ({len(PINNED_OUT_OF_SINK)}). Slack in the ceiling is a "
+            f"pre-authorised exemption for the next hook that fails. Lower the "
+            f"ceiling to match — that IS the ratchet advancing."
+        )
+
+    def test_instrument_vocabulary_is_pinned(self):
+        """Adding an instrument must be deliberate, not incidental.
+
+        What this test enforces, precisely: every instrument that produced
+        evidence over the live corpus is named in ``INSTRUMENTS``, and
+        ``return2`` has not been dropped. A new detection form therefore cannot
+        reach the corpus without an edit here.
+
+        What it does NOT enforce: it does not reference ``PINNED_CEILING`` and
+        cannot make a ceiling raise co-occur with an instrument addition. That
+        co-occurrence is a rule addressed to the human raising the ceiling, and
+        it lives where they will read it — the failure message on
+        ``test_pinned_set_has_a_ceiling``'s literal, which is what actually
+        refuses the raise.
+        """
+        live: "set[str]" = set()
+        for evidence in refusal_candidates().values():
+            for item in evidence:
+                live.add(item.split(":", 1)[0])
+        unknown = sorted(live - INSTRUMENTS)
+        assert not unknown, (
+            f"the live corpus produced evidence from unpinned instrument(s) "
+            f"{unknown}. Add them to INSTRUMENTS deliberately — and if the "
+            f"addition reveals pre-existing out-of-sink hooks, say so in the "
+            f"PINNED_OUT_OF_SINK comment rather than quietly widening the set."
+        )
+        assert "return2" in INSTRUMENTS, (
+            "the `return 2` instrument was removed. hook_safety.py:439 "
+            "documents that form and hook_safety.py:514-516 implements it, so "
+            "dropping it makes the repo's own documented refusal convention "
+            "invisible to this guard again."
+        )
+
+    def test_return_two_pins_are_genuinely_unrecorded(self):
+        """Premise for the ceiling raise: these three really do record nothing.
+
+        The raise 3 -> 6 rests on the claim that ``return2`` revealed hooks
+        that were always out of sink, not that three hooks regressed. If any
+        of them were in fact recording, the honest classification would be
+        different and the raise would be unjustified — so the claim is checked
+        against the source rather than asserted in a comment.
+        """
+        for name in (
+            "enforce_tdd.py",
+            "enforce_prunable_threshold.py",
+            "enforce_regression_test.py",
+        ):
+            path = HOOKS_DIR / name
+            assert path.exists(), f"premise: {name} still exists"
+            assert _refusal_evidence(path) == ["return2"], (
+                f"{name} refuses by some form other than `return 2` now; "
+                f"re-derive its classification"
+            )
+            source = path.read_text(encoding="utf-8")
+            for recorder in ("log_block_event", "deny_and_record"):
+                assert recorder not in source, (
+                    f"{name} now references {recorder}. If it started "
+                    f"recording, revisit whether it still belongs in "
+                    f"PINNED_OUT_OF_SINK — and lower PINNED_CEILING with it."
+                )
 
     def test_plan_gate_is_tracked_even_though_out_of_scope_for_migration(self):
         """#1589 is deferred, but the ratchet must not lose sight of it.
@@ -681,6 +1060,164 @@ class TestRatchet:
                 f"({_sink_evidence(HOOKS_DIR / name)}) but the rule flagged it. "
                 f"The guard is refusing a legitimate case."
             )
+
+
+class TestCeilingIsNotATautology:
+    """FINDING-8. The ceiling must fail on GROWTH, not merely on disagreement.
+
+    The ceiling briefly consisted only of ``PINNED_CEILING ==
+    len(PINNED_OUT_OF_SINK)``. Both operands are constants in this file, so a
+    change that adds a pinned entry AND bumps the ceiling in the same edit
+    moves them together and the assertion never fires — the anti-growth
+    tripwire had been replaced by an anti-slack one. Measured, not argued:
+    running the ceiling test against a mutant with both edits applied was
+    GREEN.
+
+    These tests drive the real ``test_pinned_set_has_a_ceiling`` over mutated
+    copies of THIS module, in a subprocess, and assert the outcome. The
+    instrument gets both controls: the unmutated copy must pass (so a red
+    result means the mutation, not the harness), and the growth mutant must
+    fail (so a green result means the ceiling, not an inert assertion).
+    """
+
+    #: Anchors mutated below. Each is asserted unique before substitution, so a
+    #: refactor that moves them makes this harness fail loudly rather than
+    #: silently mutate nothing and report a false green.
+    _CEILING_ANCHOR = "\nPINNED_CEILING = 6\n"
+    _ADD_ANCHOR = '        "plan_gate.py",\n'
+    _DROP_ANCHOR = '        "enforce_regression_test.py",\n    }\n)'
+
+    @staticmethod
+    def _source() -> str:
+        return Path(__file__).resolve().read_text(encoding="utf-8")
+
+    @classmethod
+    def _substitute(cls, source: str, anchor: str, replacement: str) -> str:
+        """Replace ``anchor`` exactly once, refusing a no-op or an ambiguity."""
+        count = source.count(anchor)
+        assert count == 1, (
+            f"mutation anchor {anchor!r} appears {count} times in this module, "
+            f"not once. The harness would mutate nothing (or the wrong site) "
+            f"and report a green that means nothing. Re-anchor it."
+        )
+        return source.replace(anchor, replacement)
+
+    @staticmethod
+    def _run_ceiling_test(tmp_path: Path, source: str) -> "subprocess.CompletedProcess":
+        """Run only ``test_pinned_set_has_a_ceiling`` over ``source``.
+
+        Restricted with ``-k`` because the ceiling test reads nothing but the
+        two constants: the copy runs out-of-tree, so the corpus-reading tests
+        in this module would fail for an unrelated reason and blur the signal.
+        """
+        mutant = tmp_path / "test_ceiling_mutant.py"
+        mutant.write_text(source, encoding="utf-8")
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(mutant),
+                "-k",
+                "test_pinned_set_has_a_ceiling",
+                "-q",
+                "--no-header",
+                "-p",
+                "no:cacheprovider",
+                "-p",
+                "no:randomly",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(tmp_path),
+            timeout=180,
+        )
+
+    def test_control_unmutated_copy_of_this_module_passes(self, tmp_path):
+        """NEGATIVE CONTROL for the harness. Without a mutation it must be GREEN.
+
+        Without this, a red from the growth mutant below could just as easily
+        mean "a subprocess pytest cannot import this module at all".
+        """
+        result = self._run_ceiling_test(tmp_path, self._source())
+        assert result.returncode == 0, (
+            f"the UNMUTATED ceiling test failed in the harness, so every other "
+            f"result here is uninterpretable.\n{result.stdout}\n{result.stderr}"
+        )
+        assert "1 passed" in result.stdout, (
+            f"the harness selected {result.stdout!r} — expected exactly one "
+            f"test. A `-k` that matches nothing exits 0 and would read as a "
+            f"pass on every arm."
+        )
+
+    def test_regression_issue_1588_growing_the_pin_and_the_ceiling_together_fails(
+        self, tmp_path
+    ):
+        """THE REPRODUCER, and the refusing arm. Growth must be RED.
+
+        This is the exact bypass measured against the tautological form: add a
+        member to ``PINNED_OUT_OF_SINK`` and raise ``PINNED_CEILING`` by one in
+        the same edit. Under ``PINNED_CEILING == len(PINNED_OUT_OF_SINK)`` the
+        two operands move together and nothing fires. A literal beside the
+        equality is what makes the raise visible.
+
+        The mutant's added entry is a name no live hook carries, so this
+        exercises the ceiling itself rather than the corpus detector.
+        """
+        source = self._substitute(
+            self._source(),
+            self._ADD_ANCHOR,
+            self._ADD_ANCHOR + '        "synthetic_growth_offender.py",\n',
+        )
+        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 7\n")
+
+        result = self._run_ceiling_test(tmp_path, source)
+        assert result.returncode != 0, (
+            "PINNED_OUT_OF_SINK grew to 7 with the ceiling raised to match, and "
+            "the ceiling test still PASSED. The escape hatch has no ceiling: "
+            "the next hook that fails the ratchet can be pinned instead of "
+            "migrated, by a two-constant edit that no assertion sees.\n"
+            f"{result.stdout}"
+        )
+        assert "PINNED_CEILING" in result.stdout, (
+            f"the mutant failed for some reason other than the ceiling "
+            f"assertion, so this proves nothing about it.\n{result.stdout}"
+        )
+
+    def test_shrinking_the_pin_and_the_ceiling_together_is_permitted(self, tmp_path):
+        """THE PERMITTING ARM. Lowering is the ratchet advancing — never blocked.
+
+        Deliberately the opposite direction from the reproducer. A ceiling
+        pinned with ``==`` to a literal would catch the growth above and then
+        block the migration this whole module exists to produce, converting the
+        fix into a new defect.
+        """
+        source = self._substitute(self._source(), self._DROP_ANCHOR, "    }\n)")
+        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 5\n")
+
+        result = self._run_ceiling_test(tmp_path, source)
+        assert result.returncode == 0, (
+            "a hook was MIGRATED out of PINNED_OUT_OF_SINK and the ceiling "
+            "lowered to match, and the ceiling test refused it. Lowering is the "
+            "ratchet advancing and needs no justification; blocking it creates "
+            "pressure to leave migrated hooks pinned.\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+
+    def test_raising_the_ceiling_alone_still_fails(self, tmp_path):
+        """The anti-slack arm, kept: a ceiling above the set is a pre-authorisation.
+
+        Slack means the next hook to fail the ratchet is already exempt. This
+        arm is what the equality earned; it is retained, not replaced.
+        """
+        source = self._substitute(
+            self._source(), self._CEILING_ANCHOR, "\nPINNED_CEILING = 7\n"
+        )
+        result = self._run_ceiling_test(tmp_path, source)
+        assert result.returncode != 0, (
+            f"PINNED_CEILING was raised to 7 while the set stayed at 6 and "
+            f"nothing fired. That is a pre-authorised exemption.\n{result.stdout}"
+        )
 
 
 class TestNegativeControls:
@@ -798,6 +1335,228 @@ class TestNegativeControls:
             "a two-act hook (bare recorder beside a refusal) was permitted. "
             "log_block_event has been admitted as a sink, which collapses the "
             "fusion property the sink is defined on."
+        )
+
+    def test_control_decision_object_refuser_is_permitted(self, tmp_path):
+        """A hook that returns a ``HookDecision`` refusal → permitted.
+
+        The permitting arm for instrument E's sink. Note this hook contains no
+        ``print``, no decision dict literal and no ``exit(2)`` — it is
+        invisible to instruments A, B, C and D, which is exactly why E exists.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_decision_object.py",
+            "from hook_safety import HookDecision, safe_main\n"
+            "def main():\n"
+            '    return HookDecision.deny(hook_name="x", reason="nope")\n'
+            'if __name__ == "__main__":\n'
+            "    safe_main(main)\n",
+        )
+        assert out_of_sink_refusers(tmp_path) == [], (
+            "a hook refusing by returning a HookDecision to safe_main was "
+            "flagged. The guard refuses the sanctioned #1588 path."
+        )
+        assert "synthetic_decision_object.py" in refusal_candidates(tmp_path), (
+            "the hook must still be RECOGNISED as a refuser — it is permitted "
+            "because it is fused, not because instrument E cannot see it"
+        )
+
+    def test_control_decision_object_is_invisible_to_the_older_instruments(
+        self, tmp_path
+    ):
+        """Premise for the control above: E is load-bearing, not redundant.
+
+        If instruments A-D already caught this shape, the permitting control
+        would pass with E deleted and E would be decorative. This drives the
+        SAME source through the pre-#1588 instrument set and asserts it sees
+        nothing.
+        """
+        source = (
+            "from hook_safety import HookDecision\n"
+            "def main():\n"
+            '    return HookDecision.deny(hook_name="x", reason="nope")\n'
+        )
+        evidence = _python_refusal_evidence(source)
+        assert evidence == ["decision_object:HookDecision.deny()"], (
+            f"expected instrument E to be the ONLY instrument that fires on "
+            f"the returned-decision form; got {evidence}"
+        )
+
+    def test_control_decision_object_allow_is_not_a_refusal(self, tmp_path):
+        """Boundary, and one case past it: ``allow`` must not read as refusal.
+
+        Instrument E must be value-aware for the same reason instrument A is —
+        a migrated hook builds decisions on its permitting path too, and a
+        name-only match would report every migrated hook as a refuser.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_decision_allow.py",
+            "from hook_safety import HookDecision\n"
+            "def main():\n"
+            '    return HookDecision(decision="allow", reason="fine")\n',
+        )
+        assert refusal_candidates(tmp_path) == {}, (
+            f"HookDecision(decision='allow') was matched as a refusal: "
+            f"{refusal_candidates(tmp_path)}"
+        )
+
+    def test_control_decision_object_direct_constructor_refusal_is_seen(
+        self, tmp_path
+    ):
+        """The keyword-constructor shape, not just the ``.deny()`` factory.
+
+        The hook imports the sink from ``hook_safety`` and calls it, which is
+        what sink membership now requires — a bare ``HookDecision`` token no
+        longer confers it (see
+        ``test_control_laundering_token_does_not_confer_sink_membership``).
+        """
+        self._write(
+            tmp_path,
+            "synthetic_decision_kwarg.py",
+            "from hook_safety import HookDecision\n"
+            "def main():\n"
+            '    return HookDecision(decision="ask", reason="hmm")\n',
+        )
+        assert out_of_sink_refusers(tmp_path) == [], (
+            "the hook imports HookDecision from hook_safety and calls it, so "
+            "it is in-sink; the assertion below is what proves it was SEEN"
+        )
+        assert refusal_candidates(tmp_path) == {
+            "synthetic_decision_kwarg.py": [
+                "decision_object:HookDecision(decision='ask')"
+            ]
+        }, f"got {refusal_candidates(tmp_path)}"
+
+    def test_control_return_two_is_a_refusal(self, tmp_path):
+        """The DOCUMENTED refusal form the union was blind to.
+
+        ``hook_safety.safe_main`` documents (line 439) and implements
+        (lines 514-516) ``return 2`` as a refusal, and a live hook uses it
+        (``unified_prompt_validator.py:828``). Instrument C matched only
+        ``sys.exit(2)``/``exit(2)``, so the honest answer to "can a newly
+        written hook refuse outside the sink?" was YES — by following the
+        convention the repo itself documents.
+
+        The synthetic hook is shaped like a real one (``safe_main(main)``
+        entry point, no literals anywhere) rather than like the reproducer.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_return2.py",
+            "import sys\n"
+            "from hook_safety import safe_main\n"
+            "def main():\n"
+            '    sys.stderr.write("BLOCKED: nope\\n")\n'
+            "    return 2\n"
+            'if __name__ == "__main__":\n'
+            "    safe_main(main)\n",
+        )
+        assert refusal_candidates(tmp_path) == {
+            "synthetic_return2.py": ["return2"]
+        }, (
+            f"a hook refusing via the documented `return 2` convention is "
+            f"invisible to the union; got {refusal_candidates(tmp_path)}"
+        )
+        assert out_of_sink_refusers(tmp_path) == ["synthetic_return2.py"], (
+            "`return 2` under safe_main refuses and records nothing, so it "
+            "must be flagged as out-of-sink"
+        )
+
+    def test_control_return_one_is_not_a_refusal(self, tmp_path):
+        """Boundary, and one case past it — mirrors the ``exit 1`` control.
+
+        ``return 1`` is the warn convention. A guard that treated it as a
+        refusal would flag every hook that merely warns.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_return1.py",
+            "import sys\n"
+            "def main():\n"
+            '    sys.stderr.write("warning\\n")\n'
+            "    return 1\n",
+        )
+        assert refusal_candidates(tmp_path) == {}, (
+            f"`return 1` was treated as a refusal: {refusal_candidates(tmp_path)}"
+        )
+
+    def test_control_return_true_is_not_a_refusal(self, tmp_path):
+        """``True == 1`` and ``False == 0`` in Python — and ``2`` has no bool.
+
+        There is no bool that equals 2, so this control cannot fail through
+        ``return True``; it exists because the ``return 1`` control CAN, and
+        an implementation that compared with ``==`` rather than checking the
+        type would misread ``return True`` as the warn form and, worse, would
+        be one edit away from misreading a bool elsewhere. Asserted as a set
+        with ``return 0``/``return None`` so the type check is exercised.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_return_bool.py",
+            "def a():\n"
+            "    return True\n"
+            "def b():\n"
+            "    return False\n"
+            "def c():\n"
+            "    return 0\n"
+            "def d():\n"
+            "    return None\n",
+        )
+        assert refusal_candidates(tmp_path) == {}, (
+            f"a bool or a non-refusing int return was matched as a refusal: "
+            f"{refusal_candidates(tmp_path)}"
+        )
+
+    def test_control_laundering_token_does_not_confer_sink_membership(
+        self, tmp_path
+    ):
+        """A bare ``HookDecision`` identifier must not launder a raw refusal.
+
+        ``_sink_evidence`` matched bare NAME tokens, so a file containing
+        ``HookDecision = None`` — the exact line the migrated reference hook
+        ships at ``enforce_file_organization.py:67`` — plus a printed deny
+        envelope read as in-sink. A copy-pasting author writes that line
+        without any intent to launder, which is what makes it dangerous.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_laundered.py",
+            "import json\n"
+            "HookDecision = None\n"
+            "def main():\n"
+            "    print(json.dumps({\"hookSpecificOutput\": {\n"
+            '        "permissionDecision": "deny",\n'
+            '        "permissionDecisionReason": "nope",\n'
+            "    }}))\n",
+        )
+        assert out_of_sink_refusers(tmp_path) == ["synthetic_laundered.py"], (
+            "a raw printed refusal was permitted because the file happened to "
+            "contain the identifier `HookDecision`. Sink membership must "
+            "require the name to be imported from its module AND called."
+        )
+
+    def test_control_importing_the_sink_without_calling_it_is_not_membership(
+        self, tmp_path
+    ):
+        """The other half: importing the sink and then refusing anyway.
+
+        A lazier launderer copies the whole import block and still prints its
+        own envelope. Binding evidence alone must not be enough.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_imported_unused.py",
+            "import json\n"
+            "from hook_safety import HookDecision, safe_main\n"
+            "def main():\n"
+            '    print(json.dumps({"decision": "block"}))\n'
+            "    return 0\n",
+        )
+        assert out_of_sink_refusers(tmp_path) == ["synthetic_imported_unused.py"], (
+            "importing the sink without ever calling it was accepted as sink "
+            "membership, so any hook can be laundered by adding one import"
         )
 
     def test_control_shell_refuser_without_a_sink_is_flagged(self, tmp_path):

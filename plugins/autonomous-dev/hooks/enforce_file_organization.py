@@ -30,12 +30,27 @@ Issue: #1034 — Revive enforce_file_organization.py as a live PreToolUse guard.
 Exit codes:
     0: Always (decision communicated via stdout JSON).
 
-Output: JSON to stdout with hookSpecificOutput for Claude Code hook protocol.
+Output: ``main()`` RETURNS its decision; ``hook_safety.safe_main`` writes the
+hookSpecificOutput JSON to stdout and records the refusal in the same act
+(Issue #1588). This module never calls print/sys.stdout.write itself.
 """
+
+# Annotations are deferred, and the refusal chain below depends on it: this
+# module rebinds ``HookDecision`` to ``None`` when ``hook_safety`` is absent
+# (the split-deploy path), so a runtime-evaluated ``-> HookDecision`` would
+# raise at def time and stop the hook loading on exactly the stale install it
+# exists to degrade for. Must precede every other statement.
+from __future__ import annotations
 
 # Issue #953: Hook safety — wrap main() with safe_main so hook crashes never
 # block Claude Code. The wrap is purely an outer safety net; success-path
 # return codes are preserved (int return -> exit code, sys.exit -> propagated).
+#
+# Issue #1588: this hook no longer writes to stdout at all. ``main`` RETURNS a
+# ``HookDecision`` and ``safe_main`` owns the output channel, emitting the
+# payload and recording the refusal in one indivisible act. A hook that cannot
+# reach stdout cannot refuse without recording.
+import json as _json_953
 import sys as _sys_953  # alias to avoid colliding with hook-local sys imports
 from pathlib import Path as _Path_953
 
@@ -49,11 +64,20 @@ for _candidate_lib_953 in (
         _sys_953.path.insert(0, str(_candidate_lib_953))
 
 try:
-    from hook_safety import safe_main as _safe_main_953
-except ImportError:
-    # Fallback: no-op wrapper so hooks still load if hook_safety is missing.
+    from hook_safety import HookDecision, safe_main as _safe_main_953
+except ImportError:  # pragma: no cover — stale-install fallback
+    # No hook_safety on disk. ``_refusal`` degrades to returning the raw deny
+    # envelope as a plain dict, and this shim emits it. The write is still
+    # refused — unrecorded, but refused. Dropping the return value here would
+    # convert a block into a silent allow, which is strictly worse than the
+    # invisibility Issue #1588 exists to fix.
+    HookDecision = None  # type: ignore[assignment]
+
     def _safe_main_953(_fn):
         _result = _fn()
+        if isinstance(_result, dict):
+            print(_json_953.dumps(_result))
+            _sys_953.exit(0)
         if isinstance(_result, int):
             _sys_953.exit(_result)
         _sys_953.exit(0)
@@ -64,7 +88,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 
 # Issue #1503: transport-independent write classification. The lib dir is
 # already on sys.path (the _953 block above). The fallback is the literal
@@ -90,16 +114,6 @@ except ImportError:  # pragma: no cover — stale-install fallback
                 return [_value]
         return []
 
-
-# Issue #1587: refusing and recording are ONE act. ``deny_and_record`` returns
-# the deny envelope and appends the hook-blocks.jsonl row in a single call, so
-# no caller can obtain a refusal payload without the record happening. On a
-# stale install the symbol is None and ``_deny_and_record`` falls through to an
-# inline envelope — the write is still refused, just unrecorded.
-try:
-    from hook_telemetry import deny_and_record as _deny_and_record_lib
-except ImportError:  # pragma: no cover — stale-install fallback
-    _deny_and_record_lib = None  # type: ignore[assignment]
 
 # Hook identity used for telemetry attribution.
 _HOOK_NAME = "enforce_file_organization.py"
@@ -274,12 +288,52 @@ def _suggest_folder(basename: str) -> Optional[str]:
     return _SUGGEST_MAP.get(ext)
 
 
+# Longest basename rendered into a refusal message. A name longer than this
+# is truncated so it cannot bury the REQUIRED NEXT ACTION directive.
+_MAX_BASENAME_IN_MESSAGE = 120
+
+
+def _sanitize_basename(basename: str) -> str:
+    """Render ``basename`` safe to interpolate into a refusal message.
+
+    The basename comes from the write the hook is refusing, so it is
+    attacker-influenced input to a MODEL-VISIBLE field. A filename containing
+    newlines can otherwise forge a directive in the guard's own voice — in the
+    very field the guard uses to tell the model what to do next — recommending
+    the bypass the guard exists to require. Control characters are escaped
+    rather than stripped so the real name stays diagnosable, and the result is
+    truncated so a 5000-character name cannot push the directive out of view.
+
+    Args:
+        basename: Raw basename from the requested write target.
+
+    Returns:
+        A single-line, printable rendering of ``basename``.
+    """
+    if not isinstance(basename, str):
+        basename = str(basename)
+    # Escape the escape character first so the replacements below are
+    # unambiguous rather than forgeable in the other direction.
+    cleaned = basename.replace("\\", "\\\\")
+    cleaned = cleaned.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+    cleaned = "".join(
+        ch if ch.isprintable() else f"\\x{ord(ch):02x}" for ch in cleaned
+    )
+    if len(cleaned) > _MAX_BASENAME_IN_MESSAGE:
+        cleaned = cleaned[:_MAX_BASENAME_IN_MESSAGE] + "...(truncated)"
+    return cleaned
+
+
 def _deny_messages(basename: str, suggested: Optional[str]) -> tuple:
     """Build the (reason, system_message) strings for a placement refusal.
 
     Pure string construction — deliberately NOT a payload builder. The only
-    function in this module that yields a deny payload is
-    ``_deny_and_record``, which cannot return one without recording it.
+    function in this module that yields a refusal is ``_refusal``, and this
+    module never writes to stdout, so no refusal can escape unrecorded.
+
+    The basename is passed through :func:`_sanitize_basename` before
+    interpolation. Field placement is unchanged: ``reason`` is model-visible,
+    ``system_message`` is user-visible.
 
     Args:
         basename: The disallowed file basename.
@@ -290,6 +344,7 @@ def _deny_messages(basename: str, suggested: Optional[str]) -> tuple:
         carries the REQUIRED NEXT ACTION directive; ``system_message`` is
         user-visible.
     """
+    basename = _sanitize_basename(basename)
     if suggested:
         suggested_path = f"{suggested}{basename}"
         reason = (
@@ -316,7 +371,65 @@ def _deny_messages(basename: str, suggested: Optional[str]) -> tuple:
     return reason, sys_msg
 
 
-def _deny_and_record(
+def _fallback_refusal(
+    reason: str,
+    sys_msg: str,
+    *,
+    metadata: dict,
+    repo_root: Optional[Path],
+    session_id: Optional[str],
+) -> dict:
+    """Build the deny envelope for a stale install, still recording if possible.
+
+    Reached only when ``hook_safety`` is absent — a split deploy where
+    ``.claude/hooks/`` is newer than ``.claude/lib/``. Before Issue #1588 this
+    module imported ``hook_telemetry.deny_and_record`` INDEPENDENTLY of
+    ``hook_safety``, so a stale install still produced a telemetry row; routing
+    everything through ``HookDecision`` would have made this branch bypass
+    telemetry entirely and silently regress from 1 row to 0. The direct import
+    is therefore kept here rather than assumed to be reachable via the sink.
+
+    ``deny_and_record`` fuses the row to the envelope, so this path refuses and
+    records in one call exactly as the sink does. If ``hook_telemetry`` is gone
+    too, the raw envelope is built inline: refused, unrecorded, never allowed.
+
+    Args:
+        reason: Model-visible ``permissionDecisionReason``.
+        sys_msg: User-visible ``systemMessage``.
+        metadata: Structured telemetry metadata.
+        repo_root: Anchor for ``.claude/logs/hook-blocks.jsonl``.
+        session_id: Session id from the PreToolUse payload, if present.
+
+    Returns:
+        The deny envelope, ready for the fallback shim to print.
+    """
+    try:
+        from hook_telemetry import deny_and_record
+
+        return deny_and_record(
+            hook_name=_HOOK_NAME,
+            reason=reason,
+            system_message=sys_msg,
+            decision_shape="dict",
+            hook_event_name="PreToolUse",
+            metadata=metadata,
+            session_id=session_id,
+            start_dir=repo_root,
+        )
+    except Exception:  # noqa: BLE001 — telemetry NEVER outranks enforcement
+        pass
+
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        },
+        "systemMessage": sys_msg,
+    }
+
+
+def _refusal(
     basename: str,
     suggested: Optional[str],
     *,
@@ -324,21 +437,26 @@ def _deny_and_record(
     tool_name: str = "",
     file_path: str = "",
     session_id: Optional[str] = None,
-) -> dict:
-    """Refuse the write AND record the refusal, as a single indivisible act.
+) -> Union["HookDecision", Dict[str, Any]]:
+    """Build the refusal as a VALUE for ``safe_main`` to emit and record.
 
-    Issue #1587: this hook emitted a valid ``permissionDecision: "deny"``
-    and recorded nothing, so every one of its refusals was invisible in
-    ``.claude/logs/hook-blocks.jsonl``. The fix is deliberately NOT "add a
-    ``log_block_event`` call next to the ``return``" — that reproduces the
-    defect class, where refusing and recording are two acts and the second
-    is forgettable. This is the ONLY function in this module that produces
-    a deny payload, so ``main`` has no path to a refusal that skips the
-    record.
+    Issue #1587 fused recording to the payload (``deny_and_record``). That
+    still left refusing and *emitting* as separate acts — the hook received an
+    envelope and was trusted to print it, and a hook that printed a refusal it
+    built some other way would record nothing. Issue #1588 closes the channel
+    instead: this module no longer writes to stdout at all, so the only way a
+    refusal reaches Claude Code is by being returned from ``main`` to
+    ``safe_main``, which emits and records together.
 
-    Telemetry never outranks enforcement: if the shared helper is missing
-    (stale install) or raises, we fall through to an inline envelope and
-    the write is still refused — unrecorded, but refused.
+    ``_refusal`` is the ONLY function here that yields a refusal, and it
+    returns a value rather than performing an action, so there is no path
+    through ``main`` that refuses without the record.
+
+    Telemetry never outranks enforcement: on a stale install with no
+    ``hook_safety`` on disk this delegates to :func:`_fallback_refusal`, which
+    still records through ``hook_telemetry.deny_and_record`` when that module
+    is present and degrades to a raw envelope only when it is not. Refused
+    either way — never allowed.
 
     Args:
         basename: The disallowed file basename.
@@ -351,45 +469,35 @@ def _deny_and_record(
         session_id: Session id from the PreToolUse payload, if present.
 
     Returns:
-        The deny envelope, suitable for ``json.dumps`` and printing.
+        A ``HookDecision`` refusal, or (stale install only) the deny envelope
+        as a plain dict.
     """
     reason, sys_msg = _deny_messages(basename, suggested)
-
-    if _deny_and_record_lib is not None:
-        try:
-            return _deny_and_record_lib(
-                hook_name=_HOOK_NAME,
-                reason=reason,
-                system_message=sys_msg,
-                # "dict" == printed JSON envelope, and a member of
-                # scripts/hook_perf_report.py BLOCK_SHAPES, so this refusal
-                # is counted as a block by the existing report.
-                decision_shape="dict",
-                hook_event_name="PreToolUse",
-                metadata={
-                    "tool_name": tool_name,
-                    "file_path": file_path,
-                    "basename": basename,
-                    "suggested_folder": suggested or "",
-                    "envelope": "hookSpecificOutput.permissionDecision",
-                },
-                session_id=session_id,
-                start_dir=repo_root,
-            )
-        except Exception:
-            # Recorder failure MUST NOT convert a block into an allow.
-            pass
-
-    # Stale install (no hook_telemetry) or recorder failure. The refusal
-    # still ships; only the telemetry row is lost.
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        },
-        "systemMessage": sys_msg,
+    metadata = {
+        "tool_name": tool_name,
+        "file_path": file_path,
+        "basename": basename,
+        "suggested_folder": suggested or "",
+        "envelope": "hookSpecificOutput.permissionDecision",
     }
+
+    if HookDecision is None:
+        return _fallback_refusal(
+            reason,
+            sys_msg,
+            metadata=metadata,
+            repo_root=repo_root,
+            session_id=session_id,
+        )
+
+    return HookDecision.deny(
+        hook_name=_HOOK_NAME,
+        reason=reason,
+        system_message=sys_msg,
+        metadata=metadata,
+        session_id=session_id,
+        start_dir=repo_root,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -397,14 +505,20 @@ def _deny_and_record(
 # ---------------------------------------------------------------------------
 
 
-def main() -> int:
-    """Read PreToolUse payload from stdin and emit allow/deny JSON to stdout.
+def main() -> Union[int, "HookDecision", Dict[str, Any]]:
+    """Read the PreToolUse payload from stdin and RETURN the decision.
 
-    Returns 0 always; the decision is communicated via stdout JSON. The hook
-    fails open on any unexpected condition (no git repo, missing tool_input,
-    malformed payload) — every fail-open path silently allows by exiting 0
-    without printing a JSON envelope (matching the established standalone
-    hook contract: absence of a deny envelope = allow).
+    Issue #1588: this function does not print. It returns ``0`` to allow and a
+    ``HookDecision`` refusal to deny; ``safe_main`` owns stdout and fuses the
+    emission to the telemetry row. The hook fails open on any unexpected
+    condition (no git repo, missing tool_input, malformed payload) — every
+    fail-open path returns 0, and the absence of an envelope on stdout is the
+    established standalone-hook contract for "allow".
+
+    Returns:
+        ``0`` to allow, or a ``HookDecision`` refusal for ``safe_main`` to
+        emit and record. On a stale install with no ``hook_safety`` on disk,
+        the refusal degrades to a plain deny-envelope dict.
     """
     # Parse stdin payload
     try:
@@ -471,10 +585,11 @@ def main() -> int:
     if _is_allowed(basename, allowed_names):
         return 0
 
-    # 7. Block. Refusal and its telemetry row are one call (Issue #1587).
+    # 7. Refuse. The decision is RETURNED, not printed — safe_main emits it
+    #    and records it in one act (Issue #1588).
     suggested = _suggest_folder(basename)
     raw_session_id = payload.get("session_id")
-    envelope = _deny_and_record(
+    return _refusal(
         basename,
         suggested,
         repo_root=repo_resolved,
@@ -482,8 +597,6 @@ def main() -> int:
         file_path=file_path,
         session_id=raw_session_id if isinstance(raw_session_id, str) else None,
     )
-    print(json.dumps(envelope))
-    return 0
 
 
 # Issue #1012 (W0): Per-hook timing telemetry. Best-effort, never raises.
@@ -501,7 +614,7 @@ except ImportError:
 _HOOK_TIMER_NAME = _Path_953(__file__).name
 
 
-def _timed_main():  # type: ignore[no-redef]
+def _timed_main() -> Union[int, "HookDecision", Dict[str, Any]]:  # type: ignore[no-redef]
     with HookTimer(_HOOK_TIMER_NAME):
         return main()
 
