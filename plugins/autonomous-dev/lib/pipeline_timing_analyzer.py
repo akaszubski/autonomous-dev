@@ -25,6 +25,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+# This module is DEPLOYED to ``.claude/lib/`` and the two files there do not
+# move together: measured on this machine, ``.claude/lib/hook_telemetry.py``
+# is dated 20 Aug while ``.claude/lib/pipeline_timing_analyzer.py`` is dated
+# 15 June. A hard import of a symbol added in #1611 would make the older of the
+# two fail to load against a newer sibling — so the same guard ``plan_gate.py``
+# already carries is mirrored here.
+#
+# The fallback is ``None``, NOT a local reimplementation. A shape-set copy here
+# would be a second definition of the refusal vocabulary inside a reader, which
+# is precisely the defect #1611 exists to remove — and
+# ``test_no_reader_redefines_the_literal_set`` correctly refuses it. With no
+# classifier available the filter is simply not applied, which is exactly the
+# pre-#1611 behaviour: visibly the OLD answer, in ONE place, rather than a
+# silently-diverging third one.
+try:
+    from hook_telemetry import is_refusal_row
+except ImportError:  # pragma: no cover — stale-install fallback
+    is_refusal_row = None  # type: ignore[assignment]
+
 from pipeline_intent_validator import (
     STEP_ORDER,
     VALID_AGENT_TYPES,
@@ -32,6 +51,15 @@ from pipeline_intent_validator import (
     parse_timestamp,
     seconds_between,
 )
+
+# Issue #1611: this module reads ``.claude/logs/hook-blocks.jsonl``, which is
+# NOT a log of blocks only. Prompt-integrity BLOCK rows are refusals; the
+# paired RECOVERY rows are allows, deliberately written to the same file so
+# the two can be joined. Both event types are therefore kept — but the block
+# side is now validated against the shared refusal vocabulary instead of being
+# trusted on its ``event_type`` name alone.
+_PI_BLOCK_EVENT_TYPE = "prompt_integrity_block"
+_PI_RECOVERY_EVENT_TYPE = "prompt_integrity_recovery"
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +171,42 @@ def load_prompt_integrity_events(log_path: Path) -> list[dict]:
     lines are silently skipped so a single corrupted row does not break
     the whole analysis.
 
+    Issue #1611 — the refusal filter, and why it is asymmetric. The block log
+    contains non-refusal rows (Phase-E ``mode_skip``, 5.2% of the live file),
+    and this reader previously admitted anything whose ``event_type`` looked
+    right. That is the invisible omission #1611 exists to remove, so the
+    choice is now explicit and stated per event type:
+
+    * ``prompt_integrity_block`` rows MUST be refusal-shaped
+      (:func:`hook_telemetry.is_refusal_row`). A "block" row carrying
+      ``mode_skip`` is enforcement being skipped and is not a block.
+    * ``prompt_integrity_recovery`` rows are admitted REGARDLESS of shape.
+      They record a subsequent ALLOW and exist only to be paired with a
+      block. Applying a refusal filter to them would delete the second half
+      of every pair, and this function's whole output is pairs.
+
+    Why the asymmetry is correct, stated as what it IS rather than as a live
+    consequence: this function feeds
+    :func:`extract_prompt_integrity_recoveries`, whose contract is to emit a
+    ``PromptIntegrityRecovery`` only for a block that HAS a matching recovery.
+    Filtering recovery rows would make that join structurally unsatisfiable —
+    every pair would lose its second half. An earlier revision justified the
+    asymmetry by "the recovery-latency metric would silently zero", which
+    overstated it: the only ``recoveries=`` call site in the repo is a test, so
+    no production report would visibly change today. The asymmetry is a
+    property of the join, not a claim about what any caller currently measures.
+
+    The 57 recovery rows in the live log carry ``decision_shape: "dict"``, a
+    refusal shape, because they are written through the same recorder as the
+    blocks. They are allows wearing a refusal label. The WRITER is still wrong
+    — repairing it belongs to ``unified_pre_tool.py`` — but the READERS no
+    longer disagree about them: ``hook_telemetry.NON_REFUSAL_EVENT_TYPES``
+    carves the type out inside :func:`hook_telemetry.is_refusal_row` itself, so
+    this module and ``scripts/hook_block_summary.py`` classify those 57 rows
+    identically, and rows already on disk are reclassified without the writer
+    changing. Admission here is unaffected: the carve-out governs the REFUSAL
+    question, and recovery rows were never admitted on that basis.
+
     Args:
         log_path: Absolute path to ``hook-blocks.jsonl``.
 
@@ -170,8 +234,23 @@ def load_prompt_integrity_events(log_path: Path) -> list[dict]:
                 event_type = metadata.get("event_type", "")
                 if not isinstance(event_type, str):
                     continue
-                if event_type.startswith("prompt_integrity_"):
-                    rows.append(event)
+                if not event_type.startswith("prompt_integrity_"):
+                    continue
+                if (
+                    event_type == _PI_BLOCK_EVENT_TYPE
+                    and is_refusal_row is not None
+                    and not is_refusal_row(event)
+                ):
+                    # A block-typed row that is not refusal-shaped did not
+                    # block. Dropping it here is what stops a mode_skip from
+                    # being counted as enforcement.
+                    #
+                    # ``is not None`` is the stale-install arm (see the import
+                    # guard at the top): with no shared classifier the filter
+                    # is not applied at all, degrading to the pre-#1611
+                    # behaviour rather than to a locally-invented rule.
+                    continue
+                rows.append(event)
     except OSError:
         return []
     return rows
@@ -203,9 +282,9 @@ def extract_prompt_integrity_recoveries(
         block_event_id = metadata.get("block_event_id")
         if not isinstance(block_event_id, str) or not block_event_id:
             continue
-        if event_type == "prompt_integrity_block":
+        if event_type == _PI_BLOCK_EVENT_TYPE:
             blocks_by_id[block_event_id] = metadata
-        elif event_type == "prompt_integrity_recovery":
+        elif event_type == _PI_RECOVERY_EVENT_TYPE:
             recoveries_by_id[block_event_id] = metadata
 
     paired: list[PromptIntegrityRecovery] = []

@@ -35,8 +35,52 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
-# Decision shapes that count as "block" outcomes for the allow/block ratio.
-BLOCK_SHAPES = frozenset({"tuple", "dict", "exit2", "legacy_recovery"})
+# Decision shapes that WOULD count as "block" outcomes for the allow/block
+# ratio, if any row in this log ever carried one. None does.
+#
+# Issue #1611, measured — stated here because the previous wording ("shapes
+# that count as block outcomes") reads as a description of live behaviour and
+# is false, and because a comment that makes a dead column look alive is the
+# same mechanism that hid plan_gate for months. Across 408,254 rows in 33
+# ``hook_timings_*.jsonl`` files under ``~/.claude/logs/``, the observed
+# ``decision_shape`` values are exactly ``exception`` (314,227), ``allow``
+# (94,015) and ``exit_nonzero`` (12). Rows matching BLOCK_SHAPES: 0. The probe
+# was controlled — a synthetic ``tuple`` corpus counts 3/3, a synthetic
+# ``allow`` corpus counts 0 — so the zero is a measurement, not a broken query.
+#
+# Independently: ``HookTimer.set_decision_shape`` has ZERO real call sites
+# across ``hooks/``. All 25 grep hits are the no-op fallback stub
+# ``def set_decision_shape(self, _): pass``. No hook can put a block shape on a
+# timing row, so ``block_count`` and ``b_ratio`` are structurally 0 for every
+# hook, always. #1611 does not fix that — it only stops the comment claiming
+# otherwise. Removing or reviving the dead column is a separate change and is
+# NOT filed yet — `gh issue create` is hook-gated to /create-issue, which the
+# remediation pass could not invoke. Named here so the next reader does not
+# have to re-derive it.
+#
+# Issue #1611: this constant used to be DEFINED here, and this was the only
+# reader in the repo that had it. The two other readers of the block log
+# omitted the filter entirely and over-counted Phase-E skips as blocks. The
+# vocabulary now lives beside the writer in ``hook_telemetry`` and is
+# IMPORTED, not redefined — a second copy is a second thing that can drift,
+# which is the defect, not the fix. Re-exported under the original name so
+# existing consumers (``scripts/publish_hook_baseline.py``, the regression
+# tests that read ``module.BLOCK_SHAPES``) keep working unchanged.
+_LIB_DIR = Path(__file__).resolve().parent.parent / "plugins" / "autonomous-dev" / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    from hook_telemetry import BLOCK_SHAPES
+except ImportError as exc:  # pragma: no cover — repo-local script
+    raise ImportError(
+        f"Cannot import BLOCK_SHAPES from hook_telemetry: {exc}\n"
+        f"Expected the canonical refusal vocabulary at "
+        f"{_LIB_DIR / 'hook_telemetry.py'}\n"
+        f"A local fallback copy is deliberately NOT provided — a second "
+        f"definition is what Issue #1611 exists to remove.\n"
+        f"See: plugins/autonomous-dev/lib/hook_telemetry.py"
+    ) from exc
 
 
 def _resolve_default_log_dir() -> Path:

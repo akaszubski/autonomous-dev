@@ -57,6 +57,41 @@ import os
 import sys
 from pathlib import Path
 
+# Issue #1611: fuse recording to refusal. Before this, plan_gate's TWO enforce
+# paths called ``_output_decision("block", ...)`` and recorded nothing, while
+# its Phase-E SKIP path was the only thing writing to hook-blocks.jsonl. Every
+# one of its 287 rows in the live log was a ``mode_skip``; however many writes
+# it has actually blocked, the log holds no trace of any of them.
+#
+# ``block_event_decorator`` is one of the three sanctioned sinks (see
+# tests/unit/hooks/test_refusal_sink_ratchet.py) and is the one that PRESERVES
+# THE EMITTED ENVELOPE: it wraps this hook's sole refusal emitter without
+# touching what that emitter prints. The other two sinks would have rewritten
+# the payload — ``HookDecision`` normalises a PreToolUse refusal to
+# ``permissionDecision: "deny"`` and emits nothing at all on an allow, so
+# migrating to it would have changed live enforcement behaviour on all 11
+# call sites — the 9 allows included, since they emit an envelope this hook's
+# callers depend on. A refusal that changed shape because it started recording is
+# exactly the trade this migration must not make.
+#
+# ``refusal_values={"block"}`` records the out-of-enum value this hook
+# actually emits. That divergence (PreToolUse's enum is ``allow|deny|ask``) is
+# real and is Issue #1589's to resolve; it is named here rather than silently
+# preserved, and it is NOT fixed here — changing "block" to "deny" would alter
+# what Claude Code receives, which is a separate change with a separate blast
+# radius.
+try:
+    from hook_telemetry import block_event_decorator
+except ImportError:  # pragma: no cover — stale-install fallback
+    def block_event_decorator(_hook_name, **_kwargs):
+        """No-op fallback: refuse unrecorded rather than not refuse at all."""
+
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+
 # Issue #1503: transport-independent write classification. The lib dir is
 # already on sys.path (the _953 block above). The fallback keeps this hook
 # working against a stale install and is STRICTLY STRONGER than the legacy
@@ -150,6 +185,36 @@ DOC_PATHS = {"docs/", "doc/", "documentation/"}
 DOC_FILENAMES = {"CHANGELOG", "README", "LICENSE", "CONTRIBUTING", "AUTHORS"}
 
 
+#: Structured metadata stamped on every refusal row this hook records.
+#:
+#: A recorded row carries ``hook_name``, ``decision_shape="dict"``, ``reason``
+#: and ``refused=true`` — and none of those says WHICH decision value went out
+#: on the wire. A plan_gate row is therefore byte-comparable to a genuine,
+#: honoured ``deny`` from ``unified_pre_tool.py``. Before #1611 this hook's
+#: refusals were an unknowable zero, which reads honestly as NO EVIDENCE;
+#: recording them without this metadata would convert that into a confident
+#: positive count that may be counting refusals the client never honoured — a
+#: third direction of error, in an issue about an instrument wrong in two.
+#:
+#: ``honoured: "unverified"`` is the load-bearing field. It is not a hedge: the
+#: value ``"block"`` is outside ``PreToolUse``'s ``allow|deny|ask`` enum, and
+#: nothing in this repo has observed what Claude Code does with it. #1589 owns
+#: answering that. Until it does, these rows are separable from the verified
+#: ones by a single query, and the claim stays as strong as the evidence.
+REFUSAL_METADATA = {
+    "permission_decision": "block",
+    "protocol_enum_divergence": "PreToolUse enum is allow|deny|ask",
+    "honoured": "unverified",
+    "issue": 1589,
+}
+
+
+@block_event_decorator(
+    "plan_gate.py",
+    decision_shape="dict",
+    refusal_values=frozenset({"block"}),
+    metadata=REFUSAL_METADATA,
+)
 def _output_decision(
     decision: str,
     reason: str,
@@ -160,6 +225,15 @@ def _output_decision(
 
     Uses the Claude Code hook protocol format with permissionDecision field.
     The "decision" value is either "allow" or "block".
+
+    This is plan_gate's SOLE refusal emitter — all 11 decision sites route
+    through it (9 allow, 2 block). Decorating it with
+    ``block_event_decorator`` (Issue #1611)
+    therefore fuses recording to refusal by construction: there is no path on
+    which this hook can block a write and leave no row. The decorator does not
+    alter the printed payload, so the envelope Claude Code receives is
+    byte-identical to the pre-#1611 one on every path, refusing and permitting
+    alike.
 
     Args:
         decision: "allow" or "block"

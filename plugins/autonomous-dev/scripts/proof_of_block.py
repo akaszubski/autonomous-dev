@@ -767,6 +767,48 @@ GUARDS = [
         },
         "fault": FAULT_TOOL_INTENT_IMPORT,
     },
+    {
+        # The first spec in this registry aimed at a hook OTHER than
+        # unified_pre_tool.py. The other seven all point at that one file, so
+        # plan_gate -- a live PreToolUse gate whose refusals went entirely
+        # unrecorded until #1611 -- was uncovered here despite this module's
+        # own docstring naming it as the motivating fail-open.
+        #
+        # WHAT THIS PROVES, and what it does NOT. drive_raw() runs the hook as
+        # a subprocess and reads the envelope it prints on stdout. So this
+        # spec proves plan_gate EMITS a refusal on the bad case and permits
+        # the closest legitimate one -- the both-arms evidence that was
+        # missing. It does NOT prove Claude Code HONOURS that refusal, and no
+        # arm of this harness can: plan_gate emits
+        # ``permissionDecision: "block"``, which is outside PreToolUse's
+        # ``allow|deny|ask`` enum, and only the real client can say what it
+        # does with an out-of-enum value. That is #1589's question, and the
+        # recorded rows carry ``honoured: "unverified"`` until it is answered.
+        # BLOCKED includes "block", so this harness reads the emitted value at
+        # face value -- which is exactly the assumption #1589 is testing.
+        "guard": "plan-gate-requires-a-plan",
+        "issue": "#1611/#1589",
+        "hook": "plan_gate.py",
+        "fixture": _adev_repo,
+        "positive": {
+            "why": "a large NEW production-code write with no plan file "
+                   "present must be refused",
+            "tool_name": "Write",
+            "tool_input": lambda r: {
+                "file_path": str(r / "src" / "a.py"),
+                "content": "x = 1\n" * 200},
+        },
+        "negative": {
+            "why": "a documentation file must NOT be refused -- the doc "
+                   "exemption is the closest legitimate action to the one "
+                   "above, differing only in extension",
+            "tool_name": "Write",
+            "tool_input": lambda r: {
+                "file_path": str(r / "docs" / "notes.md"),
+                "content": "# note\n"},
+        },
+        "fault": FAULT_TOOL_INTENT_IMPORT,
+    },
 ]
 
 

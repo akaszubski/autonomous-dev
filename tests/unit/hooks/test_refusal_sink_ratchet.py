@@ -70,7 +70,7 @@ to refusal. Read against the source it does not:
 Admitting either as a sink would collapse a genuinely distinct property
 (fused) into a weaker one (a row appeared today), and the ratchet would stop
 tracking exactly the hooks it exists to track. Note the consequence:
-**out-of-sink is NOT the same as unrecorded.** Two of the three pinned hooks
+**out-of-sink is NOT the same as unrecorded.** Two of the five pinned hooks
 do record today, via the two-act convention. They are pinned because nothing
 structurally prevents a future refusal path in those files from skipping the
 second act — which is the condition being ratcheted, not the current row count.
@@ -190,13 +190,16 @@ UNFUSED_RECORDERS = frozenset({"log_block_event", "log_block_with_recovery"})
 # the refusal through ``hook_telemetry.deny_and_record`` (or decorate the
 # hook's sole emitter with ``block_event_decorator``) instead.
 #
-#  * plan_gate.py            — refuses via ``_output_decision("block", ...)``
-#    at lines 392 and 410, emitting an out-of-enum ``"block"`` where the
-#    protocol expects ``"deny"``. Its only ``log_block_event`` call (line 325)
-#    is on the Phase-E SKIP path and is explicitly commented "The enforce path
-#    stays silent" — so its refusals record NOTHING. Deliberately NOT migrated
-#    here: the enum divergence needs a decision (#1589). It is pinned because
-#    tracking it is the entire point of the ratchet.
+# MIGRATED OUT (Issue #1611): ``plan_gate.py``. It refused via
+# ``_output_decision("block", ...)`` on two paths and recorded nothing — every
+# one of its 287 rows in the live log was a Phase-E ``mode_skip``. Its sole
+# refusal emitter is now decorated with ``block_event_decorator``, so refusing
+# and recording are one act. ``block_event_decorator`` was chosen over
+# ``HookDecision`` deliberately: it is the only sink that leaves the EMITTED
+# ENVELOPE untouched, and plan_gate's out-of-enum ``"block"`` value must not
+# change here — that is #1589's to resolve, and altering what Claude Code
+# receives is a separate change with a separate blast radius.
+#
 #  * unified_prompt_validator.py — refuses via a ``{"decision": "block"}``
 #    dict literal (line 803) and records via a separate adjacent
 #    ``_log_block_event_972`` call (line 810). Two acts.
@@ -216,7 +219,6 @@ UNFUSED_RECORDERS = frozenset({"log_block_event", "log_block_with_recovery"})
 #  * enforce_regression_test.py     — ``return 2`` (line 183)
 PINNED_OUT_OF_SINK: "frozenset[str]" = frozenset(
     {
-        "plan_gate.py",
         "unified_prompt_validator.py",
         "enforce_orchestrator.py",
         "enforce_tdd.py",
@@ -247,7 +249,11 @@ PINNED_OUT_OF_SINK: "frozenset[str]" = frozenset(
 # judgement the reviewer of that diff makes — it is not, and is not claimed to
 # be, machine-checked. Lowering needs no justification at all and is not
 # blocked by anything here.
-PINNED_CEILING = 6
+#
+# 6 -> 5 in Issue #1611: ``plan_gate.py`` was MIGRATED into the sink, not
+# reclassified. The literal below moves down with the set, because leaving it
+# at 6 would be exactly the slack the anti-growth arm exists to refuse.
+PINNED_CEILING = 5
 
 # The evidence vocabulary of the union. Pinned so that adding an instrument is
 # a deliberate, visible edit — the ceiling above may only be raised in a change
@@ -939,7 +945,7 @@ class TestRatchet:
             f"{PINNED_CEILING}. A hook was added to the exemption list instead "
             f"of being migrated to the sink. Migrate it."
         )
-        assert PINNED_CEILING <= 6, (
+        assert PINNED_CEILING <= 5, (
             f"PINNED_CEILING was RAISED to {PINNED_CEILING}. LOWER it freely — "
             f"that is the ratchet advancing and this assertion never sees it. "
             f"RAISING it is honest in exactly one case: a NEW INSTRUMENT made "
@@ -950,7 +956,8 @@ class TestRatchet:
             f"such a case (`return2`, revealing enforce_tdd.py / "
             f"enforce_prunable_threshold.py / enforce_regression_test.py, all "
             f"pre-existing bare `return 2` with zero recorder calls; see "
-            f"test_return_two_pins_are_genuinely_unrecorded)."
+            f"test_return_two_pins_are_genuinely_unrecorded). 6 -> 5 (#1611) "
+            f"was a MIGRATION, which needs no justification at all."
         )
         assert PINNED_CEILING == len(PINNED_OUT_OF_SINK), (
             f"PINNED_CEILING ({PINNED_CEILING}) no longer equals the pinned set "
@@ -1020,22 +1027,33 @@ class TestRatchet:
                     f"PINNED_OUT_OF_SINK — and lower PINNED_CEILING with it."
                 )
 
-    def test_plan_gate_is_tracked_even_though_out_of_scope_for_migration(self):
-        """#1589 is deferred, but the ratchet must not lose sight of it.
+    def test_plan_gate_migration_holds(self):
+        """Issue #1611: plan_gate is IN the sink now, and must stay there.
 
-        ``plan_gate.py`` emits an out-of-enum ``"block"`` and needs a decision
-        this change does not have. Deferring the MIGRATION must not defer the
-        TRACKING — an untracked known offender is how a ratchet silently
-        starts from a wrong baseline.
+        The ratchet advancing is only durable if the advance itself is pinned.
+        Three assertions, because "not flagged" alone is satisfiable by the
+        detector going blind:
+
+        1. It is still SEEN as a refuser — it did not leave the live set by
+           becoming invisible.
+        2. It is not flagged — it routes through a sanctioned sink.
+        3. It is gone from ``PINNED_OUT_OF_SINK`` — the deletion IS the
+           ratchet advancing, and re-adding it would need a ceiling raise
+           that ``test_pinned_set_has_a_ceiling`` refuses.
         """
-        assert "plan_gate.py" in PINNED_OUT_OF_SINK, (
-            "plan_gate.py must stay pinned until #1589 resolves its enum "
-            "divergence and it is migrated to the sink."
+        candidates = refusal_candidates()
+        assert "plan_gate.py" in candidates, (
+            "plan_gate.py is no longer detected as refusal-capable. It still "
+            "calls _output_decision('block', ...) on two paths, so this is an "
+            "instrument regression, not a migration."
         )
-        assert "plan_gate.py" in out_of_sink_refusers(), (
-            "plan_gate.py no longer reads as an out-of-sink refuser. If it was "
-            "migrated, remove it from PINNED_OUT_OF_SINK. If the detector "
-            "stopped seeing it, the instrument has regressed."
+        assert "plan_gate.py" not in out_of_sink_refusers(), (
+            f"plan_gate.py refuses outside the sanctioned sink again. Its "
+            f"sink evidence is {_sink_evidence(HOOKS_DIR / 'plan_gate.py')}; "
+            f"expected block_event_decorator on _output_decision (#1611)."
+        )
+        assert "plan_gate.py" not in PINNED_OUT_OF_SINK, (
+            "plan_gate.py was migrated in #1611 and must not be re-pinned."
         )
 
     def test_in_sink_refusers_are_permitted(self):
@@ -1083,8 +1101,8 @@ class TestCeilingIsNotATautology:
     #: Anchors mutated below. Each is asserted unique before substitution, so a
     #: refactor that moves them makes this harness fail loudly rather than
     #: silently mutate nothing and report a false green.
-    _CEILING_ANCHOR = "\nPINNED_CEILING = 6\n"
-    _ADD_ANCHOR = '        "plan_gate.py",\n'
+    _CEILING_ANCHOR = "\nPINNED_CEILING = 5\n"
+    _ADD_ANCHOR = '        "unified_prompt_validator.py",\n'
     _DROP_ANCHOR = '        "enforce_regression_test.py",\n    }\n)'
 
     @staticmethod
@@ -1169,11 +1187,11 @@ class TestCeilingIsNotATautology:
             self._ADD_ANCHOR,
             self._ADD_ANCHOR + '        "synthetic_growth_offender.py",\n',
         )
-        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 7\n")
+        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 6\n")
 
         result = self._run_ceiling_test(tmp_path, source)
         assert result.returncode != 0, (
-            "PINNED_OUT_OF_SINK grew to 7 with the ceiling raised to match, and "
+            "PINNED_OUT_OF_SINK grew to 6 with the ceiling raised to match, and "
             "the ceiling test still PASSED. The escape hatch has no ceiling: "
             "the next hook that fails the ratchet can be pinned instead of "
             "migrated, by a two-constant edit that no assertion sees.\n"
@@ -1193,7 +1211,7 @@ class TestCeilingIsNotATautology:
         fix into a new defect.
         """
         source = self._substitute(self._source(), self._DROP_ANCHOR, "    }\n)")
-        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 5\n")
+        source = self._substitute(source, self._CEILING_ANCHOR, "\nPINNED_CEILING = 4\n")
 
         result = self._run_ceiling_test(tmp_path, source)
         assert result.returncode == 0, (
@@ -1211,11 +1229,11 @@ class TestCeilingIsNotATautology:
         arm is what the equality earned; it is retained, not replaced.
         """
         source = self._substitute(
-            self._source(), self._CEILING_ANCHOR, "\nPINNED_CEILING = 7\n"
+            self._source(), self._CEILING_ANCHOR, "\nPINNED_CEILING = 6\n"
         )
         result = self._run_ceiling_test(tmp_path, source)
         assert result.returncode != 0, (
-            f"PINNED_CEILING was raised to 7 while the set stayed at 6 and "
+            f"PINNED_CEILING was raised to 6 while the set stayed at 5 and "
             f"nothing fired. That is a pre-authorised exemption.\n{result.stdout}"
         )
 

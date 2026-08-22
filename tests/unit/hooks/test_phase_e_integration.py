@@ -60,7 +60,26 @@ def _cleanup(sid: str) -> None:
         pass
 
 
-def _run_hook(hook: Path, payload: dict, env_extra: dict) -> subprocess.CompletedProcess:
+def _run_hook(
+    hook: Path,
+    payload: dict,
+    env_extra: dict,
+    *,
+    cwd: "Path | None" = None,
+) -> subprocess.CompletedProcess:
+    """Drive a hook as a subprocess.
+
+    Args:
+        hook: Path to the hook script.
+        payload: stdin JSON payload.
+        env_extra: Environment overrides.
+        cwd: Working directory for the subprocess. Pass a ``tmp_path`` for any
+            case that can reach a REFUSAL path — hook telemetry is written to
+            ``<cwd>/.claude/logs/hook-blocks.jsonl``, so a hook that refuses
+            while cwd is the repo root appends a test-manufactured row to the
+            production evidence log (Issue #1611). Defaults to the caller's
+            cwd for the skip-path cases, which is pre-existing behaviour.
+    """
     env = os.environ.copy()
     env.update(env_extra)
     return subprocess.run(
@@ -69,6 +88,7 @@ def _run_hook(hook: Path, payload: dict, env_extra: dict) -> subprocess.Complete
         capture_output=True,
         text=True,
         env=env,
+        cwd=str(cwd) if cwd is not None else None,
         timeout=15,
     )
 
@@ -118,7 +138,11 @@ class TestPlanGateSessionModeWrap:
             env_extra = {}
             # Make sure enforcement is off
             os.environ.pop("INTENT_CLASSIFIER_ENFORCE", None)
-            result = _run_hook(PLAN_GATE, payload, env_extra)
+            # cwd=tmp_path: with enforcement OFF this case reaches plan_gate's
+            # real block path, and since Issue #1611 that path RECORDS. Anchor
+            # the telemetry in the tmp dir so the test does not append a
+            # manufactured refusal to the production hook-blocks.jsonl.
+            result = _run_hook(PLAN_GATE, payload, env_extra, cwd=tmp_path)
             assert result.returncode == 0, result.stderr
             output = json.loads(result.stdout)
             reason = output["hookSpecificOutput"]["permissionDecisionReason"]

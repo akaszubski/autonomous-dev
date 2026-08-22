@@ -32,6 +32,32 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 DEFAULT_LOG_PATH = Path(".claude") / "logs" / "hook-blocks.jsonl"
 LEGACY_LOG_PATH = Path(".claude") / "logs" / "hook-recovery.jsonl"
 
+# Issue #1611: this script had NO shape filter and reported every row in
+# hook-blocks.jsonl as a block — including 574 Phase-E ``mode_skip`` rows,
+# which record enforcement being SKIPPED. It ranked ``plan_mode_exit_detector``
+# (a hook whose own docstring says it cannot block) fifth among blockers.
+# The refusal vocabulary is imported from beside the writer rather than
+# redefined here; a second copy is a second thing that can drift.
+_LIB_DIR = Path(__file__).resolve().parent.parent / "plugins" / "autonomous-dev" / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    from hook_telemetry import (
+        BLOCK_SHAPES,
+        NON_REFUSAL_EVENT_TYPES,
+        REFUSED_FIELD,
+        is_refusal_row,
+    )
+except ImportError as exc:  # pragma: no cover — repo-local script
+    raise ImportError(
+        f"Cannot import the refusal vocabulary from hook_telemetry: {exc}\n"
+        f"Expected: {_LIB_DIR / 'hook_telemetry.py'}\n"
+        f"A local fallback copy is deliberately NOT provided — a second "
+        f"definition is what Issue #1611 exists to remove.\n"
+        f"See: plugins/autonomous-dev/lib/hook_telemetry.py"
+    ) from exc
+
 # Category buckets matching the #942 issue body breakdown.
 CATEGORY_PATTERNS: List[Tuple[str, List[str]]] = [
     ("plan-exit", ["plan_mode_exit_detector", "PLAN", "plan-critic", "ExitPlan"]),
@@ -155,7 +181,7 @@ def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     ts = row.get("ts") or row.get("timestamp") or ""
     hook_name = row.get("hook_name") or ""
     reason = row.get("reason") or row.get("block_reason") or ""
-    return {
+    normalized = {
         "ts": ts,
         "hook_name": hook_name,
         "reason": reason,
@@ -164,6 +190,23 @@ def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "session_id": row.get("session_id", ""),
         "cwd": row.get("cwd", ""),
     }
+    # Issue #1611: classification is delegated to the ONE classifier beside the
+    # writer. This function's only job is to present the row in the shape that
+    # classifier expects — carrying the raw ``refused`` boolean across so
+    # ``is_refusal_row`` can prefer it, and letting the legacy-schema default
+    # above ("legacy_recovery") participate rather than being classified from a
+    # missing field.
+    #
+    # It previously decided the boolean case itself, which read as a harmless
+    # inlining of the same rule and was not: ``is_refusal_row`` also carves out
+    # the recorder-written allows (NON_REFUSAL_EVENT_TYPES), and this copy did
+    # not, so 57 ``prompt_integrity_recovery`` rows — allows — were counted here
+    # as REFUSALS while the sibling reader forty lines away treated them as a
+    # separate class. Deciding here at all is the defect; delegating is the fix.
+    if isinstance(row.get(REFUSED_FIELD), bool):
+        normalized[REFUSED_FIELD] = row[REFUSED_FIELD]
+    normalized[REFUSED_FIELD] = is_refusal_row(normalized)
+    return normalized
 
 
 def _categorise(hook_name: str, reason: str) -> str:
@@ -220,36 +263,90 @@ def collect_events(
 
 
 def summarise(events: List[Dict[str, Any]], top: int) -> Dict[str, Any]:
-    by_hook = Counter(e["hook_name"] for e in events if e["hook_name"])
+    """Aggregate events, keeping refusals and non-refusals separate (#1611).
+
+    ``top_hooks`` ranks REFUSALS only, so a hook that cannot block can no
+    longer appear in a blocker ranking. Non-refusal events are not dropped —
+    they are counted, ranked and labelled under their own heading, because
+    "enforcement was skipped, and why" is genuine signal. The defect was the
+    channel silently merging the two, not the records themselves.
+
+    "Refusal" is whatever :func:`hook_telemetry.is_refusal_row` says it is, and
+    that is broader than the shape test the heading used to name: it also
+    excludes the recorder-written allows (``prompt_integrity_recovery``). The
+    heading asserts REFUSAL positively, so it must not be applied to rows known
+    to be allows — 57 of them, in the live log, at the time this was written.
+
+    Args:
+        events: Normalized rows from :func:`collect_events`.
+        top: How many hooks to list in each ranking.
+
+    Returns:
+        Summary dict. ``total_events`` remains the count of ALL rows read;
+        ``refusals`` + ``non_refusal_events`` partition it exactly.
+    """
+    refusals = [e for e in events if e.get(REFUSED_FIELD)]
+    non_refusals = [e for e in events if not e.get(REFUSED_FIELD)]
+
+    by_hook = Counter(e["hook_name"] for e in refusals if e["hook_name"])
+    by_hook_non_refusal = Counter(
+        e["hook_name"] for e in non_refusals if e["hook_name"]
+    )
+
     by_category: Counter = Counter()
-    for e in events:
+    for e in refusals:
         by_category[_categorise(e["hook_name"], e["reason"])] += 1
 
+    # Every event, refusal or not — an unknown future shape must be REPORTED
+    # here rather than silently dropped. Fail visible, not closed.
     by_shape = Counter(
         e.get("decision_shape", "unknown") for e in events
     )
 
     return {
         "total_events": len(events),
+        "refusals": len(refusals),
+        "non_refusal_events": len(non_refusals),
+        "refusal_shapes": sorted(BLOCK_SHAPES),
+        "non_refusal_event_types": sorted(NON_REFUSAL_EVENT_TYPES),
         "top_hooks": by_hook.most_common(top),
+        "top_non_refusal_hooks": by_hook_non_refusal.most_common(top),
         "by_category": dict(by_category),
         "by_decision_shape": dict(by_shape),
     }
 
 
 def render_text(summary: Dict[str, Any], parse_errors: int) -> str:
+    """Render the summary, labelling refusals and non-refusals separately."""
     out = []
-    out.append(f"Hook block summary — {summary['total_events']} event(s)")
+    out.append(f"Hook block summary — {summary['total_events']} event(s) read")
     if parse_errors:
         out.append(f"  ({parse_errors} unparseable line(s) skipped)")
     out.append("")
-    out.append("Top hooks:")
+    out.append(
+        f"  {summary['refusals']:6d}  REFUSALS "
+        f"(decision_shape in {', '.join(summary['refusal_shapes'])}, "
+        f"excluding {', '.join(summary['non_refusal_event_types'])})"
+    )
+    out.append(
+        f"  {summary['non_refusal_events']:6d}  NON-REFUSAL events "
+        f"(mode_skip / allow / unknown shape, plus recorder-written allows "
+        f"— enforcement did NOT refuse)"
+    )
+    out.append("")
+    out.append("Top hooks by REFUSAL:")
     if not summary["top_hooks"]:
         out.append("  (none)")
     for hook, count in summary["top_hooks"]:
         out.append(f"  {count:6d}  {hook}")
     out.append("")
-    out.append("By category (#942 buckets):")
+    out.append("Top hooks by NON-REFUSAL event (not blocks):")
+    if not summary["top_non_refusal_hooks"]:
+        out.append("  (none)")
+    for hook, count in summary["top_non_refusal_hooks"]:
+        out.append(f"  {count:6d}  {hook}")
+    out.append("")
+    out.append("By category (#942 buckets, REFUSALS only):")
     if not summary["by_category"]:
         out.append("  (none)")
     for cat, count in sorted(
@@ -257,11 +354,12 @@ def render_text(summary: Dict[str, Any], parse_errors: int) -> str:
     ):
         out.append(f"  {count:6d}  {cat}")
     out.append("")
-    out.append("By decision shape:")
+    out.append("By decision shape (ALL events):")
     for shape, count in sorted(
         summary["by_decision_shape"].items(), key=lambda kv: -kv[1]
     ):
-        out.append(f"  {count:6d}  {shape}")
+        marker = "" if shape in BLOCK_SHAPES else "   <- not a refusal"
+        out.append(f"  {count:6d}  {shape}{marker}")
     return "\n".join(out)
 
 
