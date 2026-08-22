@@ -12,6 +12,28 @@ lib_path = Path(__file__).resolve().parents[3] / "plugins/autonomous-dev/lib"
 sys.path.insert(0, str(lib_path))
 
 from daily_aggregate_manager import open_or_supersede_daily_aggregate
+from gh_issue_context import gh_issue_context_path
+
+
+@pytest.fixture(autouse=True)
+def _clean_gh_issue_context_marker():
+    """Remove the gh-issue context marker before and after every test (#1609).
+
+    ``open_or_supersede_daily_aggregate`` writes the marker and never removes
+    it. Left behind, its presence tells the ``unified_pre_tool.py`` detectors
+    that an issue-creating command is legitimately in flight, so every
+    subsequent read of it is silently sanctioned — measured as 49 phantom
+    failures in ``tests/unit/hooks/test_gh_issue_create_block.py``.
+
+    ``tests/conftest.py`` already redirects the path away from the real global
+    ``/tmp`` location, so this fixture is scoped to the per-run temp copy. It is
+    kept because this module is the known offender and leaving even the
+    redirected marker behind reintroduces in-run order dependence.
+    """
+    marker_path = gh_issue_context_path()
+    marker_path.unlink(missing_ok=True)
+    yield
+    marker_path.unlink(missing_ok=True)
 
 
 class FakeGHRunner:
@@ -281,11 +303,8 @@ def test_marker_written_and_removed():
     import subprocess
     
     # Clean up any existing marker
-    marker_path = Path(os.getenv("GH_ISSUE_CMD_CONTEXT_PATH", "/tmp/autonomous_dev_cmd_context.json"))
-    try:
-        os.unlink(marker_path)
-    except FileNotFoundError:
-        pass
+    marker_path = gh_issue_context_path()
+    marker_path.unlink(missing_ok=True)
     
     marker_checks = []
     
@@ -325,11 +344,8 @@ def test_marker_removed_on_exception():
     import subprocess
     
     # Clean up any existing marker
-    marker_path = Path(os.getenv("GH_ISSUE_CMD_CONTEXT_PATH", "/tmp/autonomous_dev_cmd_context.json"))
-    try:
-        os.unlink(marker_path)
-    except FileNotFoundError:
-        pass
+    marker_path = gh_issue_context_path()
+    marker_path.unlink(missing_ok=True)
     
     class FailingRunner:
         def __call__(self, argv, **kwargs):

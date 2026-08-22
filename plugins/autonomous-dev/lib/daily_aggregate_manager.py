@@ -16,19 +16,22 @@ import tempfile
 import os
 import re
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
+
+from gh_issue_context import gh_issue_context_path
 
 
 def _write_gh_issue_context(command: str = 'triage-aggregate') -> None:
-    """Write the gh issue command context marker."""
+    """Write the gh issue command context marker.
+
+    Issue #1609: the path is resolved through ``gh_issue_context_path()`` — the
+    single sanctioned accessor — rather than repeating the literal here, so a
+    redirect of ``GH_ISSUE_CMD_CONTEXT_PATH`` moves this writer too.
+    """
     from datetime import datetime, timezone
-    
-    context_path = Path(os.getenv(
-        "GH_ISSUE_CMD_CONTEXT_PATH",
-        "/tmp/autonomous_dev_cmd_context.json"
-    ))
-    
+
+    context_path = gh_issue_context_path()
+
     context = {
         'command': command,
         'timestamp': datetime.now(timezone.utc).isoformat()

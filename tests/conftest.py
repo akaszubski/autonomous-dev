@@ -19,8 +19,11 @@ Run specific tiers:
 """
 
 import hashlib
+import os
 import pytest
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 import types
 
@@ -29,6 +32,87 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "plugins"))
 
 # Import path_utils for cache reset
 sys.path.insert(0, str(Path(__file__).parent.parent / "plugins" / "autonomous-dev" / "lib"))
+
+# =============================================================================
+# GH-ISSUE COMMAND-CONTEXT MARKER ISOLATION (Issue #1609)
+# =============================================================================
+#
+# /tmp/autonomous_dev_cmd_context.json is a GLOBAL SANCTIONING MARKER: its
+# presence tells `_detect_gh_issue_create` and its sibling detectors in
+# unified_pre_tool.py that an issue-creating command is legitimately in flight,
+# so they PERMIT a command they would otherwise refuse.
+#
+# Measured on 2026-08-22, one variable changed, in a SERIAL run (no -n):
+#     marker absent  -> pytest tests/unit/hooks/test_gh_issue_create_block.py
+#                       -> 165 passed
+#     marker present -> same command
+#                       -> 49 failed, 116 passed   (all `assert None is not None`)
+# The tests were right; the environment was lying to them. The suite's verdict
+# depended on run order, and a developer who had merely filed an issue in an
+# interactive session got the same 49 phantom failures.
+#
+# That measurement is SERIAL, and every explanation of the wide-run behaviour
+# offered so far was serial too ("an unrelated module's cleanup happens to run
+# first", "directory order puts the leaker after the victims"). Neither holds in
+# CI. CI runs `pytest tests/unit/ -n auto`, `pytest tests/integration/ -n auto`
+# and `pytest tests/regression/ -n auto` (.github/workflows/ci.yml:326, :332,
+# :340), and the tests/unit/ job collects BOTH the known leaker
+# (tests/unit/lib/test_daily_aggregate_manager.py) and the victims
+# (tests/unit/hooks/test_gh_issue_create_block.py). Under xdist's default
+# --dist load, tests are handed to workers one at a time in nondeterministic
+# order, yet all workers share one machine and therefore ONE real
+# /tmp/autonomous_dev_cmd_context.json. So under -n auto this is a
+# nondeterministic cross-worker race, not an ordering fact.
+#
+# HOW MUCH OF CI THIS EXPLAINS IS UNVERIFIED. Three numbers have been offered
+# (48-of-200, "zero", "wide runs are unaffected") and none is attributable
+# without a CI log; a race does not have a fixed failure count. Do not repeat a
+# figure here until a log supports it.
+#
+# The redirect below removes the coupling BY CONSTRUCTION rather than by
+# cleaning up after it: every producer and consumer resolves the marker through
+# $GH_ISSUE_CMD_CONTEXT_PATH (hooks/unified_pre_tool.py:GH_ISSUE_COMMAND_CONTEXT_PATH,
+# lib/gh_issue_context.py:gh_issue_context_path), so pointing that variable at a
+# per-run temp directory means tests cannot see or write the real path at all.
+# This holds under -n auto as well: tempfile.mkdtemp() below runs at conftest
+# IMPORT time and each xdist worker is a separate process that imports conftest
+# itself, so every worker gets its own directory. Measured with -n 2 on
+# 2026-08-22: gw0 -> autonomous-dev-gh-issue-ctx-j8to41pw,
+# gw1 -> autonomous-dev-gh-issue-ctx-c1j9f0sr.
+#
+# This MUST run at conftest *import* time, not in a fixture: unified_pre_tool.py
+# resolves its constant when the module is imported, and test modules import it
+# during collection — which happens before any fixture runs.
+_GH_ISSUE_CTX_ENV_VAR = "GH_ISSUE_CMD_CONTEXT_PATH"
+_GH_ISSUE_CTX_REDIRECT_DIR = tempfile.mkdtemp(prefix="autonomous-dev-gh-issue-ctx-")
+os.environ[_GH_ISSUE_CTX_ENV_VAR] = str(
+    Path(_GH_ISSUE_CTX_REDIRECT_DIR) / "autonomous_dev_cmd_context.json"
+)
+
+# Second line of defence: snapshot the REAL path now and re-check at session
+# finish, so a future writer that reaches it some other way fails the run
+# loudly instead of silently sanctioning the tests that follow it.
+#
+# These imports are DELIBERATELY UNGUARDED. A `try/except ImportError` here
+# would leave the watched path as None and turn pytest_sessionfinish into a
+# no-op — a leak guard that cannot fail and therefore cannot inform, while the
+# run still reports green. tests/conftest.py is only ever loaded from inside
+# this repo, so the only thing that except-branch could catch is an actual
+# breakage (the helper moved or renamed, or the repo root falling off
+# sys.path), which is exactly the case that must be loud. An ImportError raised
+# here is already fatal in pytest: the run aborts with a collection error naming
+# the missing module, whereas a warning can be silenced by -W ignore /
+# -p no:warnings or lost in a 2000-test summary. Fail closed.
+from gh_issue_context import DEFAULT_CONTEXT_PATH as _GH_ISSUE_CTX_REAL_PATH
+
+from tests.helpers.gh_issue_marker_guard import (
+    describe_marker_leak as _describe_marker_leak,
+    snapshot_marker as _snapshot_marker,
+    watched_marker_path as _watched_marker_path,
+)
+
+_GH_ISSUE_CTX_WATCHED = _watched_marker_path(_GH_ISSUE_CTX_REAL_PATH)
+_GH_ISSUE_CTX_BASELINE = _snapshot_marker(_GH_ISSUE_CTX_WATCHED)
 
 # Create alias for plugins.autonomous_dev -> plugins/autonomous-dev
 # This allows tests to import from plugins.autonomous_dev.lib.X
@@ -160,6 +244,37 @@ def pytest_collection_modifyitems(config, items):
                     marker = getattr(pytest.mark, marker_name)
                     item.add_marker(marker)
                 break  # Only match first pattern
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Fail the run if it contaminated the real gh-issue context marker (#1609).
+
+    The redirect installed at import time means no test *should* be able to
+    reach the real path. This checks that claim instead of assuming it: if the
+    real marker was created, modified, or removed during the session, the run
+    fails with a message naming the offender class.
+
+    The baseline is never None — its imports are unguarded above precisely so
+    that this comparison cannot silently degrade into a no-op.
+
+    Also removes the per-run redirect directory.
+    """
+    try:
+        finding = _describe_marker_leak(
+            _GH_ISSUE_CTX_BASELINE,
+            _snapshot_marker(_GH_ISSUE_CTX_WATCHED),
+            _GH_ISSUE_CTX_WATCHED,
+        )
+        if finding:
+            reporter = session.config.pluginmanager.getplugin("terminalreporter")
+            if reporter is not None:
+                reporter.write_sep("=", "gh-issue context marker leak")
+                reporter.write_line(finding)
+            else:  # pragma: no cover - no terminal (e.g. -p no:terminal)
+                print(finding)
+            session.exitstatus = 1
+    finally:
+        shutil.rmtree(_GH_ISSUE_CTX_REDIRECT_DIR, ignore_errors=True)
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):

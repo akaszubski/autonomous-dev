@@ -255,6 +255,7 @@
         "plugins/autonomous-dev/lib/genai_manifest_validator.py",
         "plugins/autonomous-dev/lib/genai_refactor_analyzer.py",
         "plugins/autonomous-dev/lib/genai_validate.py",
+        "plugins/autonomous-dev/lib/gh_issue_context.py",
         "plugins/autonomous-dev/lib/git_hooks.py",
         "plugins/autonomous-dev/lib/git_operations.py",
         "plugins/autonomous-dev/lib/github_issue_closer.py",

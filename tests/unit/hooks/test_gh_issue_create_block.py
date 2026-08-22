@@ -44,6 +44,34 @@ def clean_env(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def isolated_command_context(tmp_path_factory):
+    """Point the command-context marker at a per-test path that does not exist.
+
+    Issue #1609: ``GH_ISSUE_COMMAND_CONTEXT_PATH`` defaults to the GLOBAL
+    ``/tmp/autonomous_dev_cmd_context.json``. Its presence tells
+    ``_is_issue_command_active()`` that an issue-creating command is legitimately
+    in flight, so every detector in this file returns "allow" instead of the
+    block reason under test. Measured: 49 of these 165 tests flipped to
+    ``assert None is not None`` whenever anything — another test, or a developer
+    running ``/create-issue`` in a parallel session — had written that file.
+
+    Isolating here (in addition to the redirect in ``tests/conftest.py``) is what
+    makes this module's isolation run self-sufficient: it passes with the real
+    marker present on disk, and it does not depend on the conftest fixture to
+    scrub state for it.
+
+    The two tests that exercise the PERMIT arm (``TestPlanCommandAllowed``)
+    override this with their own ``patch.object``, so the sanctioning mechanism
+    stays under test.
+    """
+    isolated = (
+        tmp_path_factory.mktemp("gh-issue-ctx-isolation") / "no_such_context.json"
+    )
+    with patch.object(hook, "GH_ISSUE_COMMAND_CONTEXT_PATH", str(isolated)):
+        yield isolated
+
+
 @pytest.fixture
 def no_pipeline():
     """Patch _is_pipeline_active to return False."""

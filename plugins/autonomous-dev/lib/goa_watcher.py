@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
+from gh_issue_context import gh_issue_context_path
 from goa_state import _get_project_root
 
 # ---------------------------------------------------------------------------
@@ -43,7 +44,11 @@ FREQUENCY_GATE_MAX_PER_24H: int = 3
 
 _DEFAULT_LOG_DIR_SUBPATH = Path(".claude/logs/activity")
 _GH_LABEL = "goa,auto-improvement"
-_TMP_CONTEXT_FILE = Path("/tmp/autonomous_dev_cmd_context.json")
+# Issue #1609: resolved through the single sanctioned accessor instead of a
+# hardcoded literal, so a redirect of GH_ISSUE_CMD_CONTEXT_PATH moves this
+# writer too. Resolved at import time (rather than per call) because the
+# existing tests patch this module attribute directly via patch.object.
+_TMP_CONTEXT_FILE = gh_issue_context_path()
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +258,9 @@ def file_issue_if_breach(
     already contains ``>= FREQUENCY_GATE_MAX_PER_24H`` entries in the last 24
     hours, this function returns ``None`` without filing.
 
-    Writes the hook-contract context file to ``/tmp/autonomous_dev_cmd_context.json``
-    BEFORE calling ``gh issue create``, then removes it.
+    Writes the hook-contract context file (resolved by
+    ``gh_issue_context.gh_issue_context_path()``) BEFORE calling
+    ``gh issue create``, then removes it.
 
     Args:
         metric: Short metric name, e.g. ``"drop_rate"`` or ``"down_events"``.

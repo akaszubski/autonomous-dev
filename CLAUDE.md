@@ -33,7 +33,7 @@ Self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.b
 - **Agents**: 17 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
 - **Skills**: 20 domain packages, progressively injected per-step to prevent context bloat
 
-Component counts: 17 agents, 20 skills, 23 user-facing commands, 27 hooks, 245 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
+Component counts: 17 agents, 20 skills, 23 user-facing commands, 27 hooks, 246 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
 
 ## Code Navigation (LSP > grep when available)
 
