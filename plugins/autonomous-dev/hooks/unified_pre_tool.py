@@ -3719,11 +3719,169 @@ def _check_drain_pending_commit_gate(
 # verb (argv[0]) is one of these AND argv[1] == "-c", the substring scan
 # inside argv[2] is handled by _contains_gh_issue_create_bypass — do not
 # double-flag from _detect_gh_issue_create's direct-match argv check.
+#
+# Issue #1619: this set is NOT the place to add `env`, `nice`, `timeout`,
+# `command`, `stdbuf`, `nohup`, `xargs`, `setsid`, `taskset`, `doas` or
+# `sudo`. Those are command *runners*, and enumerating runners is an
+# allowlist against an open set — the next one ships tomorrow. See
+# _COMMAND_ARG_CONSUMERS below for the polarity the gate uses instead.
 _SHELL_WRAPPERS: "frozenset[str]" = frozenset({
     "sh", "bash", "zsh", "dash", "ksh",
     "/bin/sh", "/bin/bash", "/bin/zsh", "/bin/dash", "/bin/ksh",
     "/usr/bin/sh", "/usr/bin/bash", "/usr/bin/zsh",
     "/usr/local/bin/sh", "/usr/local/bin/bash", "/usr/local/bin/zsh",
+})
+
+
+# Verbs that consume bare positional words as DATA rather than executing them
+# (Issue #1619).
+#
+# THE POLARITY IS THE POINT. The gate no longer asks "is the leading token a
+# known wrapper?" — that question has an open, attacker-controlled answer set,
+# and `stash@{0}` holds a prior enumeration attempt for a sibling gate marked
+# FAIL-Critical with 65 bypasses remaining. It asks the inverse: "having found
+# the token triple `gh issue create` past the leading token, is the leading
+# token one that provably treats bare words as data?"
+#
+# An omission from THIS set produces a false REFUSAL — loud, attributable, and
+# fixable by adding the verb. An omission from a wrapper deny-list produces a
+# silent PERMIT. Only the first failure mode is acceptable in a guard, so the
+# only enumeration left in this gate sits on the permit side.
+#
+# Membership rule: a verb belongs here only if its bare positional arguments
+# are patterns, paths, or prose — never a command it will execute. `xargs`,
+# `find` (`-exec`), `ssh`, `sudo`, `watch`, `parallel`, `make` and `docker` all
+# DO execute their arguments and are deliberately absent.
+#
+# The safety property — "an omission over-blocks loudly" — holds ONLY while
+# every member genuinely satisfies the membership rule. A single over-broad
+# member converts this permit set back into a deny list with extra steps, and
+# does so invisibly. `git` is the one member that needs a qualifier; see
+# `_GIT_SUBCOMMANDS_THAT_EXECUTE_ARGUMENTS` and `_verb_consumes_bare_args`.
+# Membership here is NECESSARY but not SUFFICIENT: always ask through
+# `_verb_consumes_bare_args`, never by testing this set directly.
+_COMMAND_ARG_CONSUMERS: "frozenset[str]" = frozenset({
+    # Text emitters and matchers — args are strings/patterns/paths.
+    "echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "ack",
+    "sed", "awk", "jq", "tr", "cut", "sort", "uniq", "wc", "diff",
+    # File/path handlers — args are paths.
+    "cat", "head", "tail", "less", "more", "ls", "rm", "cp", "mv",
+    "touch", "stat", "file", "readlink", "mkdir", "basename", "dirname",
+    # Version control — bare positionals are USUALLY subcommands, refs, paths
+    # and (unquoted) commit prose. Locks the Issue #1215 false positive:
+    # `git commit -m fix gh issue create gate` survives _strip_body_arg_values
+    # as three bare tokens.
+    #
+    # CONDITIONAL. A previous revision of this comment claimed `git` cannot
+    # execute a bare positional. That is FALSE, and the false claim is how the
+    # over-broad entry survived a review: `git bisect run <cmd> [args…]`,
+    # `git submodule foreach <cmd> [args…]`, `git rebase --exec <cmd>` and
+    # `git difftool -x <cmd>` all execute a bare positional, and three of the
+    # four were measured PERMITTING `gh issue create` before this qualifier
+    # existed. Consult `_verb_consumes_bare_args`, which excludes those
+    # subcommands, rather than this set alone.
+    "git",
+})
+
+
+# Subcommands that make `git` a command RUNNER rather than an arg consumer
+# (Issue #1619 remediation).
+#
+# NOTE THE POLARITY DELIBERATELY: this inner set IS a deny list, and that is
+# not a relapse into wrapper enumeration. It is scoped to ONE verb whose
+# subcommand vocabulary is closed, documented and versioned by an upstream
+# project — not to the open, attacker-controlled set of shell wrappers that
+# `_COMMAND_ARG_CONSUMERS` exists to avoid enumerating. Do NOT "fix" this into
+# a permit list of safe git subcommands: git ships ~150 of them, that list is
+# the open set, and inverting the polarity here would put the loud failure on
+# the wrong side.
+_GIT_SUBCOMMANDS_THAT_EXECUTE_ARGUMENTS: "frozenset[str]" = frozenset({
+    "bisect",        # git bisect run <cmd> [args…]
+    "submodule",     # git submodule foreach <cmd> [args…]
+    "filter-branch",  # --tree-filter / --index-filter / --msg-filter <cmd>
+    "difftool",      # git difftool -x <cmd>
+    "mergetool",     # git mergetool --tool=<cmd> / configured cmd
+    "rebase",        # git rebase --exec <cmd>
+})
+
+
+def _verb_consumes_bare_args(argv: "list[str]", idx: "int") -> bool:
+    """Does ``argv[idx]`` treat its bare positional words as DATA, not commands?
+
+    The single sanctioned way to ask the permit-side question. Membership in
+    :data:`_COMMAND_ARG_CONSUMERS` is necessary but not sufficient — ``git`` is
+    a consumer for ``commit``/``log``/``grep`` but a command RUNNER for
+    ``bisect run``/``submodule foreach``/``rebase --exec``/``difftool -x``.
+
+    For ``git`` the runner subcommand is searched across the ENTIRE remainder
+    of ``argv``, never at the fixed offset ``argv[idx + 1]``: git's global
+    options (``-C``, ``--no-pager``, ``--git-dir=``, ``-c k=v``) sit between
+    the verb and its subcommand, and a fixed-offset read permits every runner
+    form that carries one. See the inline note at the ``git`` branch for the
+    measured over-block cost of scanning wide.
+
+    Args:
+        argv: Tokenized statement (body-argument values already stripped).
+        idx: Index of the verb token to classify.
+
+    Returns:
+        True when the verb provably consumes bare words as data, so reaching
+        ``gh issue create`` through it is prose rather than execution.
+    """
+    if idx >= len(argv):
+        return False
+    verb = _token_basename(argv[idx])
+    if verb not in _COMMAND_ARG_CONSUMERS:
+        return False
+    if verb == "git":
+        # Scan the WHOLE remainder, not `argv[idx + 1]`. Reading the subcommand
+        # at a fixed offset assumes it sits immediately after `git`, and git's
+        # global options sit BETWEEN the two: `-C <path>`, `--no-pager`,
+        # `--git-dir=`, `--work-tree=`, `-c k=v`. With one present,
+        # `argv[idx + 1]` is the option, the membership test misses, and
+        # `git -C . bisect run gh issue create` PERMITS. All four of
+        # `-C` / `--no-pager` / `--git-dir=` / `difftool -x` were measured
+        # reopened by exactly this. A global option before the subcommand is
+        # the normal shape here, not an exotic one: 2,693 of 19,795 bare-`git`
+        # commands in 167,963 logged commands — 14% — have one.
+        #
+        # (`git -c k=v bisect run …` denied even at the fixed offset, but only
+        # incidentally: `_strip_body_arg_values` ate `-c`'s value and left
+        # `bisect` back at `argv[idx + 1]`. Luck, not logic. Do not read that
+        # as evidence the offset works.)
+        #
+        # The alternative — walk the prefix, skip `-`-prefixed tokens, and also
+        # skip the VALUE of the non-`=` value-taking globals — is more precise
+        # but needs a second enumeration (`-C`, `-c`, `--git-dir`, `--work-tree`,
+        # `--namespace`, `--exec-path`, `--super-prefix`, `--config-env`), and
+        # that value-skip is load-bearing: omit it and `-C`'s path argument
+        # becomes the apparent subcommand and this permits again. A second open
+        # set is the failure mode Issue #1619 exists to remove, so the whole
+        # remainder is scanned instead. The cost is bounded and measured: the
+        # only statements that reach here already contain the `gh issue create`
+        # triple, and across 167,963 logged commands the tokens below appear in
+        # such a statement 28 times — every one a genuine
+        # `git bisect run` / `submodule foreach` / `difftool -x` invocation of
+        # `gh issue create`, i.e. ZERO legitimate commands over-blocked. The
+        # residual cost is unquoted commit prose that names a runner
+        # subcommand (`git commit -m fix rebase gh issue create flow`), which
+        # over-blocks LOUDLY — the direction this gate deliberately prefers.
+        if any(
+            _token_basename(token) in _GIT_SUBCOMMANDS_THAT_EXECUTE_ARGUMENTS
+            for token in argv[idx + 1:]
+        ):
+            return False
+    return True
+
+
+# Verbs whose ARGUMENT STRING is command text the shell will execute, so the
+# effective verb cannot be resolved by tokenization (Issue #1619). Scanned as a
+# substring rather than as a token triple, and scoped to arguments that
+# actually contain the gh-issue-create pattern so that `eval "$(ssh-agent -s)"`
+# and friends are not swept up — a permanently-red check trains everyone to
+# ignore the whole class.
+_INDIRECT_COMMAND_EXECUTORS: "frozenset[str]" = frozenset({
+    "eval", "source", ".",
 })
 
 
@@ -3800,8 +3958,202 @@ def _split_statements(command: str) -> "list[str]":
     return out
 
 
-def _gh_issue_create_at_command_position(command: str) -> bool:
-    """Argv-position check: is ``gh issue create`` the command at argv[0]?
+def _strip_shell_comment(statement: str) -> str:
+    """Truncate a raw statement at its first UNQUOTED word-initial ``#``.
+
+    This must run on RAW statement text, before any tokenization. A previous
+    revision ran the equivalent predicate on post-``shlex`` tokens and
+    justified it with the claim that a quoted ``"# foo"`` "arrives as a token
+    containing whitespace". That claim is FALSE for quoted markers that
+    contain no whitespace, and the false claim is how the defect survived
+    review: ``shlex.split("xargs -I '#' gh issue create", posix=True)`` yields
+    ``['xargs', '-I', '#', 'gh', 'issue', 'create']``, the bare ``#`` read as a
+    comment, the statement truncated to ``['xargs', '-I']``, and the
+    invocation behind it was PERMITTED. Bash does not treat a quoted ``'#'``
+    as a comment, so ``xargs -I '#' gh issue create`` really executes — and
+    ``xargs`` is deliberately absent from :data:`_COMMAND_ARG_CONSUMERS`
+    precisely so it would refuse.
+
+    Scanning the raw text is what the shell itself does: a ``#`` begins a
+    comment only when it is unquoted, unescaped, and starts a word (preceded
+    by start-of-string or whitespace).
+
+    Args:
+        statement: A raw statement string from :func:`_split_statements`.
+
+    Returns:
+        ``statement`` truncated at the comment marker, or unchanged when it
+        contains no comment. Never raises.
+    """
+    quote: "Optional[str]" = None
+    i = 0
+    n = len(statement)
+    while i < n:
+        ch = statement[i]
+        if quote is None:
+            if ch == "\\":
+                # Escaped next character — `\#` is a literal hash, not a marker.
+                i += 2
+                continue
+            if ch in ("'", '"'):
+                quote = ch
+                i += 1
+                continue
+            # `" \t\n"`, NOT `.isspace()`. Python's `str.isspace()` is
+            # Unicode-aware; bash's default IFS is space, tab and newline only.
+            # For U+00A0 (NBSP), U+2007, U+2028, U+000B (VT) and U+000C (FF),
+            # `.isspace()` is True, so this scanner believed `#` started a word
+            # and truncated the statement — while BASH saw the `#` mid-word,
+            # treated it as a literal, and executed the rest of the line.
+            #
+            # Measured end to end with a stub `gh` on PATH (bash side and gate
+            # side measured independently, with a positive control that has no
+            # `#` at all and a negative control using a plain space):
+            #     env -u FOO<NBSP># gh issue create --title pwned
+            #         -> bash ran gh = True, gate = ALLOW  *** silent permit ***
+            # and the same for U+2007, U+2028, VT and FF. One pasted character,
+            # using only permitted commands.
+            #
+            # This is the `xargs -I '#'` class the scanner exists to close,
+            # reached through a different mechanism — and it existed BECAUSE of
+            # the scanner: without any comment stripping,
+            # `env -u <NBSP># gh issue create` denies.
+            if ch == "#" and (i == 0 or statement[i - 1] in " \t\n"):
+                return statement[:i]
+            i += 1
+            continue
+        # Inside quotes. Backslash escapes only inside double quotes; within
+        # single quotes bash treats a backslash literally.
+        if quote == '"' and ch == "\\":
+            i += 2
+            continue
+        if ch == quote:
+            quote = None
+        i += 1
+    return statement
+
+
+def _token_basename(token: str) -> str:
+    """Return the lower-cased basename of a shell token (Issue #1619).
+
+    ``/usr/bin/gh`` and ``./gh`` name the same executable as ``gh``. The prior
+    argv check compared ``verb.lower() == "gh"``, which an absolute path
+    defeated in the same one-word way ``env`` did.
+
+    Args:
+        token: A single shlex-produced argv token.
+
+    Returns:
+        The token's basename, lower-cased. ``"gh"`` for ``"/usr/bin/GH"``.
+    """
+    return token.rsplit("/", 1)[-1].lower()
+
+
+def _find_gh_issue_create_triple(argv: "list[str]", start: int) -> "Optional[int]":
+    """Locate the argv index where the ``gh issue create`` token triple begins.
+
+    Args:
+        argv: Tokenized statement (body-argument values already stripped).
+        start: Index to begin scanning from (past leading ``VAR=value``).
+
+    Returns:
+        Index of the ``gh`` token when ``gh``/``issue``/``create`` appear as
+        three consecutive tokens at or after ``start``, else None.
+    """
+    for pos in range(start, max(start, len(argv) - 2)):
+        if (
+            _token_basename(argv[pos]) == "gh"
+            and argv[pos + 1].lower() == "issue"
+            and argv[pos + 2].lower() == "create"
+        ):
+            return pos
+    return None
+
+
+def _unresolvable_verb_reaches_gh_issue_create(
+    argv: "list[str]", start: int
+) -> bool:
+    """Fail-closed check for statements whose effective verb cannot be resolved.
+
+    Two shapes are covered, both of which fell through to *allow* before
+    Issue #1619:
+
+    1. **Indirect execution** — ``eval "gh issue create ..."``. The command
+       text lives inside a single argument token, so no bare token triple
+       exists to find. Any argument of an
+       :data:`_INDIRECT_COMMAND_EXECUTORS` verb whose text contains the
+       gh-issue-create pattern is refused.
+    2. **Computed verb** — ``$CMD issue create ...`` / ``${GH_BIN} issue
+       create ...``. The verb is a parameter expansion the hook cannot
+       resolve, but the ``issue create`` operands are still visible.
+
+    Both are deliberately scoped to statements that actually reference
+    gh-issue-create. A blanket "any ``eval`` is refused" rule would make this
+    gate permanently red for ``eval "$(ssh-agent -s)"`` and train everyone to
+    ignore it.
+
+    Both shapes are scoped to the VERB POSITION via
+    :func:`_verb_consumes_bare_args`. Unscoped, shape 2 refused ordinary prose
+    the moment it contained a variable — measured: ``grep $PAT issue create
+    docs/``, ``git commit -m fix $BRANCH issue create flow``,
+    ``cat notes-$USER issue create`` and ``echo `date` issue create`` were all
+    REFUSED. The second is the Issue #1215 commit-prose false positive
+    returning, which is the very case ``git`` was put on the permit side to
+    protect. That is the cry-wolf direction and it is not acceptable here.
+
+    Note (honest limit): a command whose text is genuinely invisible to the
+    hook — base64-decoded and piped to a shell, or read from a file — is not
+    covered here and cannot be. ``docs/audits/unified-pre-tool-51-check-audit.md``
+    already records that inferring intent from a shell string cannot be made
+    complete; this closes the resolvable-but-indirect cases only.
+
+    Args:
+        argv: Tokenized statement (body-argument values already stripped).
+        start: Index to begin scanning from (past leading ``VAR=value``).
+
+    Returns:
+        True when the statement reaches ``gh issue create`` through a verb the
+        hook cannot resolve.
+    """
+    import re
+
+    # The leading verb provably consumes bare words as data, so neither an
+    # `eval` token nor a `$VAR` token further along is in verb position —
+    # both are operands. `echo eval gh issue create` is prose.
+    if _verb_consumes_bare_args(argv, start):
+        return False
+
+    pattern = re.compile(r"\bgh\s+issue\s+create\b", re.IGNORECASE)
+
+    # Shape 1: an indirect executor anywhere in the prefix, with command text
+    # in a later argument.
+    for pos in range(start, len(argv)):
+        if _token_basename(argv[pos]) in _INDIRECT_COMMAND_EXECUTORS:
+            if any(pattern.search(arg) for arg in argv[pos + 1:]):
+                return True
+
+    # Shape 2: a parameter-expanded verb immediately followed by the
+    # ``issue create`` operands. The computed token must BE the effective verb:
+    # either the first token, or reached only through runner prefixes
+    # (`env nice $CMD issue create`). If ANY token in front of it consumes bare
+    # words as data, the `$VAR` is that verb's operand and this is prose.
+    for pos in range(start, max(start, len(argv) - 2)):
+        token = argv[pos]
+        if not ("$" in token or "`" in token):
+            continue
+        if not (argv[pos + 1].lower() == "issue" and argv[pos + 2].lower() == "create"):
+            continue
+        if any(_verb_consumes_bare_args(argv, i) for i in range(start, pos)):
+            continue
+        return True
+
+    return False
+
+
+def _gh_issue_create_at_command_position(
+    command: str, *, heredoc_stripped: "Optional[str]" = None
+) -> bool:
+    """Effective-verb check: does this command actually invoke ``gh issue create``?
 
     Per Issue #1215, a raw substring scan of the Bash command falsely matched
     the gh-issue-create command name when it appeared in prose inside a
@@ -3815,34 +4167,155 @@ def _gh_issue_create_at_command_position(command: str) -> bool:
        OUTSIDE quoted regions. This catches multi-statement forms like
        ``cat <<EOF ... EOF; gh issue create ...`` where the gh call is the
        leading verb of a later statement.
-    2. For each statement, strip body/message argument VALUES via
-       ``_strip_body_arg_values`` so prose inside ``-m``/``--body``/``-F``
-       cannot match.
-    3. Tokenize via shlex.split(posix=True). Take argv[0] as the command
-       verb (skipping leading env-var assignments like ``FOO=bar``). If
-       verb is ``gh`` AND the next two argv tokens are ``issue`` then
-       ``create`` (case-insensitive), the command IS at command position →
-       return True.
-    4. If the verb is a shell wrapper (``sh``, ``bash``, ``/bin/sh``...) with
+    2. Truncate each statement at its first unquoted word-initial ``#`` via
+       :func:`_strip_shell_comment` (Issue #1619). This runs on RAW statement
+       text, BEFORE any tokenization, and the ordering is load-bearing in both
+       directions:
+
+       - it must run at all, because once the gate stopped trusting argv[0]
+         the prose in ``# ...can the coordinator call gh issue create`` read
+         as an invocation (15 such comment lines measured in this repo's own
+         activity log);
+       - it must run before tokenization, because
+         :func:`_strip_body_arg_values` rejoins shlex tokens with spaces and
+         so destroys the quoting that separates a comment marker from a
+         quoted ``'#'`` literal. A post-tokenization predicate PERMITTED
+         ``xargs -I '#' gh issue create``. See :func:`_strip_shell_comment`.
+
+       A statement that is empty after truncation is skipped.
+    3. Strip body/message argument VALUES via ``_strip_body_arg_values`` so
+       prose inside ``-m``/``--body``/``-F`` cannot match.
+    4. Tokenize via shlex.split(posix=True). Skip leading env-var assignments
+       like ``FOO=bar``.
+    5. If the verb is a shell wrapper (``sh``, ``bash``, ``/bin/sh``...) with
        ``-c`` followed by a sub-command, leave detection to the bypass
        detector — skip this statement here. (The bypass detector already
        catches this pattern with shlex-stripping.)
-    5. Any other verb (``git``, ``python3``, ``cat``, etc.) → skip statement.
+    6. Resolve the EFFECTIVE VERB rather than trusting argv[0] (Issue #1619).
+       Locate the ``gh``/``issue``/``create`` token triple anywhere in the
+       statement, basename-aware so ``/usr/bin/gh`` counts:
+
+       - triple at the first non-assignment token → direct invocation, True
+         (the pre-#1619 behaviour, unchanged);
+       - triple reached THROUGH a leading token → True, **unless**
+         :func:`_verb_consumes_bare_args` says that token provably treats its
+         bare positional words as DATA, or the statement is heredoc body
+         prose. This is what refuses ``env``/``nice``/``timeout``/``xargs``/
+         ``doas`` and every future runner without naming any of them;
+       - no triple → :func:`_unresolvable_verb_reaches_gh_issue_create` gives
+         the fail-closed answer for ``eval "gh issue create ..."`` and
+         ``$CMD issue create ...``, which previously fell through to allow.
+
+       Ask the permit-side question ONLY through
+       :func:`_verb_consumes_bare_args`. That function is the single
+       sanctioned reader of :data:`_COMMAND_ARG_CONSUMERS`; do not add a
+       second one and do not test that set directly here. Membership is
+       NECESSARY but not SUFFICIENT — ``git`` is in the set (it consumes bare
+       words for ``commit``/``log``/``grep``) yet is a command RUNNER for
+       ``bisect run``/``submodule foreach``/``rebase --exec``/``difftool -x``,
+       three of which were measured PERMITTING ``gh issue create`` while a
+       raw set test was the gate. ``_verb_consumes_bare_args`` is where that
+       qualifier lives, so a direct set test silently reopens those holes.
+
+       Every enumeration in this path is on the PERMIT side, so an omission
+       over-blocks loudly instead of silently permitting.
 
     Args:
         command: The raw Bash command string.
+        heredoc_stripped: Optional precomputed ``_strip_heredoc_content(command)``
+            for the SAME ``command``, supplied by a caller that already
+            needed it, so the exponential heredoc regex runs once per gate
+            pass instead of twice (Issue #1620 — see the call site below).
+            When None it is computed here. Passing a value derived from any
+            other string is a defect: the heredoc carve-out compares the
+            resulting statements against those of ``command``, so a
+            mismatched value silently changes which statements count as
+            executable.
 
     Returns:
-        True if ``gh issue create`` is at argv command position in at least
-        one statement, False otherwise. Raises no exceptions — on
-        shlex.ValueError for a given statement, that statement is skipped
-        (caller's raw-regex fallback preserves fail-closed blocking for the
-        whole-command malformed case).
+        True if ``gh issue create`` is reached as the effective verb in at
+        least one executable statement, False otherwise. Raises no
+        exceptions — on shlex.ValueError for a given statement, that
+        statement is skipped (caller's raw-regex fallback preserves
+        fail-closed blocking for the whole-command malformed case).
     """
     statements = _split_statements(command)
+
+    # Issue #1619: statements that survive heredoc stripping are real command
+    # text; statements that vanish were heredoc BODY lines (data written to a
+    # file, never executed). Only the effective-verb scan consults this — the
+    # pre-existing argv[0] path is left byte-for-byte on the raw statements so
+    # this change cannot weaken anything that already blocked.
+    #
+    # ISSUE #1620 EXPOSURE — READ BEFORE ADDING ANOTHER CALL HERE.
+    # _strip_heredoc_content wraps heredoc_utils._HEREDOC_PATTERN, whose
+    # `(.*?\n)*?` nests a quantifier inside a lazy repeat and backtracks
+    # exponentially when the closing delimiter is never found. Measured on
+    # `cat <<EOF > f.txt` + N body lines with NO terminator:
+    #     n=18 (133 chars) 0.10s | n=20 0.41s | n=22 1.62s | n=24 (175 chars) 6.5s
+    # against 0.000s for the same 24-line TERMINATED heredoc. Roughly 2x per
+    # added line. The PreToolUse hook budget is 5 SECONDS, and Claude Code
+    # PROCEEDS on hook timeout — so a ~175-character command escapes every
+    # PreToolUse gate, not merely this one.
+    #
+    # Issue #1619 added a call to that regex on this path (measured: 6 static
+    # call sites at HEAD, 7 after; and at RUNTIME 1 execution per command
+    # through _detect_gh_issue_create at HEAD, 2 after). That doubling was not
+    # academic — end-to-end through _detect_gh_issue_create at n=23 body lines
+    # (168 chars): HEAD 3.19s (under budget), un-folded #1619 6.43s (OVER the
+    # 5s budget → gate skipped), i.e. the second call moved the escape
+    # threshold one body line CLOSER for every PreToolUse gate.
+    #
+    # The `heredoc_stripped` parameter folds the two calls back into one by
+    # reusing the pass _detect_gh_issue_create already performs on the
+    # identical string. Re-measured after the fold: 1 runtime execution, n=23
+    # back to 3.19s, and 0/23 verdict disagreements against the un-folded
+    # version across the wrapper, comment, git-runner, computed-verb,
+    # malformed and heredoc-both-arms cases. So this gate is now no more
+    # exposed than it was at HEAD.
+    #
+    # That is CONTAINMENT, NOT A FIX. The regex is still exponential, n=24
+    # (175 chars) still costs 6.4s and still escapes every PreToolUse gate,
+    # and three other call sites still drive it. The fix belongs in
+    # lib/heredoc_utils.py under #1620, where one change covers every caller
+    # at once. Do NOT patch the regex here.
+    stripped_for_heredoc = (
+        _strip_heredoc_content(command) if heredoc_stripped is None else heredoc_stripped
+    )
+    try:
+        executable_statements = set(_split_statements(stripped_for_heredoc))
+    except (ValueError, re.error):
+        # _strip_heredoc_content is regex-driven; a malformed pattern or a
+        # value error must not silently disable the heredoc carve-out.
+        import logging
+
+        logging.debug(
+            "gh-issue-create gate: heredoc strip failed; treating every "
+            "statement as executable",
+            exc_info=True,
+        )
+        executable_statements = set(statements)
+
     for stmt in statements:
+        # Bash comments (Issue #1619). A word beginning with '#' starts a
+        # comment that runs to end of line, so once the gate stopped trusting
+        # argv[0] the prose in `# ...can the coordinator call gh issue create
+        # inside the pipeline` read as an invocation. Measured against 1,282
+        # decision-relevant commands from this repo's own activity log: 15 such
+        # comment lines would have been refused. A permanently-red check trains
+        # everyone to ignore the whole class, so truncate at the comment marker
+        # — which is exactly what the shell itself does.
+        #
+        # This MUST run on the raw statement text, before tokenization:
+        # _strip_body_arg_values rejoins shlex tokens with spaces and so
+        # destroys the quoting that distinguishes a comment marker from a
+        # quoted `'#'` literal. See _strip_shell_comment for the measured
+        # bypass that a post-tokenization predicate permitted.
+        stmt_code = _strip_shell_comment(stmt)
+        if not stmt_code.strip():
+            continue
         try:
-            stripped_cmd, _dropped = _strip_body_arg_values(stmt)
+            stripped_cmd, _dropped = _strip_body_arg_values(stmt_code)
         except ValueError:
             # Malformed statement — skip; whole-command fallback handles it.
             continue
@@ -3866,15 +4339,39 @@ def _gh_issue_create_at_command_position(command: str) -> bool:
         if verb in _SHELL_WRAPPERS:
             continue
 
-        # The only case that counts as command-position is verb == "gh"
-        # with the next two tokens "issue" then "create" (case-insensitive).
-        if verb.lower() == "gh":
-            if (
-                idx + 2 < len(seg)
-                and seg[idx + 1].lower() == "issue"
-                and seg[idx + 2].lower() == "create"
-            ):
-                return True
+        # --- Effective-verb resolution (Issue #1619) ---------------------
+        # Locate the `gh issue create` token triple anywhere in the statement
+        # rather than trusting argv[0]. Basename-aware, so `/usr/bin/gh`
+        # counts too.
+        pos = _find_gh_issue_create_triple(seg, idx)
+
+        if pos == idx:
+            # Direct invocation — the pre-existing case, unchanged.
+            return True
+
+        if pos is not None:
+            # `gh issue create` is reached THROUGH a leading token. That token
+            # is either a command runner (env/nice/timeout/xargs/sudo/ssh/an
+            # invented one) or a verb that consumes bare words as data.
+            # Unknown resolves to REFUSE — the whole point of Issue #1619 is
+            # that the unknown case must not be a silent permit.
+            #
+            # Ask through _verb_consumes_bare_args, never by testing
+            # _COMMAND_ARG_CONSUMERS directly: `git` is on the permit side for
+            # `commit`/`log`/`grep` but is a command RUNNER for
+            # `bisect run`/`submodule foreach`/`rebase --exec`/`difftool -x`.
+            if _verb_consumes_bare_args(seg, idx):
+                continue
+            if stmt not in executable_statements:
+                # Heredoc body prose, not a command. Data, not execution.
+                continue
+            return True
+
+        # No token triple: the verb may be unresolvable (eval / $CMD).
+        if stmt in executable_statements and _unresolvable_verb_reaches_gh_issue_create(
+            seg, idx
+        ):
+            return True
 
     return False
 
@@ -4497,8 +4994,15 @@ def _detect_gh_issue_create(command: str) -> "Optional[str]":
     try:
         # Strip quoted segments and heredoc content to avoid false positives
         # when 'gh issue create' appears inside commit messages, echo strings, etc.
-        stripped = _strip_heredoc_content(command)
-        stripped = _strip_quoted_segments(stripped)
+        #
+        # Issue #1620: keep the heredoc-stripped text in its own name and hand
+        # it to _gh_issue_create_at_command_position below. That helper needs
+        # the identical value, and _strip_heredoc_content is an exponentially
+        # backtracking regex (measured 6.5s on a 175-char unterminated heredoc,
+        # against a 5s hook budget) — computing it twice doubled the wall-clock
+        # cost of the worst case for no benefit.
+        heredoc_stripped = _strip_heredoc_content(command)
+        stripped = _strip_quoted_segments(heredoc_stripped)
 
         # Check 1: Direct 'gh issue create' in the stripped command.
         #
@@ -4519,7 +5023,9 @@ def _detect_gh_issue_create(command: str) -> "Optional[str]":
         # the regex scan even though shlex cannot parse it. The bypass
         # detector independently scans the raw command for the same family
         # of forms.
-        argv_match = _gh_issue_create_at_command_position(command)
+        argv_match = _gh_issue_create_at_command_position(
+            command, heredoc_stripped=heredoc_stripped
+        )
 
         # Raw-regex fallback ONLY when the shlex-aware path could not parse.
         # We detect the unparseable case by attempting the same shlex call
