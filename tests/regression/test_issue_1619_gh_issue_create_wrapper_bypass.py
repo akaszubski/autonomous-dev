@@ -776,22 +776,32 @@ def test_heredoc_strip_runs_once_per_command() -> None:
     """``_strip_heredoc_content`` executes exactly ONCE per detected command.
 
     Issue #1619 added a second call to ``heredoc_utils._HEREDOC_PATTERN`` on
-    this path. That pattern nests a quantifier inside a lazy repeat and
-    backtracks exponentially when the closing delimiter is never found, so the
+    this path. That pattern nested a quantifier inside a lazy repeat and
+    backtracked exponentially when the closing delimiter was never found, so the
     doubling was not academic: end-to-end through ``_detect_gh_issue_create`` at
     n=23 body lines (168 characters), HEAD cost 3.19s and the un-folded version
-    cost 6.43s — OVER the 5-second PreToolUse hook budget. Claude Code PROCEEDS
-    on hook timeout, so the regression is a gate ESCAPE, not merely latency, and
-    it escapes every PreToolUse gate rather than just this one.
+    cost 6.43s — OVER the 5-second PreToolUse hook budget.
+
+    That budget overrun is a gate ESCAPE, not merely latency, and it escapes
+    every PreToolUse gate rather than just this one. Claude Code PROCEEDS past a
+    timed-out hook: MEASURED in a sandbox, both arms, two runs each — an
+    instant-deny hook BLOCKED, the identical deny behind ``sleep 8`` PROCEEDED.
+    The production timing corpus holds 16 historical over-budget events for this
+    hook across five days (max 12.719s), predating any probing. The claim used
+    to sit in the source as an unsourced assertion; it is now evidence.
 
     The ``heredoc_stripped`` parameter folds the two calls back into one. Until
-    now that fold was held in place by a source comment alone — the third time
-    in this changeset that a comment was the only thing holding a property, and
-    the two previous ones were both found asserting something FALSE. A comment
-    cannot fail; this can.
+    this test existed that fold was held in place by a source comment alone —
+    the third time in that changeset that a comment was the only thing holding a
+    property, and the two previous ones were both found asserting something
+    FALSE. A comment cannot fail; this can.
 
-    Do NOT fix this by patching the regex here: #1620 is filed and must cover
-    all callers at once in ``lib/heredoc_utils.py``.
+    #1620 has since replaced the exponential regex with a linear scanner
+    (``lib/heredoc_utils.py``), so the single-pass contract is no longer what
+    stands between this gate and the budget. It remains the contract this gate
+    is written against — a second pass on a DIFFERENT string is still a defect,
+    because the carve-out compares statement sets — so the property stays
+    pinned. Do NOT relax it on the grounds that the strip is now cheap.
     """
     real = hook._strip_heredoc_content
     calls: list[str] = []
@@ -804,9 +814,13 @@ def test_heredoc_strip_runs_once_per_command() -> None:
         hook._detect_gh_issue_create("cat <<EOF > f\nhi\nEOF")
 
     assert len(calls) == 1, (
-        f"{len(calls)} calls to an exponentially-backtracking regex on one "
-        f"command; a second call moves the 5s-hook-budget escape threshold "
-        f"one heredoc body line closer for every PreToolUse gate (#1620)."
+        f"{len(calls)} heredoc strips on one command. The single-pass contract "
+        f"is what lets this gate compare statement SETS derived from the same "
+        f"string; a second pass on a different string silently changes which "
+        f"statements count as executable. Historically it also moved the "
+        f"5s-hook-budget escape threshold one heredoc body line closer for every "
+        f"PreToolUse gate — that half is fixed by the #1620 linear scanner, this "
+        f"half is not."
     )
 
 

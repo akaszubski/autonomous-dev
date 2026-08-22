@@ -4224,8 +4224,9 @@ def _gh_issue_create_at_command_position(
         command: The raw Bash command string.
         heredoc_stripped: Optional precomputed ``_strip_heredoc_content(command)``
             for the SAME ``command``, supplied by a caller that already
-            needed it, so the exponential heredoc regex runs once per gate
-            pass instead of twice (Issue #1620 — see the call site below).
+            needed it, so the heredoc strip runs once per gate pass instead
+            of twice (Issue #1620 — see the call site below; the strip is no
+            longer exponential, but the single-pass contract is pinned).
             When None it is computed here. Passing a value derived from any
             other string is a defect: the heredoc carve-out compares the
             resulting statements against those of ``command``, so a
@@ -4247,46 +4248,51 @@ def _gh_issue_create_at_command_position(
     # pre-existing argv[0] path is left byte-for-byte on the raw statements so
     # this change cannot weaken anything that already blocked.
     #
-    # ISSUE #1620 EXPOSURE — READ BEFORE ADDING ANOTHER CALL HERE.
-    # _strip_heredoc_content wraps heredoc_utils._HEREDOC_PATTERN, whose
-    # `(.*?\n)*?` nests a quantifier inside a lazy repeat and backtracks
-    # exponentially when the closing delimiter is never found. Measured on
-    # `cat <<EOF > f.txt` + N body lines with NO terminator:
-    #     n=18 (133 chars) 0.10s | n=20 0.41s | n=22 1.62s | n=24 (175 chars) 6.5s
-    # against 0.000s for the same 24-line TERMINATED heredoc. Roughly 2x per
-    # added line. The PreToolUse hook budget is 5 SECONDS, and Claude Code
-    # PROCEEDS on hook timeout — so a ~175-character command escapes every
-    # PreToolUse gate, not merely this one.
+    # ISSUE #1620 — FIXED IN lib/heredoc_utils.py. HISTORY KEPT DELIBERATELY.
+    # _strip_heredoc_content used to wrap heredoc_utils._HEREDOC_PATTERN, whose
+    # `(.*?\n)*?` nested a quantifier inside a lazy repeat and backtracked
+    # exponentially when the closing delimiter was never found. Measured on
+    # `cat <<EOF > f.txt` + N body lines with NO terminator, end-to-end through
+    # the real hook subprocess:
+    #     n=18 0.94s | n=19 1.75s | n=20 3.38s | n=21 (147 chars) 6.65s
+    # against 0.086s for the same-size TERMINATED heredoc and 0.083s for
+    # `echo hello`. Roughly 2x per added line.
     #
-    # Issue #1619 added a call to that regex on this path (measured: 6 static
-    # call sites at HEAD, 7 after; and at RUNTIME 1 execution per command
-    # through _detect_gh_issue_create at HEAD, 2 after). That doubling was not
-    # academic — end-to-end through _detect_gh_issue_create at n=23 body lines
-    # (168 chars): HEAD 3.19s (under budget), un-folded #1619 6.43s (OVER the
-    # 5s budget → gate skipped), i.e. the second call moved the escape
-    # threshold one body line CLOSER for every PreToolUse gate.
+    # The PreToolUse budget for this hook is 5 SECONDS (`.claude/settings.json`),
+    # and CLAUDE CODE PROCEEDS PAST A TIMED-OUT HOOK. That is now MEASURED, not
+    # asserted: in a sandbox, both arms, two runs each, an instant-deny hook
+    # BLOCKED while the identical deny behind `sleep 8` PROCEEDED. The
+    # production timing corpus holds 16 historical over-budget events for this
+    # hook across five days (max 12.719s), predating any probing. So a
+    # ~150-character command skipped EVERY gate in this file at once —
+    # including the #1435 protected-infrastructure hard floor — not merely this
+    # one. It was a live bypass, not a theoretical one.
     #
-    # The `heredoc_stripped` parameter folds the two calls back into one by
-    # reusing the pass _detect_gh_issue_create already performs on the
-    # identical string. Re-measured after the fold: 1 runtime execution, n=23
-    # back to 3.19s, and 0/23 verdict disagreements against the un-folded
-    # version across the wrapper, comment, git-runner, computed-verb,
-    # malformed and heredoc-both-arms cases. So this gate is now no more
-    # exposed than it was at HEAD.
+    # #1620 replaced the regex with a linear line scanner that emulates it
+    # byte-for-byte (including the `(\w+)` prefix backtracking — see that
+    # module's docstring; a `{0,N}` bound in the style of #1194/#1220/#1221/
+    # #1222 would NOT work here and would silently stop stripping long
+    # heredocs). Re-measured through this same harness: n=21 0.065s, and 0
+    # verdict disagreements across all 7 call sites x 22 commands.
     #
-    # That is CONTAINMENT, NOT A FIX. The regex is still exponential, n=24
-    # (175 chars) still costs 6.4s and still escapes every PreToolUse gate,
-    # and three other call sites still drive it. The fix belongs in
-    # lib/heredoc_utils.py under #1620, where one change covers every caller
-    # at once. Do NOT patch the regex here.
+    # The `heredoc_stripped` parameter predates the fix: Issue #1619 added a
+    # second call on this path (6 static call sites at HEAD, 7 after; 1 runtime
+    # execution per command through _detect_gh_issue_create at HEAD, 2 after),
+    # and at n=23 that doubling took 3.19s to 6.43s — over budget. The fold back
+    # to one call is no longer load-bearing for ReDoS, but it is still the
+    # single-pass contract this gate is written against, and
+    # tests/regression/test_issue_1619_gh_issue_create_wrapper_bypass.py pins it
+    # as a property. Passing a value derived from any OTHER string is still a
+    # defect (see the Args note above).
     stripped_for_heredoc = (
         _strip_heredoc_content(command) if heredoc_stripped is None else heredoc_stripped
     )
     try:
         executable_statements = set(_split_statements(stripped_for_heredoc))
     except (ValueError, re.error):
-        # _strip_heredoc_content is regex-driven; a malformed pattern or a
-        # value error must not silently disable the heredoc carve-out.
+        # _split_statements is regex-driven, and _strip_heredoc_content fails
+        # open by contract (#1620); neither a re.error nor a value error may
+        # silently disable the heredoc carve-out.
         import logging
 
         logging.debug(
@@ -4406,6 +4412,9 @@ def _contains_gh_issue_create_bypass(command: str) -> bool:
         # Pattern 1: Python subprocess wrappers — subprocess.run/call/Popen/check_output
         # with 'gh' and 'issue' and 'create' appearing as list elements or in a string.
         # We look for the subprocess family of calls followed by gh issue create nearby.
+        # Issue #1629 tracks this pattern's separate cubic scanning behaviour on
+        # large inputs (three unbounded `[^)]*` runs). NOT #1620 and NOT fixed
+        # here — different regex, different class, deliberately out of scope.
         subprocess_pattern = (
             r'subprocess\s*\.\s*(?:run|call|Popen|check_output|check_call)'
             r'[^)]*\bgh\b[^)]*\bissue\b[^)]*\bcreate\b'
