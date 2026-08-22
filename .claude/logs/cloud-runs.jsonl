@@ -898,3 +898,4 @@
 {"fire_id": "20260822T123743Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260822T143855Z", "fired_at": "2026-08-22T14:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260822T143855Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T163802Z", "fired_at": "2026-08-22T16:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
