@@ -892,3 +892,15 @@
 {"fire_id": "20260822T063823Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260822T083824Z", "fired_at": "2026-08-22T08:38:45Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260822T083824Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T103811Z", "fired_at": "2026-08-22T10:38:28Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T103811Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T123743Z", "fired_at": "2026-08-22T12:38:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T123743Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T143855Z", "fired_at": "2026-08-22T14:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T143855Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T163802Z", "fired_at": "2026-08-22T16:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T163802Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T183744Z", "fired_at": "2026-08-22T18:38:35Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T183744Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260822T203741Z", "fired_at": "2026-08-22T20:37:59Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260822T203741Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
