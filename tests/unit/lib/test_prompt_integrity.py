@@ -372,14 +372,21 @@ class TestPromptBaselinePersistence:
         assert get_prompt_baseline("security-auditor", state_dir=tmp_path) == 600
 
     def test_baseline_persists_to_json(self, tmp_path: Path) -> None:
-        """Verify the baselines file is valid JSON with expected structure."""
+        """Verify the baselines file is valid JSON with expected structure.
+
+        Issue #1358: record_prompt_baseline() now stores each issue's baseline
+        as a dict of {"word_count": N, "pipeline_mode": mode} rather than a
+        bare int, so get_cross_issue_baseline() can skip comparisons across
+        differing pipeline modes. Retargeted (was asserting the pre-#1358
+        bare-int format) — the word-count value under test is unchanged.
+        """
         record_prompt_baseline("reviewer", issue_number=1, word_count=500, state_dir=tmp_path)
 
         baselines_path = tmp_path / "prompt_baselines.json"
         assert baselines_path.exists()
 
         data = json.loads(baselines_path.read_text())
-        assert data == {"reviewer": {"1": 500}}
+        assert data == {"reviewer": {"1": {"word_count": 500, "pipeline_mode": None}}}
 
 
 class TestPromptIntegrityResult:
@@ -591,6 +598,24 @@ class TestValidateAndReload:
     After a prompt integrity block + reload, the reloaded prompt was NOT validated
     before re-invocation. validate_and_reload() fixes this by validating the
     reloaded template before returning it.
+
+    KNOWN REGRESSION (not fixed here — plugins/autonomous-dev/lib/ is protected
+    infrastructure, out of scope for test-only changes): commit d29c3163
+    ("add pipeline-mode-aware baselines and fix mode 3x multiplier") deleted the
+    working validate_and_reload() implementation (which read the ValidateAndReloadResult
+    dataclass, accepted agents_dir=, and actually re-read the agent template from
+    disk on failure — see `git show d29c3163^:plugins/autonomous-dev/lib/prompt_integrity.py`)
+    and replaced it with a permanent stub that always returns
+    `reload_reason="Reload not yet implemented"` and the older PromptReloadResult
+    shape (no reload_count, no agents_dir, no prompt attribute). Commit f2bdda3e
+    (#1471) restored the orphaned ValidateAndReloadResult dataclass verbatim but did
+    NOT rewire validate_and_reload() to use it — its own docstring says so
+    explicitly: "reconciling the two result types is tracked in the
+    validate_prompt_word_count-divergence follow-up issue." No other module in the
+    codebase calls validate_and_reload() (grep across plugins/autonomous-dev/{hooks,lib}
+    is empty), so this is inert in production today but the tests below correctly
+    pin the intended (pre-regression) contract and are left failing/red rather than
+    weakened to match the stub. These 8 tests are NOT modified.
     """
 
     def _make_agents_dir(self, tmp_path: Path, agents: dict) -> Path:
@@ -736,6 +761,25 @@ class TestValidatePromptSlots:
     Security-auditor received only 45 words with missing implementer output,
     changed files list, and test results. validate_prompt_slots() catches this
     by checking for required content markers.
+
+    KNOWN REGRESSION (not fixed here — plugins/autonomous-dev/lib/ is protected
+    infrastructure, out of scope for test-only changes): commit d29c3163 deleted
+    the working validate_prompt_slots() implementation, which drove its checks
+    from the module-level REQUIRED_PROMPT_SLOTS dict (case-insensitive marker
+    substrings like "implementer"/"changed file"/"test", returning a
+    PromptSlotResult with a `present_slots` field — see
+    `git show d29c3163^:plugins/autonomous-dev/lib/prompt_integrity.py`), and
+    replaced it with a different, hardcoded local REQUIRED_SLOTS dict that checks
+    for literal markdown headers ("## Security Analysis Request" etc.) instead,
+    and a PromptSlotResult with `found_slots` (not `present_slots`). The
+    module-level REQUIRED_PROMPT_SLOTS dict still exists in the file today — its
+    own comment says it was "Restored in #1471 — dropped by d29c3163;
+    tests/unit/lib/test_prompt_integrity.py ... import it" — but validate_prompt_slots()
+    was never rewired to consume it, so REQUIRED_PROMPT_SLOTS is currently dead
+    code sitting beside the function that should read it. The tests below
+    correctly pin the intended (pre-regression, REQUIRED_PROMPT_SLOTS-driven)
+    contract and are left failing/red rather than weakened to match the current
+    header-based implementation. These 6 tests are NOT modified.
     """
 
     def test_all_slots_present(self) -> None:
@@ -820,77 +864,94 @@ class TestConstructRevisionPrompt:
     REVISE) or remediation (reviewer BLOCKING) by passing ONLY the new
     feedback. The prompt-integrity hook then detected this as shrinkage vs the
     baseline word count and blocked the re-invocation. construct_revision_prompt
-    combines the full baseline context with the feedback so the resulting
-    prompt's word count is >= baseline, defeating the shrinkage detector.
+    combines the full base prompt with the feedback/instructions so the
+    resulting prompt's word count is >= the base prompt, defeating the
+    shrinkage detector.
+
+    Retargeted (2026-08-23): these tests previously called
+    construct_revision_prompt(agent_type=, baseline_context=, feedback=) and
+    asserted a "## REVISION FEEDBACK" marker. The live signature on disk is
+    construct_revision_prompt(base_prompt, revision_instructions, agent_type)
+    with an "## Additional Instructions" marker (see
+    plugins/autonomous-dev/lib/prompt_integrity.py). NOTE: git archaeology
+    (commit d29c3163) shows the baseline_context/"## REVISION FEEDBACK" version
+    existed and was deleted in the SAME commit that added the current version
+    — i.e. this may be a same-commit regression rather than an invented API,
+    the same pattern as the validate_and_reload/validate_prompt_slots
+    regressions documented elsewhere in this file. Retargeting here follows
+    explicit instruction from the invoking task; the underlying behavioral
+    property under test (word-count non-shrinkage across a revision
+    re-invocation) is preserved unchanged.
     """
 
     def test_construct_revision_prompt_combines_baseline_and_feedback(self) -> None:
-        """Result starts with baseline, contains the marker, and ends with feedback."""
-        baseline = "You are the planner. Read the spec and produce a plan."
-        feedback = "Address axis 2 (Existing Solution Search) more rigorously."
+        """Result starts with base prompt, contains the marker, and ends with instructions."""
+        base_prompt = "You are the planner. Read the spec and produce a plan."
+        revision_instructions = "Address axis 2 (Existing Solution Search) more rigorously."
 
         result = construct_revision_prompt(
-            agent_type="planner",
-            baseline_context=baseline,
-            feedback=feedback,
+            base_prompt,
+            revision_instructions,
+            "planner",
         )
 
-        assert result.startswith(baseline), (
-            f"Result must start with baseline_context. Got: {result[:80]!r}"
+        assert result.startswith(base_prompt), (
+            f"Result must start with base_prompt. Got: {result[:80]!r}"
         )
-        assert "\n\n## REVISION FEEDBACK\n" in result, (
-            "Result must contain the REVISION FEEDBACK marker between baseline and feedback."
+        assert "\n\n## Additional Instructions\n\n" in result, (
+            "Result must contain the Additional Instructions marker between "
+            "base prompt and revision instructions."
         )
-        assert result.endswith(feedback), (
-            f"Result must end with feedback. Got tail: {result[-80:]!r}"
+        assert result.endswith(revision_instructions), (
+            f"Result must end with revision_instructions. Got tail: {result[-80:]!r}"
         )
 
     def test_construct_revision_prompt_preserves_baseline_word_count(self) -> None:
-        """Revision word count >= baseline word count (defeats shrinkage detector)."""
-        baseline = " ".join(["baseline_word"] * 1500)
-        feedback = " ".join(["feedback_word"] * 300)
+        """Revision word count >= base prompt word count (defeats shrinkage detector)."""
+        base_prompt = " ".join(["baseline_word"] * 1500)
+        revision_instructions = " ".join(["feedback_word"] * 300)
 
         result = construct_revision_prompt(
-            agent_type="planner",
-            baseline_context=baseline,
-            feedback=feedback,
+            base_prompt,
+            revision_instructions,
+            "planner",
         )
 
-        baseline_word_count = len(baseline.split())
+        baseline_word_count = len(base_prompt.split())
         result_word_count = len(result.split())
         assert result_word_count >= baseline_word_count, (
             f"Revision word count ({result_word_count}) must be >= baseline "
             f"({baseline_word_count}) to defeat the shrinkage detector."
         )
-        # Sanity: should actually grow (baseline + marker + feedback)
+        # Sanity: should actually grow (base_prompt + marker + instructions)
         assert result_word_count > baseline_word_count, (
-            "Combined prompt should grow beyond baseline (baseline + marker + feedback)."
+            "Combined prompt should grow beyond base_prompt (base_prompt + marker + instructions)."
         )
 
     def test_construct_revision_prompt_empty_feedback_still_returns_baseline_plus_marker(
         self,
     ) -> None:
-        """Empty feedback still produces a valid prompt with the REVISION FEEDBACK header."""
-        baseline = "Original prompt content for the agent to re-process."
-        feedback = ""
+        """Empty instructions still produce a valid prompt with the marker header."""
+        base_prompt = "Original prompt content for the agent to re-process."
+        revision_instructions = ""
 
         result = construct_revision_prompt(
-            agent_type="implementer",
-            baseline_context=baseline,
-            feedback=feedback,
+            base_prompt,
+            revision_instructions,
+            "implementer",
         )
 
-        assert result.startswith(baseline)
-        assert "## REVISION FEEDBACK" in result, (
-            "Marker must be present even when feedback is empty."
+        assert result.startswith(base_prompt)
+        assert "## Additional Instructions" in result, (
+            "Marker must be present even when revision_instructions is empty."
         )
-        # Word count must still be >= baseline (the marker adds words, not removes them)
-        assert len(result.split()) >= len(baseline.split())
+        # Word count must still be >= base_prompt (the marker adds words, not removes them)
+        assert len(result.split()) >= len(base_prompt.split())
 
     def test_construct_revision_prompt_with_special_chars_in_feedback(self) -> None:
-        """Feedback containing markdown, code fences, and unicode is passed through verbatim."""
-        baseline = "Baseline prompt content for the implementer."
-        feedback = (
+        """Instructions containing markdown, code fences, and unicode pass through verbatim."""
+        base_prompt = "Baseline prompt content for the implementer."
+        revision_instructions = (
             "## BLOCKING Findings\n\n"
             "1. **Missing input validation** in `parse_config()`\n"
             "   ```python\n"
@@ -902,15 +963,15 @@ class TestConstructRevisionPrompt:
         )
 
         result = construct_revision_prompt(
-            agent_type="implementer",
-            baseline_context=baseline,
-            feedback=feedback,
+            base_prompt,
+            revision_instructions,
+            "implementer",
         )
 
-        # Feedback must appear verbatim — no escaping, no munging
-        assert feedback in result, (
-            "Feedback string (including markdown, code fences, unicode) must be "
-            "embedded verbatim in the result."
+        # Instructions must appear verbatim — no escaping, no munging
+        assert revision_instructions in result, (
+            "revision_instructions string (including markdown, code fences, unicode) "
+            "must be embedded verbatim in the result."
         )
         # Spot-check the tricky bits explicitly
         assert "```python" in result
