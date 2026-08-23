@@ -24,17 +24,36 @@ tracked, and the number can only go down".
 
 HOW THE BASELINE WAS MEASURED
 -----------------------------
-Measured 2026-08-23 on darwin 25.4.0, CPython, from a clean tree with the
-``pytest.mark.integration`` rebinds removed and nothing else changed::
+The original 512/1844 pin (Issue #1582) was measured on a developer laptop
+that carries ``plugins/autonomous_dev``, a symlink listed in ``.gitignore:31``
+that has NEVER been committed (``git ls-files plugins/autonomous_dev`` returns
+empty). That symlink lets the laptop collect tests no CI checkout can collect,
+so the pin was calibrated against an environment the gate never actually runs
+in — the same species of error this file exists to catch: trusting a reading
+taken from the wrong copy.
 
-    python -m pytest tests/integration -q -p no:randomly --no-cov \
-        -p no:cacheprovider --tb=no
+Re-measured in the environment where the gate actually executes, GitHub
+Actions CI, across two runs bracketing the #1579 alias fix::
 
-    run 1 -> 512 failed, 1100 passed, 209 skipped, 6 xfailed, 6 xpassed, 11 errors
-    run 2 -> 512 failed, 1100 passed, 209 skipped, 6 xfailed, 6 xpassed, 11 errors
+    run 32639109196 (BEFORE #1579) -> 1792 collected, 525 failed, 11 errors
+    run 32650827370 (AFTER  #1579) -> 1874 collected, 521 failed, 11 errors
 
-The two runs' failing-node-ID SETS were compared, not just their counts:
-symmetric difference 0. Serial is deterministic.
+The route that changed the collected count is commit ``6657846b``, which
+registered the bare ``autonomous_dev`` import spelling in ``tests/conftest.py``.
+82 modules that previously died at collection (148 prior collection errors)
+now collect and run; their failures are pre-existing, merely uncovered — the
+one case this module's own high-water-mark rule treats as an honest raise.
+
+Direction matters: against the first honest CI reading (525 failed) this pin
+is a DECREASE, to 521. It reads as a raise only against the invalid laptop
+number (512), which was never a CI-valid baseline to begin with.
+
+Caveat, stated rather than hidden: unlike the original pin — which was
+verified across two runs with a symmetric-difference check on failing node
+IDs — 521/1874 is a SINGLE post-fix CI reading. There is no second CI run yet
+confirming the failing-node-ID set is stable. Do not describe this number as
+"set-stable across two runs" anywhere in this module; that claim is not true
+of it.
 
 WHY THE GATE RUNS SERIALLY, NOT UNDER ``-n auto``
 -------------------------------------------------
@@ -72,11 +91,19 @@ This module deliberately treats two kinds of number differently:
   EQUALITY in the test suite. Slack between them would be a pre-authorised
   exemption for the next regression.
 * ``observed`` versus ``FAILURE_CEILING`` compares a MEASUREMENT against a
-  constant. The measurement is environment-dependent (this pin was taken on
-  darwin; CI runs Linux), so growth HARD-FAILS while slack is reported as a
-  loud, machine-readable advisory naming the exact edit to make. Hard-failing
-  on slack would turn "someone fixed a test" into a red build on an unmeasured
-  cross-OS delta — pressure against the correct action.
+  constant. The two pins are unverified along different axes: the original
+  512 pin was measured on the developer laptop, not CI, but across two
+  serial runs whose failing node-ID sets were diffed and found identical
+  (symmetric difference 0) — repeated, but in the wrong environment. 521 is
+  measured in the right environment, CI, but as a SINGLE post-fix reading
+  with no second CI run yet confirming the failing-node-ID set is stable —
+  right environment, but unrepeated. A slack reading could be a genuine fix,
+  or it could be ordinary run-to-run variance that one reading cannot
+  distinguish from a fix. So growth HARD-FAILS (the direction that hides
+  regressions must never be waved through on an unproven measurement), while
+  slack is reported as a loud, machine-readable advisory naming the exact
+  edit to make rather than auto-applied — pressure toward the correct action
+  without asserting a stability this single reading hasn't earned.
 
 See ``tests/unit/scripts/test_integration_ceiling.py`` for the guard that
 proves this ceiling can actually refuse, including a subprocess mutation
@@ -100,8 +127,9 @@ from pathlib import Path
 # waved through; see the high-water marks below.
 
 #: Maximum tolerated ``failed`` count from ``pytest tests/integration``.
-#: Measured 2026-08-23, serial, set-stable across two runs. See module docstring.
-FAILURE_CEILING = 512
+#: Measured on CI run 32650827370 — a single post-fix reading, not set-stable
+#: across two runs. See module docstring.
+FAILURE_CEILING = 521
 
 #: Maximum tolerated ``errors`` count (collection/fixture errors) from the same
 #: run. Errors are pinned separately from failures because they have a
@@ -123,9 +151,14 @@ ERROR_CEILING = 11
 # PRE-EXISTING failures visible (for example, another dark tier being switched
 # on and merged into this one). To take that case, in ONE diff, name the route
 # in a comment here and raise both constants together.
+#
+# That case applies here: commit 6657846b (the #1579 alias fix) registered the
+# bare ``autonomous_dev`` import spelling in tests/conftest.py, letting 82
+# previously-uncollectable modules collect and run. Their failures were
+# pre-existing and merely became visible; see the module docstring.
 
 #: Highest reviewed value of ``FAILURE_CEILING``.
-FAILURE_HIGH_WATER_MARK = 512
+FAILURE_HIGH_WATER_MARK = 521
 
 #: Highest reviewed value of ``ERROR_CEILING``.
 ERROR_HIGH_WATER_MARK = 11
@@ -141,17 +174,22 @@ ERROR_HIGH_WATER_MARK = 11
 # Without it, the gate inherits Issue #1582's own bug shape. If pytest dies
 # part-way — an OOM, a timeout, a worker crash — it can still leave behind a
 # JUnit report containing a handful of tests and a handful of failures. That
-# report sails under a 512 ceiling and the step reports success, which is
+# report sails under a 521 ceiling and the step reports success, which is
 # exactly "green over nothing" wearing a different hat.
 #
-# Measured 2026-08-23 from the same serial run that produced the pin:
-#     <testsuite tests="1844" failures="512" errors="11" skipped="215">
+# Measured on CI run 32650827370, the same run that produced the pin:
+#     <testsuite tests="1874" failures="521" errors="11" ...>
 #
-# The floor sits at 1800 rather than 1844 because its job is catching a
-# truncated run, which loses HUNDREDS of tests, not policing ordinary test
-# churn. The 44-test allowance is for legitimate additions and deletions; it is
-# not headroom for failures, which the ceilings above hold at zero slack.
-MINIMUM_COLLECTED_TESTS = 1800
+# The floor's job is to separate a TRUNCATED run — an OOM, a timeout, or a
+# worker crash, any of which loses HUNDREDS of tests — from ordinary PR
+# churn, where a change adds or removes a handful of tests. It only needs to
+# sit somewhere in the gap between those two regimes: a floor set at exactly
+# 1874 would breach on any single legitimate test deletion, which is the
+# cry-wolf failure this design exists to avoid. 50 is a round threshold an
+# order of magnitude below "hundreds" while still absorbing normal churn — a
+# buffer sized for that gap, not a ratio or offset preserved from any prior
+# floor value.
+MINIMUM_COLLECTED_TESTS = 1824
 
 
 def verify_pin_invariants() -> None:
@@ -259,7 +297,7 @@ def check_ceiling(
         breaches.append(
             f"RUN WAS TRUNCATED: only {collected} tests in the report, below "
             f"the floor of {MINIMUM_COLLECTED_TESTS} (Issue #1582 measured "
-            f"1844). A low failure count from a partial run is not an "
+            f"1874). A low failure count from a partial run is not an "
             f"improvement — it is the same 'green over nothing' this gate "
             f"exists to prevent. Investigate the crash or timeout; do not "
             f"lower the floor."

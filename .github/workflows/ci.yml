@@ -351,7 +351,10 @@ jobs:
       # pass, growth fails, and the pin may only ever be lowered.
       #
       # NO `-n auto` HERE, deliberately, and this is a change from the previous
-      # invocation. Measured 2026-08-23 on the same tree, same command:
+      # invocation. Historical evidence for that choice (NOT the current pin —
+      # see FAILURE_CEILING in scripts/integration_ceiling.py), measured
+      # 2026-08-23 on the developer laptop, before the #1579 alias fix, on the
+      # same unchanged tree, same command:
       #     serial   -> 512 failed, 512 failed   (failing node-ID sets
       #                 identical between runs, symmetric difference 0)
       #     -n auto  -> 498 failed, 503 failed   (sets differ by 7 node IDs)

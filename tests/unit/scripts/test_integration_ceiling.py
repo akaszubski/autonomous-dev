@@ -68,7 +68,7 @@ from integration_ceiling import (  # noqa: E402
 # review-visible action a raise should be.
 #
 # LOWERING never needs to touch this file: the assertion is `<=`.
-REVIEWED_FAILURE_HIGH_WATER_MARK = 512
+REVIEWED_FAILURE_HIGH_WATER_MARK = 521
 REVIEWED_ERROR_HIGH_WATER_MARK = 11
 
 
@@ -81,14 +81,16 @@ class TestCeilingRefusesAndPermits:
     """The ceiling must refuse growth and permit the measured baseline."""
 
     def test_permits_the_measured_baseline(self):
-        """PERMITTING ARM. The real 2026-08-23 measurement must pass.
+        """PERMITTING ARM. The real CI run 32650827370 measurement must pass.
 
-        512 failed / 11 errors is what ``pytest tests/integration`` actually
-        produced, set-stable across two serial runs. If this arm ever goes red
-        the pin is below reality and the tier is a permanently-red check —
-        the exact outcome Issue #1582 was written to avoid.
+        521 failed / 11 errors is what ``pytest tests/integration`` produced
+        on CI after the #1579 alias fix. This is a SINGLE post-fix reading,
+        not set-stable across two runs (see the module docstring). If this
+        arm ever goes red the pin is below reality and the tier is a
+        permanently-red check — the exact outcome Issue #1582 was written to
+        avoid.
         """
-        result = check_ceiling(failed=512, errors=11)
+        result = check_ceiling(failed=521, errors=11)
         assert result.passed, result.message
         assert result.failure_slack == 0
         assert result.error_slack == 0
@@ -200,8 +202,8 @@ class TestTruncatedRunCannotReadAsImprovement:
         assert "TRUNCATED" in result.message
 
     def test_permits_the_full_measured_run(self):
-        """PERMITTING ARM. The real 1844-test report must pass the floor."""
-        result = check_ceiling(failed=512, errors=11, collected=1844)
+        """PERMITTING ARM. The real 1874-test report must pass the floor."""
+        result = check_ceiling(failed=521, errors=11, collected=1874)
         assert result.passed, result.message
 
     def test_floor_is_skipped_when_collected_is_not_supplied(self):

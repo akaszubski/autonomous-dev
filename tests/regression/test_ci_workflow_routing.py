@@ -209,7 +209,10 @@ def test_test_job_has_at_least_three_pytest_steps(test_steps: list[dict[str, Any
 # It ran with `-n auto` until that tier stopped being a no-op. The tier is now
 # gated by a ratchet (scripts/integration_ceiling.py) pinned to a failure count,
 # and a ratchet cannot be pinned to an instrument whose reading moves on its
-# own. Measured on one unchanged tree, same command:
+# own. Historical evidence for that choice (NOT the current pin — see
+# FAILURE_CEILING in scripts/integration_ceiling.py), measured on the
+# developer laptop, before the #1579 alias fix, on one unchanged tree, same
+# command:
 #     serial   -> 512 failed, 512 failed   (failing node-ID sets identical,
 #                                           symmetric difference 0)
 #     -n auto  -> 498 failed, 503 failed   (sets differ by 7 node IDs)
