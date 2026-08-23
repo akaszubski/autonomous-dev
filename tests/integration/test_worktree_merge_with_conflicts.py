@@ -55,14 +55,14 @@ def git_repo(tmp_path: Path):
     os.chdir(repo_dir)
 
     # Initialize git repo
-    subprocess.run(['git', 'init'], check=True, capture_output=True)
-    subprocess.run(['git', 'config', 'user.email', 'test@example.com'], check=True)
-    subprocess.run(['git', 'config', 'user.name', 'Test User'], check=True)
+    subprocess.run(['git', 'init'], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(['git', 'config', 'user.email', 'test@example.com'], cwd=repo_dir, check=True)
+    subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=repo_dir, check=True)
 
     # Create initial commit
     (repo_dir / "README.md").write_text("# Test Repo\n")
-    subprocess.run(['git', 'add', 'README.md'], check=True)
-    subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
+    subprocess.run(['git', 'add', 'README.md'], cwd=repo_dir, check=True)
+    subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=repo_dir, check=True)
 
     # Create .claude directory
     (repo_dir / ".claude").mkdir()
@@ -115,14 +115,14 @@ class TestWorktreeMergeWithConflictResolution:
         # Step 2: Make changes in main branch
         main_file = git_repo / "auth.py"
         main_file.write_text("def auth():\n    return 'bcrypt'\n")
-        subprocess.run(['git', 'add', 'auth.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Add bcrypt auth'], check=True)
+        subprocess.run(['git', 'add', 'auth.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Add bcrypt auth'], cwd=git_repo, check=True)
 
         # Step 3: Make conflicting changes in worktree
         worktree_file = worktree_path / "auth.py"
         worktree_file.write_text("def auth():\n    return 'argon2'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'auth.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Add argon2 auth'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'auth.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Add argon2 auth'], cwd=worktree_path, check=True)
 
         # Step 4: Merge worktree (should detect conflicts)
         result = merge_worktree('feature-conflict-test', 'master')
@@ -141,13 +141,13 @@ class TestWorktreeMergeWithConflictResolution:
         success, worktree_path = create_worktree('feature-high-conf', 'master')
         main_file = git_repo / "config.py"
         main_file.write_text("SETTING = 'value1'\n")
-        subprocess.run(['git', 'add', 'config.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Set value1'], check=True)
+        subprocess.run(['git', 'add', 'config.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Set value1'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "config.py"
         worktree_file.write_text("SETTING = 'value2'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'config.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Set value2'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'config.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Set value2'], cwd=worktree_path, check=True)
 
         # Mock AI response with high confidence
         mock_client = MagicMock()
@@ -175,13 +175,13 @@ class TestWorktreeMergeWithConflictResolution:
         success, worktree_path = create_worktree('feature-low-conf', 'master')
         main_file = git_repo / "logic.py"
         main_file.write_text("def process():\n    return method_a()\n")
-        subprocess.run(['git', 'add', 'logic.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Use method_a'], check=True)
+        subprocess.run(['git', 'add', 'logic.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Use method_a'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "logic.py"
         worktree_file.write_text("def process():\n    return method_b()\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'logic.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Use method_b'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'logic.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Use method_b'], cwd=worktree_path, check=True)
 
         # Mock AI response with low confidence
         mock_client = MagicMock()
@@ -208,13 +208,13 @@ class TestWorktreeMergeWithConflictResolution:
         success, worktree_path = create_worktree('feature-security', 'master')
         main_file = git_repo / "security_config.py"
         main_file.write_text("SECRET_KEY = 'key1'\n")
-        subprocess.run(['git', 'add', 'security_config.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Set key1'], check=True)
+        subprocess.run(['git', 'add', 'security_config.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Set key1'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "security_config.py"
         worktree_file.write_text("SECRET_KEY = 'key2'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'security_config.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Set key2'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'security_config.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Set key2'], cwd=worktree_path, check=True)
 
         # Mock AI response with HIGH confidence (should still require manual review)
         mock_client = MagicMock()
@@ -351,13 +351,13 @@ class TestFeatureFlagToggle:
         success, worktree_path = create_worktree('feature-disabled', 'master')
         main_file = git_repo / "test.py"
         main_file.write_text("VALUE = 'main'\n")
-        subprocess.run(['git', 'add', 'test.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Main value'], check=True)
+        subprocess.run(['git', 'add', 'test.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Main value'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "test.py"
         worktree_file.write_text("VALUE = 'worktree'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree value'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree value'], cwd=worktree_path, check=True)
 
         # Merge (should skip AI resolution)
         result = merge_worktree('feature-disabled', 'master', auto_resolve=True)
@@ -386,13 +386,13 @@ class TestMultipleConflictResolution:
 
         main_file = git_repo / "multi.py"
         main_file.write_text("A = 1\nB = 2\n")
-        subprocess.run(['git', 'add', 'multi.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Main values'], check=True)
+        subprocess.run(['git', 'add', 'multi.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Main values'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "multi.py"
         worktree_file.write_text("A = 10\nB = 20\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'multi.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree values'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'multi.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree values'], cwd=worktree_path, check=True)
 
         # Mock AI responses
         mock_client = MagicMock()
@@ -420,16 +420,16 @@ class TestMultipleConflictResolution:
         for filename in ['file1.py', 'file2.py', 'file3.py']:
             main_file = git_repo / filename
             main_file.write_text(f"{filename.upper()} = 'main'\n")
-            subprocess.run(['git', 'add', filename], check=True)
+            subprocess.run(['git', 'add', filename], cwd=git_repo, check=True)
 
-        subprocess.run(['git', 'commit', '-m', 'Main files'], check=True)
+        subprocess.run(['git', 'commit', '-m', 'Main files'], cwd=git_repo, check=True)
 
         for filename in ['file1.py', 'file2.py', 'file3.py']:
             worktree_file = worktree_path / filename
             worktree_file.write_text(f"{filename.upper()} = 'worktree'\n")
-            subprocess.run(['git', '-C', str(worktree_path), 'add', filename], check=True)
+            subprocess.run(['git', '-C', str(worktree_path), 'add', filename], cwd=worktree_path, check=True)
 
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree files'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree files'], cwd=worktree_path, check=True)
 
         # Mock AI responses
         mock_client = MagicMock()
@@ -463,13 +463,13 @@ class TestErrorHandling:
         success, worktree_path = create_worktree('feature-api-error', 'master')
         main_file = git_repo / "test.py"
         main_file.write_text("VALUE = 'main'\n")
-        subprocess.run(['git', 'add', 'test.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Main'], check=True)
+        subprocess.run(['git', 'add', 'test.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Main'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "test.py"
         worktree_file.write_text("VALUE = 'worktree'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree'], cwd=worktree_path, check=True)
 
         # Mock API error
         mock_anthropic.side_effect = Exception("API rate limit exceeded")
@@ -489,13 +489,13 @@ class TestErrorHandling:
         success, worktree_path = create_worktree('feature-no-key', 'master')
         main_file = git_repo / "test.py"
         main_file.write_text("VALUE = 'main'\n")
-        subprocess.run(['git', 'add', 'test.py'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Main'], check=True)
+        subprocess.run(['git', 'add', 'test.py'], cwd=git_repo, check=True)
+        subprocess.run(['git', 'commit', '-m', 'Main'], cwd=git_repo, check=True)
 
         worktree_file = worktree_path / "test.py"
         worktree_file.write_text("VALUE = 'worktree'\n")
-        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], check=True)
-        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree'], check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'add', 'test.py'], cwd=worktree_path, check=True)
+        subprocess.run(['git', '-C', str(worktree_path), 'commit', '-m', 'Worktree'], cwd=worktree_path, check=True)
 
         # Merge without API key
         with patch.dict(os.environ, {}, clear=True):

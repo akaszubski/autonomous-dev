@@ -367,12 +367,17 @@ def create_worktree(feature_name: str, base_branch: str = 'master') -> Tuple[boo
             base_branch
         ]
 
+        # Issue #1638: name the working directory explicitly. This is semantically
+        # identical to omitting cwd (subprocess inherits os.getcwd() either way),
+        # but it makes the CWD dependency legible instead of implicit, so a caller
+        # that has chdir'd -- or failed to -- can be seen rather than guessed at.
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             check=True,
-            timeout=30
+            timeout=30,
+            cwd=Path.cwd()
         )
 
         # Issue #325: Explicitly checkout the branch after worktree creation
