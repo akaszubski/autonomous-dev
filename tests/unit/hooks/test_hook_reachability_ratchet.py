@@ -163,11 +163,14 @@ What this guard CANNOT detect
 5. It inherits every limitation of the #1588 refusal instruments, including
    their under-reporting of unnamed refusal forms.
 
-Scope note for a later widening: ``validate_claude_md_size.py`` was
-reclassified ``utility`` in the same commit and described there as "(orphan,
-kept for size enforcement)" — an admission it is unreferenced. It carries no
-refusal evidence, so it is an OBSERVER and outside this issue. Check it when
-the rule is widened past refusers.
+Scope note, RESOLVED by #1639: ``validate_claude_md_size.py`` used to sit
+exactly here — reclassified ``utility``, described as "(orphan, kept for size
+enforcement)", an admission it was unreferenced, and carrying no refusal
+evidence, so it read as an OBSERVER and fell outside this issue. It now refuses
+through ``block_event_decorator`` and is registered on ``PostToolUse`` in every
+shipped template, so this guard classifies it on the refuser route like any
+other. It is retained as a worked example of the state this ratchet exists to
+detect: a correct check that nothing invoked.
 """
 
 import ast

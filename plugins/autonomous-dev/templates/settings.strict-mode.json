@@ -75,6 +75,16 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/validate_claude_md_size.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {

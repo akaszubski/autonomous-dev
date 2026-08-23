@@ -279,7 +279,7 @@ See [SANDBOXING.md](SANDBOXING.md) for complete security architecture.
 | **validate_command_file_ops.py** | Commands execute Python libs, not just describe them | — |
 | **validate_session_quality.py** | Session log completeness | — |
 | **auto_fix_docs.py** | Documentation consistency auto-fixes | AUTO_FIX_DOCS |
-| **validate_claude_md_size.py** | Warns when context files exceed their target sizes: CLAUDE.md > 200 lines (Anthropic best practice), .claude/PROJECT.md > 150 lines (content-allocation target), and ~/.claude/projects/<slug>/memory/MEMORY.md > 200 lines (Anthropic auto-load threshold). Each check runs independently; missing files are skipped silently. Non-blocking — always exits 0. | — |
+| **validate_claude_md_size.py** | Context-file guard on `PostToolUse` for the write tools. WARNS when a context file drifts past target — CLAUDE.md > 200 lines (Anthropic best practice), `~/.claude/CLAUDE.md` > 200 lines (loads in every repo), `.claude/PROJECT.md` > 150 lines (content-allocation target), `~/.claude/projects/<slug>/memory/MEMORY.md` > 200 lines (Anthropic auto-load threshold). REFUSES with `{"decision": "block"}` past a 1.5x hard ceiling, and refuses a local CLAUDE.md section that restates a rule already in the global CLAUDE.md. Acts only when the write targeted one of the four tracked files; each check runs independently and missing files are skipped silently. | Issue #1639 |
 
 ### SubagentStop
 

@@ -46,10 +46,18 @@ If a topic spans two stores: the *narrative* lives in PROJECT.md or docs; the *r
 
 | File | Target | Hard ceiling | Why |
 |------|--------|--------------|-----|
-| `CLAUDE.md` | ≤100 lines | 200 | Loaded every turn. Hook `validate_claude_md_size.py` warns above 200. |
-| `.claude/PROJECT.md` | ≤150 lines | — | Loaded at session start. Above 150 = operational drift, not architecture. |
-| `MEMORY.md` | ≤200 lines | 200 | Truncated above line 200 when auto-loaded. |
+| `CLAUDE.md` | ≤100 lines | 300 | Loaded every turn. Hook `validate_claude_md_size.py` warns above 200, refuses above 300. |
+| `~/.claude/CLAUDE.md` | ≤200 lines | 300 | Loaded every turn in **every repo** — the highest-leverage file in the system. Same hook, same bands (#1639). |
+| `.claude/PROJECT.md` | ≤150 lines | 225 | Loaded at session start. Above 150 = operational drift, not architecture. |
+| `MEMORY.md` | ≤200 lines | 300 | Truncated above line 200 when auto-loaded. |
 | `memory/*.md` (individual) | 1–3 KB | 3 KB | >3 KB usually means it should be a `docs/` page. |
+
+Size is not the only budget. The repo `CLAUDE.md` must not **restate** a rule
+that is already in `~/.claude/CLAUDE.md` — both copies are usually correct, and
+together they cost context on every turn to say one thing. The same hook refuses
+a local section whose heading names a global topic AND whose body shares a
+quarter of the smaller section's vocabulary. Keep the repo-specific residue and
+let the global rule stand.
 
 ## Periodic hygiene
 
