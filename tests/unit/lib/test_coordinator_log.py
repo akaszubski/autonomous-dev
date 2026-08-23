@@ -46,6 +46,45 @@ def fake_nested_dir(fake_claude_tree: Path) -> Path:
     return nested
 
 
+@pytest.fixture()
+def isolated_no_claude_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A directory hermetically isolated from ambient ``.claude`` pollution.
+
+    SANDBOX-ESCAPE HAZARD (found 2026-08-23): ``_find_activity_log_dir``
+    walks upward from ``start_dir`` through EVERY ancestor with no boundary.
+    On this machine, ``TMPDIR``'s own parent directory
+    (``/private/var/folders/<xx>/<yyy>/.claude/logs/activity/``) contains a
+    real, actively-written-to ``.claude`` tree — unrelated OS-level state,
+    not created by this repo's tests. Before this fixture existed, the
+    "no .claude dir anywhere" tests below would walk straight past
+    ``tmp_path``, find that ambient directory, and
+    ``log_background_agent_completion`` would WRITE a fake "doc-master
+    completion" JSONL entry into it — verified directly:
+    ``result == PosixPath('/private/var/folders/.../.claude/logs/activity/
+    2026-08-23.jsonl')`` instead of the expected ``None``. That is a genuine
+    write to real state outside the test sandbox, not merely a flaky
+    assertion. This fixture patches ``Path.is_dir`` so any ``.claude``
+    candidate outside ``tmp_path`` is reported absent, making the "no
+    project markers anywhere" scenario hermetic without touching production
+    code (``lib/coordinator_log.py`` is protected infrastructure).
+    """
+    empty_dir = tmp_path / "no_claude_here"
+    empty_dir.mkdir()
+
+    real_is_dir = Path.is_dir
+
+    def _guarded_is_dir(self: Path) -> bool:
+        if self.name == ".claude":
+            try:
+                self.relative_to(tmp_path)
+            except ValueError:
+                return False  # outside the test sandbox — treat as absent
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", _guarded_is_dir)
+    return empty_dir
+
+
 # ---- Test 1: JSONL entry is written with correct fields ----
 
 class TestLogBackgroundAgentCompletion:
@@ -160,23 +199,19 @@ class TestFindActivityDirectory:
 # ---- Test 3: Missing directory handling ----
 
 class TestHandlesMissingDirectory:
-    def test_returns_none_when_no_claude_dir(self, tmp_path: Path) -> None:
+    def test_returns_none_when_no_claude_dir(self, isolated_no_claude_dir: Path) -> None:
         """No crash when .claude directory doesn't exist anywhere."""
-        empty_dir = tmp_path / "no_claude_here"
-        empty_dir.mkdir()
         result = log_background_agent_completion(
             agent_type="doc-master",
             issue_number=1,
             session_id="s",
-            start_dir=empty_dir,
+            start_dir=isolated_no_claude_dir,
         )
         assert result is None
 
-    def test_find_returns_none_when_no_claude_dir(self, tmp_path: Path) -> None:
+    def test_find_returns_none_when_no_claude_dir(self, isolated_no_claude_dir: Path) -> None:
         """_find_activity_log_dir returns None for directories without .claude."""
-        empty_dir = tmp_path / "isolated"
-        empty_dir.mkdir()
-        assert _find_activity_log_dir(start_dir=empty_dir) is None
+        assert _find_activity_log_dir(start_dir=isolated_no_claude_dir) is None
 
 
 # ---- Test 4: ensure_doc_master_logged convenience ----
@@ -199,11 +234,9 @@ class TestEnsureDocMasterLogged:
         assert entry["issue_number"] == 868
         assert entry["source"] == "coordinator_fallback"
 
-    def test_returns_none_when_no_log_dir(self, tmp_path: Path) -> None:
+    def test_returns_none_when_no_log_dir(self, isolated_no_claude_dir: Path) -> None:
         """No crash when called with no .claude directory."""
-        empty = tmp_path / "empty"
-        empty.mkdir()
-        assert ensure_doc_master_logged(issue_number=1, start_dir=empty) is None
+        assert ensure_doc_master_logged(issue_number=1, start_dir=isolated_no_claude_dir) is None
 
 
 # ---- Test 5: Entry format matches BatchCoordinatorLog ----

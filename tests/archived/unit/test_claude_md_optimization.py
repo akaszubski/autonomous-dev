@@ -812,9 +812,10 @@ class TestOptimizationRegressionPrevention:
             f"Core workflow documentation should be preserved."
         )
 
-
-# Integration test marker for running validators
-pytest.mark.integration = pytest.mark.skipif(
-    "not config.getoption('--run-integration')",
-    reason="Integration tests require --run-integration flag"
-)
+# NOTE (Issue #1582): a module-scope rebind of ``pytest.mark.integration`` was
+# removed from here too. ``norecursedirs = tests/archived`` in pytest.ini does
+# NOT make this inert — it only stops RECURSIVE discovery from testpaths. An
+# explicit path still collects it (measured: `pytest
+# tests/archived/unit/test_claude_md_optimization.py --collect-only` -> 23
+# tests collected), so this was a live second copy of the #1582 defect, not a
+# dead one. Do not reintroduce it.

@@ -23,9 +23,17 @@ def implement_content() -> str:
 
 @pytest.fixture
 def step15_section(implement_content: str) -> str:
-    """Extract STEP 15 section content."""
+    """Extract STEP 15 section content.
+
+    The boundary lookahead requires `# ` to be followed by >= 2 consecutive
+    uppercase letters (e.g. "# LIGHT PIPELINE MODE") so it matches real H1
+    headings but not the `# Issue #1376: ...` bash comment that Issue #1376
+    introduced inside STEP 15's cleanup code fence (that comment starts with
+    "# I" — one uppercase letter followed by lowercase — so it no longer
+    falsely terminates the match).
+    """
     match = re.search(
-        r"### STEP 15.*?(?=\n---|\n# |\Z)", implement_content, re.DOTALL
+        r"### STEP 15.*?(?=\n---|\n# [A-Z]{2,}|\Z)", implement_content, re.DOTALL
     )
     assert match, "STEP 15 section not found in implement.md"
     return match.group(0)
@@ -45,13 +53,40 @@ def step13_section(implement_content: str) -> str:
 
 @pytest.fixture
 def coordinator_forbidden(implement_content: str) -> str:
-    """Extract COORDINATOR FORBIDDEN LIST section."""
+    """Extract COORDINATOR FORBIDDEN LIST section.
+
+    The section contains `####` subheadings (e.g. "#### Agent Management") that
+    group its bullet items. The lookahead must stop only at the next top-level
+    `###` heading (a real section boundary, e.g. "### Pipeline Progress
+    Protocol"), not at those `####` subheadings — `\\n###(?!#)` requires the
+    matched `###` NOT be followed by a 4th `#`, so `####` lines are skipped.
+    """
     match = re.search(
-        r"COORDINATOR FORBIDDEN LIST.*?(?=\nARGUMENTS|\n---|\n###)",
+        r"COORDINATOR FORBIDDEN LIST.*?(?=\nARGUMENTS|\n---|\n###(?!#))",
         implement_content,
         re.DOTALL,
     )
     assert match, "COORDINATOR FORBIDDEN LIST not found"
+    return match.group(0)
+
+
+@pytest.fixture
+def continuous_improvement_section(implement_content: str) -> str:
+    """Extract the Continuous Improvement HARD GATE section.
+
+    Issue #1211 moved the continuous-improvement-analyst (CIA) dispatch from
+    STEP 15 to STEP 12.5 (before the STEP 13 git commit), so that
+    unified_pre_tool.py's agent-completeness gate is satisfied before the
+    commit runs. STEP 15 is cleanup-only post-#1211 (see step15_section).
+    This fixture is content-based (matches on "Continuous Improvement", not a
+    hardcoded step number) so it survives future step renumbering.
+    """
+    match = re.search(
+        r"### STEP \d+(?:\.\d+)?: Continuous Improvement.*?(?=\n### STEP|\Z)",
+        implement_content,
+        re.DOTALL,
+    )
+    assert match, "Continuous Improvement HARD GATE section not found in implement.md"
     return match.group(0)
 
 
@@ -65,32 +100,43 @@ def quick_mode_section(implement_content: str) -> str:
 
 
 class TestStep15HardGate:
-    """STEP 15 must have HARD GATE enforcement markers."""
+    """The Continuous Improvement HARD GATE must have enforcement markers.
 
-    def test_step15_contains_hard_gate(self, step15_section: str):
-        """STEP 15 should contain a HARD GATE marker."""
-        assert "HARD GATE" in step15_section, (
-            "STEP 15 missing HARD GATE marker — enforcement requires explicit gate"
+    Issue #1211 moved this gate from STEP 15 to STEP 12.5 (before the git
+    commit) — see `continuous_improvement_section` fixture docstring. Tests
+    below target that fixture rather than the (now cleanup-only) STEP 15.
+    """
+
+    def test_step15_contains_hard_gate(self, continuous_improvement_section: str):
+        """The Continuous Improvement gate should contain a HARD GATE marker."""
+        assert "HARD GATE" in continuous_improvement_section, (
+            "Continuous Improvement section missing HARD GATE marker — "
+            "enforcement requires explicit gate"
         )
 
-    def test_step15_contains_forbidden_keyword(self, step15_section: str):
-        """STEP 15 should contain FORBIDDEN keyword."""
-        assert "FORBIDDEN" in step15_section
+    def test_step15_contains_forbidden_keyword(self, continuous_improvement_section: str):
+        """The Continuous Improvement gate should contain FORBIDDEN keyword."""
+        assert "FORBIDDEN" in continuous_improvement_section
 
-    def test_step15_has_at_least_3_forbidden_items(self, step15_section: str):
-        """STEP 15 FORBIDDEN list should have at least 3 items."""
-        # Count lines starting with - or * after FORBIDDEN
+    def test_step15_has_at_least_3_forbidden_items(
+        self, continuous_improvement_section: str
+    ):
+        """The Continuous Improvement gate's FORBIDDEN block should list >= 3 items.
+
+        Post-#1211 the FORBIDDEN block is written as a single prose paragraph
+        ("MUST NOT X, MUST NOT Y, and MUST NOT Z") rather than a bulleted
+        list — this matches the style used across most other STEP sections
+        in implement.md (see e.g. STEP 8.5, STEP 10.5 FORBIDDEN blocks). Count
+        "MUST NOT" clauses instead of bullet lines.
+        """
         forbidden_match = re.search(
-            r"FORBIDDEN.*?\n((?:\s*[-*].*\n){1,})", step15_section, re.DOTALL
+            r"\*\*FORBIDDEN\*\*.*", continuous_improvement_section, re.DOTALL
         )
-        assert forbidden_match, "No FORBIDDEN list items found in STEP 15"
-        items = [
-            line.strip()
-            for line in forbidden_match.group(1).splitlines()
-            if line.strip().startswith(("-", "*"))
-        ]
+        assert forbidden_match, "No FORBIDDEN block found in Continuous Improvement section"
+        items = re.findall(r"MUST NOT", forbidden_match.group(0))
         assert len(items) >= 3, (
-            f"STEP 15 FORBIDDEN list has only {len(items)} items, need >= 3"
+            f"Continuous Improvement FORBIDDEN block has only {len(items)} "
+            "'MUST NOT' items, need >= 3"
         )
 
     def test_step15_contains_required_keyword(self, step15_section: str):
@@ -99,12 +145,14 @@ class TestStep15HardGate:
 
 
 class TestStep15Content:
-    """STEP 15 must reference the right agent and execution model."""
+    """The Continuous Improvement gate must reference the right agent and execution model."""
 
-    def test_step15_mentions_run_in_background(self, step15_section: str):
-        """STEP 15 should mention run_in_background for non-blocking execution."""
-        assert "run_in_background" in step15_section, (
-            "STEP 15 should specify run_in_background for async execution"
+    def test_step15_mentions_run_in_background(self, continuous_improvement_section: str):
+        """The Continuous Improvement gate should mention run_in_background for
+        non-blocking execution."""
+        assert "run_in_background" in continuous_improvement_section, (
+            "Continuous Improvement section should specify run_in_background "
+            "for async execution"
         )
 
     def test_step15_mentions_analyst_agent(self, step15_section: str):
@@ -113,17 +161,25 @@ class TestStep15Content:
 
 
 class TestCleanupOrdering:
-    """Pipeline state cleanup must be in STEP 15, not STEP 13."""
+    """Pipeline state cleanup must be in STEP 15, not STEP 13.
+
+    Issue #1376 replaced the hardcoded `implement_pipeline_state.json`
+    literal with a `get_legacy_sentinel_path()` lookup (per-repo sentinel
+    resolution), so that literal string no longer appears anywhere in
+    implement.md. `cleanup_pipeline(` — the function call that actually
+    performs the cleanup — is the current signal for "pipeline state
+    cleanup happens here".
+    """
 
     def test_cleanup_not_in_step13(self, step13_section: str):
-        """Cleanup (rm implement_pipeline_state.json) should NOT be in STEP 13."""
-        assert "implement_pipeline_state.json" not in step13_section, (
+        """Cleanup (cleanup_pipeline() call) should NOT be in STEP 13."""
+        assert "cleanup_pipeline(" not in step13_section, (
             "Cleanup should be moved from STEP 13 to STEP 15"
         )
 
     def test_cleanup_in_step15(self, step15_section: str):
-        """Cleanup (rm implement_pipeline_state.json) should be in STEP 15."""
-        assert "implement_pipeline_state.json" in step15_section, (
+        """Cleanup (cleanup_pipeline() call) should be in STEP 15."""
+        assert "cleanup_pipeline(" in step15_section, (
             "STEP 15 should contain pipeline state cleanup"
         )
 

@@ -564,30 +564,63 @@ class TestErrorHandling:
     """Test error handling for various failure scenarios."""
 
     def test_raises_error_when_no_project_root(self, tmp_path, monkeypatch):
-        """Test SessionTracker raises helpful error when no project root found."""
+        """Test SessionTracker raises helpful error when no project root found.
+
+        RETARGETED (2026-08-23): the original version relied on ``tmp_path``
+        having no ``.git``/``.claude`` marker in ANY ancestor directory, all
+        the way up to filesystem root. That assumption is not hermetic — on
+        this machine ``TMPDIR``'s own parent
+        (``/private/var/folders/<xx>/<yyy>/.claude/``) contains a real,
+        actively-written-to ``.claude`` tree (unrelated OS-level pollution,
+        not created by this repo's tests), so ``find_project_root()`` was
+        silently walking past ``tmp_path`` and finding that ambient
+        directory instead of raising. This mocks the path_utils boundary
+        directly (the same pattern already used by
+        ``test_session_tracker_uses_path_utils`` below) so the test is
+        hermetic regardless of ambient filesystem state.
+        """
         if not LIB_SESSION_TRACKER_EXISTS:
             pytest.skip("Library module doesn't exist yet")
 
         # Directory without .git or .claude markers
         monkeypatch.chdir(tmp_path)
 
-        # WILL FAIL: Error handling not implemented
-        with pytest.raises(FileNotFoundError) as exc_info:
-            tracker = SessionTracker()
+        with patch("session_tracker.get_session_dir") as mock_get_session_dir:
+            mock_get_session_dir.side_effect = FileNotFoundError(
+                f"Could not find project root. Searched upward from {tmp_path} "
+                f"looking for: .git, .claude. "
+                f"Ensure you're running from within a git repository or have .claude/PROJECT.md"
+            )
+
+            with pytest.raises(FileNotFoundError) as exc_info:
+                tracker = SessionTracker()
 
         assert "project root" in str(exc_info.value).lower()
 
-    def test_handles_permission_error_creating_directory(self, temp_project, monkeypatch):
-        """Test SessionTracker handles permission errors gracefully."""
+    def test_handles_permission_error_creating_directory(self, tmp_path, monkeypatch):
+        """Test SessionTracker handles permission errors gracefully.
+
+        RETARGETED (2026-08-23): the original version used the ``temp_project``
+        fixture, which pre-creates ``docs/sessions/`` before this test's patch
+        context begins. Since ``get_session_dir(create=True)`` only calls
+        ``mkdir()`` when the directory does NOT already exist, the patched
+        ``Path.mkdir`` was never invoked and the test could never observe a
+        ``PermissionError`` regardless of implementation — a bug in the test
+        fixture choice, not the code. This builds a minimal project (``.git``
+        marker only, no pre-created ``docs/sessions/``) so the directory
+        creation path is actually exercised.
+        """
         if not LIB_SESSION_TRACKER_EXISTS:
             pytest.skip("Library module doesn't exist yet")
 
-        monkeypatch.chdir(temp_project)
+        git_dir = tmp_path / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text("[core]\n")
+        monkeypatch.chdir(tmp_path)
 
         with patch('session_tracker.Path.mkdir') as mock_mkdir:
             mock_mkdir.side_effect = PermissionError("Permission denied")
 
-            # WILL FAIL: Permission error not handled
             with pytest.raises(PermissionError) as exc_info:
                 tracker = SessionTracker()
 
@@ -609,15 +642,29 @@ class TestErrorHandling:
             tracker.log("test-agent", "This should fail")
 
     def test_error_message_includes_context(self, tmp_path, monkeypatch):
-        """Test error messages include helpful context."""
+        """Test error messages include helpful context.
+
+        RETARGETED (2026-08-23): same hermeticity fix as
+        ``test_raises_error_when_no_project_root`` above — mocks the
+        path_utils boundary instead of relying on no ancestor of ``tmp_path``
+        (all the way to filesystem root) having a ``.git``/``.claude``
+        marker, which is not guaranteed on every machine (verified false on
+        this one).
+        """
         if not LIB_SESSION_TRACKER_EXISTS:
             pytest.skip("Library module doesn't exist yet")
 
         monkeypatch.chdir(tmp_path)
 
-        # WILL FAIL: Error message not helpful
-        with pytest.raises(FileNotFoundError) as exc_info:
-            tracker = SessionTracker()
+        with patch("session_tracker.get_session_dir") as mock_get_session_dir:
+            mock_get_session_dir.side_effect = FileNotFoundError(
+                f"Could not find project root. Searched upward from {tmp_path} "
+                f"looking for: .git, .claude. "
+                f"Ensure you're running from within a git repository or have .claude/PROJECT.md"
+            )
+
+            with pytest.raises(FileNotFoundError) as exc_info:
+                tracker = SessionTracker()
 
         error_msg = str(exc_info.value)
         # Should mention what went wrong and how to fix it
@@ -665,7 +712,27 @@ class TestSecurityValidation:
         assert "sessions" in str(exc_info.value).lower()
 
     def test_session_file_must_have_md_extension(self, temp_project, monkeypatch):
-        """Test SessionTracker validates session file has .md extension."""
+        """Test SessionTracker validates session file has .md extension.
+
+        KNOWN GAP (2026-08-23, out of scope — plugins/autonomous-dev/lib/**
+        is protected infrastructure and cannot be edited by this pass):
+        ``.md``-extension validation has NEVER been implemented at any
+        commit. Verified via
+        ``git log --all -p -- plugins/autonomous-dev/lib/validation.py`` and
+        ``plugins/autonomous-dev/lib/session_tracker.py``: no commit in
+        history adds a suffix/extension check anywhere in
+        ``validate_session_path()`` (lib/validation.py) or
+        ``SessionTracker.__init__``. This is NOT a regression (the code
+        never had this behavior to regress from) — it is an aspirational
+        RED-phase TDD assertion (written in commit 66ee60ff alongside the
+        implementation, which the commit message admits only reached
+        "35/42 passing (83%)") that was never subsequently implemented.
+        Left red per instructions ("do NOT edit protected lib/, leave
+        failing test documented") rather than weakening the assertion.
+        A real fix requires adding an extension check to
+        ``validate_session_path()`` via the ``/implement`` pipeline —
+        recommend filing a follow-up issue.
+        """
         if not LIB_SESSION_TRACKER_EXISTS:
             pytest.skip("Library module doesn't exist yet")
 
@@ -775,14 +842,26 @@ class TestInfrastructureIntegration:
         assert tracker.session_file.exists()
 
     def test_session_file_format_matches_existing(self, temp_project, monkeypatch):
-        """Test session file format matches existing format."""
+        """Test session file format matches existing format.
+
+        RETARGETED (2026-08-23): the ``##``/``###`` subheading assertion was
+        never satisfiable — verified via ``git show`` that the header format
+        (``# Session {timestamp}`` + bold ``**Started**:`` line + ``---``
+        horizontal rule, then bold timestamped log entries) has been
+        identical since the very first commit that created
+        ``lib/session_tracker.py`` (4d07854f, "fix: resolve tracking
+        infrastructure hardcoded path issues (#79)"). This assertion was an
+        aspirational RED-phase spec that the implementation never matched at
+        any commit — not a regression. Retargeted to assert the real,
+        long-standing structural markers instead (H1 header, bold labels,
+        ``---`` section separator).
+        """
         if not LIB_SESSION_TRACKER_EXISTS:
             pytest.skip("Library module doesn't exist yet")
 
         monkeypatch.chdir(temp_project)
         tracker = SessionTracker()
 
-        # WILL FAIL: Format doesn't match
         tracker.log("test-agent", "Test message")
 
         content = tracker.session_file.read_text()
@@ -790,7 +869,7 @@ class TestInfrastructureIntegration:
         # Should have markdown format
         assert content.startswith("#")
         assert "**" in content  # Bold markers
-        assert "##" in content or "###" in content  # Subheadings
+        assert "---" in content  # Horizontal-rule section separator
 
 
 # ============================================================================

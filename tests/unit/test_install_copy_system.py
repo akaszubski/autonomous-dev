@@ -238,11 +238,20 @@ class TestCopySystemProgress:
         copier = CopySystem(source, dest)
         progress_updates = []
 
-        def progress_callback(current, total, file_path):
+        # NOTE: retargeted 2026-08-23 -- copy_all()'s progress_callback grew a
+        # 4th "action" parameter ("copied"/"skipped"/"backed_up") in commit
+        # 443534da (Issue #106, GenAI-first installation system) so callers
+        # can distinguish outcomes, not just track counts. Verified via
+        # `git log -p` on copy_system.py: the type hint changed from
+        # Callable[[int, int, str], None] to Callable[[int, int, str, str],
+        # None] and every call site (copied/skipped/backed_up) passes 4 args
+        # consistently -- this is the current, intentional contract.
+        def progress_callback(current, total, file_path, action="copied"):
             progress_updates.append({
                 "current": current,
                 "total": total,
                 "file": file_path,
+                "action": action,
                 "percentage": (current / total) * 100
             })
 
@@ -428,7 +437,18 @@ class TestCopySystemErrorHandling:
     def test_prevents_overwriting_without_confirmation(self, tmp_path):
         """Test that copy prevents overwriting existing files without confirmation.
 
-        Current: FAILS - CopySystem doesn't exist
+        KNOWN REGRESSION (2026-08-23, out of scope for tests/-only fix): copy_all()'s
+        original contract (`if dest_path.exists() and not overwrite: raise CopyError`,
+        commit 5cc72fe0) was silently broken by commit 443534da (Issue #106), which
+        introduced `conflict_strategy` defaulting to "skip". With the default
+        conflict_strategy, every conflicting file now hits the `if conflict_strategy
+        == "skip":` branch and is silently skipped -- the `if not overwrite: raise
+        CopyError` check moved into an `else` branch that is unreachable via the
+        default parameter combination, so `overwrite=False` no longer raises.
+        `plugins/autonomous-dev/lib/copy_system.py` is PROTECTED infrastructure
+        (requires `/implement`, not a tests/-only fix) -- left red and documented
+        per pipeline policy rather than weakened. Verified via
+        `git log --follow -p -- plugins/autonomous-dev/lib/copy_system.py`.
         """
         # Arrange: Create existing file in destination
         source = tmp_path / "source"
@@ -453,7 +473,14 @@ class TestCopySystemErrorHandling:
     def test_allows_overwriting_with_confirmation(self, tmp_path):
         """Test that copy allows overwriting when explicitly enabled.
 
-        Current: FAILS - CopySystem doesn't exist
+        KNOWN REGRESSION (2026-08-23, out of scope for tests/-only fix): same root
+        cause as test_prevents_overwriting_without_confirmation above -- the default
+        conflict_strategy="skip" (introduced in commit 443534da, Issue #106) means
+        `overwrite=True` never reaches the code path that would actually perform the
+        overwrite; the file is silently skipped instead, so the destination keeps its
+        old content. `plugins/autonomous-dev/lib/copy_system.py` is PROTECTED
+        infrastructure (requires `/implement`) -- left red and documented rather than
+        weakened.
         """
         # Arrange: Create existing file
         source = tmp_path / "source"

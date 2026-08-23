@@ -345,7 +345,10 @@ class TestMergeMode:
         result = main(['--merge', 'my-feature'])
 
         assert result == 0
-        mock_merge.assert_called_once_with('my-feature')
+        # Issue #193 wired the conflict resolver into --merge: execute_merge()
+        # now always passes auto_resolve= (True by default per feature_flags.py
+        # opt-out model — no feature_flags.json override exists in this test env).
+        mock_merge.assert_called_once_with('my-feature', auto_resolve=True)
 
     @patch('worktree_command.worktree_manager.merge_worktree')
     @patch('builtins.print')
@@ -362,7 +365,8 @@ class TestMergeMode:
         result = main(['--merge', 'my-feature'])
 
         assert result == 1
-        mock_merge.assert_called_once_with('my-feature')
+        # Issue #193: execute_merge() always passes auto_resolve= (see note above).
+        mock_merge.assert_called_once_with('my-feature', auto_resolve=True)
 
         # Verify conflict files are shown
         printed_output = ''.join([str(call[0]) for call in mock_print.call_args_list])
@@ -379,7 +383,8 @@ class TestMergeMode:
         result = main(['--merge', 'nonexistent'])
 
         assert result == 1
-        mock_merge.assert_called_once_with('nonexistent')
+        # Issue #193: execute_merge() always passes auto_resolve= (see note above).
+        mock_merge.assert_called_once_with('nonexistent', auto_resolve=True)
 
     @patch('worktree_command.worktree_manager.merge_worktree')
     @patch('worktree_command.os.getenv')
@@ -397,7 +402,8 @@ class TestMergeMode:
         result = main(['--merge', 'my-feature'])
 
         assert result == 0
-        mock_merge.assert_called_once_with('my-feature')
+        # Issue #193: execute_merge() always passes auto_resolve= (see note above).
+        mock_merge.assert_called_once_with('my-feature', auto_resolve=True)
 
 
 class TestDiscardMode:

@@ -246,7 +246,43 @@ class TestAppendFinding:
 
 
 class TestCollectCIAFindings:
-    """Tests for ``collect_cia_findings`` aggregator."""
+    """Tests for ``collect_cia_findings`` aggregator.
+
+    KNOWN REGRESSION (2026-08-23, out of scope — plugins/autonomous-dev/lib/**
+    is protected infrastructure and cannot be edited by this pass): 4 tests
+    below (``test_collect_cia_findings_groups_by_tag_and_token_cluster``,
+    ``test_collect_cia_findings_window_excludes_old_records``,
+    ``test_collect_cia_findings_tracks_distinct_sessions``,
+    ``test_collect_cia_findings_severity_contract``) fail with
+    ``health.status == "error"`` / ``health.error_message ==
+    "attempted relative import with no known parent package"`` whenever any
+    record makes it through clustering, because
+    ``runtime_data_aggregator.collect_cia_findings()`` (line ~966) does:
+
+        from .finding_target_classifier import classify_finding_target
+
+    a bare package-relative import with NO fallback, inside a module that is
+    loaded flat via ``sys.path.insert(0, <lib_dir>)`` everywhere in this
+    codebase (including by this very test file, line 31) rather than as part
+    of a package — so the relative import always raises ``ImportError``,
+    caught by the function's own top-level ``except Exception`` and turned
+    into ``status="error"``. Confirmed via
+    ``git log -p --follow -- plugins/autonomous-dev/lib/runtime_data_aggregator.py``:
+    commit 7718d3c6 ("fix(ci-routing): route framework findings to
+    autonomous-dev, not consumer", 2026-07-08) introduced this bare relative
+    import immediately below an existing (correct) try/except pattern for the
+    sibling ``issue_triage_analyzer`` import a few lines above it — the new
+    import simply didn't follow the established pattern. This is a genuine
+    CODE regression, not a stale test; reproduced directly against the
+    installed module (see evidence in implementer report) with
+    ``collect_cia_findings()`` returning
+    ``SourceHealth(status='error', error_message='attempted relative import
+    with no known parent package')`` for any non-empty findings directory.
+    Left red per instructions rather than edited (protected lib/) or
+    weakened. Fix: change the import to the same try/except
+    package-then-flat-fallback pattern already used for
+    ``issue_triage_analyzer`` a few lines above it.
+    """
 
     def test_collect_cia_findings_returns_empty_when_dir_missing(
         self, tmp_path: Path

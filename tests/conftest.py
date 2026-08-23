@@ -192,11 +192,32 @@ def pytest_configure(config):
 
 def pytest_addoption(parser):
     """Register custom command-line options."""
+    # DEPRECATED NO-OP, retained deliberately (Issue #1582).
+    #
+    # This flag never gated the integration tier the way its old help text
+    # claimed. The gating came from a module-scope rebind of
+    # ``pytest.mark.integration`` in tests/integration/test_documentation_
+    # references.py, which turned the auto-marker resolved at line ~244 below
+    # into a ``skipif`` for EVERY test under tests/integration/. Both rebinds
+    # are now removed, so the integration tier runs unconditionally and this
+    # flag has ZERO behavioural consumers.
+    #
+    # It stays REGISTERED rather than deleted because pytest hard-errors with
+    # "unrecognized arguments" on an unknown flag: deleting it would break any
+    # local script, shell alias, or muscle-memory invocation that still passes
+    # ``--run-integration``. Registering it as an inert no-op keeps those
+    # working while the help text tells the truth about what it does.
+    #
+    # test_integration_ceiling.py::TestRunIntegrationFlagIsAnInertNoOp asserts
+    # both halves: that it still parses, and that no code consumes it.
     parser.addoption(
         "--run-integration",
         action="store_true",
         default=False,
-        help="Run integration tests (skipped by default)"
+        help=(
+            "DEPRECATED no-op (Issue #1582). Integration tests now always run; "
+            "this flag is accepted for backward compatibility and ignored."
+        ),
     )
 
 

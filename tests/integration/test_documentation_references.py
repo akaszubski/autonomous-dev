@@ -692,9 +692,11 @@ class TestSearchabilityIntegration:
             "\n".join(f"  - {failure}" for failure in search_failures)
         )
 
-
-# Run integration tests with marker
-pytest.mark.integration = pytest.mark.skipif(
-    "not config.getoption('--run-integration')",
-    reason="Integration tests require --run-integration flag"
-)
+# NOTE (Issue #1582): a module-scope rebind of ``pytest.mark.integration`` was
+# removed from here. It assigned a ``skipif`` onto pytest's GLOBAL marker
+# namespace, and tests/conftest.py resolves auto-markers by name
+# (``getattr(pytest.mark, marker_name)``), so collecting this one module turned
+# the ENTIRE tests/integration/ tier into skips — 1,844 of them, including CI's
+# own `pytest tests/integration/` step, which reported success over zero tests.
+# Do not reintroduce it; tests/unit/scripts/test_integration_ceiling.py has a
+# guard that fails on the pattern anywhere in the repo.

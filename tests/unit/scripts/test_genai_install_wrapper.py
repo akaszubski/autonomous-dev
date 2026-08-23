@@ -259,8 +259,14 @@ class TestExecuteInstallation:
         # Backup should exist
         assert "backups_created" in result
         assert len(result["backups_created"]) > 0
-        # Backup file pattern: .backup-YYYYMMDD-HHMMSS
-        backup_files = list((project / "plugins/autonomous-dev/commands").glob("auto-implement.md.backup-*"))
+        # Backup file pattern: .backup.YYYYMMDD_HHMMSS (dot-separated, underscore
+        # timestamp) -- this is the repo-wide canonical backup-naming convention
+        # (same pattern used in claude_md_updater.py, code_patcher.py,
+        # hook_activator.py, memory_layer.py, project_md_updater.py, and
+        # copy_system.py itself, which actually creates this backup). The
+        # hyphenated pattern this test previously asserted never matched any
+        # commit of copy_system.py -- retargeted 2026-08-23.
+        backup_files = list((project / "plugins/autonomous-dev/commands").glob("auto-implement.md.backup.*"))
         assert len(backup_files) == 1
         assert backup_files[0].read_text() == "# Old version"
 
@@ -328,7 +334,12 @@ class TestSummaryGeneration:
         assert "install_type" in result["summary"]
         assert result["summary"]["install_type"] == "brownfield"
         assert result["summary"]["files_copied"] == 42
-        assert len(result["summary"]["skipped_files"]) == 2
+        # NOTE: retargeted 2026-08-23 -- generate_summary()'s summary dict
+        # reports counts, not lists, for skipped_files/backups_created --
+        # consistent with files_copied also being an int. This has been the
+        # design since the function's introduction in commit 5db1871a
+        # (`"skipped_files": len(install_result.get("skipped_files", []))`).
+        assert result["summary"]["skipped_files"] == 2
         assert "next_steps" in result
         assert isinstance(result["next_steps"], list)
         assert len(result["next_steps"]) > 0
@@ -615,10 +626,17 @@ class TestAuditLogging:
         assert len(events) > 0
 
         # Check event structure
+        # NOTE: retargeted 2026-08-23 -- "details" as a nested wrapper key was
+        # never emitted by InstallAudit.AuditEntry.to_dict() at ANY commit
+        # (verified via `git show 443534da -- .../install_audit.py`, the
+        # commit that introduced install_audit.py, an hour before this test
+        # file was added). AuditEntry always spreads event-specific data
+        # flat alongside event/install_id/timestamp -- "install_id" is the
+        # one field genuinely present on every entry type.
         for event in events:
             assert "timestamp" in event
             assert "event" in event
-            assert "details" in event
+            assert "install_id" in event
 
     def test_audit_log_tracks_file_operations(self, tmp_path: Path) -> None:
         """Audit log tracks individual file copy operations."""
@@ -646,9 +664,16 @@ class TestAuditLogging:
         audit_file = project / ".claude" / "install_audit.jsonl"
         events = [json.loads(line) for line in audit_file.read_text().strip().split("\n")]
 
-        # Should have file_copied events
-        file_events = [e for e in events if e["event"] == "file_copied"]
-        assert len(file_events) >= 2
+        # NOTE: retargeted 2026-08-23 -- InstallAudit has never had a
+        # per-file "file_copied" event type at any commit (verified: the
+        # only methods are start_installation, log_success, log_failure,
+        # record_protected_file, record_conflict, record_conflict_resolution
+        # -- git log shows install_audit.py touched in exactly one feature
+        # commit, 443534da). File-copy counts are tracked in aggregate on
+        # the "installation_success" event's files_copied field instead.
+        success_events = [e for e in events if e["event"] == "installation_success"]
+        assert len(success_events) == 1
+        assert success_events[0]["files_copied"] >= 2
 
     def test_audit_log_tracks_protected_files(self, tmp_path: Path) -> None:
         """Audit log tracks skipped protected files."""
@@ -675,7 +700,12 @@ class TestAuditLogging:
         audit_file = project / ".claude" / "install_audit.jsonl"
         events = [json.loads(line) for line in audit_file.read_text().strip().split("\n")]
 
-        # Should have file_skipped event
-        skip_events = [e for e in events if e["event"] == "file_skipped"]
+        # NOTE: retargeted 2026-08-23 -- there is no "file_skipped" event
+        # type; execute_installation records protected files via
+        # audit.record_protected_file(), which InstallAudit emits as
+        # event="protected_file" (verified by running execute_installation
+        # against this exact scenario and reading the resulting audit.jsonl).
+        skip_events = [e for e in events if e["event"] == "protected_file"]
         assert len(skip_events) > 0
-        assert any(".env" in e["details"].get("file", "") for e in skip_events)
+        assert skip_events[0]["file"] == ".env"
+        assert any(".env" in e.get("file", "") for e in skip_events)

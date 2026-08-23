@@ -142,22 +142,28 @@ class TestAlignCommandContent:
         )
 
     def test_align_documents_claude_mode(self, align_cmd_content):
-        """Test that align command documents --claude mode.
+        """Test that align command documents the doc-drift-fix mode.
 
-        RED PHASE: Should fail until --claude mode documented
-        EXPECTATION: Content explains /align --claude functionality
+        Commit 9fbc4dce (long predating this fix) renamed the --claude flag
+        to --docs in align.md's frontmatter to match body usage that already
+        used --docs ("align.md: Changed --claude to --docs in frontmatter
+        (matches body usage)"). A migration table entry in align.md
+        (`| /align-claude | /align --docs |`) documents the rename. The flag
+        name changed; the doc-drift-fix functionality this test protects did
+        not.
+        EXPECTATION: Content explains /align --docs functionality
                      (detects and fixes CLAUDE.md documentation drift)
 
         DESCRIPTION:
-        --claude mode: Detects documentation drift between CLAUDE.md and PROJECT.md.
+        --docs mode: Detects documentation drift between CLAUDE.md and PROJECT.md.
                        Validates: version dates, agent counts, command availability,
                                   hook documentation
                        Auto-fixes: Updates CLAUDE.md to match current state
         """
         content_lower = align_cmd_content.lower()
-        assert "--claude" in align_cmd_content, (
-            "align.md does not document --claude flag\n"
-            "Expected: /align --claude description\n"
+        assert "--docs" in align_cmd_content, (
+            "align.md does not document --docs flag\n"
+            "Expected: /align --docs description\n"
             "Purpose: Fix documentation drift (CLAUDE.md vs PROJECT.md)"
         )
 
@@ -242,15 +248,17 @@ class TestAlignCommandModes:
         )
 
     def test_align_claude_mode_complete(self, align_cmd_content):
-        """Test that --claude mode is fully documented.
+        """Test that the doc-drift-fix mode (--docs, renamed from --claude by
+        commit 9fbc4dce — see test_align_documents_claude_mode) is fully
+        documented.
 
         RED PHASE: Should fail until mode is documented
         EXPECTATION: Includes: usage, purpose, what it validates, examples
         """
-        assert "--claude" in align_cmd_content, (
-            "align.md missing --claude mode documentation"
+        assert "--docs" in align_cmd_content, (
+            "align.md missing --docs mode documentation"
         )
-        # Check for description of what --claude does
+        # Check for description of what --docs does
         content_lower = align_cmd_content.lower()
         assert (
             "claude.md" in content_lower
@@ -258,7 +266,7 @@ class TestAlignCommandModes:
             or "synchron" in content_lower
             or "document" in content_lower
         ), (
-            "--claude mode documentation incomplete\n"
+            "--docs mode documentation incomplete\n"
             "Expected: Explain CLAUDE.md drift detection/fixing purpose"
         )
 
@@ -387,7 +395,10 @@ class TestAlignCommandConsolidation:
         """Test that align command consolidates three separate commands.
 
         RED PHASE: Should fail until command is properly consolidated
-        EXPECTATION: Single /align command with --project, --claude, --retrofit modes
+        EXPECTATION: Single /align command with --project, --docs, --retrofit modes
+                     (--docs is the renamed --claude flag — commit 9fbc4dce
+                     renamed it to match align.md body usage; see
+                     test_align_documents_claude_mode for the rename evidence)
 
         RATIONALE: Issue #121 simplifies commands by consolidating related commands.
                   Three separate align* commands → Single /align command with modes
@@ -396,8 +407,8 @@ class TestAlignCommandConsolidation:
         assert "--project" in align_cmd_content, (
             "align.md missing --project flag (from align-project.md functionality)"
         )
-        assert "--claude" in align_cmd_content, (
-            "align.md missing --claude flag (from align-claude.md functionality)"
+        assert "--docs" in align_cmd_content, (
+            "align.md missing --docs flag (from align-claude.md functionality, renamed)"
         )
         assert "--retrofit" in align_cmd_content or "retrofit" in align_cmd_content.lower(), (
             "align.md missing --retrofit flag (from align-project-retrofit.md functionality)"

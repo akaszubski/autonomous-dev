@@ -325,11 +325,45 @@ jobs:
           echo "Running unit tests..."
           python -m pytest tests/unit/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
 
+      # ISSUE #1582 — this step used to report success over ZERO tests.
+      #
+      # A module-scope rebind of `pytest.mark.integration` in
+      # tests/integration/test_documentation_references.py assigned a `skipif`
+      # onto pytest's GLOBAL marker namespace. tests/conftest.py resolves
+      # auto-markers by name, so collecting that one module turned the whole
+      # tier into skips: this step ran 0 of 1,834 tests, exited 0, and was
+      # green for months. The rebind is gone; the tier now actually executes.
+      #
+      # It executes against a RATCHET, not a raw pass/fail, because turning
+      # green-over-nothing into a permanently-red check is not an improvement —
+      # it trains everyone to ignore the whole class, which is the same
+      # dynamic that let this tier stay dark. pytest's own exit code is
+      # therefore discarded (`|| true`) and scripts/integration_ceiling.py
+      # decides the step outcome: failures at or below the pinned baseline
+      # pass, growth fails, and the pin may only ever be lowered.
+      #
+      # NO `-n auto` HERE, deliberately, and this is a change from the previous
+      # invocation. Measured 2026-08-23 on the same tree, same command:
+      #     serial   -> 512 failed, 512 failed   (failing node-ID sets
+      #                 identical between runs, symmetric difference 0)
+      #     -n auto  -> 498 failed, 503 failed   (sets differ by 7 node IDs)
+      # A ratchet cannot be pinned to an instrument whose reading moves with
+      # nothing changed; the gate would flake, and a flaky gate is the very
+      # "cries wolf" failure this design exists to avoid. Serial also reports
+      # the honest UPPER bound — xdist scatters mutually-polluting tests across
+      # worker processes, which is why it shows FEWER failures. Cost of the
+      # change: ~56s versus ~29s.
+      #
+      # --junitxml is what the ceiling reads. A missing or truncated report
+      # fails the step rather than reading as zero failures; see
+      # MINIMUM_COLLECTED_TESTS in the script.
       - name: Run integration tests
         if: ${{ !cancelled() && steps.checkout.outcome != 'failure' && steps.setup_python.outcome != 'failure' && steps.install.outcome != 'failure' && steps.route.outputs.skip_all != 'true' }}
         run: |
           echo "Running integration tests..."
-          python -m pytest tests/integration/ -n auto -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal
+          python -m pytest tests/integration/ -v --tb=short -o "addopts=" --ignore=tests/archived/ --timeout=300 --timeout-method=signal --junitxml=integration-results.xml || true
+          echo "Checking integration failure ceiling (Issue #1582)..."
+          python scripts/integration_ceiling.py --report integration-results.xml
 
       - name: Run regression tests
         if: ${{ !cancelled() && steps.checkout.outcome != 'failure' && steps.setup_python.outcome != 'failure' && steps.install.outcome != 'failure' && steps.route.outputs.skip_all != 'true' }}

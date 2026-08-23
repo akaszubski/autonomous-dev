@@ -27,6 +27,7 @@ sys.path.insert(0, str(REPO_ROOT / "plugins" / "autonomous-dev" / "lib"))
 
 from sync_settings_hooks import (
     _count_lifecycle_events,
+    _get_canonical_deny_list,
     _replace_hooks,
     sync_global,
     sync_repo,
@@ -271,9 +272,19 @@ class TestReplaceHooks:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
 
-        # User permission entries preserved (untouched)
+        # User permission entries preserved (untouched) -- but NOTE:
+        # `allow`/`ask` are left alone; `deny` is deliberately NOT a "user
+        # customization" surface. Since commit 320d4ce0 (#814) and
+        # reinforced by the Issue #1409 Write->Edit deny-pattern migration,
+        # `_replace_hooks` wholesale-syncs `permissions.deny` from the
+        # canonical `settings_generator.DEFAULT_DENY_LIST` on every deploy
+        # specifically so stale/invalid/missing security patterns cannot
+        # persist -- a purely custom entry like "Bash(custom:danger)" that
+        # isn't part of the canonical list does not survive a sync.
+        # Retargeted 2026-08-23; see docstring of sync_settings_hooks.py.
         assert "CustomTool" in data["permissions"]["allow"]
-        assert "Bash(custom:danger)" in data["permissions"]["deny"]
+        assert data["permissions"]["deny"] == _get_canonical_deny_list()
+        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
 
         # Template hooks replaced entirely
         assert len(data["hooks"]) == 8
@@ -353,7 +364,11 @@ class TestGlobalMode:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
         assert "CustomTool" in data["permissions"]["allow"]
-        assert "Bash(custom:danger)" in data["permissions"]["deny"]
+        # `deny` is synced wholesale from the canonical DEFAULT_DENY_LIST on
+        # every sync (Issue #814/#1409) -- a purely custom entry does not
+        # survive. Retargeted 2026-08-23; see TestReplaceHooks equivalent.
+        assert data["permissions"]["deny"] == _get_canonical_deny_list()
+        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
 
         # Template hooks replaced
         assert len(data["hooks"]) == 8
@@ -532,8 +547,13 @@ class TestPermissions:
         assert result["success"] is True
         data = json.loads(settings_path.read_text())
 
-        # User permission entries preserved (untouched - replace only touches hooks)
+        # User permission entries preserved (untouched - replace only touches
+        # hooks) EXCEPT `deny`, which is deliberately re-synced wholesale
+        # from the canonical DEFAULT_DENY_LIST on every deploy (Issue
+        # #814/#1409) so a purely custom entry does not survive.
+        # Retargeted 2026-08-23; see TestReplaceHooks for full rationale.
         assert "CustomUserTool" in data["permissions"]["allow"]
         assert "MyMCPTool" in data["permissions"]["allow"]
-        assert "Bash(my-custom-deny)" in data["permissions"]["deny"]
+        assert data["permissions"]["deny"] == _get_canonical_deny_list()
+        assert "Bash(my-custom-deny)" not in data["permissions"]["deny"]
         assert "Bash(git push:*)" in data["permissions"]["ask"]
