@@ -52,6 +52,15 @@ If a topic spans two stores: the *narrative* lives in PROJECT.md or docs; the *r
 | `MEMORY.md` | ≤200 lines | 300 | Truncated above line 200 when auto-loaded. |
 | `memory/*.md` (individual) | 1–3 KB | 3 KB | >3 KB usually means it should be a `docs/` page. |
 
+For the two repo-tracked files the hard ceiling is a **per-repo ratchet**
+(#1648): the effective block limit is `max(hard ceiling, the file's line count
+at git HEAD)`, so a repo that inherited an oversized context file is refused
+the moment that file GROWS rather than on every edit forever. The mark is the
+repository's own committed history — there is no baseline file to create, and
+raising it means committing a bigger file past a live refusal. A worktree,
+a submodule, or a context file committed as a symlink gets no ratchet and
+falls back to the absolute ceiling.
+
 Size is not the only budget. The repo `CLAUDE.md` must not **restate** a rule
 that is already in `~/.claude/CLAUDE.md` — both copies are usually correct, and
 together they cost context on every turn to say one thing. The same hook refuses

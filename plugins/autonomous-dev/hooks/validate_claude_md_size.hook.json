@@ -1,7 +1,7 @@
 {
   "name": "validate_claude_md_size",
   "type": "lifecycle",
-  "description": "Context-file guard - warns on drift past target and blocks past a 1.5x hard ceiling for CLAUDE.md, ~/.claude/CLAUDE.md, .claude/PROJECT.md and MEMORY.md; also blocks local sections that restate a global rule.",
+  "description": "Context-file guard - warns on drift past target and blocks past a 1.5x hard ceiling for CLAUDE.md, ~/.claude/CLAUDE.md, .claude/PROJECT.md and MEMORY.md; also blocks local sections that restate a global rule. For the two repo-tracked files the block limit is max(hard ceiling, line count at git HEAD), so a repo that inherited an oversized file is refused only when the file GROWS; every fallback lands on the absolute ceiling.",
   "interpreter": "python3",
   "active": true,
   "registrations": [

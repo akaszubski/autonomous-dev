@@ -31,6 +31,23 @@ What it checks
    times ``HARD_CEILING_MULTIPLIER`` (1.5) — see that constant for why 1.5
    and not 1.0 or 2.0.
 
+   **Per-repo ratchet (Issue #1648).** For the two REPO-TRACKED files the
+   effective ceiling is ``max(hard_ceiling, line_count_at_git_HEAD)``: *you
+   may not make this file worse than it already is at HEAD*. A repo that
+   inherited an oversized context file is not refused on every edit — it is
+   refused the moment the file GROWS. The mark is the repository's own
+   committed history, so there is no baseline file to create, bootstrap or
+   forge: raising it requires committing a bigger file past a live refusal,
+   visibly, in a diff. See ``_head_line_count`` for the fallbacks, every one
+   of which lands on the absolute ceiling rather than relaxing it.
+
+   Two named limitations, both strict by construction rather than by luck:
+   a worktree or submodule (``.git`` is a FILE) gets no ratchet, and a
+   context file committed as a SYMLINK gets no ratchet either — ``git show``
+   returns the link target, not the content, so the mark is 1 and the
+   absolute ceiling always wins. THIS repo's ``.claude/PROJECT.md`` is such
+   a symlink.
+
 2. **Overlap between the local and global CLAUDE.md.** Size catches volume;
    it cannot catch the same rule stated twice. See ``find_overlaps``.
 
@@ -71,8 +88,10 @@ except ImportError:
 
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
@@ -345,6 +364,111 @@ def _read_line_count(path: Path) -> Optional[int]:
         return None
 
 
+@lru_cache(maxsize=64)
+def _head_line_count(path: Path, repo_root: Path) -> Optional[int]:
+    """Lines in ``path`` as committed at git HEAD — the per-repo ratchet mark.
+
+    Issue #1648. Every failure path returns None, and None means "no mark",
+    which means the absolute ceiling stands. There is no branch on which a
+    failure here can RELAX a limit.
+
+    The ``lru_cache`` is a CORRECTNESS requirement, not a performance one.
+    Each of the two repo-tracked specs is built twice per invocation (once via
+    its ``check_*`` wrapper, once in ``collect_size_findings``'s ``specs``
+    map), so uncached this would be 4 subprocesses x ``timeout=2`` = 8s
+    against the sidecar's 5s budget. A hook killed mid-run emits nothing, and
+    PostToolUse reads silence as approval — the guard would fail OPEN. Cached,
+    it is 2 x 2s = 4s plus the hook's own measured 0.044s. Any IN-PROCESS
+    caller that re-commits the same ``(path, repo_root)`` must call
+    ``_head_line_count.cache_clear()``.
+
+    Args:
+        path: Absolute path of the context file to measure.
+        repo_root: Absolute path of the repository root.
+
+    Returns:
+        The committed line count, or None when no mark can be established.
+    """
+    git_dir = repo_root / ".git"
+    if not git_dir.is_dir():
+        # A ``.git`` FILE means a worktree or submodule. ``--git-dir`` does not
+        # accept one, so the ratchet is unavailable there — by design, strict.
+        return None
+    try:
+        rel = path.relative_to(repo_root)
+    except ValueError:
+        # Outside the repo (``~/.claude/CLAUDE.md``, ``MEMORY.md``): no mark.
+        return None
+    try:
+        # ``--git-dir`` PINS the repository, and that pin is load-bearing.
+        # ``get_repo_root`` stops at the first ancestor where ``.git`` EXISTS;
+        # git does not stop there — it walks PAST an invalid ``.git`` into an
+        # ancestor repo and returns THAT repo's HEAD. Unpinned, a repo with a
+        # malformed ``.git`` would read a foreign repository's file as its own
+        # size mark. Pinned, an invalid ``.git`` is a non-zero returncode.
+        #
+        # ``HEAD:<rel>`` is cwd-independent because the gitrevisions
+        # ``<rev>:<path>`` rule resolves the path relative to the TOP OF THE
+        # TREE unless it is prefixed ``./`` or ``../`` — NOT because this is
+        # bare mode. Measured: with ``--git-dir`` set and no ``--work-tree``,
+        # ``rev-parse --is-bare-repository`` returns ``false`` and
+        # ``--show-toplevel`` returns the CWD.
+        proc = subprocess.run(
+            ["git", f"--git-dir={git_dir}", "show", f"HEAD:{rel.as_posix()}"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            stdin=subprocess.DEVNULL,  # stdin carries the hook payload
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        # git absent; the subprocess hung; the blob is not valid UTF-8.
+        return None
+    if proc.returncode != 0:
+        # Not a valid repo, no commits, or the file is untracked at HEAD. This
+        # branch is what separates a strict fallback from silently counting a
+        # git error's empty stdout as a 0-line mark.
+        return None
+    return len(proc.stdout.splitlines())
+
+
+def _ratcheted(spec: dict, repo_root: Path) -> dict:
+    """Apply the per-repo ratchet to one size spec, in place.
+
+    A mark can only RELAX, and only above the hard ceiling: ``max`` semantics
+    mean a file committed SMALLER than the ceiling changes nothing, so the
+    ratchet can never tighten a limit. When the mark is in force, BOTH bands
+    move to it — otherwise a repo sitting permanently above target would warn
+    on every single edit forever, and a permanently-yellow check trains
+    everyone to ignore the whole class.
+
+    Args:
+        spec: A size spec as built by ``_claude_md_spec``/``_project_md_spec``.
+        repo_root: Absolute path of the repository root.
+
+    Returns:
+        The same dict, with limits and ``ceiling_note`` updated if in force.
+    """
+    mark = _head_line_count(spec["path"], repo_root)
+    if mark is None:
+        return spec
+
+    # D1, the entire ratchet: max(absolute_ceiling, committed_size). Written as
+    # a max rather than a bare comparison because the max is what makes "a mark
+    # can never TIGHTEN" true by CONSTRUCTION — a mark below the ceiling is
+    # clamped away before it can reach the limits, so even an inverted guard
+    # below cannot narrow a band.
+    effective_limit = max(spec["block_limit"], mark)
+    if effective_limit > spec["block_limit"]:
+        # Populated BEFORE the clobber below, or the original ceiling and
+        # target are lost and the refusal can only name the mark.
+        spec["ceiling_note"] = (
+            f"absolute ceiling {spec['block_limit']}, target {spec['warn_limit']}"
+        )
+        spec["block_limit"] = spec["warn_limit"] = effective_limit
+    return spec
+
+
 def _size_finding(
     *,
     path: Path,
@@ -353,6 +477,7 @@ def _size_finding(
     warn_limit: int,
     block_limit: int,
     target_note: str,
+    ceiling_note: str = "",
 ) -> Tuple[int, str, str]:
     """Measure one file and build its banded message.
 
@@ -363,6 +488,10 @@ def _size_finding(
         warn_limit: Target size.
         block_limit: Hard ceiling.
         target_note: Where the target comes from, for the warning text.
+        ceiling_note: Set by ``_ratcheted`` ONLY when a git-HEAD mark is in
+            force, naming the absolute ceiling and target the mark displaced.
+            Empty — the default, and the case for every non-ratcheted file —
+            selects the pre-#1648 block message byte for byte.
 
     Returns:
         Tuple of (line_count, severity, message). line_count is 0 and
@@ -385,6 +514,27 @@ def _size_finding(
         )
         return line_count, WARN, message
 
+    if ceiling_note:
+        # Ratcheted refusal (#1648). The pre-#1648 text is wrong here: with
+        # warn_limit == block_limit == the mark it renders the same integer
+        # three times and tells the developer to trim to the size they are one
+        # line above. This variant carries four DISTINCT integers — the
+        # measured count, the growth, the in-force mark, and (via
+        # ceiling_note) the absolute ceiling and target the mark displaced.
+        message = (
+            f"BLOCKED: {display} is {line_count} lines — "
+            f"{line_count - block_limit} more than its own committed size of "
+            f"{block_limit} lines at git HEAD, which is the limit in force "
+            f"here because this file was already above the {ceiling_note}. "
+            f"This file loads into context on every turn.\n"
+            f"REQUIRED NEXT ACTION: bring {display} back to {block_limit} "
+            f"lines or fewer — its size at git HEAD — before continuing. It "
+            f"may not grow; shrinking toward the target named above is the "
+            f"real goal. See realign#1681.\n"
+            f"File: {path}"
+        )
+        return line_count, BLOCK, message
+
     message = (
         f"BLOCKED: {display} is {line_count} lines — over the hard ceiling of "
         f"{block_limit} (target {warn_limit}). This file loads into context on "
@@ -398,15 +548,18 @@ def _size_finding(
 
 
 def _claude_md_spec(repo_root: Path) -> dict:
-    """Check spec for the repo CLAUDE.md."""
-    return {
-        "path": repo_root / "CLAUDE.md",
-        "label": "CLAUDE.md",
-        "display": "CLAUDE.md",
-        "warn_limit": MAX_LINES,
-        "block_limit": BLOCK_LINES,
-        "target_note": "Anthropic best practice: keep under",
-    }
+    """Check spec for the repo CLAUDE.md. Repo-tracked, so it ratchets."""
+    return _ratcheted(
+        {
+            "path": repo_root / "CLAUDE.md",
+            "label": "CLAUDE.md",
+            "display": "CLAUDE.md",
+            "warn_limit": MAX_LINES,
+            "block_limit": BLOCK_LINES,
+            "target_note": "Anthropic best practice: keep under",
+        },
+        repo_root,
+    )
 
 
 def _global_claude_md_spec() -> dict:
@@ -427,15 +580,18 @@ def _global_claude_md_spec() -> dict:
 
 
 def _project_md_spec(repo_root: Path) -> dict:
-    """Check spec for ``.claude/PROJECT.md``."""
-    return {
-        "path": repo_root / ".claude" / "PROJECT.md",
-        "label": "PROJECT.md",
-        "display": ".claude/PROJECT.md",
-        "warn_limit": MAX_PROJECT_LINES,
-        "block_limit": BLOCK_PROJECT_LINES,
-        "target_note": "content-allocation target: keep under",
-    }
+    """Check spec for ``.claude/PROJECT.md``. Repo-tracked, so it ratchets."""
+    return _ratcheted(
+        {
+            "path": repo_root / ".claude" / "PROJECT.md",
+            "label": "PROJECT.md",
+            "display": ".claude/PROJECT.md",
+            "warn_limit": MAX_PROJECT_LINES,
+            "block_limit": BLOCK_PROJECT_LINES,
+            "target_note": "content-allocation target: keep under",
+        },
+        repo_root,
+    )
 
 
 def _memory_md_spec() -> dict:
