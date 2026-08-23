@@ -266,7 +266,15 @@ jobs:
         if: steps.route.outputs.skip_all != 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov pyyaml pytest-xdist pytest-timeout
+          # openai + anthropic (Issue #1579): NOT for calling either API -- no
+          # key is set in this job, and the tests that use them skip without
+          # one. They are here because a missing SDK fails at COLLECTION, and a
+          # collection error is not a skip: it removes the whole module from the
+          # run while looking like noise in the summary. Measured on run
+          # 32639109196: 54 `No module named 'openai'` + 30 `No module named
+          # 'anthropic'`. Installed, those modules collect and then skip
+          # honestly, which is a true statement about what ran.
+          pip install pytest pytest-cov pyyaml pytest-xdist pytest-timeout openai anthropic
 
       # --timeout=300 --timeout-method=signal (Issue #1567): a hung test fails
       # by name with a stack trace and the rest of the suite still runs.

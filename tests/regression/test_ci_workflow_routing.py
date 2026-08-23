@@ -204,18 +204,34 @@ def test_test_job_has_at_least_three_pytest_steps(test_steps: list[dict[str, Any
     )
 
 
+# "Run integration tests" is DELIBERATELY ABSENT from this list (Issue #1582).
+#
+# It ran with `-n auto` until that tier stopped being a no-op. The tier is now
+# gated by a ratchet (scripts/integration_ceiling.py) pinned to a failure count,
+# and a ratchet cannot be pinned to an instrument whose reading moves on its
+# own. Measured on one unchanged tree, same command:
+#     serial   -> 512 failed, 512 failed   (failing node-ID sets identical,
+#                                           symmetric difference 0)
+#     -n auto  -> 498 failed, 503 failed   (sets differ by 7 node IDs)
+# xdist scatters mutually-polluting tests across worker processes, so it also
+# under-reports: serial is the honest upper bound. A flaky gate is the "cries
+# wolf" failure the ratchet exists to prevent, so determinism wins over the ~27s
+# saved. tests/unit/scripts/test_integration_ceiling.py::
+# TestCiRunsTheTierThroughTheCeiling asserts the serial invocation positively,
+# so removing it here drops no coverage -- it moves it to the issue that owns
+# the decision.
 @pytest.mark.parametrize(
     "step_name",
-    ["Run unit tests", "Run integration tests", "Run regression tests"],
+    ["Run unit tests", "Run regression tests"],
 )
 def test_pytest_step_uses_xdist_parallel(
     test_steps: list[dict[str, Any]], step_name: str
 ) -> None:
-    """Each unit/integration/regression pytest step must use ``-n auto`` (Issue #1332).
+    """Unit and regression pytest steps must use ``-n auto`` (Issue #1332).
 
     Args:
         test_steps: The test job's steps list (from fixture).
-        step_name: One of the three required pytest step names.
+        step_name: One of the two parallel pytest step names.
     """
     step = _find_step_by_name(test_steps, step_name)
     assert step is not None, (

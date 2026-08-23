@@ -114,25 +114,58 @@ from tests.helpers.gh_issue_marker_guard import (
 _GH_ISSUE_CTX_WATCHED = _watched_marker_path(_GH_ISSUE_CTX_REAL_PATH)
 _GH_ISSUE_CTX_BASELINE = _snapshot_marker(_GH_ISSUE_CTX_WATCHED)
 
-# Create alias for plugins.autonomous_dev -> plugins/autonomous-dev
-# This allows tests to import from plugins.autonomous_dev.lib.X
+# Alias `autonomous_dev` -> plugins/autonomous-dev (Issue #1582 follow-up).
+#
+# `autonomous-dev` contains a hyphen, so it is not a legal Python identifier and
+# cannot be imported directly. Two spellings appear across the suite:
+#
+#     from plugins.autonomous_dev.lib.X import Y     # prefixed
+#     from autonomous_dev.lib.X import Y             # bare
+#
+# Only the prefixed form was registered here. The bare form resolved instead
+# through `plugins/autonomous_dev`, a SYMLINK that is listed in .gitignore:31
+# and has never been committed (`git ls-files plugins/autonomous_dev` is empty).
+# It exists on developer machines and in no CI checkout, so every bare-form test
+# passed locally and could never pass in CI. Measured on run 32639109196:
+# 148 collection errors, all `ModuleNotFoundError: No module named
+# 'autonomous_dev'`, none of them prefixed.
+#
+# Registering both spellings here rather than committing the symlink keeps ONE
+# mechanism for the alias instead of two, avoids giving tools a second
+# filesystem path that walks into the same tree twice, and works on platforms
+# that do not materialise symlinks on checkout.
+#
+# `__path__` deliberately points at the HYPHEN directory for every alias, so the
+# resolved package is identical whether or not the symlink happens to exist.
+# tests/unit/test_autonomous_dev_alias.py asserts exactly that, which is what
+# makes the shim -- not the ambient symlink -- the thing under test.
 _AD_HYPHEN_DIR = Path(__file__).parent.parent / "plugins" / "autonomous-dev"
-if _AD_HYPHEN_DIR.exists() and "plugins.autonomous_dev" not in sys.modules:
-    # Create virtual packages in sys.modules
+if _AD_HYPHEN_DIR.exists():
     if "plugins" not in sys.modules:
         plugins_pkg = types.ModuleType("plugins")
         plugins_pkg.__path__ = [str(_AD_HYPHEN_DIR.parent)]  # plugins/
         sys.modules["plugins"] = plugins_pkg
-    
-    # Create the autonomous_dev subpackage pointing to autonomous-dev/
-    autonomous_dev_pkg = types.ModuleType("plugins.autonomous_dev")
-    autonomous_dev_pkg.__path__ = [str(_AD_HYPHEN_DIR)]  # plugins/autonomous-dev/
-    sys.modules["plugins.autonomous_dev"] = autonomous_dev_pkg
-    
-    # Also create lib subpackage
-    lib_pkg = types.ModuleType("plugins.autonomous_dev.lib")
-    lib_pkg.__path__ = [str(_AD_HYPHEN_DIR / "lib")]  # plugins/autonomous-dev/lib/
-    sys.modules["plugins.autonomous_dev.lib"] = lib_pkg
+
+    # Subdirectories that tests import through the alias. A name is only
+    # registered when the directory is really there, so a typo or a moved
+    # directory surfaces as a normal ImportError instead of a virtual package
+    # that resolves to nothing.
+    _AD_SUBPACKAGES = ("lib", "scripts", "hooks")
+
+    for _alias_root in ("plugins.autonomous_dev", "autonomous_dev"):
+        if _alias_root not in sys.modules:
+            _root_pkg = types.ModuleType(_alias_root)
+            _root_pkg.__path__ = [str(_AD_HYPHEN_DIR)]
+            sys.modules[_alias_root] = _root_pkg
+
+        for _sub in _AD_SUBPACKAGES:
+            _sub_dir = _AD_HYPHEN_DIR / _sub
+            _sub_name = f"{_alias_root}.{_sub}"
+            if _sub_dir.is_dir() and _sub_name not in sys.modules:
+                _sub_pkg = types.ModuleType(_sub_name)
+                _sub_pkg.__path__ = [str(_sub_dir)]
+                sys.modules[_sub_name] = _sub_pkg
+                setattr(sys.modules[_alias_root], _sub, _sub_pkg)
 
 
 # =============================================================================
