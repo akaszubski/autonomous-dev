@@ -963,7 +963,13 @@ def collect_cia_findings(
                 
                 # If no target_repo found, classify based on content
                 if not target_repo:
-                    from .finding_target_classifier import classify_finding_target
+                    try:
+                        from .finding_target_classifier import classify_finding_target
+                    except ImportError:
+                        _lib_dir = Path(__file__).parent.resolve()
+                        if str(_lib_dir) not in sys.path:
+                            sys.path.insert(0, str(_lib_dir))
+                        from finding_target_classifier import classify_finding_target  # type: ignore
                     # Use the first record's title for classification
                     first_rec = cluster_records[0] if cluster_records else {}
                     finding_title = str(first_rec.get("title", ""))

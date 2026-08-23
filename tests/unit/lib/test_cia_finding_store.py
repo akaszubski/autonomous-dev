@@ -246,43 +246,73 @@ class TestAppendFinding:
 
 
 class TestCollectCIAFindings:
-    """Tests for ``collect_cia_findings`` aggregator.
+    """Tests for ``collect_cia_findings`` aggregator."""
 
-    KNOWN REGRESSION (2026-08-23, out of scope — plugins/autonomous-dev/lib/**
-    is protected infrastructure and cannot be edited by this pass): 4 tests
-    below (``test_collect_cia_findings_groups_by_tag_and_token_cluster``,
-    ``test_collect_cia_findings_window_excludes_old_records``,
-    ``test_collect_cia_findings_tracks_distinct_sessions``,
-    ``test_collect_cia_findings_severity_contract``) fail with
-    ``health.status == "error"`` / ``health.error_message ==
-    "attempted relative import with no known parent package"`` whenever any
-    record makes it through clustering, because
-    ``runtime_data_aggregator.collect_cia_findings()`` (line ~966) does:
+    def test_regression_issue_1658_flat_loaded_module_reads_findings(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for #1658.
 
-        from .finding_target_classifier import classify_finding_target
+        A completely fresh, flat-loaded ``runtime_data_aggregator`` (the
+        production loading pattern: ``sys.path.insert(0, lib_dir)`` then
+        ``import runtime_data_aggregator``, with NO parent package) must be
+        able to read a non-empty findings directory and return real signals
+        with a non-error ``SourceHealth``.
 
-    a bare package-relative import with NO fallback, inside a module that is
-    loaded flat via ``sys.path.insert(0, <lib_dir>)`` everywhere in this
-    codebase (including by this very test file, line 31) rather than as part
-    of a package — so the relative import always raises ``ImportError``,
-    caught by the function's own top-level ``except Exception`` and turned
-    into ``status="error"``. Confirmed via
-    ``git log -p --follow -- plugins/autonomous-dev/lib/runtime_data_aggregator.py``:
-    commit 7718d3c6 ("fix(ci-routing): route framework findings to
-    autonomous-dev, not consumer", 2026-07-08) introduced this bare relative
-    import immediately below an existing (correct) try/except pattern for the
-    sibling ``issue_triage_analyzer`` import a few lines above it — the new
-    import simply didn't follow the established pattern. This is a genuine
-    CODE regression, not a stale test; reproduced directly against the
-    installed module (see evidence in implementer report) with
-    ``collect_cia_findings()`` returning
-    ``SourceHealth(status='error', error_message='attempted relative import
-    with no known parent package')`` for any non-empty findings directory.
-    Left red per instructions rather than edited (protected lib/) or
-    weakened. Fix: change the import to the same try/except
-    package-then-flat-fallback pattern already used for
-    ``issue_triage_analyzer`` a few lines above it.
-    """
+        Runs in a subprocess to guarantee a fresh module import completely
+        independent of this test file's own module cache — this is the exact
+        failure path from Issue #1658: before the fix, the
+        ``from .finding_target_classifier import classify_finding_target``
+        bare relative import inside ``collect_cia_findings()`` raised
+        ``ImportError: attempted relative import with no known parent
+        package`` for ANY non-empty findings directory, which the function's
+        top-level ``except Exception`` silently converted into
+        ``SourceHealth(status="error")`` with zero signals. Asserts on the
+        returned VALUE (signal count + status), not on import statement text,
+        so a fix that only changes wording without changing behavior cannot
+        pass this test.
+        """
+        import subprocess
+        import sys as _sys
+
+        findings_dir = tmp_path / "findings"
+        findings_dir.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(timezone.utc)
+        monthly = findings_dir / f"{now.strftime('%Y-%m')}.jsonl"
+        monthly.write_text(
+            json.dumps(
+                {
+                    "ts": now.isoformat(),
+                    "root_cause_tag": "wrong_assumption",
+                    "title": "regression probe finding for issue 1658",
+                    "severity": "high",
+                    "session_id": "s1",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        script = f"""
+import sys
+sys.path.insert(0, {str(_LIB_DIR)!r})
+from runtime_data_aggregator import collect_cia_findings
+signals, health = collect_cia_findings({str(findings_dir)!r})
+assert health.status != "error", (health.status, health.error_message)
+assert len(signals) > 0, "expected at least one signal, got zero"
+print("REGRESSION_TEST_OK", len(signals), health.status)
+"""
+        result = subprocess.run(
+            [_sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, (
+            f"flat-loaded collect_cia_findings() failed:\n"
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        assert "REGRESSION_TEST_OK" in result.stdout, result.stdout
 
     def test_collect_cia_findings_returns_empty_when_dir_missing(
         self, tmp_path: Path

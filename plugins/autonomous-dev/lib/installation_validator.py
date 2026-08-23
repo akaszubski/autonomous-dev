@@ -38,10 +38,18 @@ Design Patterns:
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from .file_discovery import FileDiscovery
+
+try:
+    from .file_discovery import FileDiscovery
+except ImportError:
+    _lib_dir = Path(__file__).parent.resolve()
+    if str(_lib_dir) not in sys.path:
+        sys.path.insert(0, str(_lib_dir))
+    from file_discovery import FileDiscovery  # type: ignore
 
 # Security utilities for path validation and audit logging
 try:

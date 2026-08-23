@@ -27,13 +27,21 @@ Relevant Skills:
 """
 
 import json
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List
 
-from .security_utils import audit_log, validate_path
-from .alignment_assessor import AlignmentGap, AssessmentResult, Severity
+try:
+    from .security_utils import audit_log, validate_path
+    from .alignment_assessor import AlignmentGap, AssessmentResult, Severity
+except ImportError:
+    _lib_dir = Path(__file__).parent.resolve()
+    if str(_lib_dir) not in sys.path:
+        sys.path.insert(0, str(_lib_dir))
+    from security_utils import audit_log, validate_path  # type: ignore
+    from alignment_assessor import AlignmentGap, AssessmentResult, Severity  # type: ignore
 
 
 class EffortSize(Enum):

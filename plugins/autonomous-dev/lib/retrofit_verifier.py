@@ -27,12 +27,20 @@ Design Patterns:
 """
 
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .security_utils import audit_log, validate_path
-from .retrofit_executor import ExecutionResult
+try:
+    from .security_utils import audit_log, validate_path
+    from .retrofit_executor import ExecutionResult
+except ImportError:
+    _lib_dir = Path(__file__).parent.resolve()
+    if str(_lib_dir) not in sys.path:
+        sys.path.insert(0, str(_lib_dir))
+    from security_utils import audit_log, validate_path  # type: ignore
+    from retrofit_executor import ExecutionResult  # type: ignore
 
 
 @dataclass
