@@ -276,8 +276,25 @@ def _count_libraries() -> int:
 def check_component_count_drift() -> List[str]:
     """Check CLAUDE.md prose component counts against live file counts (Issue #1140).
 
+    Component counts' canonical home is docs/ARCHITECTURE-OVERVIEW.md, per
+    PROJECT.md and INV-5 ("one topic, one home") — CLAUDE.md is loaded into
+    the model's context on every turn and must stay a map, not a datasheet.
+    An earlier version of this check *required* a 'Component counts:' summary
+    line in CLAUDE.md, which created a second enforced home for the same
+    numbers. That second home is how a real drift happened: CLAUDE.md's line
+    was correct but ARCHITECTURE-OVERVIEW.md drifted (245 vs. actual 246
+    libraries) — a discrepancy only test_library_count (which checks the
+    canonical file) caught; this check, watching the duplicate, did not.
+
+    Therefore: absence of the line in CLAUDE.md is NOT drift and returns []
+    (there is nothing to compare). A *present but wrong* line still returns
+    errors — so if the line is ever reintroduced with stale numbers, this
+    check still refuses it. Absence permitted, wrongness refused; only
+    the requirement that the line exist at all has been removed.
+
     Returns:
-        List of error strings (empty if all counts match).
+        List of error strings (empty if the line is absent, or if all
+        counts in a present line match live counts).
     """
     errors: List[str] = []
     if not CLAUDE_MD.exists():
@@ -285,9 +302,7 @@ def check_component_count_drift() -> List[str]:
     text = CLAUDE_MD.read_text()
     m = SUMMARY_RE.search(text)
     if not m:
-        return [
-            "❌ Canonical 'Component counts:' summary line missing or malformed in CLAUDE.md"
-        ]
+        return []
     claimed = {k: int(m.group(k)) for k in ("agents", "skills", "commands", "hooks", "libraries")}
     # Detect whether CLAUDE.md uses the "user-facing" qualifier for commands (#1159).
     # When it does, compare against only files with user_facing: true in front-matter.

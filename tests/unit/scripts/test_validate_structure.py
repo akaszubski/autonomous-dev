@@ -163,10 +163,18 @@ class TestComponentCountDriftCheck:
         assert any("agents" in e for e in errors), "Expected an error mentioning 'agents'"
         assert any("hooks" in e for e in errors), "Expected an error mentioning 'hooks'"
 
-    def test_component_count_check_handles_missing_summary_line(
+    def test_component_count_check_permits_missing_summary_line(
         self, validate_module: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """CLAUDE.md exists but has no Component counts: line → one specific error."""
+        """CLAUDE.md exists but has no Component counts: line -> absence is not drift.
+
+        Counts' canonical home is docs/ARCHITECTURE-OVERVIEW.md (PROJECT.md, INV-5).
+        Requiring the line in CLAUDE.md created a second enforced home for the same
+        numbers, which is how the 245-vs-246 library drift happened (caught only by
+        test_library_count against the canonical file). Absence must not be drift;
+        see test_component_count_check_still_refuses_wrong_number_when_line_present
+        for proof the check still refuses a present-but-wrong line.
+        """
         plugin = _make_fake_plugin(tmp_path)
         claude_md = tmp_path / "CLAUDE.md"
         claude_md.write_text("# autonomous-dev\n\nNo component summary here.\n")
@@ -175,10 +183,30 @@ class TestComponentCountDriftCheck:
 
         errors = validate_module.check_component_count_drift()
 
-        assert len(errors) == 1, f"Expected exactly 1 error, got {len(errors)}: {errors}"
-        assert "summary line missing" in errors[0] or "missing or malformed" in errors[0], (
-            f"Error should mention missing summary line, got: {errors[0]}"
+        assert errors == [], f"Expected no errors for absent summary line, got: {errors}"
+
+    def test_component_count_check_still_refuses_wrong_number_when_line_present(
+        self, validate_module: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A present-but-wrong Component counts: line is still refused (not a no-op deletion).
+
+        This is the arm that proves check_component_count_drift() still enforces
+        correctness when the line exists — without it, permitting absence would be
+        indistinguishable from deleting the function body.
+        """
+        plugin = _make_fake_plugin(
+            tmp_path, agents=3, commands=4, skills=2, hooks=5, libraries=7
         )
+        claude_md = _write_claude_md(
+            tmp_path, agents=999, skills=2, commands=4, hooks=5, libraries=7
+        )
+        monkeypatch.setattr(validate_module, "PLUGIN", plugin)
+        monkeypatch.setattr(validate_module, "CLAUDE_MD", claude_md)
+
+        errors = validate_module.check_component_count_drift()
+
+        assert len(errors) == 1, f"Expected exactly 1 error, got {len(errors)}: {errors}"
+        assert "agents" in errors[0], f"Error should name 'agents', got: {errors[0]}"
 
     def test_validate_structure_main_includes_count_check(
         self,

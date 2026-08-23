@@ -28,22 +28,16 @@ Self-maintenance mode is the routine path for autonomous-dev itself; `.claude/.b
 
 ## Architecture
 
-- **Pipeline**: 8-step SDLC (15 internal steps) — alignment → research → plan → acceptance tests → implement → validate → verify → git
-- **Enforcement**: 27 hooks with JSON `{"decision": "block"}` hard gates (not prompt-level nudges)
-- **Agents**: 17 specialists with fresh context per invocation, model-tiered (Haiku/Sonnet/Opus)
-- **Skills**: 20 domain packages, progressively injected per-step to prevent context bloat
+- **Pipeline**: 8-step SDLC — alignment → research → plan → acceptance tests → implement → validate → verify → git
+- **Enforcement**: hooks returning JSON `{"decision": "block"}`. A gate declared only in prose is not enforcement (INV-1) — and several currently are (#1637, #1608).
+- **Agents**: specialists with fresh context per invocation, model-tiered
+- **Skills**: domain packages, progressively injected per-step to prevent context bloat
 
-Component counts: 17 agents, 20 skills, 23 user-facing commands, 27 hooks, 246 libraries. Full diagram and layer breakdown in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md).
+Counts, diagram and layer breakdown: [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md) — the single home for volatile detail (PROJECT.md ARCHITECTURE). Do not restate counts here; two homes is how they drift.
 
-## Code Navigation (LSP > grep when available)
+## Code Navigation
 
-**When the Serena LSP MCP is configured (`.mcp.json` has a `serena` server; Issue #1451), prefer its symbol tools over `grep` for anything about code STRUCTURE:**
-- `find_symbol` / go-to-definition — where a function/class is defined
-- `find_referencing_symbols` / find-references — **who calls this** (a symbol with **zero references is a stale, unconnected/dead function** — grep cannot tell you this reliably, it matches text not symbol bindings)
-- call hierarchy (incoming/outgoing calls) — real **dependency** chains, not text guesses
-- `get_symbols_overview` / document-symbol — a file's structure
-
-Use `grep`/`Glob` only for text patterns, file names, comments, strings, and single-file reads. LSP answers are always-fresh (live-queried, no index to go stale). This directly improves dependency understanding and dead-code detection (feeds `/refactor --code`, `/sweep`). If no Serena server is configured, fall back to grep.
+Serena LSP is configured here (`.mcp.json`, #1451) — the global "Serena for dependencies, grep for strings" rule applies. Repo-specific: dead-code detection feeds `/refactor --code` and `/sweep`. The hook loads `lib/` via `importlib`, which LSP cannot follow, so hook call sites need grep and the disagreement must be named, not silently resolved.
 
 ## Commands
 
@@ -67,8 +61,10 @@ User-facing reference: [`plugins/autonomous-dev/docs/COMMANDS.md`](plugins/auton
 | Architecture details | [docs/ARCHITECTURE-OVERVIEW.md](docs/ARCHITECTURE-OVERVIEW.md) |
 | Troubleshooting | [plugins/autonomous-dev/docs/TROUBLESHOOTING.md](plugins/autonomous-dev/docs/TROUBLESHOOTING.md) |
 
-## Session Continuity & History
+## Session Continuity
 
-Session state restored by `SessionStart-batch-recovery.sh` after `/clear` or auto-compact. Activity logged to `.claude/logs/activity/`. Every session is archived by `conversation_archiver.py` to `~/.claude/archive/` — schema and SQL examples live in the global `~/.claude/CLAUDE.md` (cross-repo) and in [`docs/SESSION-ANALYTICS.md`](docs/SESSION-ANALYTICS.md).
+Restored by `SessionStart-batch-recovery.sh` after `/clear` or auto-compact; activity in `.claude/logs/activity/`. Archive schema and queries: global `~/.claude/CLAUDE.md` and [`docs/SESSION-ANALYTICS.md`](docs/SESSION-ANALYTICS.md).
+
+**`.claude/` is gitignored** (`.gitignore:147`) — plans, findings and validator verdicts written there do not survive a clone (#1634). Anything durable goes to an issue, a commit message, or `docs/`.
 
 **Last Updated**: 2026-05-27
