@@ -95,17 +95,32 @@ no more useful than today.
       the proven one at `scripts/extract_and_label_intent_corpus.py:717-790`
       (`--output-format json`, `--max-turns 1`, `cwd=Path.home()` for #1064, fence stripping
       for #1065, envelope error checks)
-- [ ] Design assumes the **measured** cost: 7.6s median per judgement, sequential. Any GenAI
-      gate must fit that — nightly or sampled, never per-push (137 judges × 5 trials = 87 min
-      against a 10-min job cap)
+- [x] Design assumes the **CI-measured** cost, not the laptop one. MEASURED in Actions
+      2026-08-25 (spike run 32762603032), 5 sequential judge-sized calls:
+      3469 / 3951 / 3850 / 5250 / 4923 ms → **median 3.95s**, roughly 2× faster than the 7.6s
+      measured locally. Recomputed: 137 judges × 1 trial = **9.0 min** (now inside a 10-min
+      cap); × 5 trials = **45.1 min** (still nightly). Calibrating against the local number
+      would have over-estimated by 2× — the same wrong-environment error as the 512 pin.
+- [ ] **Parse the envelope, never the exit code.** MEASURED: the negative control returned
+      **exit 0** while failing, with the failure carried in `is_error: true` inside the JSON.
+      Any helper that checks `$?` will read auth failure as success.
+- [ ] Concurrency re-tested rather than assumed away. MEASURED: no `~/.claude/.credentials.json`
+      exists in Actions (`P5_CREDS_ABSENT`), so GH #24317's file-corruption mode appears
+      inapplicable there. If parallelism is safe, the 45 min falls substantially.
 
 **Durable — it holds outside this repo**
 - [ ] Every tier reports **EXECUTED=N**; a tier reporting success over zero **fails**
 - [ ] `.claude/.bypass` is no longer all-or-nothing (#1647)
 - [ ] Every rule discovered during this goal ends as a **hook, a shipped script, or an
       explicitly-recorded known gap** — never as prose alone
-- [ ] #1663 answered with a measurement: does `claude -p` authenticate in Actions, at what
-      latency, does concurrency corrupt credentials
+- [x] **#1663 ANSWERED 2026-08-25** (spike run 32762603032, workflow since deleted).
+      `claude -p` **does** authenticate in GitHub Actions on `CLAUDE_CODE_OAUTH_TOKEN`:
+      exit 0, `is_error:false`, 4s. The negative control (same call, token removed) returned
+      `is_error:true`, so the token is what made it work. `--bare` returned
+      `"Not logged in · Please run /login"` — **GH #38022 confirmed** in this environment.
+      Unverified and worth checking against billing: the envelope reported
+      `total_cost_usd: 0.037342` per call, which on a Max subscription is probably nominal
+      accounting rather than a charge — but "it's $0" has not been proven.
 
 **Consistent**
 - [ ] No rule has two mechanisms; no mechanism has two divergent copies (the duplicate
@@ -131,8 +146,12 @@ improvement loop; tier-execution honesty; bypass granularity (#1647); the #1663 
 
 **Out of scope, with reasons** — draining the 262 backlog (volume is the symptom; it grew from
 108 while guards rotted). The genai tier's LLM half and agent calibration corpora (#1566,
-#1664): gated on #1663, and the measured 7.6s/judgement → 87 min against a 10-min cap means
-redesign, not migration. anyclaude: no install detected.
+#1664): **no longer transport-blocked as of 2026-08-25** — the spike showed `claude -p` works
+in Actions at a CI-measured 3.95s median, so one non-repeated pass over 137 judges is ~9 min
+and fits a 10-min cap, while 5-trial calibration at ~45 min does not. They stay out of scope
+here because they still need a corpus that does not exist and a redesign around nightly or
+sampled execution — but the reason is now scope, not impossibility. anyclaude: no install
+detected.
 
 ## 4. Success Criteria
 
@@ -141,11 +160,10 @@ redesign, not migration. anyclaude: no install detected.
 | No silent fail-open | `python3 plugins/autonomous-dev/scripts/proof_of_block.py` | 0 silent fail-opens | MEASURED: 4 of 8 |
 | Both arms per guard | same | every guard REFUSES **and** PERMITS | #1617 |
 | Proof in consumer repos | run in `~/Dev/realign`, `~/Dev/spektiv` | artifact committed, exit 0 | MEASURED: 0 |
-| System smaller | `cat plugins/autonomous-dev/{hooks,lib}/*.py \| wc -l` | **< 142,869** | MEASURED 2026-08-24 |
-| Dead mechanisms resolved | per-item check | 0 remaining unwired | 5 guards, tracker, 1,733 lines, 176 tests |
+| Dead mechanisms resolved | per-item check against the §2 table | **0 items UNRESOLVED** | 5 guards, tracker, 1,733 lines, 176 tests, 95 files |
 | test-master enforcement | write a test with no failure-proof | REFUSED; proven one PERMITTED | #1660 |
-| First weakness report | the deterministic loop | ≥1 agent, ≥1 finding, no LLM invoked | new |
-| Bypass-hunt per mechanism | the record | evasions listed with outcomes | new |
+| First weakness report | the deterministic loop | **≥3 findings, each re-confirmed**, 0 LLM calls | §2 |
+| Bypass-hunt per mechanism | the record | **≥5 evasion shapes, ≥1 unanticipated** | §2 |
 | Tier honesty | CI on master | every tier prints EXECUTED=N; N=0 fails | integration precedent |
 
 ## 5. Milestones
@@ -172,9 +190,12 @@ the first deterministic weakness report
 
 1. **Mid-point stall (2026-09-07)** — no consumer-repo proof artifact by this date. Pivot:
    re-scope to autonomous-dev only; file the cross-repo work as its own goal.
-2. **Transport dead-end** — #1663 returns no $0 path. Pivot: stop the calibration and genai
-   threads; re-scope around what is possible at $0. Do not design against a transport that
-   does not exist.
+2. ~~**Transport dead-end** — #1663 returns no $0 path.~~ **RETIRED 2026-08-25.** The spike
+   answered it: `claude -p` authenticates in Actions on `CLAUDE_CODE_OAUTH_TOKEN`, median
+   3.95s per judge-sized call. This condition can no longer fire. Replaced by: **if the
+   `total_cost_usd` reported per call turns out to be a real charge rather than nominal
+   subscription accounting, STOP** — that would make every GenAI gate a paid dependency and
+   violate INV-8.
 3. **Enforcement regression** — `proof_of_block.py` reports more than 4 silent fail-opens at
    any milestone. Pivot: freeze feature work, fix the regression first.
 4. **Complexity regression** — the dead-mechanism list has **more UNRESOLVED items** at the
@@ -209,8 +230,15 @@ the first deterministic weakness report
 ---
 
 **Risks stated at creation.** (a) The headline metric depends on two repos whose roadmaps this
-goal does not own — abort 1 catches that at the mid-point. (b) The net-DOWN criterion can be
-gamed by deleting tests rather than dead code; every deletion must name what it removed and
+goal does not own — abort 1 catches that at the mid-point. (b) The dead-mechanism criterion can
+be gamed by deleting tests rather than dead code; every deletion must name what it removed and
 why, and the dark-tier item requires a stated reason per file rather than a bulk removal.
-(c) Seven milestones in four weeks against a 262-issue backlog and a red CI is aggressive;
-milestone slip is expected and is not itself an abort trigger — only the four conditions above are.
+(c) Seven milestones in four weeks against a 262-issue backlog and a red CI is aggressive —
+and **two slipped milestones abort the goal (§7.5)**. That is deliberate: the time-box was
+chosen as the kill switch, so it has to bite.
+
+> **v2→v3 correction.** v2's footer read "milestone slip is expected and is not itself an abort
+> trigger — only the four conditions above are." That sentence cancelled abort 5 while abort 5
+> sat forty lines above it, and it miscounted the conditions. It survived because I edited
+> sections without re-reading the document end to end — the same drift this goal exists to
+> catch, found only by printing the whole thing. Logged rather than silently overwritten.
