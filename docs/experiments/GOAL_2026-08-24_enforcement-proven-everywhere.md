@@ -13,8 +13,19 @@ The product's claim is that its guarantees hold. Measured 2026-08-24, they do no
 block-capable guards fail open silently** under fault injection *in this repo with the full
 install*, and realign and spektiv have 27 hooks apiece with **0 proof artifacts**. Meanwhile
 the system carries **142,869 lines** of enforcement code, 1,733 lines of agent-improvement
-machinery invoked by nothing, a `SoftFailureTracker` requested by 0 tests but advertised in 2
-docs, 414 tests that have never run in CI, and 262 open issues.
+machinery invoked by nothing, 414 tests that have never run in CI, and 262 open issues.
+
+**Correction, 2026-08-25 (MEASURED).** This paragraph originally listed a `SoftFailureTracker`
+"requested by 0 tests but advertised in 2 docs" as a sixth dead mechanism. That was **wrong**.
+`tests/unit/genai/test_genai_client.py` and `tests/unit/genai/test_soft_failure_thresholds.py`
+hold 51 tests that exercise it and pass **51/51** (`pytest tests/unit/genai/ -q`). They read as
+absent because both use a bare `from conftest import ...` (introduced 2026-04-11 in #772), which
+binds to `tests/integration/conftest.py` whenever `tests/unit` and `tests/integration` are
+collected together — so both files raise `ImportError` at collection under the repo's own
+`CANONICAL_BASELINE_CMD`. The original "0" was inherited from a run in which they never executed:
+**a count over a population that failed to collect, which is the same defect as a pass over zero.**
+`SoftFailureTracker` is therefore resolved **WIRED**, not a deletion candidate — acting on the
+original line would have deleted 51 passing tests. The import defect is filed separately.
 
 Both halves are the same disease. Unproven guards create false security; unused machinery
 creates the impression of coverage. This goal makes enforcement **provable** and the system
@@ -40,7 +51,8 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       | Mechanism | Baseline | Target |
       |---|---|---|
       | Dead guards (#1612) | 5 unwired | 0 |
-      | `SoftFailureTracker` | 0 tests request it, 2 docs advertise it | 0 unresolved |
+      | ~~`SoftFailureTracker`~~ | **RESOLVED WIRED 2026-08-25** — the "0 tests" baseline was false; 51 tests exercise it and pass 51/51. See the Correction above. | done |
+      | Mutation testing (#1668) | **ADDED 2026-08-25.** `mutmut` pinned, `[mutmut]` in setup.cfg, runner script executable, baseline report committed — and it has **never run**: every cell is `TBD`, `import mutmut` fails, and the script is referenced by no CI job, manifest, command or runbook. Issue #770 was **closed as done** on it 2026-04-11. | 0 unresolved |
       | Reviewer improvement machinery | 1,733 lines, 0 invocations | 0 unresolved |
       | genai tests calling no judge | 176 | 0 unresolved |
       | Dark test files | 95 across 7 dirs | 0 unresolved |
