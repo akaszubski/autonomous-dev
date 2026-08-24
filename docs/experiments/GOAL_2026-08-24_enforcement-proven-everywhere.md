@@ -1,6 +1,6 @@
 # GOAL — Enforcement Proven Everywhere, and Smaller
 
-**Created**: 2026-08-24 · **Revised**: 2026-08-24 (v2, after critical evaluation against stated intent)
+**Created**: 2026-08-24 · **Revised**: 2026-08-25 (v3 — two adversarial evaluations against stated intent; #1663 answered; 13 internal contradictions fixed)
 **Status**: ACTIVE
 **Owner**: Andrew Kaszubski (solo dev)
 **Supersedes**: `GOAL_2026-07-31.md`
@@ -142,7 +142,8 @@ no more useful than today.
 
 **In scope** — the 4 silent fail-opens; cross-repo proof in realign and spektiv; deletion of
 dead mechanisms; `test-master` output enforcement; the deterministic half of the agent
-improvement loop; tier-execution honesty; bypass granularity (#1647); the #1663 spike.
+improvement loop; tier-execution honesty; bypass granularity (#1647); ~~the #1663 spike~~
+(**done 2026-08-25**); the known-red running tiers (§7a).
 
 **Out of scope, with reasons** — draining the 262 backlog (volume is the symptom; it grew from
 108 while guards rotted). The genai tier's LLM half and agent calibration corpora (#1566,
@@ -170,18 +171,21 @@ detected.
 
 | Date | Deliverable | Verification |
 |---|---|---|
-| **2026-08-27** | **`test-master` failure-proof enforcement** — mechanics before tests | Both arms observed; bypass-hunt recorded |
-| 2026-08-29 | Deterministic weakness report for one agent | Report exists, ≥1 finding, 0 LLM calls |
-| 2026-08-31 | 4 silent fail-opens fixed; #1663 answered | `proof_of_block` → 0; spike numbers recorded |
-| 2026-09-03 | Dead mechanisms deleted or wired | Enforcement line count below baseline |
-| **2026-09-07** | **MID-POINT ABORT REVIEW (§7)** | ≥1 consumer proof artifact; line count down |
-| 2026-09-14 | Collected-floor generalised; dark tiers resolved | EXECUTED=N per tier; 95 → stated |
+| ~~2026-08-27~~ **DONE 2026-08-25** | ~~#1663 spike~~ — pulled forward and answered | Run 32762603032; `claude -p` authenticates, 3.95s median; abort 2 retired |
+| **2026-08-27** | **`test-master` failure-proof enforcement** — mechanics before tests | Both arms observed; bypass-hunt ≥5 shapes recorded |
+| 2026-08-29 | Deterministic weakness report for one agent | **≥3 findings, each re-confirmed**, 0 LLM calls |
+| 2026-08-31 | 4 silent fail-opens fixed | `proof_of_block` → 0 silent fail-opens, both arms per guard |
+| 2026-09-03 | Dead mechanisms deleted or wired | **0 items UNRESOLVED in the §2 table** (not a line count — that metric was retired as gameable) |
+| **2026-09-07** | **MID-POINT ABORT REVIEW (§7)** | ≥1 consumer proof artifact; 0 UNRESOLVED items ≤ baseline |
+| 2026-09-14 | Collected-floor generalised; dark tiers resolved | EXECUTED=N per tier; each of the 95 files run or removed with a stated reason |
 | 2026-09-21 | Cross-repo proof in realign and spektiv | Committed artifacts, both repos |
 
 ## 6. Tracking
 
-**Must close**: #1612, #1617, #1636, #1647, #1660, #1661, #1662, #1663
-**Re-scope or defer**: #1566, #1664 (gated on #1663)
+**Must close**: #1612, #1617, #1636, #1647, #1660, #1661, #1662
+**Answered, close on next pass**: #1663 (spike run 32762603032, 2026-08-25)
+**Re-scope**: #1566, #1664 — **no longer gated on #1663**; both now need a corpus that does not
+exist and a nightly/sampled design around the CI-measured 3.95s, not a transport decision
 **Artifacts**: this document; `tests/proofs/` in realign and spektiv; the bypass-hunt records;
 the first deterministic weakness report
 **Memory**: `feedback_enforcement_not_memory.md`, `project_pipeline_gate_history.md`
@@ -222,7 +226,9 @@ the first deterministic weakness report
 ## 8. Progress Ledger
 
 - `proof_of_block.py` — headline metric, on demand
-- `cat plugins/autonomous-dev/{hooks,lib}/*.py | wc -l` — the simplicity metric
+- The **§2 dead-mechanism table** — the simplicity metric. Count items still `UNRESOLVED`.
+  Deliberately NOT `wc -l` on hooks+lib: that was v2's metric and it is gameable, since
+  `lib/*.py` is 120,001 of the 142,869 lines and mostly is not enforcement code.
 - `gh issue list --state open | wc -l` — 262 at baseline (MEASURED 2026-08-24)
 - `collect_cia_findings()` over `.claude/logs/findings/` — readable since #1658
 - This document, updated per milestone with deltas named
