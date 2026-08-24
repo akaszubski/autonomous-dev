@@ -2,6 +2,8 @@
 
 Development harness for Claude Code. Deterministic enforcement, specialist agents, alignment gates — 12 elements of harness engineering.
 
+**Active goal**: [GOAL_2026-08-24_enforcement-proven-everywhere](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting, in every repo it reaches. Baseline: 4 of 8 guards fail open silently here; 0 proof artifacts in realign or spektiv. Mid-point abort check 2026-09-07.
+
 For purpose, scope, and architecture see [`.claude/PROJECT.md`](.claude/PROJECT.md). For operational sequences (build, test, deploy, periodic maintenance) see [`docs/RUNBOOK.md`](docs/RUNBOOK.md). For where content lives (the content allocation pattern dogfooded here) see [`docs/development/CONTENT_ALLOCATION.md`](docs/development/CONTENT_ALLOCATION.md).
 
 ## Critical Rules
