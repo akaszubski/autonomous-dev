@@ -1,0 +1,116 @@
+name: "SPIKE #1663 — does claude -p authenticate in Actions?"
+
+# THROWAWAY. Delete after #1663 is answered.
+#
+# Question: can `claude -p` run in GitHub Actions using CLAUDE_CODE_OAUTH_TOKEN?
+# This blocks #1566 (genai transport) and #1664 (agent calibration) simultaneously.
+#
+# Prior research (docs/research/CLAUDE_P_SINGLE_JUDGE_CORPUS_REFACTOR.md) says:
+#   - `--bare` requires ANTHROPIC_API_KEY and IGNORES the OAuth token (GH #38022)
+#   - non-bare OAuth is sequential-only; concurrent calls corrupt
+#     ~/.claude/.credentials.json (GH #24317)
+# Neither has been verified by this repo IN Actions. Local success is not evidence:
+# measured 2026-08-24, `claude -p` worked locally with NEITHER env var set, because
+# it used stored credentials from an interactive login. CI has no such credentials.
+#
+# Every probe uses `|| true` so one failure does not abort the rest — a spike that
+# stops at the first error answers one question instead of four.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spike:
+    name: Probe claude -p under Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Install the Claude CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code 2>&1 | tail -3
+          echo "which claude: $(which claude || echo ABSENT)"
+          claude --version 2>&1 | head -2 || echo "  --version failed"
+
+      # PROBE 1 — the load-bearing question.
+      - name: "P1: claude -p with CLAUDE_CODE_OAUTH_TOKEN"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "token present: ${CLAUDE_CODE_OAUTH_TOKEN:+yes}${CLAUDE_CODE_OAUTH_TOKEN:-NO}"
+          start=$(date +%s)
+          out=$(echo "say OK" | claude -p --output-format json --max-turns 1 \
+                --model claude-haiku-4-5-20251001 \
+                --system-prompt "Reply with exactly the word OK." 2>p1.err) || true
+          ec=$?
+          echo "P1_EXIT=$ec  P1_SECONDS=$(( $(date +%s) - start ))"
+          echo "P1_STDOUT: ${out:0:400}"
+          echo "P1_STDERR: $(head -c 400 p1.err)"
+
+      # PROBE 2 — NEGATIVE CONTROL. Without the token this must fail.
+      # If it succeeds, P1 proved nothing: something else supplied auth.
+      - name: "P2: negative control — same call, NO token"
+        run: |
+          start=$(date +%s)
+          out=$(echo "say OK" | claude -p --output-format json --max-turns 1 \
+                --model claude-haiku-4-5-20251001 \
+                --system-prompt "Reply with exactly the word OK." 2>p2.err) || true
+          ec=$?
+          echo "P2_EXIT=$ec  P2_SECONDS=$(( $(date +%s) - start ))"
+          echo "P2_STDOUT: ${out:0:200}"
+          echo "P2_STDERR: $(head -c 300 p2.err)"
+          echo "EXPECTATION: nonzero exit. Zero here invalidates P1."
+
+      # PROBE 3 — confirm or refute GH #38022 in THIS environment.
+      - name: "P3: --bare with the OAuth token"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          out=$(echo "say OK" | claude -p --bare --max-turns 1 \
+                --model claude-haiku-4-5-20251001 2>p3.err) || true
+          ec=$?
+          echo "P3_EXIT=$ec"
+          echo "P3_STDOUT: ${out:0:200}"
+          echo "P3_STDERR: $(head -c 300 p3.err)"
+          echo "GH #38022 predicts FAILURE here (--bare ignores the OAuth token)."
+
+      # PROBE 4 — real latency. The cost model depends on this number.
+      # Local measurement was 7.6s median for a judge-sized payload.
+      - name: "P4: 5 sequential judge-sized calls, timed"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          payload=$(head -c 2000 < /dev/zero | tr '\0' 'x')
+          for i in 1 2 3 4 5; do
+            s=$(date +%s%N)
+            echo "Review this and score 0-10 as JSON: $payload" | \
+              claude -p --output-format json --max-turns 1 \
+              --model claude-haiku-4-5-20251001 \
+              --system-prompt 'Respond ONLY as {"score":<int>}' >/dev/null 2>&1 || true
+            echo "P4_CALL_${i}_MS=$(( ($(date +%s%N) - s) / 1000000 ))"
+          done
+
+      # PROBE 5 — concurrency. GH #24317 predicts credential corruption.
+      - name: "P5: 2 concurrent calls, then check the credentials file"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          before=$(md5sum ~/.claude/.credentials.json 2>/dev/null | cut -d' ' -f1 || echo NONE)
+          echo "P5_CREDS_BEFORE=$before"
+          (echo hi | claude -p --max-turns 1 --model claude-haiku-4-5-20251001 >/dev/null 2>&1 || true) &
+          (echo hi | claude -p --max-turns 1 --model claude-haiku-4-5-20251001 >/dev/null 2>&1 || true) &
+          wait
+          after=$(md5sum ~/.claude/.credentials.json 2>/dev/null | cut -d' ' -f1 || echo NONE)
+          echo "P5_CREDS_AFTER=$after"
+          if [ -f ~/.claude/.credentials.json ]; then
+            python3 -c "import json;json.load(open('$HOME/.claude/.credentials.json'));print('P5_CREDS_VALID_JSON=yes')" \
+              2>/dev/null || echo "P5_CREDS_VALID_JSON=NO — corruption reproduced"
+          else
+            echo "P5_CREDS_ABSENT — no file-based credentials in this environment"
+          fi
+
+      - name: Verdict summary
+        if: always()
+        run: |
+          echo "Read P1_EXIT (does it work), P2_EXIT (control — must be nonzero),"
+          echo "P3_EXIT (#38022), P4_CALL_*_MS (cost model), P5_CREDS_* (#24317)."
