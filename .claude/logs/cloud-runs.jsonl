@@ -924,3 +924,4 @@
 {"fire_id": "20260824T003746Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260824T023810Z", "fired_at": "2026-08-24T02:38:30Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260824T023810Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260824T043744Z", "fired_at": "2026-08-24T04:38:38Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "note": "GITHUB_TOKEN is a 14-char proxy placeholder; REST 403. Cluster selected via GitHub MCP instead."}
