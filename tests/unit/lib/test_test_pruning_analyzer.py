@@ -6,6 +6,7 @@ real temporary files (no mocking).
 Date: 2026-04-06
 """
 
+import ast
 import sys
 import time
 from pathlib import Path
@@ -31,6 +32,8 @@ from test_pruning_analyzer import (
     PruningReport,
     Severity,
     TestPruningAnalyzer,
+    VacuousTestFinding,
+    find_vacuous_tests,
 )
 
 
@@ -827,3 +830,232 @@ class TestPruneTestsMethod:
         assert result.skipped_files == []
         assert result.error_messages == []
         assert result.dry_run is True
+
+
+def _body_of(source: str, func_name: str = "test_target") -> "list[ast.stmt]":
+    """Return the AST body of ``func_name`` parsed out of ``source``.
+
+    Args:
+        source: Python source text containing the function.
+        func_name: Name of the function whose body is wanted.
+
+    Returns:
+        The list of statement nodes forming that function's body.
+
+    Raises:
+        AssertionError: If the function is not present exactly once. A helper
+            that silently returns an empty body would make every arm below
+            pass for the wrong reason.
+    """
+    matches = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == func_name
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one function named {func_name!r} in the fixture "
+        f"source, found {len(matches)}. The fixture is wrong, not the code."
+    )
+    return matches[0].body
+
+
+class TestPlaceholderAssertScanDoesNotCrashOnRealAssertions:
+    """Regression: ``_has_only_placeholder_asserts`` raised on every REAL assert.
+
+    ``ast.NameConstant`` was removed in Python 3.12 (deprecated alias for
+    ``ast.Constant`` since 3.8). The ``elif isinstance(test, ast.NameConstant)``
+    branch was reachable ONLY when ``test`` was NOT an ``ast.Constant`` — i.e.
+    for every genuine assertion — so on 3.12+ it raised ``AttributeError:
+    module 'ast' has no attribute 'NameConstant'``.
+
+    ``_detect_zero_assertion_tests`` wraps each FILE's walk in a broad
+    ``except Exception`` that logs at DEBUG, so the crash was invisible AND it
+    abandoned the rest of that file's walk. Measured over the live corpus
+    before the fix: 1,016 of 1,023 test files abandoned mid-walk. CI never saw
+    it because every workflow pins Python 3.11, where ``ast.NameConstant``
+    still exists as an alias.
+
+    Both arms are watched. The refusing arm (a real assertion) is a DIFFERENT
+    shape from the permitting arm (a constant assertion) — the branch under
+    test discriminates exactly on that difference.
+    """
+
+    def test_real_assertion_does_not_raise_and_is_not_a_placeholder(self) -> None:
+        """REFUSING ARM: red before the fix (AttributeError), green after.
+
+        A non-constant ``assert`` is the ONLY shape that reaches the deleted
+        branch, which is what made the bug invisible to the placeholder cases.
+        """
+        body = _body_of("def test_target():\n    x = 3\n    assert x == 3\n")
+        analyzer = TestPruningAnalyzer(Path("."))
+
+        result = analyzer._has_only_placeholder_asserts(body)
+
+        assert result is False, (
+            "a real assertion (`assert x == 3`) was classified as a "
+            "placeholder-only body"
+        )
+
+    def test_placeholder_assertion_is_still_detected(self) -> None:
+        """PERMITTING ARM / positive control: unaffected by the fix.
+
+        Without this, the refusing arm above could be satisfied by a function
+        that always returns ``False`` — i.e. a detector that detects nothing.
+        """
+        body = _body_of("def test_target():\n    assert True\n")
+        analyzer = TestPruningAnalyzer(Path("."))
+
+        assert analyzer._has_only_placeholder_asserts(body) is True, (
+            "`assert True` is no longer recognised as a placeholder; the "
+            "detector detects nothing"
+        )
+
+    def test_scan_does_not_abandon_the_file_after_a_real_assertion(
+        self, tmp_path: Path
+    ) -> None:
+        """The mid-walk-abandonment symptom, one level up.
+
+        ``test_c`` sits AFTER the crash point in ``ast.walk`` order. Before the
+        fix the walk raised on ``test_b`` and the whole file was abandoned, so
+        ``test_c`` was silently dropped and the scan still reported success.
+        """
+        path = _write_test_file(
+            tmp_path,
+            "tests/unit/test_walk_order.py",
+            "def test_a():\n"
+            "    assert True\n"
+            "\n"
+            "\n"
+            "def test_b():\n"
+            "    x = 3\n"
+            "    assert x == 3\n"
+            "\n"
+            "\n"
+            "def test_c():\n"
+            "    assert True\n",
+        )
+
+        analyzer = TestPruningAnalyzer(tmp_path)
+        findings = analyzer._detect_zero_assertion_tests([path])
+        flagged = {f.description for f in findings}
+
+        assert any("'test_a'" in d for d in flagged), (
+            f"test_a (a placeholder BEFORE the crash point) was not flagged; "
+            f"the scan is broken upstream of this regression. Got: {flagged}"
+        )
+        assert any("'test_c'" in d for d in flagged), (
+            f"test_c (a placeholder AFTER a real assertion) was not flagged. "
+            f"The walk was abandoned mid-file and the scan reported success "
+            f"anyway. Got: {flagged}"
+        )
+        assert not any("'test_b'" in d for d in flagged), (
+            f"test_b holds a real assertion and must not be flagged. "
+            f"Got: {flagged}"
+        )
+
+
+class TestFindVacuousTests:
+    """Both arms of ``find_vacuous_tests``: what it flags and what it must not.
+
+    The negative controls are deliberately NOT the inverse of the positives.
+    They are shapes drawn from the live corpus (a parametrize test, and the
+    mixed-branch shape of
+    ``tests/unit/lib/test_conflict_resolver.py::test_tier2_low_confidence_escalates_to_tier3``)
+    so that a detector which flags everything cannot pass this class.
+    """
+
+    # --- positive arm: the detector must REFUSE these -------------------
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "    assert True\n",
+            "    assert None\n",
+            "    assert 1\n",
+            "    assert True\n    assert None\n",  # several, still ONE test
+        ],
+    )
+    def test_placeholder_only_bodies_are_flagged(self, body: str) -> None:
+        """Every constant-assertion body is vacuous, once per function."""
+        findings = find_vacuous_tests("def test_thing():\n" + body)
+
+        assert [f.name for f in findings] == ["test_thing"]
+        assert findings[0].line == 1
+        assert "placeholder" in findings[0].reason
+
+    # --- negative controls: the detector must PERMIT these ---------------
+
+    def test_real_assertion_is_not_flagged(self) -> None:
+        """NEGATIVE CONTROL. A detector that flagged this would flag the corpus."""
+        findings = find_vacuous_tests(
+            "def test_thing():\n    x = compute()\n    assert x == 3\n"
+        )
+
+        assert findings == [], f"a real assertion was flagged vacuous: {findings}"
+
+    def test_legitimate_parametrize_test_is_not_flagged(self) -> None:
+        """NEGATIVE CONTROL: the shape #1147 is ABOUT, in its non-vacuous form.
+
+        The assertion targets a different surface than the parametrize source,
+        which is genuine regression signal. Flagging it would make the
+        detector unusable against the 356 parametrize sites in this repo.
+        """
+        findings = find_vacuous_tests(
+            'import pytest\n'
+            'METHODS = ["a", "b"]\n'
+            '\n'
+            '@pytest.mark.parametrize("method", METHODS)\n'
+            'def test_method_registered(method):\n'
+            '    assert method in registry.choices\n'
+        )
+
+        assert findings == [], f"a legitimate parametrize test was flagged: {findings}"
+
+    def test_mixed_branch_function_is_not_flagged(self) -> None:
+        """NEGATIVE CONTROL shaped like a REAL live test, not like the positives.
+
+        Copied in shape from
+        ``tests/unit/lib/test_conflict_resolver.py::test_tier2_low_confidence_escalates_to_tier3``:
+        one branch carries ``assert True, "..."`` and the other carries three
+        real assertions. A body-wide rule must let this through on the strength
+        of the real branch.
+        """
+        findings = find_vacuous_tests(
+            "def test_tier2_low_confidence_escalates_to_tier3(suggestion):\n"
+            '    if suggestion is None:\n'
+            '        assert True, "Correctly escalates low confidence"\n'
+            "    else:\n"
+            "        assert suggestion.warning is not None\n"
+            '        assert "confidence" in suggestion.warning.lower()\n'
+            "        assert suggestion.confidence < 0.7\n"
+        )
+
+        assert findings == [], f"the mixed-branch live shape was flagged: {findings}"
+
+    # --- safety ----------------------------------------------------------
+
+    def test_unparseable_source_returns_empty_and_does_not_raise(self) -> None:
+        """A SyntaxError must not take the caller down."""
+        findings = find_vacuous_tests("def test_thing(:\n    this is not python\n")
+
+        assert findings == []
+
+    # --- self-application -------------------------------------------------
+
+    def test_this_test_file_contains_no_vacuous_tests(self) -> None:
+        """Run the detector on THIS file. Zero findings expected.
+
+        This is the arm that makes a future ``return []`` mutation of
+        ``find_vacuous_tests`` visible: such a mutation turns every positive
+        arm above red, while this one alone would stay green. Kept because it
+        also holds the file itself to the standard the ratchet enforces.
+        """
+        source = Path(__file__).resolve().read_text(encoding="utf-8")
+
+        findings = find_vacuous_tests(source, filename=__file__)
+
+        assert findings == [], (
+            f"this test file now contains vacuous tests: "
+            f"{[(f.name, f.line) for f in findings]}"
+        )

@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-08-23 (heredoc_utils.py: `_HEREDOC_PATTERN` regex replaced with linear line scanner, stale `_HEREDOC_RE` reference corrected — Issue #1620)
+**Last Updated**: 2026-08-25 (test_pruning_analyzer.py: `find_vacuous_tests()` and `VacuousTestFinding` added to Public API — fixed a Python 3.12+ `ast.NameConstant` crash in the zero-assertion scanner)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -16505,7 +16505,10 @@ markers = build_directory_markers()
 ### Public API
 
 ```python
-from test_pruning_analyzer import TestPruningAnalyzer, PruningReport, PruningFinding, PruneResult
+from test_pruning_analyzer import (
+    TestPruningAnalyzer, PruningReport, PruningFinding, PruneResult,
+    find_vacuous_tests, VacuousTestFinding,
+)
 from pathlib import Path
 
 analyzer = TestPruningAnalyzer(Path("."))
@@ -16516,6 +16519,9 @@ print(report.format_table())
 result = analyzer.prune_tests()
 # Actually delete:
 result = analyzer.prune_tests(dry_run=False)
+
+# Vacuous-test detection (module-level, source-string input, no file I/O):
+findings = find_vacuous_tests(source_text, filename="test_example.py")
 ```
 
 **`TestPruningAnalyzer(project_root: Path)`**
@@ -16537,6 +16543,12 @@ result = analyzer.prune_tests(dry_run=False)
 - `skipped_files: List[Tuple[Path, str]]` — files skipped with reason (excluded dir, partial flag, tier protection)
 - `dry_run: bool` — whether this was a dry run
 - `error_messages: List[str]` — errors from failed deletions
+
+**`find_vacuous_tests(source: str, filename: str = "<string>") -> List[VacuousTestFinding]`**
+- Module-level function, separate from `TestPruningAnalyzer.analyze()`. Flags `test_*` functions whose only assertions are constant placeholders (`assert True`, `assert None`, `assert 1`) — narrower than `ZERO_ASSERTION` (which catches pass-only bodies), and reuses the same `_has_only_placeholder_asserts` rule rather than duplicating it. Takes source text directly (no disk I/O); an unparseable source returns `[]`. Pinned by a shrink-only ratchet (`tests/unit/lib/test_vacuous_test_ratchet.py`) that lives in `tests/` and is not part of the shipped detector (`install_manifest.json` carries no `tests/` paths).
+
+**`VacuousTestFinding`** (frozen dataclass)
+- `name: str`, `line: int`, `reason: str`
 
 ### Prunable Flag
 

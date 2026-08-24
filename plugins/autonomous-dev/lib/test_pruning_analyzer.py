@@ -621,6 +621,15 @@ class TestPruningAnalyzer:
                     if finding is not None:
                         findings.append(finding)
             except Exception as e:
+                # DECISION (2026-08-25): this stays at DEBUG for this change.
+                # KNOWN GAP, stated rather than hidden: a scan that silently
+                # abandons a file mid-walk still reports success to its caller.
+                # That is exactly how the ``ast.NameConstant`` crash below hid
+                # for months (1,016 of 1,023 files abandoned, zero visible
+                # signal). Raising the level or returning a partial-scan flag
+                # is a separate, wider change to the report contract; it was
+                # not bundled here. Until then, treat a zero-finding scan as an
+                # upper bound, not a total.
                 logger.debug("Zero-assertion scan failed for %s: %s", path, e)
 
         return findings
@@ -705,9 +714,6 @@ class TestPruningAnalyzer:
                 # Check for assert True, assert None, assert 1
                 if isinstance(test, ast.Constant):
                     if test.value not in (True, None, 1):
-                        return False
-                elif isinstance(test, ast.NameConstant):  # Python 3.7 compat
-                    if test.value not in (True, None):
                         return False
                 else:
                     return False  # Non-constant assert = real assertion
@@ -978,3 +984,92 @@ class TestPruningAnalyzer:
                 logger.debug("Stale regression scan failed for %s: %s", path, e)
 
         return findings
+
+
+@dataclass(frozen=True)
+class VacuousTestFinding:
+    """A test function whose assertions can never fail.
+
+    Attributes:
+        name: The test function's name.
+        line: 1-based line number of the ``def``.
+        reason: Short, human-readable explanation of why it is vacuous.
+    """
+
+    name: str
+    line: int
+    reason: str
+
+
+def find_vacuous_tests(source: str, filename: str = "<string>") -> List[VacuousTestFinding]:
+    """Find ``test_*`` functions whose assertions are all placeholders.
+
+    A placeholder assertion is ``assert True``, ``assert None`` or ``assert 1``
+    — a constant that can never fail. Detection REUSES
+    ``TestPruningAnalyzer._has_only_placeholder_asserts`` rather than
+    reimplementing it; a second copy of the rule inside a reader is the defect,
+    not the fix.
+
+    DIVERGENCE (do not reconcile): this flags ``assert True, "message"``
+    because ``_has_only_placeholder_asserts`` reads ``node.test`` and never
+    ``node.msg``, whereas ``tests/regression/smoke/test_tautological_assertions.py``
+    lines 52-54 DELIBERATELY exempt that shape — the two mechanisms disagree on
+    purpose and their allowlists must never be merged.
+
+    INV-1 ASYMMETRY (known gap, not a coverage claim): this detector SHIPS
+    (``install_manifest.json`` line 371) but the ratchet built on it lives in
+    ``tests/`` and does not, since the manifest holds zero ``tests/`` paths
+    (measured 2026-08-25) — consumers get the detector without the gate.
+
+    KNOWN LIMIT (#1667 shape 2, NOT closed): a self-referential literal built
+    and consumed in one body — ``checklist = ["/sync-dev", ...]`` then
+    ``assert "/sync-dev" in checklist`` — is invisible here, because the
+    assertion count exceeds zero and the assertion is not a constant, yet it is
+    unfalsifiable.
+
+    KNOWN GAP (#1147, deliberately not mechanized): the parametrize
+    self-membership rule stays PROSE-only at ``agents/spec-validator.md`` lines
+    95-113 on measured grounds — zero instances of ``assert x == x`` in the
+    live corpus (the only 2 in the tree are under ``tests/archived/``), and
+    none of its 356 parametrize call sites confirmed to be that shape.
+
+    Args:
+        source: Python source text to scan.
+        filename: Name used for AST error reporting only; never read from disk.
+
+    Returns:
+        One ``VacuousTestFinding`` per vacuous ``test_*`` function, in AST walk
+        order. Returns an empty list when ``source`` does not parse.
+    """
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:
+        # A file that does not parse is not evidence of zero vacuous tests.
+        # The caller decides what to do about unparseable input; this function
+        # refuses to guess.
+        return []
+
+    # ``_has_only_placeholder_asserts`` is an instance method that reads no
+    # instance state, so a throwaway analyzer is enough to reach it. Reusing it
+    # is the point: the rule has exactly one definition.
+    analyzer = TestPruningAnalyzer(Path("."))
+
+    findings: List[VacuousTestFinding] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.name.startswith("test_"):
+            continue
+        if analyzer._has_only_placeholder_asserts(node.body):
+            findings.append(
+                VacuousTestFinding(
+                    name=node.name,
+                    line=node.lineno,
+                    reason=(
+                        "all assertions are constant placeholders "
+                        "(assert True / assert None / assert 1) and can never fail"
+                    ),
+                )
+            )
+
+    return findings

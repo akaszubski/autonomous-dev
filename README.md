@@ -167,7 +167,7 @@ When you run `/implement "Add analytics dashboard"`:
 | Requirement | Install Command |
 |-------------|-----------------|
 | **Claude Code 2.0+** | [Download](https://claude.ai/download) |
-| **Python 3.9+** | `python3 --version` to verify |
+| **Python 3.11+** | `python3 --version` to verify |
 | **gh CLI** (GitHub) | `brew install gh && gh auth login` |
 
 ### One-Line Install

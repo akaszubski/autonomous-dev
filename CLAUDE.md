@@ -15,7 +15,7 @@ For purpose, scope, and architecture see [`.claude/PROJECT.md`](.claude/PROJECT.
 - **P0 fixes on production code require at minimum `/implement --fix` mode** (implementer + reviewer + doc-master + CIA) — never call implementer alone.
 - **Run `/improve` after `/implement` sessions.** Use `--auto-file` to create GitHub issues.
 - **Deploy with `bash scripts/deploy-all.sh`** — never manual `cp -rf`. Script handles local, remote (Mac Studio), validation, and integrity checks.
-- **Don't simplify, redesign, or consolidate agents.** The pipeline, hooks, and enforcement are validated over months of real use. The cost is tokens, not complexity. Complexity is the mechanism.
+- **Don't collapse the specialist agents to save tokens.** Fresh context per specialist (INV-2) is the mechanism, and its cost is tokens — that trade is deliberate. This protects the *agent roster and pipeline shape* (INV-3) only. It is **not** a licence for complexity anywhere else: hooks, `lib/`, and enforcement are subject to PROJECT.md's minimalism gate like all other code, and a control nobody can reason about is not a control. Narrowed 2026-08-25 — the previous wording ("complexity is the mechanism", covering hooks and enforcement) contradicted PROJECT.md's "Less is more" and licensed a 9,170-line hook file holding 30 checks behind one 5s timeout.
 
 ## Maintainer Escape Hatches
 
