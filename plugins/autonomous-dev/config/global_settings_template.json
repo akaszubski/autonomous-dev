@@ -100,6 +100,16 @@
       {
         "hooks": [
           {
+            "command": "python3 ~/.claude/hooks/validate_paid_dependency.py",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*"
+      },
+      {
+        "hooks": [
+          {
             "command": "MCP_AUTO_APPROVE=true SANDBOX_ENABLED=false python3 ~/.claude/hooks/unified_pre_tool.py",
             "timeout": 5,
             "type": "command"
