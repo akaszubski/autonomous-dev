@@ -209,20 +209,20 @@ class TestBaselineShrinkageEnforcement:
         assert decision == "deny"
         assert "BLOCKED" in reason
 
-    def test_import_error_fails_open(self):
-        """If prompt_integrity module raises ImportError, the hook must allow (fail open)."""
-        adequate_prompt = _make_prompt(150)
-        # We need to make the import inside the function fail.
-        # The function tries: from prompt_integrity import get_prompt_baseline, ...
-        # We can patch the module-level import to raise ImportError by temporarily
-        # removing the module from sys.modules after the floor check passes.
+    def _validate_with_unimportable_prompt_integrity(self, prompt: str):
+        """Run the gate with ``prompt_integrity`` forced unimportable.
+
+        Poisoning ``sys.modules[name] = None`` makes the ``from ... import ...``
+        inside ``validate_prompt_integrity`` raise ``ModuleNotFoundError``. The
+        original entry is always restored, so the poison cannot leak into a
+        later test in the same session.
+        """
         original_module = sys.modules.get("prompt_integrity")
         try:
-            # Remove so the re-import inside validate_prompt_integrity raises ImportError
             sys.modules["prompt_integrity"] = None  # type: ignore[assignment]
-            decision, reason = hook.validate_prompt_integrity(
+            return hook.validate_prompt_integrity(
                 "Agent",
-                {"subagent_type": "reviewer", "prompt": adequate_prompt},
+                {"subagent_type": "reviewer", "prompt": prompt},
             )
         finally:
             if original_module is not None:
@@ -230,8 +230,33 @@ class TestBaselineShrinkageEnforcement:
             elif "prompt_integrity" in sys.modules:
                 del sys.modules["prompt_integrity"]
 
-        # The hook must fail open — allow the call, not block it
-        assert decision == "allow"
+    def test_import_error_on_installed_module_fails_closed(self):
+        """A prompt_integrity that is ON DISK but unimportable must DENY.
+
+        Adjusted from the original ``test_import_error_fails_open``. That test
+        asserted the unconditional fail-open handler, which conflated "the
+        module is not installed" with "the module is broken" and encoded both
+        as "verified, pass" — the Issue #1471 shape. The installed-but-broken
+        state now refuses; genuine absence still allows (next test).
+        """
+        decision, reason = self._validate_with_unimportable_prompt_integrity(_make_prompt(150))
+
+        assert decision == "deny", (
+            f"Gate failed OPEN with prompt_integrity present-but-broken. reason={reason!r}"
+        )
+        assert "REQUIRED NEXT ACTION" in reason
+
+    def test_import_error_with_module_absent_from_disk_fails_open(self):
+        """Genuine absence keeps the documented fail-open — the permitting arm."""
+        with patch.object(hook, "LIB_DIR", None):
+            decision, reason = self._validate_with_unimportable_prompt_integrity(
+                _make_prompt(150)
+            )
+
+        assert decision == "allow", (
+            f"A genuinely absent module must still fail open. reason={reason!r}"
+        )
+        assert "not available" in reason
 
     def test_deny_message_contains_actionable_instructions(self):
         """Blocked message must include get_agent_prompt_template (stick+carrot pattern)."""

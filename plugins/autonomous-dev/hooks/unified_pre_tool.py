@@ -1380,6 +1380,34 @@ def _detect_invocation_context(prompt: str) -> "Optional[str]":
     return None
 
 
+def _prompt_integrity_is_absent() -> bool:
+    """Report whether ``prompt_integrity`` is genuinely not installed.
+
+    "Absent by design" means there is no ``prompt_integrity.py`` on disk for
+    this hook to load: either no autonomous-dev ``lib/`` directory was resolved
+    at all, or the resolved lib exists without the module. That is a filesystem
+    fact, so a broken import cannot fake it.
+
+    A module file that *exists* but fails to import is NOT absent — it is
+    broken or partial, and the caller must fail closed (Issue #1471, where a
+    swallowed ``AttributeError`` after a field rename waved every
+    compression-critical agent invocation through, undetected in production).
+
+    Returns:
+        True when the module is genuinely not installed (safe to skip the
+        check), False when it is on disk (so an import failure means the gate
+        is broken, not inapplicable).
+    """
+    try:
+        if LIB_DIR is None:
+            return True
+        return not (Path(LIB_DIR) / "prompt_integrity.py").exists()
+    except OSError:
+        # Cannot even stat the path — we do not know, so report "present" and
+        # let the caller fail closed rather than wave the dispatch through.
+        return False
+
+
 def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
     """Validate agent prompt word count during active pipeline (Issue #695).
 
@@ -1406,8 +1434,42 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
     # Only check critical agents
     try:
         from prompt_integrity import COMPRESSION_CRITICAL_AGENTS, MIN_CRITICAL_AGENT_PROMPT_WORDS
-    except ImportError:
-        return ("allow", "prompt_integrity module not available - skipping check")
+    except ImportError as exc:
+        # This handler used to conflate two different states and encode both as
+        # "verified, pass" (INV-7 breach):
+        #   1. prompt_integrity is genuinely not installed — nothing to enforce.
+        #   2. prompt_integrity IS on disk but did not import (broken, partial,
+        #      renamed symbol) — the gate cannot evaluate.
+        # Only state 1 is safe to allow. State 2 is the Issue #1471 shape: a
+        # swallowed error after a field rename waved every compression-critical
+        # agent invocation through, undetected in production.
+        if _prompt_integrity_is_absent():
+            return ("allow", "prompt_integrity module not available - skipping check")
+
+        import logging as _abs_logging
+
+        _abs_logger = _abs_logging.getLogger("unified_pre_tool.prompt_integrity")
+        _abs_logger.error(
+            "prompt_integrity is on disk but failed to import — FAIL-CLOSED: %s",
+            exc,
+            exc_info=True,
+        )
+        module_path = (
+            str(Path(LIB_DIR) / "prompt_integrity.py") if LIB_DIR else "lib/prompt_integrity.py"
+        )
+        return (
+            "deny",
+            f"BLOCKED: prompt-integrity gate cannot evaluate agent '{agent_type}'. "
+            f"prompt_integrity is installed at {module_path} but failed to import "
+            f"({type(exc).__name__}: {exc}). A gate that cannot verify must not "
+            f"report 'verified' (Issue #1471). "
+            f"REQUIRED NEXT ACTION: repair the module — run "
+            f"`python3 -c 'import prompt_integrity'` with that lib directory on "
+            f"sys.path to see the real error, then report it via /create-issue. "
+            f"Do not retry blind. "
+            f"Emergency override: `touch .claude/.bypass` (or AUTONOMOUS_DEV_BYPASS=1) "
+            f"disables all hooks for this repo.",
+        )
 
     if agent_type not in COMPRESSION_CRITICAL_AGENTS:
         return ("allow", f"Agent '{agent_type}' is not compression-critical")
@@ -1755,9 +1817,31 @@ def validate_mcp_security(tool_name: str, tool_input: Dict) -> Tuple[str, str]:
             return ("allow", "MCP security validator unavailable — default allow")
 
     except Exception as e:
-        # Error in validation — default to allow (Issue #401).
-        # Security validator errors should not block the user.
-        return ("allow", f"MCP security error — default allow: {e}")
+        # The validator was PRESENT and its execution CRASHED. That is a
+        # different state from the ImportError branch above, and Issue #401's
+        # rationale does not cover it: #401 argues for "we deliberately chose
+        # not to check", this is "we tried to check and do not know the answer".
+        # Encoding the second as allow is an INV-7 breach — the operation is
+        # unverified, not verified-safe.
+        import logging as _mcp_logging
+
+        _mcp_logging.getLogger("unified_pre_tool.mcp_security").error(
+            "MCP security validator crashed while validating '%s' — FAIL-CLOSED: %s",
+            tool_name,
+            e,
+            exc_info=True,
+        )
+        return (
+            "deny",
+            f"BLOCKED: MCP security validation crashed for '{tool_name}' "
+            f"({type(e).__name__}: {e}). The validator was present but could not "
+            f"complete, so this operation is unverified — not verified safe. "
+            f"REQUIRED NEXT ACTION: report this as an autonomous-dev bug via "
+            f"/create-issue, quoting the error above. Do not retry blind. "
+            f"Emergency override: set PRE_TOOL_MCP_SECURITY=false to disable this "
+            f"layer, or `touch .claude/.bypass` (AUTONOMOUS_DEV_BYPASS=1) to "
+            f"disable all hooks for this repo.",
+        )
 
 
 def _is_exempt_path(file_path: str) -> bool:
