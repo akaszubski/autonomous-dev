@@ -39,6 +39,25 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
 ## 2. Definition of Done
 
 **Effective — guards demonstrably fire**
+
+> ✅ **MET 2026-08-25 — 0 genuine silent fail-opens in ALL THREE repos**, six days before the
+> 2026-08-31 milestone. Baseline was 4 of 8 here, and 0 consumer evidence anywhere.
+> Measured against the **deployed** copies, not the source: autonomous-dev **0**, realign **0**,
+> spektiv **0 genuine** — its one remaining row is `write-pipeline-gate` under that repo's
+> *committed* `.claude/.bypass`, a documented opt-out rather than a failure (the prover cannot yet
+> tell those apart — #1685).
+> Two fixes, both root causes rather than reproducers. **#1682**: one shared fallback tuple
+> enumerated native transports only, so every MCP write transport classified as a non-write
+> whenever `tool_intent` was unavailable — that single defect was 3 of the 4. **#1684**: a corrupt
+> plan-exit marker was read as *no* marker, encoding a verification failure as a pass, and the file
+> was unlinked so the event left no trace; `st_mtime` supplied the bounded fallback clock its
+> author lacked.
+> **What makes the zero trustworthy:** #1684 required changing `proof_of_block` itself, because
+> its landing proof for `state_corrupt` was *"the marker was unlinked"* — coupled to the very bug
+> being fixed. Changing an instrument to move the metric it measures is the shape of gaming, so
+> the modified prover was pointed at the **pre-fix deployed hook** (9,229 lines, zero occurrences
+> of the fix) and still reported `FAILS OPEN SILENTLY`. The instrument was not taught to stop
+> reporting — the zero comes from the hook.
 - [ ] `proof_of_block.py` reports **0 guards failing open silently** (baseline: 4 of 8)
 - [ ] Every guard shows a **REFUSES and a PERMITS** row — one arm does not count (#1617)
 - [x] ✅ **DONE 2026-08-25 — committed proof artifacts in realign AND spektiv** (baseline: 0 in
