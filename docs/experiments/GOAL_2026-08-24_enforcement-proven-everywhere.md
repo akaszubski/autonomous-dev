@@ -42,6 +42,19 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
 - [ ] `proof_of_block.py` reports **0 guards failing open silently** (baseline: 4 of 8)
 - [ ] Every guard shows a **REFUSES and a PERMITS** row — one arm does not count (#1617)
 - [ ] Committed proof artifacts in **realign AND spektiv** (baseline: 0 in both)
+- [ ] **CORRECTED 2026-08-25 — "27 hooks apiece" counts files, not enforcement.** MEASURED across
+      project, project-local and user-global settings layers in both repos: **33 hook files on
+      disk, 6 bound in settings, and exactly ONE of the six is a blocking gate**
+      (`unified_pre_tool.py`; two of the other five are `session_activity_logger.py`, which
+      logs). Identical in realign and spektiv because both match `settings.default.json`.
+      autonomous-dev binds **16** for itself; the strictest consumer template binds **8**. So the
+      product applies ~2× the enforcement to itself that it ships to anyone, and `plan_gate.py`,
+      `enforce_file_organization.py`, `stop_quality_gate.py` and `unified_prompt_validator.py`
+      reach **no** consumer template at all — not even strict mode. Recorded on #1640.
+      **Not proven:** that the 27 unbound files are dead — `batch_permission_approver.py` is
+      dispatched from inside `unified_pre_tool.py` rather than bound, so some may be reachable
+      through the one gate that is. That distinction is #1674. Quote 6-of-33; do not quote
+      "27 dead".
 
 **Simple — fewer mechanisms, not fewer lines**
 - [ ] **Count MECHANISMS, not lines.** Line count is the wrong denominator — `lib/*.py` is
@@ -53,10 +66,12 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       | Dead guards (#1612) | **CORRECTED 2026-08-25: not 5.** `enforce_orchestrator.py` is LIVE — 42 recorded refusals, latest 2026-08-24, through an invoker found in no settings file and no tracked source (#1675). `PreToolUseWrite-protect-sensitive.sh` is a deferred policy decision, not dead code (#1673). The remaining 3 are unregistered and have never refused, but are **not provably unreachable**: no sink distinguishes "never invoked" from "invoked and allowed" (#1674). Deletion halted, nothing removed. | 3 pending #1674 |
       | ~~`SoftFailureTracker`~~ | **RESOLVED WIRED 2026-08-25** — the "0 tests" baseline was false; 51 tests exercise it and pass 51/51. See the Correction above. | done |
       | Mutation testing (#1668) | **ADDED 2026-08-25.** `mutmut` pinned, `[mutmut]` in setup.cfg, runner script executable, baseline report committed — and it has **never run**: every cell is `TBD`, `import mutmut` fails, and the script is referenced by no CI job, manifest, command or runbook. Issue #770 was **closed as done** on it 2026-04-11. | 0 unresolved |
-      | `SessionStart-batch-recovery` (#1672) | **ADDED 2026-08-25.** Ships (`install_manifest.json:101-102`), is in the settings template, and is documented at `CLAUDE.md:69` as the session-continuity mechanism — but `SessionStart` is bound in **none** of the three settings files. Harder to spot than the other five: it has a `.hook.json` and a manifest entry, so every file-existence check passes. | 0 unresolved |
+      | `SessionStart-batch-recovery` (#1672) | **ADDED 2026-08-25, CORRECTED same day.** My first entry said it "ships (`install_manifest.json:101-102`)" — **wrong**; those lines are `deploy_state.py` and `genai_install_wrapper.py`, and the hook appears **nowhere** in the manifest. So it neither ships nor is bound, while `CLAUDE.md:69` documents it as *the* session-continuity mechanism — consumers never receive the file. The wrong line number was inherited from a glance rather than measured at point of use. | 0 unresolved |
+      | `enforce_file_organization.py` (#1672 comment) | **ADDED 2026-08-25.** Ships in the manifest and is declared `PreToolUse` in `settings.autonomous-dev.json`, but is bound in **no live settings layer** and is **absent from `settings.default.json`** — the template consumers install. Meanwhile `PROJECT.md:38` lists "File organisation enforcement" as in-scope and `PROJECT.md:95` names it as hook-enforced. | 0 unresolved |
       | Reviewer improvement machinery | 1,733 lines, 0 invocations | 0 unresolved |
       | genai tests calling no judge | 176 | 0 unresolved |
       | Dark test files | 95 across 7 dirs | 0 unresolved |
+      | **A whole second test suite** (ADDED 2026-08-25) | **MEASURED: `plugins/autonomous-dev/tests/` holds 500 collectable tests that nothing runs.** It has its own `plugins/autonomous-dev/pytest.ini` — 6 markers where the root declares 15, `--strict-markers` on in both, **no `--cov` at all** (so no coverage floor; a sixth declaration site for #1677), and no `norecursedirs`, so it collects `archived`. The root suite cannot reach it (`testpaths = tests` resolves to the repo-root tree), and `.github/` + `scripts/` contain **zero** references to the path. It also has **3 live collection errors** (`test_claude_alignment.py`, `test_doc_change_detection.py`, `test_enforce_logging_only.py`). Not in `install_manifest.json`, so it does not ship. **May overlap the 95-dark-files row above — that row does not name its 7 dirs, so the overlap is unquantified and these must not be summed.** | 0 unresolved |
 - [ ] **No net new mechanism without a retirement.** Each mechanism added under this goal names
       one retired or wired in the same change. Enforced by review, recorded in the ledger.
 - [ ] Every deletion **names what it removed and why** — a bulk removal does not satisfy this
@@ -138,6 +153,15 @@ no more useful than today.
 **Consistent**
 - [ ] No rule has two mechanisms; no mechanism has two divergent copies (the duplicate
       `GenAIClient` in `templates/genai-uat/` is the known instance)
+- [ ] **The coverage floor is one number, not five (#1677, ADDED 2026-08-25).** MEASURED: one
+      rule declared at five sites with two values — `pytest.ini:24` = **4**;
+      `auto_test.py:98`, `safety-net.yml:133`, `PROJECT.md:85` and the shipped
+      `python-standards/SKILL.md:184` = **80**. The lowest is the only one that executes on
+      every local run, and its "never decrease this value" instruction (`pytest.ini:23`) has
+      **no mechanism whatsoever** — no test, hook, script or workflow reads it. A ratchet whose
+      entire enforcement is a code comment is the INV-1 case in miniature. Actual coverage is
+      **UNKNOWN** and must be measured before any floor is moved, or the fix becomes #1576's
+      cry-wolf pattern a second time.
 
 **Self-applying — the detector is subject to its own rules**
 - [ ] Every mechanism built under this goal is **itself** subject to the rules it enforces: it
@@ -243,6 +267,41 @@ the first deterministic weakness report
   Deliberately NOT `wc -l` on hooks+lib: that was v2's metric and it is gameable, since
   `lib/*.py` is 120,001 of the 142,869 lines and mostly is not enforcement code.
 - `gh issue list --state open | wc -l` — 262 at baseline (MEASURED 2026-08-24)
+- **A set diff needs an environment control too** (MEASURED 2026-08-25). The *Outcome* criterion
+  tracks rework-per-fix, and the operating rule is "attribute by set, not count". That rule is
+  necessary and **not sufficient**. Attributing `tests/unit` failures for #1666 via a `git
+  worktree` baseline produced 3 "new failures" and 16 "fixes" — a credible-looking regression
+  signal in which **all 19 were artifacts**: `.claude/lib` is gitignored (`.gitignore:147`), so a
+  worktree has no installed copy, and tests asserting the installed copy exists flip against
+  tests asserting it does not. Zero were attributable to the change. The instrument that held was
+  structural, not comparative — no file under `tests/unit/` outside `tests/unit/genai/` references
+  the changed modules, so the change could not reach them. **Any rework-per-fix figure taken from
+  a worktree run in this repo is contaminated by ~19 tests before it measures anything.**
+- **Both-arms observations recorded as they happen** — the goal's headline criterion is one
+  REFUSES row and one PERMITS row per guard, so they are logged when observed rather than
+  reconstructed later:
+  - `agent_ordering_gate` — **PERMITS** `implementer` after `planner` completed (`ORDERING OK`);
+    **REFUSES** `doc-master` before the pytest gate closed, and `continuous-improvement-analyst`
+    before `doc-master` (`ORDERING VIOLATION ... requires [pytest-gate] to complete first`).
+    Both arms, same session, 2026-08-25. ✅
+  - `prompt_integrity` — **REFUSES** an implementer dispatch compressed 24% below the 980-word
+    baseline; **PERMITS** the reconstructed dispatch carrying the planner's full output. The
+    refusal was *correct*: the coordinator had paraphrased the plan instead of passing it
+    verbatim, which is the FORBIDDEN behaviour the gate exists to catch. Both arms. ✅
+  - `test_issue_1666_no_bare_conftest_import` — **REFUSES** two scratch files (`from conftest
+    import Foo`, `import conftest`); **PERMITS** a package-qualified import *and* a
+    different-shaped near-miss (`import conftest_helpers`) that a naive prefix match would have
+    false-flagged. Verified by the coordinator independently of the implementer's own run. ✅
+- **The four-number attrition chain** (MEASURED 2026-08-25) — the denominator this goal actually
+  needs, because each step silently drops guards the previous step counted:
+  **33 on disk → 26 shipped → 15 bound in any template → 12 bound in live settings.**
+  Enumerate ALL settings layers (project, project-local, user-global, managed) — reading only
+  `.claude/settings.json` reported 10 unbound where the true figure is 3, because seven are
+  bound via `~/.claude/settings.json`. Caveats that must travel with the number: several
+  manifest entries are not lifecycle hooks (`genai_utils.py`, `genai_prompts.py`, `setup.py`,
+  `*.hook.json`), and at least one — `batch_permission_approver.py` — is dispatched from
+  `unified_pre_tool.py` rather than bound in settings, so "not bound" is **not** "dead". That
+  ambiguity is #1674, and it bounds how far this chain can be read as a coverage figure.
 - `collect_cia_findings()` over `.claude/logs/findings/` — readable since #1658
 - This document, updated per milestone with deltas named
 
