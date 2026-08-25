@@ -50,9 +50,10 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       list**, each item resolved to `WIRED` or `DELETED`, no item left `UNRESOLVED`:
       | Mechanism | Baseline | Target |
       |---|---|---|
-      | Dead guards (#1612) | 5 unwired | 0 |
+      | Dead guards (#1612) | **CORRECTED 2026-08-25: not 5.** `enforce_orchestrator.py` is LIVE — 42 recorded refusals, latest 2026-08-24, through an invoker found in no settings file and no tracked source (#1675). `PreToolUseWrite-protect-sensitive.sh` is a deferred policy decision, not dead code (#1673). The remaining 3 are unregistered and have never refused, but are **not provably unreachable**: no sink distinguishes "never invoked" from "invoked and allowed" (#1674). Deletion halted, nothing removed. | 3 pending #1674 |
       | ~~`SoftFailureTracker`~~ | **RESOLVED WIRED 2026-08-25** — the "0 tests" baseline was false; 51 tests exercise it and pass 51/51. See the Correction above. | done |
       | Mutation testing (#1668) | **ADDED 2026-08-25.** `mutmut` pinned, `[mutmut]` in setup.cfg, runner script executable, baseline report committed — and it has **never run**: every cell is `TBD`, `import mutmut` fails, and the script is referenced by no CI job, manifest, command or runbook. Issue #770 was **closed as done** on it 2026-04-11. | 0 unresolved |
+      | `SessionStart-batch-recovery` (#1672) | **ADDED 2026-08-25.** Ships (`install_manifest.json:101-102`), is in the settings template, and is documented at `CLAUDE.md:69` as the session-continuity mechanism — but `SessionStart` is bound in **none** of the three settings files. Harder to spot than the other five: it has a `.hook.json` and a manifest entry, so every file-existence check passes. | 0 unresolved |
       | Reviewer improvement machinery | 1,733 lines, 0 invocations | 0 unresolved |
       | genai tests calling no judge | 176 | 0 unresolved |
       | Dark test files | 95 across 7 dirs | 0 unresolved |
