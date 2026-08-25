@@ -50,10 +50,25 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       | autonomous-dev | 8/8 | **1** | plan-exit-gate |
       | realign | 8/8 | **1** | plan-exit-gate |
       | spektiv | 8/8 | **2** | plan-exit-gate **+ write-pipeline-gate** |
-      Same guard, same injected fault (`import_raises:edit_tier_classifier`), REFUSES in two
-      repos and fails open silently in the third. **Measuring enforcement in one repo does not
-      measure it anywhere else** — the goal's whole premise, now with a measured instance rather
-      than an assertion. Root cause of the spektiv divergence is NOT yet established.
+      **CORRECTION 2026-08-25, same day — the spektiv divergence is NOT a portability defect.**
+      I first wrote that this was one guard behaving differently across repos and read it as
+      evidence for "measuring in one repo does not measure everywhere". The observation is real;
+      the inference was wrong. **spektiv carries a *committed* `.claude/.bypass`** (tracked since
+      `7997575f1`, 17 Jun) — the documented durable per-repo opt-out in `CLAUDE.md`. Under bypass
+      the #1435 protected-infrastructure hard floor still holds, which is exactly why the six
+      protected-infra/MCP guards still REFUSE there while `write-pipeline-gate` (#1142, an
+      ordinary gate) does not. That is the design working as written, not a portability failure.
+      Neither autonomous-dev nor realign has a bypass. **So the honest cross-repo reading is
+      1 silent fail-open in all three**, plus one deliberate opt-out in spektiv.
+      **How I got it wrong is the reusable part:** `proof_of_block` prints
+      `bypass : present` in its *header*, and I read its output with `tail`, so I analysed the
+      verdict table without the line that explained it. Truncated output is not a summary.
+      **The residual defect is real, though, and narrower (#1685):** the prover reports bypass in
+      the header but does **not** factor it into the verdict, so a deliberately opted-out gate is
+      counted as `FAILS OPEN SILENTLY`. That inflates the count in opted-out repos — and worse,
+      makes a *genuine* fail-open there indistinguishable from the opt-out. It is also material
+      to this goal: abort condition 3 fires on "more than 4 silent fail-opens", a threshold that
+      can now be tripped by consumer repos exercising a supported feature.
       `realign` needed a `.gitignore` fix to make the artifact committable at all: `.claude/*`
       plus a blanket `*.json` at `:84` meant **both** a directory negation and a `**` content
       negation were required — the directory one alone leaves the file caught by `*.json`.
