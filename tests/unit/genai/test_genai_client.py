@@ -5,19 +5,12 @@ All OpenAI client calls are mocked.
 """
 
 import json
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-# Add the worktree's tests/genai to path so we import the modified conftest
-_WORKTREE_ROOT = Path(__file__).resolve().parents[3]
-_GENAI_TEST_DIR = _WORKTREE_ROOT / "tests" / "genai"
-
-sys.path.insert(0, str(_GENAI_TEST_DIR))
-from conftest import GenAIClient, SoftFailureTracker, _extract_json_from_response
+from tests.genai._genai_support import GenAIClient, SoftFailureTracker, _extract_json_from_response
 
 
 def _make_mock_response(content: str, prompt_tokens: int = 10, completion_tokens: int = 20):

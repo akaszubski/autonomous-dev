@@ -4,19 +4,11 @@ Tests the soft-failure threshold system without requiring OpenRouter API access.
 """
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-# Add the worktree's tests/genai to path so we import the modified conftest
-_WORKTREE_ROOT = Path(__file__).parent.parent.parent.parent
-_GENAI_TEST_DIR = _WORKTREE_ROOT / "tests" / "genai"
-
-# Import SoftFailureTracker directly from the module file
-sys.path.insert(0, str(_GENAI_TEST_DIR))
-from conftest import SoftFailureTracker, _load_thresholds
+from tests.genai._genai_support import SoftFailureTracker, _load_thresholds
 
 
 # --- Threshold Loading ---
@@ -30,13 +22,13 @@ class TestLoadThresholds:
         thresholds_file = tmp_path / "thresholds.json"
         thresholds_file.write_text(json.dumps(config))
 
-        with patch("conftest.THRESHOLDS_FILE", thresholds_file):
+        with patch("tests.genai._genai_support.THRESHOLDS_FILE", thresholds_file):
             result = _load_thresholds()
         assert result["default"]["hard_fail"] == 3
         assert result["accumulation_threshold"] == 0.25
 
     def test_returns_defaults_when_file_missing(self, tmp_path):
-        with patch("conftest.THRESHOLDS_FILE", tmp_path / "nonexistent.json"):
+        with patch("tests.genai._genai_support.THRESHOLDS_FILE", tmp_path / "nonexistent.json"):
             result = _load_thresholds()
         assert result["default"]["hard_fail"] == 4
         assert result["default"]["pass"] == 7

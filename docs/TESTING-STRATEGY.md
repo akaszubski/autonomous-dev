@@ -7,7 +7,7 @@ covers:
 
 # Testing Strategy: The Diamond Model
 
-**Last Updated**: 2026-03-20
+**Last Updated**: 2026-08-25
 
 ## Overview
 
@@ -144,7 +144,7 @@ def test_audit_false_positive_files_unchanged(file_path: str) -> None:
 
 **autonomous-dev components**:
 - `tests/genai/` — LLM-as-judge test files for semantic validation
-- `GenAIClient` in `conftest.py` — OpenRouter-backed, dual model (Gemini Flash + Haiku 4.5)
+- `GenAIClient` in `_genai_support.py` (Issue #1666; re-exported via `conftest.py`, which now holds only pytest hooks and fixtures) — OpenRouter-backed, dual model (Gemini Flash + Haiku 4.5)
 - 24h response caching, ~$0.02/run
 
 **GenAIClient judge methods** (see `SKILL.md` for usage patterns):
