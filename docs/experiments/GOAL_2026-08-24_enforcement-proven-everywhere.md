@@ -41,7 +41,26 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
 **Effective — guards demonstrably fire**
 - [ ] `proof_of_block.py` reports **0 guards failing open silently** (baseline: 4 of 8)
 - [ ] Every guard shows a **REFUSES and a PERMITS** row — one arm does not count (#1617)
-- [ ] Committed proof artifacts in **realign AND spektiv** (baseline: 0 in both)
+- [x] ✅ **DONE 2026-08-25 — committed proof artifacts in realign AND spektiv** (baseline: 0 in
+      both). `spektiv 7a769ac33` (pushed), `realign bb342e12` (committed; push blocked — see
+      below). **This clears abort condition 1 ("no consumer proof by 09-07"), 13 days early.**
+      The artifacts are not identical, and that is the finding:
+      | repo | PROVEN | silent fail-opens | which |
+      |---|---|---|---|
+      | autonomous-dev | 8/8 | **1** | plan-exit-gate |
+      | realign | 8/8 | **1** | plan-exit-gate |
+      | spektiv | 8/8 | **2** | plan-exit-gate **+ write-pipeline-gate** |
+      Same guard, same injected fault (`import_raises:edit_tier_classifier`), REFUSES in two
+      repos and fails open silently in the third. **Measuring enforcement in one repo does not
+      measure it anywhere else** — the goal's whole premise, now with a measured instance rather
+      than an assertion. Root cause of the spektiv divergence is NOT yet established.
+      `realign` needed a `.gitignore` fix to make the artifact committable at all: `.claude/*`
+      plus a blanket `*.json` at `:84` meant **both** a directory negation and a `**` content
+      negation were required — the directory one alone leaves the file caught by `*.json`.
+      Carve-out verified not to over-reach (`.claude/logs/`, `.claude/cache/`,
+      `SESSION_STATE.json` all still ignored). Its push is blocked by a pre-existing conflict in
+      `tests/unit/core/test_dependency_registry.py` with realign **120 commits ahead** of
+      `origin/main` — unrelated in-flight work, deliberately not resolved here.
 - [ ] **CORRECTED 2026-08-25 — "27 hooks apiece" counts files, not enforcement.** MEASURED across
       project, project-local and user-global settings layers in both repos: **33 hook files on
       disk, 6 bound in settings, and exactly ONE of the six is a blocking gate**
