@@ -116,6 +116,16 @@
         ]
       },
       {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/validate_paid_dependency.py\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent|Bash",
         "hooks": [
           {

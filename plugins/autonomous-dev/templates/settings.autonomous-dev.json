@@ -130,6 +130,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/enforce_file_organization.py\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/validate_paid_dependency.py\"",
+            "timeout": 5
           }
         ]
       },

@@ -1,0 +1,14 @@
+{
+  "name": "validate_paid_dependency",
+  "type": "lifecycle",
+  "description": "Block Write/Edit introducing a paid-API client construction into production code (PROJECT.md:59 OUT of Scope, INV-8). Issue #1639.",
+  "interpreter": "python3",
+  "active": true,
+  "registrations": [
+    {
+      "event": "PreToolUse",
+      "matcher": "*",
+      "timeout": 5
+    }
+  ]
+}
