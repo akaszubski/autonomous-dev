@@ -68,7 +68,14 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       |---|---|---|---|
       | autonomous-dev | 8/8 | **1** | plan-exit-gate |
       | realign | 8/8 | **1** | plan-exit-gate |
-      | spektiv | 8/8 | **2** | plan-exit-gate **+ write-pipeline-gate** |
+      | spektiv | **7/8** (I wrote 8/8 — wrong, see below) | **2** | plan-exit-gate **+ write-pipeline-gate** |
+      **Third truncation error of the session:** I recorded spektiv as 8/8 PROVEN. It was **7/8**
+      — the `N/8 guards PROVEN` line sits above the verdict table and I read the output with
+      `tail`, so I never saw it and filled the cell from the other two repos. Caught by the #1685
+      implementer re-measuring rather than inheriting my number. Same shape as missing the
+      `bypass : present` header line, and as reporting 10 unbound hooks from one settings layer.
+      **The pattern is not carelessness about a value — it is reading a truncated view and
+      completing the picture from expectation.**
       **CORRECTION 2026-08-25, same day — the spektiv divergence is NOT a portability defect.**
       I first wrote that this was one guard behaving differently across repos and read it as
       evidence for "measuring in one repo does not measure everywhere". The observation is real;

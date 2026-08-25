@@ -83,6 +83,35 @@ FAULT_HIT) and a shim aimed at a module nothing imports (must show
 SHIM_INSTALLED, must NOT show FAULT_HIT, and must reproduce the unfaulted
 decision exactly). A probe that returns zero is not evidence of zero.
 
+THE REPO OPT-OUT (Issue #1685)
+------------------------------
+``.claude/.bypass`` is a SUPPORTED per-repo opt-out: a repo that commits it has
+deliberately turned autonomous-dev enforcement off, except for the #1435
+protected-infrastructure hard floor, which survives it. A guard that allows
+under an active bypass is therefore the design WORKING, and must not be counted
+as a guard that broke.
+
+Before this fix the header printed ``bypass : present`` and the per-guard
+verdict ignored it entirely, so in an opted-out repo an ordinary inert gate was
+labelled ``FAILS-OPEN`` / ``FAILS OPEN SILENTLY`` -- indistinguishable from a
+guard that genuinely broke under fault. That inflates the silent count AND
+blinds the harness to the very failure it exists to catch. Measured in spektiv
+(committed ``.bypass``, 17 Jun): write-pipeline-gate reported FAILS-OPEN with
+the hook's own reason reading ``Universal bypass active (#969)``.
+
+Bypass is read through ``hook_bypass.is_bypassed()`` -- the SAME function the
+hooks call -- and evaluated PER SCENARIO against the exact cwd the hook
+subprocess was given, never once against the project root. That distinction is
+load-bearing: five of the eight guards run against temp fixtures that are NOT
+under the repo's ``.bypass``, so they stay fully measured even in an opted-out
+repo, and a fail-open there is still reported as genuine.
+
+What this CANNOT do: for a scenario that IS under an active bypass, a genuine
+fail-open is indistinguishable from the opt-out, because the only way to
+neutralise a file bypass is to remove the file -- a mutation of the user's repo
+this harness will not make. That limitation is PRINTED, per guard, rather than
+resolved silently in either direction.
+
 PORTABILITY (Issue #1586)
 -------------------------
 This harness ships to consumer repos, so it may NOT assume the autonomous-dev
@@ -182,6 +211,32 @@ except ImportError:  # pragma: no cover - exercised by the exit-2 path below
     )
     sys.exit(EXIT_UNRESOLVABLE)
 
+try:
+    # ONE reader of the bypass rule (Issue #1685). ``is_bypassed`` is the exact
+    # function every hook calls, so this harness cannot drift from the hooks it
+    # measures. The two underscored names are hook_bypass's OWN readers for the
+    # flag file and its git-tracked status; importing them keeps the count of
+    # readers at one. Re-deriving either here -- a local ``.exists()`` or a
+    # local ``git ls-files`` -- would be a SECOND implementation of a rule that
+    # already has one, which is the defect class this repo keeps filing against
+    # itself.
+    from hook_bypass import ENV_VAR_NAME as BYPASS_ENV_VAR
+    from hook_bypass import _find_flag_file_in_chain as find_bypass_flag
+    from hook_bypass import _is_git_tracked as bypass_flag_is_committed
+    from hook_bypass import check_bypass_staleness, is_bypassed
+except ImportError:  # pragma: no cover - same lib/ that path_utils came from
+    sys.stderr.write(
+        "proof_of_block: cannot import hook_bypass\n"
+        "Expected it beside path_utils in the autonomous-dev lib/ directory.\n"
+        "Without it this harness cannot tell a deliberate repo opt-out "
+        "(.claude/.bypass) apart from a guard that genuinely broke, and a "
+        "verdict that cannot carry its own governing configuration is worse "
+        "than no verdict.\n"
+        "See: plugins/autonomous-dev/config/install_manifest.json "
+        "(components.lib.files)\n"
+    )
+    sys.exit(EXIT_UNRESOLVABLE)
+
 
 def resolve_hooks_dir(repo: Path, script: Optional[Path] = None) -> Optional[Path]:
     """Resolve the directory holding the hooks under test.
@@ -259,6 +314,110 @@ if HOOKS is None:
 ARTIFACTS = resolve_artifacts_dir(REPO)
 
 BLOCKED = {"deny", "block", "ask"}
+
+
+# --------------------------------------------------------------------------
+# the repo opt-out (Issue #1685)
+# --------------------------------------------------------------------------
+# A guard that allows under an active .claude/.bypass is INERT BY REQUEST, not
+# broken. These helpers carry that governing configuration into the verdict so
+# a reader never has to correlate the header against a table two screens down
+# -- which is exactly how a correct spektiv result was first written up as a
+# fail-open finding.
+
+# Verdict for a guard that allowed its positive case while subject to an active
+# bypass. Deliberately NOT one of PROVEN / FAILS-OPEN: it is neither proof of
+# enforcement nor evidence of breakage.
+NOT_ENFORCED = "NOT-ENFORCED"
+
+# Bypass forms. CLAUDE.md gives them different meanings and #1434/#1601 give
+# them different staleness rules, so they must not be merged.
+BYPASS_ABSENT = "absent"
+BYPASS_COMMITTED = "committed"      # durable per-repo opt-out (supported)
+BYPASS_UNCOMMITTED = "uncommitted"  # emergency escape hatch (#1434)
+
+
+def describe_bypass(start_dir: Path) -> dict:
+    """Classify the ``.claude/.bypass`` governing ``start_dir``.
+
+    Reports the FORM, not merely presence. A committed flag is the documented
+    durable opt-out; an uncommitted one is an emergency escape hatch that
+    #1434 warns about once it goes stale. Reporting them as one state loses
+    the only thing that distinguishes a policy decision from a forgotten file.
+
+    The env-var arm is reported separately by :func:`env_bypass_note` because
+    :func:`drive_raw` strips it from every hook subprocess -- it cannot be the
+    cause of anything measured here.
+
+    Args:
+        start_dir: Directory to begin the upward walk from (a project root).
+
+    Returns:
+        dict with ``active``, ``form``, ``path`` (str or None) and ``warning``
+        (the #1434/#1601 staleness string, or None).
+    """
+    flag = find_bypass_flag(start_dir)
+    if flag is None:
+        return {"active": False, "form": BYPASS_ABSENT, "path": None,
+                "warning": None}
+    form = (BYPASS_COMMITTED if bypass_flag_is_committed(flag)
+            else BYPASS_UNCOMMITTED)
+    return {
+        "active": True,
+        "form": form,
+        "path": str(flag),
+        "warning": check_bypass_staleness(start_dir),
+    }
+
+
+def env_bypass_note() -> Optional[str]:
+    """Return a note if the OPERATOR's shell exports the bypass env var.
+
+    :func:`drive_raw` removes ``AUTONOMOUS_DEV_BYPASS`` from every hook
+    subprocess, so an exported value governs nothing that this harness
+    measures. Silence about it would still be wrong: a reader who knows they
+    set it deserves to be told it was neutralised rather than left to assume
+    the run was permissive.
+
+    Returns:
+        A one-line note, or None when the variable is unset.
+    """
+    if os.environ.get(BYPASS_ENV_VAR) is None:
+        return None
+    return (f"{BYPASS_ENV_VAR} is set in this shell but is STRIPPED from every "
+            f"hook subprocess by this harness -- it governs nothing below")
+
+
+def scenario_bypassed(root: Path) -> bool:
+    """Was the hook subprocess for a scenario rooted at ``root`` bypassed?
+
+    Asks ``hook_bypass.is_bypassed`` with the SAME start directory the hook
+    itself used: :func:`drive_raw` runs the subprocess with ``cwd=root`` and
+    the hook calls ``is_bypassed()`` with no argument, which defaults to its
+    cwd. Evaluating this against the PROJECT ROOT instead would be wrong for
+    the five guards that run against temp fixtures outside the repo -- they
+    are not under the repo's flag, so a fail-open there is genuine and must
+    keep saying so.
+
+    The env arm is neutralised for the duration of the call because
+    :func:`drive_raw` strips ``AUTONOMOUS_DEV_BYPASS`` from the subprocess
+    environment. Consulting it unfiltered would relabel every genuine
+    fail-open as a repo opt-out on any machine whose shell happens to export
+    the variable -- a probe reporting the operator's environment instead of
+    the system under test.
+
+    Args:
+        root: The cwd the hook subprocess was given.
+
+    Returns:
+        True iff the hook saw an active bypass for that scenario.
+    """
+    saved = os.environ.pop(BYPASS_ENV_VAR, None)
+    try:
+        return is_bypassed(root)
+    finally:
+        if saved is not None:
+            os.environ[BYPASS_ENV_VAR] = saved
 
 
 # --------------------------------------------------------------------------
@@ -1078,6 +1237,13 @@ LOUD = "FAILS OPEN LOUDLY"
 SILENT = "FAILS OPEN SILENTLY"
 UNVERIFIED_INJECTION = "INJECTION-UNVERIFIED"
 
+# A FOURTH outcome (Issue #1685), applied AFTER classify_outcome and only to a
+# fail-open observed while the scenario was subject to an active repo opt-out.
+# REFUSES is never rewritten: a guard that still denies under bypass is the
+# #1435 hard floor doing its job, and folding that into an "opt-out" bucket
+# would erase the strongest result in the run.
+NOT_ENFORCED_OUTCOME = "NOT ENFORCED (repo opt-out)"
+
 
 def _apply_state_corruption(root: Path, fault: dict) -> str:
     """Corrupt a state file in the fixture and prove the corruption landed.
@@ -1131,6 +1297,10 @@ def run_fault(spec: dict, hook: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="pob-fault-") as d:
         stage = Path(d)
         root = spec["fixture"](stage / "fixture")
+        # Read the governing configuration against the cwd this scenario will
+        # actually run in, BEFORE the run, so the outcome can carry it.
+        bypassed = scenario_bypassed(root)
+        out["bypassed"] = bypassed
         landed_proof = ""
 
         if fault["kind"] == "state_corrupt":
@@ -1203,8 +1373,22 @@ def run_fault(spec: dict, hook: Path) -> dict:
     out["log_rows"] = res["log_rows"]
     out["ambient_rows"] = ambient_rows
     out["stderr"] = res["stderr"][:240]
-    out["outcome"], out["trace"] = classify_outcome(
+    outcome, trace = classify_outcome(
         res, ambient_rows=ambient_rows, ambient_stderr=ambient_stderr)
+
+    # Issue #1685: a fail-open under an active opt-out is the documented
+    # behaviour of a supported feature. Relabel it, keep the raw classification
+    # so nothing is hidden, and state the limit -- under a file bypass a
+    # GENUINE fail-open here is indistinguishable from the opt-out, and an
+    # honest "cannot distinguish" beats a confident wrong label.
+    if bypassed and outcome in (SILENT, LOUD):
+        out["raw_outcome"] = outcome
+        trace = (f"allowed while a repo opt-out (.claude/.bypass) was active "
+                 f"for this scenario; on the trace evidence alone it would "
+                 f"read {outcome} -- {trace}. A genuine fail-open is NOT "
+                 f"distinguishable here: re-run with the bypass removed.")
+        outcome = NOT_ENFORCED_OUTCOME
+    out["outcome"], out["trace"] = outcome, trace
     return out
 
 
@@ -1440,10 +1624,15 @@ def run_guard(spec: dict, *, with_fault: bool = True) -> dict:
     with tempfile.TemporaryDirectory(prefix="pob-pos-") as d:
         root = spec["fixture"](Path(d))
         pos = spec["positive"]
+        # Issue #1685: recorded per scenario, against the cwd the hook is
+        # given -- not against the project root. Five guards run against temp
+        # fixtures that no .bypass governs, and those stay fully measured even
+        # in an opted-out repo.
+        pos_bypassed = scenario_bypassed(root)
         dec, reason = drive(hook, pos["tool_name"], pos["tool_input"](root), root)
         out["positive"] = {"tool": pos["tool_name"], "decision": dec,
                            "reason": reason[:180], "why": pos["why"],
-                           "ok": dec in BLOCKED}
+                           "ok": dec in BLOCKED, "bypassed": pos_bypassed}
 
     with tempfile.TemporaryDirectory(prefix="pob-neg-") as d:
         root = spec["fixture"](Path(d))
@@ -1459,6 +1648,18 @@ def run_guard(spec: dict, *, with_fault: bool = True) -> dict:
     # that is a bug in this harness, not a finding about the guard.
     if out["positive"]["ok"] and out["negative"]["ok"]:
         out["verdict"] = "PROVEN"
+    elif not out["positive"]["ok"] and pos_bypassed:
+        # Issue #1685: it allowed, but a repo opt-out told it to. That is the
+        # design working. Reported -- never suppressed -- because a repo that
+        # opted out still needs to see which guards are consequently inert.
+        # Guards the #1435 hard floor exempts never reach here: they deny under
+        # the bypass, so they are PROVEN above. No guard name is enumerated,
+        # which is what keeps this a category rather than an allowlist.
+        out["verdict"] = NOT_ENFORCED
+        out["detail"] = (
+            "allowed because a repo opt-out (.claude/.bypass) is active for "
+            "this scenario; a genuine fail-open is not distinguishable from "
+            "the opt-out here -- re-run with the bypass removed to measure it")
     elif not out["positive"]["ok"]:
         out["verdict"] = "FAILS-OPEN"      # the dangerous one
     else:
@@ -1489,12 +1690,20 @@ def compute_exit_code(results: list, instrument: Optional[dict]) -> int:
     INSTRUMENT does gate, because unverified injection makes every fault result
     vacuous, which is the exact defect that arm exists to find.
 
+    Issue #1685: ``NOT-ENFORCED`` does not gate either. A repo that committed
+    ``.claude/.bypass`` asked for those guards to be inert, and a permanently
+    red check in every opted-out repo trains its readers to ignore this whole
+    class of signal. The anti-vacuity floor below keeps that from becoming a
+    free pass: a run in which NOTHING was proven is not a success, however it
+    got there.
+
     Args:
         results: Per-guard result dicts from :func:`run_guard`.
         instrument: Instrument health dict, or None when ``--no-fault``.
 
     Returns:
-        0 when every guard is PROVEN and the instrument is trustworthy, else 1.
+        0 when every guard is PROVEN or NOT-ENFORCED, at least one is PROVEN,
+        and the instrument is trustworthy; else 1.
     """
     # An empty result set is NOT a pass. `proven == len(results)` alone is
     # vacuously true for zero guards, which would report success for a run that
@@ -1503,7 +1712,12 @@ def compute_exit_code(results: list, instrument: Optional[dict]) -> int:
         return 1
 
     proven = sum(1 for r in results if r["verdict"] == "PROVEN")
-    ok = proven == len(results)
+    accounted = sum(1 for r in results
+                    if r["verdict"] in ("PROVEN", NOT_ENFORCED))
+    # The same anti-vacuity rule as the empty-results check above, now that a
+    # verdict exists which is neither pass nor fail: an all-NOT-ENFORCED run
+    # observed no guard refusing anything, and must not exit 0.
+    ok = accounted == len(results) and proven > 0
 
     if instrument is not None:
         ok = ok and bool(instrument.get("ok"))
@@ -1516,9 +1730,29 @@ def compute_exit_code(results: list, instrument: Optional[dict]) -> int:
 
 
 def silent_set(results: list) -> set:
-    """Names of guards classified FAILS OPEN SILENTLY in ``results``."""
+    """Names of guards that fail open silently FOR REAL in ``results``.
+
+    Issue #1685: a guard inert under a repo opt-out carries
+    ``NOT ENFORCED (repo opt-out)`` rather than ``FAILS OPEN SILENTLY``, so it
+    is excluded here by construction -- no name list, no second rule. This set
+    is what feeds the ratchet, the FINDING line and the goal's abort threshold,
+    all of which must count genuine breakage only.
+    """
     return {r["guard"] for r in results
             if r.get("fault", {}).get("outcome") == SILENT}
+
+
+def not_enforced_set(results: list) -> set:
+    """Names of guards that are inert because the repo opted out (#1685).
+
+    Reported ALONGSIDE :func:`silent_set`, never merged into it and never
+    suppressed: a repo that opted out still needs to see which guards are
+    consequently inert. A guard appears here if either arm says so -- the
+    positive arm allowed under the opt-out, or the fault arm did.
+    """
+    return {r["guard"] for r in results
+            if r.get("verdict") == NOT_ENFORCED
+            or r.get("fault", {}).get("outcome") == NOT_ENFORCED_OUTCOME}
 
 
 def compare_silent_set(current_results: list, baseline_path: Path) -> tuple:
@@ -1626,6 +1860,30 @@ def compare_silent_set(current_results: list, baseline_path: Path) -> tuple:
     return cur_silent - base_silent, base_silent - cur_silent
 
 
+def split_no_longer_silent(no_longer_silent: set, results: list) -> tuple:
+    """Split "left the SILENT set" into RECOVERED and WENT UNMEASURED (#1685).
+
+    Leaving the set has two causes that must not be reported as one. A guard
+    that now denies under fault recovered; a guard that is inert because the
+    repo opted out did not -- it stopped being measured. Re-recording a
+    baseline on the second would pin an absence as a fix, which is how a
+    ratchet quietly stops ratcheting.
+
+    Extracted from :func:`main` so both arms are testable: a branch never
+    watched firing is indistinguishable from one that cannot fire.
+
+    Args:
+        no_longer_silent: Guards in the baseline's SILENT set but not the
+            current one.
+        results: Current per-guard results.
+
+    Returns:
+        ``(went_unmeasured, recovered)`` as sets of guard names.
+    """
+    went_unmeasured = set(no_longer_silent) & not_enforced_set(results)
+    return went_unmeasured, set(no_longer_silent) - went_unmeasured
+
+
 def log_activity_row(repo: Path, results: list, exit_code: int) -> Optional[Path]:
     """Append one findable row to the activity sink (D4's machine reader).
 
@@ -1664,6 +1922,11 @@ def log_activity_row(repo: Path, results: list, exit_code: int) -> Optional[Path
         "verdicts": {r["guard"]: r["verdict"] for r in results},
         "fault_arm": fault_arm,
         "silent": sorted(silent_set(results)) if fault_arm else None,
+        # Issue #1685: kept as its own field so a machine reader counting
+        # silent fail-opens against the goal's abort threshold never has to
+        # subtract opted-out guards, and never accidentally includes them.
+        "not_enforced": sorted(not_enforced_set(results)),
+        "bypass": describe_bypass(repo)["form"],
     }
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path = repo / ".claude" / "logs" / "activity" / f"{day}.jsonl"
@@ -1701,15 +1964,31 @@ def main() -> int:
     # Header: every run states which copy it resolved, BEFORE any verdict.
     # Committed is not deployed and deployed is not loaded -- a reader must be
     # able to tell which tree was actually exercised. The bypass line matters
-    # because under a committed durable opt-out every guard legitimately
-    # allows, and that must be distinguishable from breakage.
-    bypass = REPO / ".claude" / ".bypass"
+    # because under a committed durable opt-out an ordinary guard legitimately
+    # allows, and that must be distinguishable from breakage. Issue #1685: the
+    # header is no longer the ONLY place that knows -- each verdict below
+    # carries it too. The header said "present" for six weeks while the table
+    # under it said FAILS-OPEN, and the table is what got quoted.
+    bypass = describe_bypass(REPO)
     print("--- proof-of-block ---")
     print(f"  REPO      : {REPO}")
     print(f"  HOOKS     : {HOOKS}")
     print(f"  ARTIFACTS : {artifacts}")
-    print(f"  bypass    : {'present' if bypass.exists() else 'absent'}"
-          f"   ({bypass})")
+    print(f"  bypass    : {bypass['form']}"
+          + (f"   ({bypass['path']})" if bypass["active"] else ""))
+    if bypass["active"]:
+        print("              a committed .bypass is the SUPPORTED per-repo "
+              "opt-out (CLAUDE.md); the #1435"
+              if bypass["form"] == BYPASS_COMMITTED else
+              "              an uncommitted .bypass is the EMERGENCY escape "
+              "hatch (#1434), not a durable opt-out; the #1435")
+        print("              protected-infrastructure hard floor still "
+              "refuses under it")
+    if bypass["warning"]:
+        print(f"  WARNING   : {bypass['warning']}")
+    env_note = env_bypass_note()
+    if env_note:
+        print(f"  note      : {env_note}")
 
     if args.check_silent_regression and args.no_fault:
         sys.stderr.write(
@@ -1743,12 +2022,24 @@ def main() -> int:
                     print(f"  {r.get('detail','')}")
                     continue
                 s = r[side]
-                flag = "ok " if s["ok"] else "FAIL"
+                # Issue #1685: an allow that the repo ASKED for is not a FAIL.
+                # Labelling it one is how a correct result got quoted as a
+                # finding in the first place.
+                if s["ok"]:
+                    flag = "ok "
+                elif s.get("bypassed"):
+                    flag = "opt"
+                else:
+                    flag = "FAIL"
                 want = "must refuse" if side == "positive" else "must permit"
                 print(f"  [{flag}] {side:<8} {want:<12} {s['tool']:<34} -> {s['decision']}")
                 if not s["ok"]:
                     print(f"         why: {s['why']}")
                     print(f"         got: {s['reason'][:120]}")
+                    # Printed against the arm it explains, not after the pair:
+                    # a caveat that floats free gets attached to the wrong row.
+                    if side == "positive" and v == NOT_ENFORCED:
+                        print(f"         note: {r.get('detail', '')}")
             f = r.get("fault")
             if f:
                 print(f"  [   ] fault    {f['fault']:<45} -> {f['outcome']}")
@@ -1759,11 +2050,21 @@ def main() -> int:
                     print(f"         trace:  {f.get('trace', '-')}")
 
     proven = sum(1 for r in results if r["verdict"] == "PROVEN")
+    not_enforced = [r["guard"] for r in results
+                    if r["verdict"] == NOT_ENFORCED]
     print(f"\n{proven}/{len(results)} guards PROVEN"
           f"   (PROVEN = watched refusing AND still permitting)")
     for r in results:
         if r["verdict"] != "PROVEN":
             print(f"  {r['verdict']}: {r['guard']}")
+    if not_enforced:
+        print(f"  {len(not_enforced)} guard(s) above are NOT-ENFORCED because "
+              "this repo opted out (.claude/.bypass), not")
+        print("  because they broke.")
+        print("  A genuine fail-open in these is NOT distinguishable from the "
+              "opt-out; to measure them,")
+        print("  remove the bypass file and re-run. Every other guard above "
+              "was measured normally.")
 
     if instrument is not None:
         instrument_ok = instrument["ok"]
@@ -1794,12 +2095,29 @@ def main() -> int:
                 continue
             print(f"  {r['guard']:<34} {f['fault']:<{width}}  {f['outcome']}")
 
-        silent = [r["guard"] for r in results
-                  if r.get("fault", {}).get("outcome") == SILENT]
+        # Issue #1685: the two counts are reported SEPARATELY and only the
+        # first is a finding. Merging them inflates the silent count in every
+        # opted-out repo -- and the goal's abort condition 3 reads this line.
+        silent = sorted(silent_set(results))
+        opted_out = sorted(
+            r["guard"] for r in results
+            if r.get("fault", {}).get("outcome") == NOT_ENFORCED_OUTCOME)
+        print(f"\n  {len(silent)} silent fail-open(s), "
+              f"{len(opted_out)} not enforced by repo opt-out")
         if silent:
             print(f"\n  FINDING -- {len(silent)} guard(s) fail open SILENTLY "
                   "under fault (the #1471 shape). Reported, not patched:")
             for g in silent:
+                print(f"    {g}")
+        if opted_out:
+            print(f"\n  NOT A FINDING -- {len(opted_out)} guard(s) allowed "
+                  "under this repo's opt-out (.claude/.bypass). Listed "
+                  "because")
+            print("  an opted-out repo still needs to see which guards are "
+                  "inert -- but a genuine fail-open in")
+            print("  these is indistinguishable from the opt-out, so they are "
+                  "UNMEASURED, not clean:")
+            for g in opted_out:
                 print(f"    {g}")
         bad = [r["guard"] for r in results
                if r.get("fault", {}).get("outcome") == UNVERIFIED_INJECTION]
@@ -1834,7 +2152,20 @@ def main() -> int:
         print(f"\n--- silent-set ratchet (baseline: {baseline_path}) ---")
         print(f"  newly SILENT     : {sorted(newly_silent) or '(none)'}")
         print(f"  no longer SILENT : {sorted(no_longer_silent) or '(none)'}")
-        if no_longer_silent:
+        # Issue #1685: leaving the SILENT set has two very different causes.
+        # A guard that went UNMEASURED because this repo opted out has not
+        # recovered, and re-recording a baseline on that basis would pin an
+        # absence as a fix.
+        went_unmeasured, recovered = split_no_longer_silent(
+            no_longer_silent, results)
+        if went_unmeasured:
+            print("  NOT recovered -- these left the SILENT set only because "
+                  "this repo opted out (.claude/.bypass);")
+            print("  they are UNMEASURED here. Do NOT re-record the baseline "
+                  "from this repo:")
+            for g in sorted(went_unmeasured):
+                print(f"    {g}")
+        if recovered:
             print("  a guard recovered -- re-record the baseline in this same "
                   "PR so the pin ratchets down:")
             print(f"    proof_of_block.py --record --artifacts "

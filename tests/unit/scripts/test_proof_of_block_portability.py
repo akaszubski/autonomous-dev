@@ -277,8 +277,10 @@ def test_source_has_no_hardcoded_plugin_path_pin() -> None:
 def test_harness_imports_stdlib_only() -> None:
     """The harness must run in a repo with no pytest and no tests/.
 
-    Its only non-stdlib import is the canonical ``path_utils`` helper from the
-    plugin's own lib/, which the manifest deploys alongside it.
+    Its only non-stdlib imports are from the plugin's own lib/, which the
+    manifest deploys alongside it: ``path_utils`` (the canonical root helper)
+    and, since Issue #1685, ``hook_bypass`` -- the SAME module every hook
+    consults, so a verdict cannot drift from the bypass rule it reports.
     """
     source = SCRIPT_PATH.read_text()
     for forbidden in ("import pytest", "import yaml", "import requests",
