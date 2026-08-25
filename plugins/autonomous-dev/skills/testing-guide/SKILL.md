@@ -582,7 +582,7 @@ Mutation testing validates that your tests actually catch real bugs, not just ex
 
 ### What It Is
 
-mutmut introduces small code changes (mutants) — flipping `<` to `<=`, `True` to `False`, `+` to `-` — and checks if your tests detect them. If a test suite still passes after a mutation, that mutant "survived" and your tests have a gap.
+A mutation tool (such as `mutmut` or `cosmic-ray`) introduces small code changes (mutants) — flipping `<` to `<=`, `True` to `False`, `+` to `-` — and checks if your tests detect them. If a test suite still passes after a mutation, that mutant "survived" and your tests have a gap.
 
 ### When to Use
 
@@ -590,25 +590,18 @@ mutmut introduces small code changes (mutants) — flipping `<` to `<=`, `True` 
 - When reviewing critical security or state-management code
 - As a complement to the diamond test model (mutation testing measures test effectiveness, not code coverage)
 
-### How to Run
+### How to Apply It Without a Mutation Framework
 
-```bash
-# Run against three critical files (default)
-bash scripts/run_mutation_tests.sh
+You do not need a vendored mutation tool to get the benefit. The cheaper and more targeted form is a hand-rolled harness that perturbs the source under test and asserts the guard notices. Two worked examples in this repo:
 
-# Run against a single file
-bash scripts/run_mutation_tests.sh --file plugins/autonomous-dev/lib/pipeline_state.py
+- `tests/unit/hooks/test_hook_reachability_ratchet.py` — substitutes a source anchor and asserts `count == 1`, so a zero-match or multi-match anchor is refused rather than silently mutating nothing.
+- `tests/unit/lib/test_vacuous_test_ratchet.py` — a multi-arm harness that injects an external witness and watches the check both refuse and permit.
 
-# Run in CI mode (summary output, non-blocking)
-bash scripts/run_mutation_tests.sh --ci
-
-# Run against all of lib/
-bash scripts/run_mutation_tests.sh --all
-```
+This is the sanctioned pattern here. A vendored mutation framework that is configured but never executed produces green presence-checks over a mechanism that has never run — the failure mode described under "A pass over zero is not a pass".
 
 ### Score Targets
 
-- **70%+ mutation score** on critical files (`pipeline_state.py`, `tool_validator.py`, `settings_generator.py`)
+- **70%+ mutation score** on the modules you target, when you do run a full framework
 - Focus on killing conditional, arithmetic, and boolean mutants
 - Do NOT chase equivalent mutants (see below)
 

@@ -265,10 +265,6 @@ Counts tokens in each agent's system prompt. Used to validate that agent prompts
 
 Autoresearch helper — runs reviewer benchmark, modifies `agents/reviewer.md`, re-benchmarks, commits on improvement / reverts on regression. Called by `/autoresearch --target agents/reviewer.md`.
 
-### `scripts/run_mutation_tests.sh`
-
-Mutation testing for core libraries — introduces controlled bugs and verifies tests catch them. Measures test-suite effectiveness, not just coverage percentage.
-
 ### `scripts/measure_phantom_subagent_stops.py` — **Phantom vs. real `SubagentStop` measurement (Issue #1512)**
 
 ```bash

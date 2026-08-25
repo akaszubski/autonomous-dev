@@ -17,7 +17,6 @@ venv/
 __pycache__/
 *.egg-info/
 .pytest_cache/
-.mutmut-cache/
 .coverage
 .coverage.*
 coverage.xml

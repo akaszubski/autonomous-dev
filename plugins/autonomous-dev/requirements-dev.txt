@@ -10,8 +10,6 @@ pytest-testmon>=2.0.0
 PyYAML>=6.0.0
 jsonschema>=4.20.0
 
-mutmut>=2.4.0
-
 # Optional dependencies for book parsing
 # See: requirements-book-parsing.txt for complete list
 # Install with: pip install -r requirements-book-parsing.txt
