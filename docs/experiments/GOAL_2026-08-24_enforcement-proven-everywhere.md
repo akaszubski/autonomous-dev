@@ -40,7 +40,23 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
 
 **Effective — guards demonstrably fire**
 
-> ✅ **MET 2026-08-25 — 0 genuine silent fail-opens in ALL THREE repos**, six days before the
+> ⚠️ **PARTIALLY MET — and I overclaimed this. CORRECTED 2026-08-25 (same day).**
+> I wrote "MET" below on the strength of `proof_of_block`'s **8 declared guards**. The hook
+> carries **51 checks** (`docs/audits/unified-pre-tool-51-check-audit.md`, three parallel audits
+> 2026-08-21) and ~127 fail-open exception paths (93 `except: pass`, 34 `except -> allow`).
+> So the headline rests on a sample of roughly **16% of the checks** and a far smaller share of
+> the exception surface. **"8 of 8 guards proven" and "enforcement is proven" are not the same
+> claim, and I wrote the second while measuring the first** — the exact "one location is a lower
+> bound, not a total" error I corrected in others' numbers and my own four times today.
+> **Worse, the gate that most needs a scenario has none.** `CLAUDE.md:11` states the PROJECT.md
+> alignment gate — first in the pipeline — **has never refused anything (#1639)**. Grep for
+> `alignment|project_md|validate_project` in `proof_of_block.py`: **0 matches**. The prover is
+> silent about it, so "8/8 PROVEN" says nothing about the gate with a known zero-refusal record.
+> Filed against the detector per the Self-applying criterion. What IS met is stated precisely
+> below; what is not is that this generalises to the enforcement surface.
+>
+> ✅ **What is genuinely met: 0 silent fail-opens across the 8 proven scenarios in ALL THREE
+> repos**, six days before the
 > 2026-08-31 milestone. Baseline was 4 of 8 here, and 0 consumer evidence anywhere.
 > Measured against the **deployed** copies, not the source: autonomous-dev **0**, realign **0**,
 > spektiv **0 genuine** — its one remaining row is `write-pipeline-gate` under that repo's
@@ -58,8 +74,11 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
 > the modified prover was pointed at the **pre-fix deployed hook** (9,229 lines, zero occurrences
 > of the fix) and still reported `FAILS OPEN SILENTLY`. The instrument was not taught to stop
 > reporting — the zero comes from the hook.
-- [x] ✅ `proof_of_block.py` reports **0 guards failing open silently** (baseline: 4 of 8) —
-      MET 2026-08-25 in all three repos, measured against each repo's **deployed** copy.
+- [~] ⚠️ `proof_of_block.py` reports **0 guards failing open silently** (baseline: 4 of 8) —
+      TRUE for the 8 declared scenarios in all three repos, measured against each repo's
+      **deployed** copy. **NOT re-checkable as "the criterion is met"**: the denominator is 8,
+      the hook has 51 checks, and the alignment gate (#1639, zero refusals ever) has no scenario
+      at all. Re-open as met only when the denominator is defensible — see #1689.
 - [x] ✅ Every guard shows a **REFUSES and a PERMITS** row — one arm does not count (#1617).
       MET: `8/8 guards PROVEN` in autonomous-dev and realign; `7/8` in spektiv, where the eighth
       is `NOT-ENFORCED` under that repo's committed opt-out and is reported as **UNMEASURED, not
