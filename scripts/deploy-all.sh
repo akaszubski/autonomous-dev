@@ -621,19 +621,20 @@ if missing:
         fi
     fi
 
-    # 8. Hook registration count
+    # 8. Hook registration count (Issue #1672: union across project +
+    # project-local + global settings.json — the previous per-file count
+    # was unreachable by construction because registration is split by
+    # design, so the check was permanently red in every repo).
     EXPECTED_HOOK_EVENTS=8
-    if [ -f "$dest/settings.json" ]; then
-        hook_count=$(python3 -c "
-import json
-with open('$dest/settings.json') as f:
-    d = json.load(f)
-print(len(d.get('hooks', {})))
-" 2>/dev/null || echo "0")
+    if [ -f "$dest/settings.json" ] || [ -f "$dest/settings.local.json" ] || [ -f "$HOME/.claude/settings.json" ]; then
+        hook_count=$(python3 "$PLUGIN_SRC/lib/count_hook_registrations.py" \
+            "$dest/settings.json" \
+            "$dest/settings.local.json" \
+            "$HOME/.claude/settings.json" 2>/dev/null || echo "0")
         if [ "$hook_count" -ge "$EXPECTED_HOOK_EVENTS" ]; then
-            log_ok "hook registrations: $hook_count lifecycle events (>= $EXPECTED_HOOK_EVENTS)"
+            log_ok "hook registrations: $hook_count lifecycle events (union >= $EXPECTED_HOOK_EVENTS)"
         else
-            log_fail "hook registrations: $hook_count lifecycle events (expected >= $EXPECTED_HOOK_EVENTS)"
+            log_fail "hook registrations: $hook_count lifecycle events (union, expected >= $EXPECTED_HOOK_EVENTS)"
         fi
     fi
 
