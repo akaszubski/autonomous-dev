@@ -9,6 +9,7 @@ test_plan_mode_enforcement.py, which tested the old UserPromptSubmit gate.
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -573,15 +574,22 @@ class TestMarkerEdgeCases:
         assert result[0] == "deny"
         assert marker.exists()
 
-    def test_corrupted_marker_deleted(self, tmp_path: Path):
-        """Corrupted JSON marker is deleted; tool allowed."""
+    def test_corrupted_marker_fails_closed(self, tmp_path: Path):
+        """Issue #1684: a fresh corrupted marker fails CLOSED, not open.
+
+        Adjusted from the pre-#1684 expectation (delete + allow). An
+        unreadable marker means "cannot verify the stage", which INV-7
+        requires be treated as "not passed" — the same disposition the
+        unknown-stage branch already used.
+        """
         marker_path = tmp_path / _PLAN_EXIT_MARKER_PATH
         marker_path.parent.mkdir(parents=True, exist_ok=True)
         marker_path.write_text("not valid json {{{")
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _check_plan_exit_native("Write", {"file_path": "foo.py"})
-        assert result is None
-        assert not marker_path.exists()
+        assert result is not None
+        assert result[0] == "deny"
+        assert marker_path.exists(), "corrupt evidence must survive"
 
     def test_marker_unknown_stage_treated_as_plan_exited(self, tmp_path: Path):
         """Unknown stage value fails safe to plan_exited."""
@@ -592,15 +600,292 @@ class TestMarkerEdgeCases:
         assert result is not None
         assert result[0] == "deny"
 
-    def test_marker_missing_timestamp_deleted(self, tmp_path: Path):
-        """Marker without timestamp is treated as corrupted."""
+    def test_marker_missing_timestamp_fails_closed(self, tmp_path: Path):
+        """Issue #1684: an unreadable timestamp is corruption → fail closed.
+
+        Adjusted from the pre-#1684 expectation (delete + allow). Same
+        reasoning as test_corrupted_marker_fails_closed: the staleness
+        clock falls back to the file's mtime, which here is fresh.
+        """
         marker_path = tmp_path / _PLAN_EXIT_MARKER_PATH
         marker_path.parent.mkdir(parents=True, exist_ok=True)
         marker_path.write_text(json.dumps({"session_id": "test", "stage": "plan_exited"}))
         with patch("os.getcwd", return_value=str(tmp_path)):
             result = _check_plan_exit_native("Write", {"file_path": "foo.py"})
+        assert result is not None
+        assert result[0] == "deny"
+        assert marker_path.exists()
+
+
+# ============================================================================
+# Issue #1684: corrupt marker must fail CLOSED, bounded by mtime staleness
+# ============================================================================
+
+
+def _write_corrupt_marker(tmp_path: Path, *, age_minutes: float = 0) -> Path:
+    """Write an unparseable marker whose mtime is `age_minutes` old.
+
+    Args:
+        tmp_path: Temp directory acting as cwd.
+        age_minutes: How old the file's mtime should be. The mtime is the
+            ONLY clock available once the JSON body is unreadable.
+
+    Returns:
+        Path to the corrupt marker.
+    """
+    marker_path = tmp_path / _PLAN_EXIT_MARKER_PATH
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text("{invalid json")
+    if age_minutes:
+        stamp = time.time() - (age_minutes * 60.0)
+        os.utime(marker_path, (stamp, stamp))
+    return marker_path
+
+
+class TestIssue1684CorruptMarkerFailsClosed:
+    """Regression for #1684: corruption was the last silent fail-open.
+
+    `_read_plan_exit_marker` deleted a corrupt marker and returned None —
+    "cannot verify the stage" read as "no marker", i.e. no enforcement.
+    That contradicted the unknown-stage branch twelve lines below, which
+    already failed closed for the same class of unverifiable input.
+
+    Both arms are exercised: the gate must REFUSE on a fresh corrupt
+    marker and must still PERMIT once that corrupt marker ages past the
+    staleness window, so no session is restricted permanently.
+    """
+
+    def test_regression_issue_1684_fresh_corrupt_marker_restricts(
+        self, tmp_path: Path
+    ):
+        """Arm 1 (REFUSES): corrupt marker, mtime now → enforcement fires."""
+        marker = _write_corrupt_marker(tmp_path, age_minutes=0)
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            marker_data = _read_plan_exit_marker()
+            result = _check_plan_exit_native("Write", {"file_path": "foo.py"})
+        assert marker_data is not None, "corruption must not read as absence"
+        assert marker_data["stage"] == "plan_exited"
+        assert result is not None and result[0] == "deny"
+        assert marker.exists(), (
+            "the corrupt file is the only evidence corruption occurred; "
+            "unlinking it guarantees silence"
+        )
+
+    def test_regression_issue_1684_fresh_corrupt_marker_restricts_mcp_writer(
+        self, tmp_path: Path
+    ):
+        """Arm 1, different shape: the MCP surface must restrict too.
+
+        A guard proven only on the Write tool is scoped to that instance.
+        The plan-exit gate covers native writers AND MCP writers.
+        """
+        _write_corrupt_marker(tmp_path, age_minutes=0)
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_exit_mcp("mcp__ms365__send-mail")
+        assert result is not None and result[0] == "deny"
+
+    def test_regression_issue_1684_stale_corrupt_marker_permits(
+        self, tmp_path: Path
+    ):
+        """Arm 2 (PERMITS): corrupt marker 31 min old → deleted, no enforcement.
+
+        This is the anti-livelock arm. Without an mtime fallback clock a
+        corrupt marker would restrict the session forever, which is
+        strictly worse than the fail-open it replaced.
+        """
+        marker = _write_corrupt_marker(
+            tmp_path, age_minutes=_PLAN_EXIT_STALE_MINUTES + 1
+        )
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            marker_data = _read_plan_exit_marker()
+        assert marker_data is None
+        assert not marker.exists(), "abandoned corrupt marker must self-clear"
+
+        # And with the marker gone, the gate permits.
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            assert _check_plan_exit_native("Write", {"file_path": "foo.py"}) is None
+
+    def test_regression_issue_1684_valid_plan_exited_still_restricts(
+        self, tmp_path: Path
+    ):
+        """Arm 3: valid marker at plan_exited — unchanged regression control."""
+        _write_marker(tmp_path, stage="plan_exited")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            marker_data = _read_plan_exit_marker()
+            result = _check_plan_exit_native("Write", {"file_path": "foo.py"})
+        assert marker_data is not None and marker_data["stage"] == "plan_exited"
+        assert result is not None and result[0] == "deny"
+
+    def test_regression_issue_1684_valid_critique_done_still_permits(
+        self, tmp_path: Path
+    ):
+        """Arm 4: valid marker at critique_done — unchanged regression control."""
+        _write_marker(tmp_path, stage="critique_done")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            marker_data = _read_plan_exit_marker()
+            result = _check_plan_exit_native("Write", {"file_path": "foo.py"})
+        assert marker_data is not None and marker_data["stage"] == "critique_done"
         assert result is None
-        assert not marker_path.exists()
+
+    def test_regression_issue_1684_absent_marker_still_permits(
+        self, tmp_path: Path
+    ):
+        """Arm 5: no marker at all — absence must stay distinguishable.
+
+        Negative control of a DIFFERENT shape than the reproducer: the fix
+        must not turn "no plan session" into enforcement.
+        """
+        assert not (tmp_path / _PLAN_EXIT_MARKER_PATH).exists()
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            assert _read_plan_exit_marker() is None
+            assert _check_plan_exit_native("Write", {"file_path": "foo.py"}) is None
+
+    def test_regression_issue_1684_missing_stage_still_critique_done(
+        self, tmp_path: Path
+    ):
+        """Arm 6: valid timestamp + missing stage — back-compat path untouched.
+
+        A stageless marker is READABLE, so it never reaches the corruption
+        branch. It must still normalize to critique_done.
+        """
+        _write_marker(tmp_path, include_stage=False)
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            marker_data = _read_plan_exit_marker()
+        assert marker_data is not None
+        assert marker_data["stage"] == "critique_done"
+
+    def test_regression_issue_1684_corruption_lands_in_refusal_sink(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Arm 7: the corruption event is observable, not silent.
+
+        Routed through the canonical sink (`log_block_event`, #1588) so the
+        row is attributable to this gate.
+        """
+        monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
+        monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+        _write_corrupt_marker(tmp_path, age_minutes=0)
+        log_path = tmp_path / ".claude" / "logs" / "hook-blocks.jsonl"
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            _read_plan_exit_marker()
+
+        assert log_path.exists(), f"no sink file at {log_path}"
+        rows = [
+            json.loads(line)
+            for line in log_path.read_text().splitlines()
+            if line.strip()
+        ]
+        matches = [
+            r for r in rows
+            if r.get("reason", "").startswith("plan_exit_marker_corrupt:")
+        ]
+        assert matches, f"corruption not recorded; rows={rows}"
+        row = matches[-1]
+        assert row["hook_name"] == "unified_pre_tool.py"
+        assert row["metadata"]["gate"] == "plan-exit-gate"
+        assert row["metadata"]["disposition"] == "fail_closed"
+        assert row["metadata"]["issue"] == "1684"
+        assert row["refused"] is True, "fail_closed genuinely refused"
+
+    def test_regression_issue_1684_stale_corruption_row_is_not_a_refusal(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """The permitting disposition must not be counted as a block.
+
+        `stale_by_mtime` deletes and passes through — logging it with a
+        refusal shape would inflate every downstream refusal count.
+        """
+        monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
+        monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+        _write_corrupt_marker(tmp_path, age_minutes=_PLAN_EXIT_STALE_MINUTES + 1)
+        log_path = tmp_path / ".claude" / "logs" / "hook-blocks.jsonl"
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            assert _read_plan_exit_marker() is None
+
+        rows = [
+            json.loads(line)
+            for line in log_path.read_text().splitlines()
+            if line.strip()
+        ]
+        matches = [
+            r for r in rows
+            if r.get("reason", "").startswith("plan_exit_marker_corrupt:")
+        ]
+        assert matches, f"stale corruption not recorded; rows={rows}"
+        assert matches[-1]["metadata"]["disposition"] == "stale_by_mtime"
+        assert matches[-1]["refused"] is False, (
+            "a disposition that PERMITS must not be logged as a refusal"
+        )
+
+    def test_regression_issue_1684_stat_failure_keeps_the_old_escape(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """No clock at all → pre-#1684 behaviour, but logged not silent.
+
+        If `stat()` itself raises there is no fallback clock, so failing
+        closed would have no bound. That case keeps delete-and-pass-through
+        — the branch exists, so it is exercised rather than assumed.
+        """
+        monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
+        monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+        marker = _write_corrupt_marker(tmp_path, age_minutes=0)
+
+        real_stat = Path.stat
+
+        def _boom(self, *args, **kwargs):
+            if self.name == "plan_mode_exit.json":
+                raise OSError(5, "simulated stat failure")
+            return real_stat(self, *args, **kwargs)
+
+        with patch("os.getcwd", return_value=str(tmp_path)), \
+                patch.object(Path, "stat", _boom):
+            assert _read_plan_exit_marker() is None
+        assert not marker.exists()
+
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / ".claude" / "logs" / "hook-blocks.jsonl")
+            .read_text().splitlines()
+            if line.strip()
+        ]
+        matches = [
+            r for r in rows
+            if r.get("reason", "").startswith("plan_exit_marker_corrupt:")
+        ]
+        assert matches, "the no-clock escape must still be observable"
+        assert matches[-1]["metadata"]["disposition"] == "stat_failed"
+        assert matches[-1]["refused"] is False
+
+    def test_regression_issue_1684_sink_negative_control_no_row_when_valid(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Instrument control for arm 7: a VALID marker writes no corruption row.
+
+        Without this, arm 7's assertion could be satisfied by a sink that
+        logs unconditionally — an instrument that cannot stay silent cannot
+        attribute anything.
+        """
+        monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
+        monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+        _write_marker(tmp_path, stage="plan_exited")
+        log_path = tmp_path / ".claude" / "logs" / "hook-blocks.jsonl"
+
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            _read_plan_exit_marker()
+
+        rows = []
+        if log_path.exists():
+            rows = [
+                json.loads(line)
+                for line in log_path.read_text().splitlines()
+                if line.strip()
+            ]
+        assert not [
+            r for r in rows
+            if r.get("reason", "").startswith("plan_exit_marker_corrupt:")
+        ], f"sink fired on a readable marker; rows={rows}"
 
 
 # ============================================================================

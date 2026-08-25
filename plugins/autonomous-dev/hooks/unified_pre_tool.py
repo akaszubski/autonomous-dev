@@ -7407,14 +7407,51 @@ def _maybe_write_issue_context(tool_input: Dict) -> None:
 # ============================================================================
 
 
+def _log_plan_exit_marker_corruption(disposition: str, detail: str) -> None:
+    """Record an unreadable plan-exit marker to the canonical refusal sink.
+
+    Issue #1684: corruption used to be handled silently (delete + pass
+    through), so a guard that stopped enforcing left no trace. Routed
+    through ``log_block_event`` — the same sink every other refusal in this
+    hook uses (Issue #1588) — so the event is attributable.
+
+    Never raises: telemetry must not break a hook decision.
+
+    Only ``fail_closed`` actually refuses, so only it is logged with a
+    refusal shape; the two permitting dispositions use ``allow`` so they
+    are not counted as blocks by ``is_refusal_shape``.
+
+    Args:
+        disposition: What the gate did — ``fail_closed``, ``stale_by_mtime``
+            or ``stat_failed``.
+        detail: Short description of the parse failure.
+    """
+    try:
+        log_block_event(
+            hook_name="unified_pre_tool.py",
+            decision_shape="dict" if disposition == "fail_closed" else "allow",
+            reason=f"plan_exit_marker_corrupt:{disposition}",
+            metadata={
+                "gate": "plan-exit-gate",
+                "marker": _PLAN_EXIT_MARKER_PATH,
+                "disposition": disposition,
+                "parse_error": str(detail)[:200],
+                "issue": "1684",
+            },
+        )
+    except Exception:
+        pass
+
+
 def _read_plan_exit_marker() -> "Optional[dict]":
     """Read the plan-mode-exit marker.
 
     Returns a dict with normalized 'stage' field, or None if no enforcement
     should occur. Handles staleness (>30 min auto-deletes and returns None),
-    corruption (deletes and returns None), and missing 'stage' (back-compat:
-    treated as 'critique_done'). Unknown stage values are treated as
-    'plan_exited' (fail-safe).
+    corruption (fails CLOSED to 'plan_exited' while the file's mtime is
+    fresh — Issue #1684), and missing 'stage' (back-compat: treated as
+    'critique_done'). Unknown stage values are treated as 'plan_exited'
+    (fail-safe).
 
     Returns:
         dict with at least 'stage' key (always one of 'plan_exited' or
@@ -7433,13 +7470,45 @@ def _read_plan_exit_marker() -> "Optional[dict]":
             if age_minutes > _PLAN_EXIT_STALE_MINUTES:
                 marker_path.unlink(missing_ok=True)
                 return None
-        except (json.JSONDecodeError, ValueError, KeyError, TypeError):
-            # Corrupted marker or bad timestamp — delete and pass through
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as parse_exc:
+            # Issue #1684: an unreadable marker is a verification FAILURE,
+            # not an absence. INV-7 — "cannot verify the stage" means "not
+            # passed", matching the unknown-stage branch below. The
+            # timestamp is unreadable, so the staleness clock falls back to
+            # the file's mtime; that bounds the fail-closed window at
+            # _PLAN_EXIT_STALE_MINUTES instead of restricting the session
+            # until someone manually deletes the file.
+            import time as _time
+
             try:
-                marker_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-            return None
+                mtime_age_minutes = (
+                    _time.time() - marker_path.stat().st_mtime
+                ) / 60.0
+            except OSError as stat_exc:
+                # No clock at all — preserve the pre-#1684 escape rather
+                # than livelock the session, but say so out loud.
+                _log_plan_exit_marker_corruption(
+                    "stat_failed", f"{parse_exc}; stat: {stat_exc}"
+                )
+                try:
+                    marker_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return None
+
+            if mtime_age_minutes > _PLAN_EXIT_STALE_MINUTES:
+                # An abandoned corrupt marker still self-clears.
+                _log_plan_exit_marker_corruption("stale_by_mtime", str(parse_exc))
+                try:
+                    marker_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return None
+
+            # Fresh but unreadable — fail closed. Do NOT unlink: the file is
+            # the only evidence the corruption occurred.
+            _log_plan_exit_marker_corruption("fail_closed", str(parse_exc))
+            return {"stage": "plan_exited"}
 
         # Normalize stage field
         raw_stage = raw_data.get("stage")

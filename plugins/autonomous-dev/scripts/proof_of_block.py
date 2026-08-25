@@ -450,8 +450,14 @@ FAULT_PLAN_MARKER_CORRUPT = {
     "path": ".claude/plan_mode_exit.json",
     "what": "the plan-exit state file is unreadable (truncated garbage)",
     "touches": "_read_plan_exit_marker() is the sole source of the stage this "
-               "gate switches on; its corruption branch unlinks the marker and "
-               "returns None",
+               "gate switches on; its corruption branch decides whether an "
+               "unverifiable stage restricts or passes through",
+    # Positive marker the corruption branch emits when it runs (Issue #1684),
+    # the state-file analogue of the shim's FAULT_HIT. Needed because the
+    # previous landing proof -- "the marker file was unlinked" -- was coupled
+    # to the fail-open behavior #1684 removed, and reported the branch as
+    # unreached the moment the branch stopped unlinking.
+    "landing_marker": "plan_exit_marker_corrupt:",
 }
 
 
@@ -857,6 +863,40 @@ def _log_rows(cwd: Path, tag: str = SESSION_TAG) -> int:
     return total
 
 
+def _log_lines_containing(cwd: Path, needle: str) -> int:
+    """Count hook-log lines under ``cwd`` containing ``needle``.
+
+    The landing proof for ``state_corrupt`` faults: a branch that emits an
+    attributable row has demonstrably executed. Unlike :func:`_log_rows`
+    this does not filter on the harness session tag -- a state fixture is a
+    private temp tree with no concurrent writers, and the needle is itself
+    specific enough to exclude every other producer.
+
+    Args:
+        cwd: Fixture root whose ``.claude/logs`` tree to scan.
+        needle: Substring the branch under test is known to emit.
+
+    Returns:
+        Number of matching lines; 0 when ``needle`` is empty.
+    """
+    if not needle:
+        return 0
+    total = 0
+    logs = cwd / ".claude" / "logs"
+    seen: set = set()
+    for pattern in ("hook-blocks.jsonl", "activity/*.jsonl", "*.jsonl"):
+        for path in logs.glob(pattern):
+            if path in seen:
+                continue
+            seen.add(path)
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
+            total += sum(1 for line in text.splitlines() if needle in line)
+    return total
+
+
 def _write_shim(fault: Optional[dict], stage: Path) -> dict:
     """Materialise the sitecustomize shim and return env overrides.
 
@@ -1127,15 +1167,26 @@ def run_fault(spec: dict, hook: Path) -> dict:
         # The shim prints FAULT_HIT at the moment it actually intercepts;
         # fixture faults prove themselves by the state file being consumed.
         if fault["kind"] == "state_corrupt":
+            # Two independent proofs the branch ran; either suffices.
+            #   (a) the branch emitted its attributable marker row, or
+            #   (b) the marker file was consumed (the stale/no-clock paths).
+            # (a) is primary: (b) alone was the old proof and it silently
+            # inverted when the branch stopped unlinking (Issue #1684).
             target = root / fault["path"]
-            if target.exists():
+            consumed = not target.exists()
+            traced = _log_lines_containing(root, fault.get("landing_marker", ""))
+            if not consumed and not traced:
                 out["outcome"] = UNVERIFIED_INJECTION
                 out["detail"] = (
-                    f"{fault['path']} still present after the run -- the "
-                    "corrupt-marker branch (which unlinks it) never ran, so "
-                    "the fault was not reached")
+                    f"{fault['path']} still present after the run AND no "
+                    f"{fault.get('landing_marker')!r} row in the fixture logs "
+                    "-- the corrupt-marker branch never ran, so the fault was "
+                    "not reached")
                 return out
-            landed_proof = f"{fault['path']} consumed (unlinked) by the hook"
+            landed_proof = (
+                f"{traced} {fault.get('landing_marker')!r} row(s) in fixture logs"
+                if traced
+                else f"{fault['path']} consumed (unlinked) by the hook")
         else:
             hits = [m for m in res["markers"] if m.startswith(MARK_HIT)]
             if not hits:
