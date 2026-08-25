@@ -125,21 +125,80 @@ except Exception:
 # attribute probing (hasattr) is the only available capability detection —
 # a stale install may expose classify/write_targets but not is_write.
 #
-# The fallback is the literal FOUR-tuple, not the legacy two-tuple: it is
-# strictly stronger than today at every call site and never weaker. It must
-# NOT fail closed to "deny" — denying on a missing library would block Read,
-# which is catastrophic.
+# The fallback must NOT fail closed to "deny" — denying on a missing library
+# would block Read, which is catastrophic.
+#
+# Issue #1682: that reasoning is correct, but the fallback USED to be nothing
+# but this four-tuple, which enumerates NATIVE transports only. So with
+# tool_intent unavailable, every MCP write transport classified as a non-write
+# and walked through the #1435 hard floor. Measured against a lib tree with
+# tool_intent.py absent: Write/Edit denied, mcp__serena__replace_symbol_body
+# and mcp__serena__rename_symbol both ALLOWED on plugins/.../hooks/. is_write
+# was made transport-independent by #1503; its fallback was not.
+#
+# Refusing to deny READS does not require classifying MCP WRITES as
+# non-writes — those are separable, and the shape rule below separates them.
+# The tuple stays as the fast path for MultiEdit, whose content lives under
+# edits[].new_string and so has no top-level content key to shape-match.
 _FALLBACK_WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+# Minimal copy of tool_intent's SHAPE RULE (its PATH_KEYS x CONTENT_KEYS
+# conjunction), deliberately NOT a copy of its MCP_WRITE_TOOLS list: an
+# allowlist only refuses the writers someone already noticed, which moves the
+# hole to the next unenumerated MCP editor instead of closing it.
+_FALLBACK_PATH_KEYS = ("file_path", "notebook_path", "relative_path", "path")
+_FALLBACK_CONTENT_KEYS = ("content", "new_string", "body", "repl", "new_source")
+
+
+def _ti_has_key(tool_input, keys):
+    """True when a non-empty string lives under any of ``keys``."""
+    if not isinstance(tool_input, dict):
+        return False
+    for key in keys:
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            return True
+    return False
+
+
+def _ti_fallback_is_write(tool_name, tool_input):
+    """Classify a write WITHOUT tool_intent, by shape rather than by name.
+
+    A tool carrying BOTH a filesystem path AND content is writing that content
+    somewhere, whatever its name or transport. The conjunction is what keeps
+    reads permitted: Read/Grep carry a path but no content, and
+    mcp__serena__find_symbol carries ``relative_path`` but no content
+    argument, so both stay allowed.
+    """
+    if tool_name in _FALLBACK_WRITE_TOOLS:
+        return True
+    if not _ti_has_key(tool_input, _FALLBACK_PATH_KEYS):
+        return False
+    return _ti_has_key(tool_input, _FALLBACK_CONTENT_KEYS)
 
 
 def _ti_is_write(tool_name, tool_input):
-    """Transport-independent write test with a stale-install fallback (#1503)."""
-    if _tool_intent is not None and hasattr(_tool_intent, "is_write"):
-        try:
-            return _tool_intent.is_write(tool_name, tool_input)
-        except Exception:
-            pass
-    return tool_name in _FALLBACK_WRITE_TOOLS
+    """Transport-independent write test with a stale-install fallback (#1503).
+
+    Degrades in capability order (#1682): ``is_write`` -> ``classify`` ->
+    shape. The ``classify`` rung matters because the two failure modes differ
+    — a stale install that lost ``is_write`` still carries the authoritative
+    MCP_WRITE_TOOLS registry, which catches the content-less writers
+    (rename_symbol, delete_lines) that no shape test can see. Every rung is
+    transport-independent; none enumerates MCP tool names.
+    """
+    if _tool_intent is not None:
+        if hasattr(_tool_intent, "is_write"):
+            try:
+                return _tool_intent.is_write(tool_name, tool_input)
+            except Exception:
+                pass
+        if hasattr(_tool_intent, "classify"):
+            try:
+                return _tool_intent.classify(tool_name, tool_input) == "WRITE"
+            except Exception:
+                pass
+    return _ti_fallback_is_write(tool_name, tool_input)
 
 
 def _ti_write_targets(tool_name, tool_input):

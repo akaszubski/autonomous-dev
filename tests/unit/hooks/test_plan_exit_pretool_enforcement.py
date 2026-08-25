@@ -304,12 +304,91 @@ class TestPlanExitedMCP:
         assert result is None
 
     def test_plan_exited_blocks_mcp_find_and_replace_heuristic_false_positive(self, tmp_path: Path):
-        """AC #11: mcp__foo__find_and_replace denied (heuristic FP guard — no regex match)."""
+        """AC #11: an UNREGISTERED, write-sounding MCP tool is denied at plan_exited.
+
+        The payload is required, and that is the point. When this test was
+        written the gate matched tool NAMES against a structural regex, so a
+        bare name was enough to trigger a deny. Issue #1503 deliberately
+        removed that regex (see unified_pre_tool.py:1339-1341, which records
+        ``find_and_replace`` as the canonical example of why name heuristics
+        are forbidden: it contains "find" but is a write). The AC is now
+        enforced by the ARGUMENT-SHAPE half of tool_intent's classifier — a
+        PATH key plus a CONTENT key means the tool writes, whatever it is
+        called and whichever server it comes from.
+
+        A shape rule can only see a shape, so the input must carry one. The
+        no-payload form this test used to send is unreachable in production:
+        ``_check_plan_exit_mcp`` has exactly one production call site
+        (unified_pre_tool.py:9160) and it always forwards ``tool_input``.
+        The payload below is what that call site would actually deliver.
+
+        Controls for this assertion live in the three tests immediately
+        below: a registered writer that must still deny, a reader that must
+        still allow, and the mcp__searxng__search false positive.
+        """
         _write_marker(tmp_path, stage="plan_exited")
         with patch("os.getcwd", return_value=str(tmp_path)):
-            result = _check_plan_exit_mcp("mcp__foo__find_and_replace")
-        assert result is not None
+            result = _check_plan_exit_mcp(
+                "mcp__foo__find_and_replace",
+                {"relative_path": "src/app.py", "repl": "new_value"},
+            )
+        assert result is not None, (
+            "AC #11: an unregistered MCP tool carrying both a path and content "
+            "must be denied at plan_exited — it writes"
+        )
         assert result[0] == "deny"
+
+    def test_plan_exited_registered_writer_denies_positive_control(self, tmp_path: Path):
+        """POSITIVE CONTROL for AC #11: a REGISTERED writer still denies.
+
+        Guards against the gate degrading to "denies nothing". Distinct shape
+        from the AC #11 case: this tool is caught by NAME via the canonical
+        MCP_WRITE_TOOLS registry, not by the path+content shape rule.
+        """
+        _write_marker(tmp_path, stage="plan_exited")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_exit_mcp(
+                "mcp__serena__replace_symbol_body",
+                {"name_path": "MyClass/my_method", "body": "return 1"},
+            )
+        assert result is not None, "registered MCP writer must deny at plan_exited"
+        assert result[0] == "deny"
+
+    def test_plan_exited_reader_allows_negative_control(self, tmp_path: Path):
+        """NEGATIVE CONTROL for AC #11: a reader with a path but no content allows.
+
+        Guards against the gate degrading to "denies everything", which would
+        make the positive control above meaningless. ``find_symbol`` carries
+        ``relative_path`` — a PATH key — so it isolates the conjunction: path
+        alone must not be enough to deny.
+        """
+        _write_marker(tmp_path, stage="plan_exited")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_exit_mcp(
+                "mcp__serena__find_symbol",
+                {"name_path_pattern": "my_method", "relative_path": "src/app.py"},
+            )
+        assert result is None, "read-only MCP query must fall through at plan_exited"
+
+    def test_plan_exited_allows_searxng_search(self, tmp_path: Path):
+        """Regression: mcp__searxng__search must NOT be denied at plan_exited.
+
+        This false positive is WHY the gate flipped from an enumerated read
+        allowlist to a deny-what-acts rule (Issue #1503 residual, recorded at
+        unified_pre_tool.py:7721-7726). Under the old allowlist the mandated
+        search path was blocked purely for being un-enumerated. Nothing else
+        in the suite guards it, so a revert to allowlist semantics would go
+        unnoticed.
+        """
+        _write_marker(tmp_path, stage="plan_exited")
+        with patch("os.getcwd", return_value=str(tmp_path)):
+            result = _check_plan_exit_mcp(
+                "mcp__searxng__search", {"query": "python pathlib resolve"}
+            )
+        assert result is None, (
+            "mcp__searxng__search is read-only and un-enumerated — it must fall "
+            "through, not be denied for being unlisted"
+        )
 
     def test_plan_exited_blocks_mcp_browser_evaluate(self, tmp_path: Path):
         """AC #19: mcp__playwright__browser_evaluate NOT on allowlist (arbitrary JS)."""

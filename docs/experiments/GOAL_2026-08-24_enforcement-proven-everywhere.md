@@ -267,6 +267,21 @@ the first deterministic weakness report
   Deliberately NOT `wc -l` on hooks+lib: that was v2's metric and it is gameable, since
   `lib/*.py` is 120,001 of the 142,869 lines and mostly is not enforcement code.
 - `gh issue list --state open | wc -l` — 262 at baseline (MEASURED 2026-08-24)
+- **Headline metric RE-MEASURED live 2026-08-25** (not inherited): `proof_of_block.py` reports
+  **8/8 guards PROVEN, 4 failing open silently** — the 2026-08-24 baseline holds. The instrument
+  passed all seven of its own controls (fault positive, fault negative, trace positive, trace
+  negative, and three classifier arms), so the number is trustworthy at the point of use.
+  **Root-caused the same day: 3 of the 4 are ONE defect, not three** (#1682). `_ti_is_write()`'s
+  fallback at `unified_pre_tool.py:132` is a literal four-tuple of *native* tool names, so with
+  `tool_intent` unavailable every MCP write transport classifies as a non-write. Driven
+  end-to-end against the real hook: `Write`→DENY, `Edit`→DENY,
+  `mcp__serena__replace_symbol_body`→**ALLOW**, `mcp__serena__rename_symbol`→**ALLOW**,
+  `Read`→ALLOW (correct). So `CLAUDE.md`'s promise that the #1435 floor holds for "an MCP editor
+  such as `mcp__serena__replace_symbol_body`… even under bypass" is false under fault.
+  **And the prover cannot see it**: its hard-floor scenario is `/ Write`, the one transport the
+  fallback tuple saves — a guard certified by the arm that survives. The 4th fail-open
+  (`plan-exit-gate` / `state_corrupt`) is a genuinely separate cause and looks like an INV-7
+  breach: a corrupt marker is treated as "stage not active", i.e. as *fewer* restrictions.
 - **A set diff needs an environment control too** (MEASURED 2026-08-25). The *Outcome* criterion
   tracks rework-per-fix, and the operating rule is "attribute by set, not count". That rule is
   necessary and **not sufficient**. Attributing `tests/unit` failures for #1666 via a `git

@@ -809,3 +809,229 @@ class TestToolIntentMigration:
             f"_check_bash_infra_writes incorrectly blocked a READ operation. "
             f"Issue #971 false-positive regression."
         )
+
+
+# ---------------------------------------------------------------------------
+# TestToolIntentFallbackClassifiesByShape (Issue #1682)
+# ---------------------------------------------------------------------------
+
+class TestIssue1682FallbackClassifiesByShape:
+    """The ``_ti_is_write`` fallback must classify by SHAPE, not by name.
+
+    Regression for Issue #1682. ``_FALLBACK_WRITE_TOOLS`` enumerated the four
+    NATIVE transports only, so with ``tool_intent`` unavailable every MCP
+    write transport classified as a non-write and walked straight through the
+    Issue #1435 protected-infrastructure hard floor that CLAUDE.md documents
+    as holding for "any write-classified tool ... even under bypass".
+
+    Measured before the fix, driving the real hook as a subprocess against a
+    lib tree with ``tool_intent.py`` absent, targeting a protected path:
+    ``Write``/``Edit`` denied; ``mcp__serena__replace_symbol_body``,
+    ``mcp__serena__rename_symbol`` and a novel ``mcp__brandnew__write_file``
+    all ALLOWED.
+
+    The refusing arm and the permitting arm are BOTH exercised here: a
+    fallback that denied everything would block ``Read``, which the module
+    comment correctly calls catastrophic.
+    """
+
+    @pytest.fixture
+    def no_tool_intent(self, monkeypatch):
+        """Simulate tool_intent being unavailable (the import-failure fault)."""
+        monkeypatch.setattr(hook, "_tool_intent", None)
+
+    # --- arm 1: a registered MCP editor must be a write --------------------
+
+    def test_mcp_editor_is_a_write_without_tool_intent(self, no_tool_intent):
+        """mcp__serena__replace_symbol_body carries path + body -> WRITE."""
+        assert hook._ti_is_write(
+            "mcp__serena__replace_symbol_body",
+            {
+                "relative_path": "plugins/autonomous-dev/lib/pipeline_state.py",
+                "name_path": "save",
+                "body": "def save():\n    pass\n",
+            },
+        ) is True
+
+    def test_mcp_replace_content_is_a_write_without_tool_intent(self, no_tool_intent):
+        """replace_content carries its payload under ``repl``, not ``content``."""
+        assert hook._ti_is_write(
+            "mcp__serena__replace_content",
+            {
+                "relative_path": "plugins/autonomous-dev/lib/pipeline_state.py",
+                "needle": "a",
+                "repl": "b",
+                "mode": "literal",
+            },
+        ) is True
+
+    # --- arm 2: the catastrophic-regression control ------------------------
+
+    def test_read_is_not_a_write_without_tool_intent(self, no_tool_intent):
+        """Read carries a path and NO content -> must stay permitted."""
+        assert hook._ti_is_write(
+            "Read", {"file_path": "plugins/autonomous-dev/hooks/unified_pre_tool.py"}
+        ) is False
+
+    def test_grep_is_not_a_write_without_tool_intent(self, no_tool_intent):
+        """Grep carries ``path`` -- the conjunction is what keeps it a read."""
+        assert hook._ti_is_write(
+            "Grep", {"pattern": "def", "path": "plugins/autonomous-dev/lib"}
+        ) is False
+
+    def test_readonly_mcp_tool_with_a_path_is_not_a_write(self, no_tool_intent):
+        """find_symbol carries ``relative_path`` but no content argument."""
+        assert hook._ti_is_write(
+            "mcp__serena__find_symbol",
+            {"name_path": "foo", "relative_path": "plugins/autonomous-dev/lib/x.py"},
+        ) is False
+
+    # --- arm 3: negative control of a DIFFERENT shape ----------------------
+
+    def test_mcp_tool_with_no_write_shaped_input_is_not_a_write(self, no_tool_intent):
+        """An mcp__* tool with no path key at all must be permitted.
+
+        Discriminating on the ``mcp__`` prefix rather than on input shape
+        would refuse this; it must not.
+        """
+        assert hook._ti_is_write(
+            "mcp__someserver__list_things", {"query": "x"}
+        ) is False
+
+    def test_content_without_a_path_is_not_a_filesystem_write(self, no_tool_intent):
+        """A ``body`` with no path key (send-mail shape) is not a file write."""
+        assert hook._ti_is_write(
+            "mcp__ms365__send-mail", {"to": "a@b.c", "body": "hello"}
+        ) is False
+
+    # --- arm 4: the arm an ALLOWLIST fix fails -----------------------------
+
+    def test_novel_never_enumerated_writer_is_a_write(self, no_tool_intent):
+        """A tool name absent from every registry, carrying path + content.
+
+        Adding MCP editor names to ``_FALLBACK_WRITE_TOOLS`` would pass every
+        other test in this class and fail this one -- which is the whole
+        point: an allowlist moves the hole to the next unenumerated writer.
+        """
+        assert hook._ti_is_write(
+            "mcp__brandnew__write_file",
+            {"path": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+             "content": "x = 1\n"},
+        ) is True
+
+    def test_novel_writer_under_a_different_path_key(self, no_tool_intent):
+        """Same class, different member: ``file_path`` + ``new_string``."""
+        assert hook._ti_is_write(
+            "mcp__unheardof__patch_file",
+            {"file_path": "/repo/lib/a.py", "new_string": "y = 2\n"},
+        ) is True
+
+    # --- the native transports must not regress ----------------------------
+
+    @pytest.mark.parametrize("tool_name", list(hook._FALLBACK_WRITE_TOOLS))
+    def test_native_write_tools_still_classify_as_writes(self, tool_name, no_tool_intent):
+        """MultiEdit has no top-level content key, so the tuple still earns its keep."""
+        assert hook._ti_is_write(tool_name, {}) is True
+
+    # --- the healthy path must be unchanged --------------------------------
+
+    def test_healthy_path_delegates_to_is_write_unchanged(self, monkeypatch):
+        """With tool_intent healthy, ``is_write`` decides and nothing else runs."""
+        calls = []
+
+        class _Healthy:
+            @staticmethod
+            def is_write(tool_name, tool_input):
+                calls.append((tool_name, tool_input))
+                return False
+
+            @staticmethod
+            def classify(tool_name, tool_input):  # must NOT be consulted
+                raise AssertionError("classify consulted while is_write works")
+
+        monkeypatch.setattr(hook, "_tool_intent", _Healthy)
+        # Write-shaped input that the SHAPE rule would call a write: the
+        # healthy verdict must win, proving no second path was introduced.
+        assert hook._ti_is_write(
+            "mcp__serena__replace_content",
+            {"relative_path": "a.py", "repl": "b"},
+        ) is False
+        assert len(calls) == 1
+
+    def test_stale_install_falls_back_to_classify(self, monkeypatch):
+        """A stale install exposing classify but not is_write (the #1471 shape).
+
+        This rung is load-bearing for the content-less writers -- rename_symbol
+        and delete_lines carry no content key, so no shape test can see them,
+        but tool_intent's MCP_WRITE_TOOLS registry still can.
+        """
+        class _Stale:
+            @staticmethod
+            def classify(tool_name, tool_input):
+                return "WRITE" if tool_name.endswith("rename_symbol") else "READ"
+
+        monkeypatch.setattr(hook, "_tool_intent", _Stale)
+        assert not hasattr(_Stale, "is_write")
+        assert hook._ti_is_write(
+            "mcp__serena__rename_symbol",
+            {"relative_path": "lib/a.py", "name_path": "f", "new_name": "g"},
+        ) is True
+        assert hook._ti_is_write(
+            "mcp__serena__find_symbol", {"relative_path": "lib/a.py"}
+        ) is False
+
+
+# ---------------------------------------------------------------------------
+# Issue #1682: the fallback key sets must not drift from the canonical ones
+# ---------------------------------------------------------------------------
+
+
+class TestIssue1682FallbackKeySetsMatchCanonical:
+    """``_FALLBACK_*_KEYS`` must stay identical to ``tool_intent``'s registries.
+
+    The duplication is structurally necessary and cannot be removed: the
+    fallback exists precisely for the moment ``tool_intent`` cannot be
+    imported, so it cannot reference the canonical constants at that moment.
+    What CAN be removed is the silence. ``tool_intent.py`` names its registries
+    as the intended extension point, so an author adding a content key there
+    and not to the hook copy would silently reintroduce the #1682 hole --
+    an unenumerated MCP writer using the new key walking through the #1435
+    protected-infrastructure hard floor whenever the library is unavailable.
+
+    These two assertions are the enforcement that keeps one mechanism from
+    having two divergent copies.
+    """
+
+    def test_fallback_path_keys_match_tool_intent(self):
+        """The hook's PATH-key copy equals tool_intent.PATH_KEYS."""
+        import tool_intent
+
+        assert hook._FALLBACK_PATH_KEYS == tool_intent.PATH_KEYS, (
+            "Issue #1682 drift: the fallback PATH-key copy has diverged from "
+            "the canonical registry.\n"
+            f"  canonical  tool_intent.PATH_KEYS      = {tool_intent.PATH_KEYS}\n"
+            f"             plugins/autonomous-dev/lib/tool_intent.py\n"
+            f"  hook copy  _FALLBACK_PATH_KEYS        = {hook._FALLBACK_PATH_KEYS}\n"
+            f"             plugins/autonomous-dev/hooks/unified_pre_tool.py\n"
+            "EDIT THE HOOK COPY to match tool_intent.py. tool_intent.py is the "
+            "canonical registry and the intended extension point; the hook copy "
+            "exists only because the fallback runs when tool_intent cannot be "
+            "imported, so it must be updated in the same change."
+        )
+
+    def test_fallback_content_keys_match_tool_intent(self):
+        """The hook's CONTENT-key copy equals tool_intent.CONTENT_KEYS."""
+        import tool_intent
+
+        assert hook._FALLBACK_CONTENT_KEYS == tool_intent.CONTENT_KEYS, (
+            "Issue #1682 drift: the fallback CONTENT-key copy has diverged from "
+            "the canonical registry.\n"
+            f"  canonical  tool_intent.CONTENT_KEYS   = {tool_intent.CONTENT_KEYS}\n"
+            f"             plugins/autonomous-dev/lib/tool_intent.py\n"
+            f"  hook copy  _FALLBACK_CONTENT_KEYS     = {hook._FALLBACK_CONTENT_KEYS}\n"
+            f"             plugins/autonomous-dev/hooks/unified_pre_tool.py\n"
+            "EDIT THE HOOK COPY to match tool_intent.py. tool_intent.py is the "
+            "canonical registry and the intended extension point; the hook copy "
+            "exists only because the fallback runs when tool_intent cannot be "
+            "imported, so it must be updated in the same change."
+        )
