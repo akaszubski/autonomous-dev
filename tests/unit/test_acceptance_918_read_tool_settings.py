@@ -15,11 +15,14 @@ tests/genai/test_acceptance_*.py convention of marking acceptance criteria with
 """
 
 import subprocess
+import sys
 from pathlib import Path
 
-import pytest
 
-from .conftest import PROJECT_ROOT
+# Repo root: tests/unit/<file>.py -> parents[0]=tests/unit, [1]=tests, [2]=repo root.
+# Derived locally (matches the tests/unit/test_acceptance_*.py convention); the former
+# `from .conftest import PROJECT_ROOT` was a tests/genai/ coupling that did not move.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 REGRESSION_TEST_FILE = (
     PROJECT_ROOT
@@ -29,12 +32,15 @@ REGRESSION_TEST_FILE = (
     / "test_unified_pre_tool_false_positives.py"
 )
 
+_LIB = PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+
 UNIFIED_PRE_TOOL = (
     PROJECT_ROOT / "plugins/autonomous-dev/hooks/unified_pre_tool.py"
 )
 
 
-@pytest.mark.genai
 class TestAcceptanceIssue918:
     """Acceptance criteria from Issue #918."""
 
@@ -84,30 +90,66 @@ class TestAcceptanceIssue918:
             f"stderr:\n{result.stderr}"
         )
 
-    def test_ac4_no_production_hook_modification(self):
-        """AC4: unified_pre_tool.py is NOT modified by this change."""
-        # Production hook source must be unchanged. We verify by checking that
-        # the canonical gate lines are still at their expected line numbers and
-        # contain the expected tool-name gate strings.
-        lines = UNIFIED_PRE_TOOL.read_text().splitlines()
-        # Line numbers are 1-indexed; the gates are at 4457 and 4685.
-        # We allow a small drift window (+/- 5 lines) for trivial whitespace
-        # changes from other unrelated edits.
-        gate_write_edit_found = False
-        gate_bash_found = False
-        for i in range(max(0, 4457 - 6), min(len(lines), 4457 + 6)):
-            if 'tool_name in ("Write", "Edit")' in lines[i]:
-                gate_write_edit_found = True
-                break
-        for i in range(max(0, 4685 - 6), min(len(lines), 4685 + 6)):
-            if 'tool_name == "Bash"' in lines[i]:
-                gate_bash_found = True
-                break
-        assert gate_write_edit_found, (
-            "Write/Edit tool-name gate must still exist near line 4457 in "
-            "unified_pre_tool.py — Issue #918 scope forbids modifying this file"
+    def test_ac4_write_protect_gate_never_classifies_read_as_a_write(self):
+        """AC4: the write-protect path stays gated so Read can never enter it.
+
+        WHY THIS ASSERTION CHANGED (stale as of Issue #1503; test relocated
+        from tests/genai/ to tests/unit/):
+
+        The original AC4 pinned two hardcoded line numbers in
+        unified_pre_tool.py — 4457 (`tool_name in ("Write", "Edit")`) and 4685
+        (`tool_name == "Bash"`) — with a +/-5 line drift window. Both anchors
+        are now stale, for two INDEPENDENT reasons:
+
+        1. Line drift. At the commit that added this test (039474b) the hook
+           was 5,358 lines and line 4457 was exactly the Write/Edit gate.
+           The file is now 9,382 lines, so the window points at unrelated code.
+        2. The literal string was deliberately retired. Issue #1503 moved that
+           gate into `_enforce_protected_infrastructure()` and REPLACED the
+           `tool_name in ("Write", "Edit")` tuple test with the broader
+           `tool_intent.is_write()` classification, so the hard floor also
+           reaches MultiEdit, NotebookEdit and MCP editors. The hook's own
+           docstring records the change.
+
+        So this is a stale test, NOT a production defect: the gate still
+        exists and is strictly BROADER than what AC4 was written against.
+        Rather than re-pin a new line number (which would go stale the same
+        way), AC4 now asserts the MECHANISM and the BEHAVIOUR that Issue #918
+        actually cares about — and it is two-armed: the classifier must refuse
+        Read (the #918 bug) AND permit genuine writes (proving it can fire).
+        """
+        source = UNIFIED_PRE_TOOL.read_text()
+
+        # Structural arm: the gate exists and is intent-gated, wherever it lives.
+        assert "def _enforce_protected_infrastructure(" in source, (
+            "The protected-infrastructure write gate must still exist in "
+            "unified_pre_tool.py — Issue #918 depends on it being tool-gated"
         )
-        assert gate_bash_found, (
-            "Bash tool-name gate must still exist near line 4685 in "
-            "unified_pre_tool.py — Issue #918 scope forbids modifying this file"
+        assert "_ti_is_write(tool_name, tool_input)" in source, (
+            "The write-protect gate must classify by write-intent. Without an "
+            "intent gate every tool (including Read) reaches the block path, "
+            "which is precisely the Issue #918 regression."
+        )
+        assert 'tool_name == "Bash"' in source, (
+            "The Bash tool-name gate must still exist in unified_pre_tool.py"
+        )
+
+        # Behavioural arm: watch the classifier REFUSE and PERMIT.
+        import tool_intent
+
+        settings = {"file_path": str(PROJECT_ROOT / ".claude/settings.local.json")}
+
+        # Refusing arm — Read must never be write-classified (the #918 bug).
+        assert tool_intent.is_write("Read", settings) is False, (
+            "Read on settings.local.json must NOT be classified as a write — "
+            "this is the exact Issue #918 false positive"
+        )
+        # Permitting arm — proves the classifier can actually fire, so the
+        # refusing arm above is a real result and not a check that cannot fail.
+        assert tool_intent.is_write("Write", settings) is True, (
+            "Write on settings.local.json MUST be write-classified — if this "
+            "fails the Read assertion above is vacuous"
+        )
+        assert tool_intent.is_write("Edit", settings) is True, (
+            "Edit on settings.local.json MUST be write-classified"
         )

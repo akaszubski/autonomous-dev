@@ -10,12 +10,13 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
-from .conftest import PROJECT_ROOT
+# Repo root: tests/unit/<file>.py -> parents[0]=tests/unit, [1]=tests, [2]=repo root.
+# Derived locally (matches the tests/unit/test_acceptance_*.py convention); the former
+# `from .conftest import PROJECT_ROOT` was a tests/genai/ coupling that did not move.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.genai
 class TestAcceptanceValidatorSessionScoping:
     """Acceptance criteria from Issue #587."""
 

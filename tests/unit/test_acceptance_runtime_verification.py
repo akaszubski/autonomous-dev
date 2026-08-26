@@ -9,9 +9,11 @@ GitHub Issue: #564
 import ast
 from pathlib import Path
 
-import pytest
 
-from .conftest import PROJECT_ROOT
+# Repo root: tests/unit/<file>.py -> parents[0]=tests/unit, [1]=tests, [2]=repo root.
+# Derived locally (matches the tests/unit/test_acceptance_*.py convention); the former
+# `from .conftest import PROJECT_ROOT` was a tests/genai/ coupling that did not move.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 CLASSIFIER_LIB = PROJECT_ROOT / "plugins/autonomous-dev/lib/runtime_verification_classifier.py"
 CLASSIFIER_TESTS = PROJECT_ROOT / "tests/unit/lib/test_runtime_verification_classifier.py"
@@ -39,7 +41,6 @@ def _get_class_names(tree: ast.Module) -> list:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestClassifierModuleExists:
     """Classifier module and tests must exist."""
 
@@ -58,7 +59,6 @@ class TestClassifierModuleExists:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestClassifierAPISignature:
     """Classifier must export required types and functions."""
 
@@ -108,7 +108,6 @@ class TestClassifierAPISignature:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestReviewerHasRuntimeInstructions:
     """reviewer.md must contain runtime verification instructions."""
 
@@ -145,7 +144,6 @@ class TestReviewerHasRuntimeInstructions:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestImplementMdMentionsRuntime:
     """implement.md must reference runtime verification."""
 

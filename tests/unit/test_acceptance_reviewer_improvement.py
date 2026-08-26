@@ -11,9 +11,11 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
-from .conftest import PROJECT_ROOT
+# Repo root: tests/unit/<file>.py -> parents[0]=tests/unit, [1]=tests, [2]=repo root.
+# Derived locally (matches the tests/unit/test_acceptance_*.py convention); the former
+# `from .conftest import PROJECT_ROOT` was a tests/genai/ coupling that did not move.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Paths to files under test
 BENCHMARK_HISTORY_LIB = PROJECT_ROOT / "plugins/autonomous-dev/lib/benchmark_history.py"
@@ -47,7 +49,6 @@ def _get_class_names(tree: ast.Module) -> list:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestFileExistence:
     """All improvement loop files must exist."""
 
@@ -75,7 +76,6 @@ class TestFileExistence:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestBenchmarkHistoryStructure:
     """benchmark_history.py must export required classes and functions."""
 
@@ -111,7 +111,6 @@ class TestBenchmarkHistoryStructure:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestWeaknessAnalyzerStructure:
     """reviewer_weakness_analyzer.py must export required types and functions."""
 
@@ -150,7 +149,6 @@ class TestWeaknessAnalyzerStructure:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestImproveScriptStructure:
     """improve_reviewer.py must have required functions and CLI arguments."""
 
@@ -200,7 +198,6 @@ class TestImproveScriptStructure:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestRunnerHistoryIntegration:
     """run_reviewer_benchmark.py must support --history flag."""
 
@@ -218,7 +215,6 @@ class TestRunnerHistoryIntegration:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestReviewerMdSections:
     """reviewer.md must contain required sections for improvement loop."""
 
@@ -245,7 +241,6 @@ class TestReviewerMdSections:
 # ============================================================
 
 
-@pytest.mark.genai
 class TestImplementerMdSections:
     """implementer.md must contain quality criteria section."""
 

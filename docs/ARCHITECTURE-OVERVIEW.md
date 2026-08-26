@@ -179,7 +179,7 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 | 2. Unit Tests | Individual functions in isolation | `tests/unit/`, `tests/regression/smoke/` | 100% | Yes |
 | 3. Property Invariants | Universal properties across all inputs (Hypothesis) | `tests/property/` (13 test files) | 100% | Yes |
 | 4. Integration/Contract | Components working together, API contracts | `tests/integration/`, `tests/regression/` | 100% | Yes |
-| 5. LLM-as-Judge | Semantic validation — does code match intent? | `tests/genai/` (52 test files) | ~85% | Optional (`--genai`) |
+| 5. LLM-as-Judge | Semantic validation — does code match intent? | `tests/genai/` (48 test files) | ~85% | Optional (`--genai`) |
 | 6. Acceptance Criteria | Business intent, user-defined "done" | PROJECT.md, issue criteria | Human-defined | Per feature |
 
 ### Key Design Decisions

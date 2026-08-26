@@ -16055,7 +16055,7 @@ for health in report.source_health:
 
 **Testing**:
 - `tests/unit/lib/test_runtime_data_aggregator.py` — unit tests
-- `tests/genai/test_acceptance_runtime_data_aggregator.py` — acceptance tests
+- `tests/unit/test_acceptance_runtime_data_aggregator.py` — acceptance tests (relocated from `tests/genai/`, Issue #1528/#1526 misfiling fix — file performs static file-inspection only, no LLM call)
 
 ## issue_triage_analyzer.py (v1.0.0 - Issue #1099)
 
@@ -16169,7 +16169,7 @@ print(plan.summary)      # "Frontend: 1 target(s), API: 1 target(s)"
 ### Testing
 
 - `tests/unit/lib/test_runtime_verification_classifier.py` — unit tests
-- `tests/genai/test_acceptance_runtime_verification.py` — acceptance tests
+- `tests/unit/test_acceptance_runtime_verification.py` — acceptance tests (relocated from `tests/genai/`, Issue #1528/#1526 misfiling fix — file performs static file-inspection only, no LLM call)
 
 **Version History**: v1.0.0 (2026-03-28) - Initial release for runtime data aggregation (Issue #579, Component 1)
 

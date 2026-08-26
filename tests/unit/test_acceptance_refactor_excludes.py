@@ -4,13 +4,11 @@ Validates that RefactorAnalyzer properly excludes .worktrees/, .claude/,
 sessions/ directories and completes all analysis modes without hanging.
 """
 
-import pytest
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
-@pytest.mark.genai
 class TestAcceptanceRefactorExcludes:
     """Acceptance criteria for refactor_analyzer exclude fix (Issue #514)."""
 
