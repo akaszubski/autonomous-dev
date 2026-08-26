@@ -975,3 +975,5 @@
 {"fire_id": "20260826T183748Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260826T203801Z", "fired_at": "2026-08-26T20:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260826T203801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260826T223808Z", "fired_at": "2026-08-26T22:38:43Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260826T223808Z", "phase": "FIRE_END", "exit_reason": "github_api_forbidden_token_invalid", "commit_sha": "", "note": "GITHUB_TOKEN present but 403 on issues API; list length=14 chars, likely truncated/expired"}
