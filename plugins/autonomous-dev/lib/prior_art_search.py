@@ -8,10 +8,25 @@ skipped by both the coordinator and the planner. Prose is advisory,
 never enforcement (INV-1).
 
 This module ships the *mechanism* half: a deterministic, network-tolerant
-closed-issue lookup that returns machine-readable hits. Wiring it into
-``commands/implement.md`` so it runs mechanically before the planner is
-dispatched is deferred to a follow-up — #1669 stays OPEN for that
-wiring. See the commit body of the drain that landed this file.
+closed-issue lookup that returns machine-readable hits.
+
+The wiring has since landed too. ``commands/implement.md`` STEP 4.9
+("Prior-Art Search") is the production consumer: it imports
+``search_prior_art`` and builds ``$PRIOR_ART_BLOCK``, which STEP 5 pastes
+verbatim into the planner prompt. Regression coverage for that wiring is
+``tests/regression/test_issue_1669_prior_art_wiring.py``; coverage for the
+mechanism itself is ``tests/regression/test_issue_1669_prior_art_search.py``.
+
+Scope of what that buys, stated honestly: once the STEP 4.9 block is
+executed, the search and the block it emits are mechanical — the block
+cannot report absence when the lookup failed, and it cannot silently
+return nothing. But *invoking* STEP 4.9 at all, and *forwarding*
+``$PRIOR_ART_BLOCK`` into the planner prompt, are still mandated by prose
+in ``implement.md`` (STEP 4.9 and STEP 5) rather than by a hook — a
+coordinator that skips the block, or drops its output, is not refused by
+any mechanism. Per INV-1 that residual is advisory, not enforcement. The
+deployed copies under ``.claude/commands/`` carry the wiring only after
+``scripts/deploy-all.sh`` runs.
 
 Contract:
     * NEVER raises. NEVER blocks. Returns ``[]`` on any failure.

@@ -64,6 +64,8 @@ STEP 4   Research (researcher-local + researcher in parallel)
 STEP 4.5 Research completeness critique (inline)
 STEP 4.7 Pre-validated plan detection (inline)
 STEP 4.8 Plan freshness re-verification (inline, conditional)
+STEP 4.9 Prior-art search (inline, no agent) — mechanical closed-issue
+         lookup pasted verbatim into the STEP 5 planner prompt (#1669)
 STEP 5   Planning (planner)
 STEP 5.5 Plan validation gate (plan-critic + structural checks) HARD GATE
 STEP 6   Acceptance tests generation

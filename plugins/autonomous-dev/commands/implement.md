@@ -920,6 +920,156 @@ This mirrors the single-revision semantics of STEP 5.5b — one re-invocation, n
 
 This step is performed inline by the coordinator. No agent is invoked for the freshness check itself.
 
+### STEP 4.9: Prior-Art Search (inline — no agent) — Issue #1669
+
+**Progress**: Output step banner (STEP 4.9/15 — Prior-Art Search). No agent invoked.
+
+**Rationale (Issue #1669)**: on 2026-08-25 a `/implement` run produced a plan to hand-roll a mutation engine; only the plan-critic noticed that mutation testing had already shipped and closed under #770. The "search closed issues first" rule lived in always-loaded prose and was skipped by both the coordinator and the planner. Prose is advisory, never enforcement (INV-1). `plugins/autonomous-dev/lib/prior_art_search.py` ships the mechanism; this step is the wiring that makes it fire.
+
+**You MUST run the block below as a real Bash invocation before dispatching the planner.** Reading this section is not running it. The block is extracted verbatim between its `# BEGIN PRIOR-ART-SEARCH` / `# END PRIOR-ART-SEARCH` markers and *executed* by `tests/regression/test_issue_1669_prior_art_wiring.py` — edit it here, never there.
+
+```bash
+# BEGIN PRIOR-ART-SEARCH (Issue #1669)
+# Emits the PRIOR ART block that STEP 5 pastes into the planner prompt.
+# Contract: never blocks, never raises, always exits 0, always prints a block.
+# ISSUE_TITLE is set only on the issue path (STEP 0a). On the non-issue path
+# you MUST export FEATURE_DESCRIPTION with the feature text BEFORE this block,
+# or no search runs at all — the dead-mechanism failure #1669 exists to stop.
+export PRIOR_ART_QUERY="${ISSUE_TITLE:-${FEATURE_DESCRIPTION:-}}"
+if [ -z "$PRIOR_ART_QUERY" ]; then
+  echo "STEP 4.9 REQUIREMENT UNMET: neither ISSUE_TITLE nor FEATURE_DESCRIPTION is set, so no prior-art search will run. Export FEATURE_DESCRIPTION with the feature text and re-run this block." >&2
+fi
+PRIOR_ART_BLOCK=$(python3 -c '
+import os
+import re
+import subprocess
+import sys
+
+_STOP = {"the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with",
+         "add", "fix", "use", "that", "this", "is", "it", "by", "from", "into",
+         "not", "be", "should", "must", "new", "make", "via", "our", "its"}
+_HEAD = "## PRIOR ART — MECHANICAL SEARCH (REQUIRED CONTEXT, Issue #1669)"
+_MAX_KEYWORDS = 3
+
+
+def _repo_root():
+    # Anchor on the git toplevel, never the process cwd (Issue #1064 class):
+    # the coordinator may run from a subdirectory or a worktree.
+    try:
+        proc = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                              cwd=os.getcwd(), capture_output=True, text=True,
+                              timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return os.getcwd()
+    top = (proc.stdout or "").strip()
+    if proc.returncode == 0 and top and os.path.isdir(top):
+        return top
+    return os.getcwd()
+
+
+def _keywords(query):
+    query = (query or "").strip()
+    if not query:
+        return []
+    out = [query[:120]]
+    for word in re.split(r"[^A-Za-z0-9_-]+", query.lower()):
+        if len(word) > 2 and word not in _STOP and word not in out:
+            out.append(word)
+    return out[:_MAX_KEYWORDS]
+
+
+ROOT = _repo_root()
+_CANDIDATES = [os.path.join(ROOT, ".claude", "lib"),
+               os.path.join(ROOT, "plugins", "autonomous-dev", "lib"),
+               os.path.expanduser("~/.claude/lib")]
+_WITH_MODULE = [p for p in _CANDIDATES
+                if os.path.isfile(os.path.join(p, "prior_art_search.py"))]
+for _p in reversed(_WITH_MODULE or [p for p in _CANDIDATES if os.path.isdir(p)]):
+    sys.path.insert(0, _p)
+
+
+def _unknown(reason):
+    return ["SEARCH-EXECUTED: no", "PRIOR ART: UNKNOWN — " + reason]
+
+
+def _build():
+    keywords = _keywords(os.environ.get("PRIOR_ART_QUERY", ""))
+    if not keywords:
+        return _unknown("no query text was available, so no search was performed.")
+    try:
+        from pathlib import Path
+        from prior_art_search import search_prior_art
+        hits = search_prior_art(keywords, Path(ROOT))
+    except Exception as exc:  # boundary: degrade, never crash the pipeline
+        return _unknown("the search could not run (%s: %s)."
+                        % (type(exc).__name__, exc))
+    lines = ["SEARCH-EXECUTED: yes",
+             "KEYWORDS-SEARCHED: " + ", ".join(keywords),
+             ""]
+    if hits:
+        lines.append("PRIOR ART: HITS (%d)" % len(hits))
+        lines.append("")
+        for hit in hits:
+            number = hit.get("number")
+            ref = ("#%d" % number) if isinstance(number, int) \
+                else ("commit " + str(hit.get("sha", ""))[:8])
+            lines.append("- %s [%s] %s"
+                         % (ref, hit.get("state", "?"), hit.get("title", "")))
+        lines.append("")
+        lines.append("You MUST address every hit above in the plan: cite it and "
+                     "state whether it makes the proposed work redundant, "
+                     "partial, or unrelated. Do not hand-roll what already "
+                     "shipped. This list is not exhaustive.")
+    else:
+        lines.append("PRIOR ART: UNKNOWN — 0 hits returned.")
+        lines.append("")
+        lines.append("The search executed and returned nothing. That is a "
+                     "legitimate result for a genuinely novel topic and MUST "
+                     "NOT block planning. It does NOT establish that none "
+                     "exists — the search covers closed GitHub issues plus a "
+                     "git-log fallback only. The honest status is UNKNOWN.")
+    return lines
+
+
+try:
+    _body = _build()
+except Exception as exc:  # last-resort boundary; the block must always print
+    _body = _unknown("the search block raised %s." % type(exc).__name__)
+print(_HEAD)
+print("")
+print("\n".join(_body))
+' 2>/dev/null)
+
+if [ -z "$PRIOR_ART_BLOCK" ]; then
+  PRIOR_ART_BLOCK="## PRIOR ART — MECHANICAL SEARCH (REQUIRED CONTEXT, Issue #1669)
+
+SEARCH-EXECUTED: no
+PRIOR ART: UNKNOWN — the prior-art search block did not execute (python3 unavailable or interpreter error). Treat prior art as UNKNOWN, never as absent."
+fi
+echo "$PRIOR_ART_BLOCK"
+# END PRIOR-ART-SEARCH
+```
+
+**Reading the result** — the block always emits two machine-readable status lines, and the distinction between them is the whole point:
+
+| Emitted | Means |
+|---|---|
+| `SEARCH-EXECUTED: yes` + `PRIOR ART: HITS (N)` | The search ran and surfaced N candidate closed issues / commits. |
+| `SEARCH-EXECUTED: yes` + `KEYWORDS-SEARCHED: ...` + `PRIOR ART: UNKNOWN — 0 hits returned` | The search **ran**, against the named keywords, and surfaced nothing. Legitimate for a novel topic. |
+| `SEARCH-EXECUTED: no` + `PRIOR ART: UNKNOWN — <reason>` | The search **did not run**. It supports no coverage claim of any kind. |
+| No `## PRIOR ART` heading in the planner prompt at all | This step was skipped — a pipeline defect, and the exact failure mode #1669 exists to stop. |
+
+`SEARCH-EXECUTED` is what separates "searched, surfaced nothing" from "never ran". You MUST NOT collapse them.
+
+**Runtime bound**: at most 3 keywords × (15s `gh` timeout + 10s `git log` fallback) = 75s worst case. A `gh` that is missing, unauthenticated, or offline degrades to the git-log fallback and then to zero hits; it never hangs and never blocks. That contract is locked by `tests/regression/test_issue_1669_prior_art_search.py`.
+
+**FORBIDDEN** — You MUST NOT do any of the following:
+
+1. ❌ You MUST NOT skip this step, nor paraphrase it into an instruction for the planner instead of executing it. Prose is exactly what #1669 replaces.
+2. ❌ You MUST NOT block, abort, or re-plan because the result is empty. An empty result for a novel topic is legitimate and MUST NOT stop the pipeline.
+3. ❌ You MUST NOT report prior art as ABSENT, NONE, or "no prior art exists". The only two statuses are HITS and UNKNOWN. A false mechanical "nothing exists", carrying mechanical authority, is worse than a human's hedged guess because it stops the reader looking.
+4. ❌ You MUST NOT discard `PRIOR_ART_BLOCK`. A call whose result never reaches the planner fixes nothing — that is the exact defect #1669 records.
+
 ### STEP 5: Planner (1 agent)
 
 **Progress**: Output step banner (STEP 5/15 — Planning, Agent: planner (Opus)). Output agent completion after.
@@ -928,7 +1078,9 @@ This step is performed inline by the coordinator. No agent is invoked for the fr
 
 If research came from the issue body (ISSUE_RESEARCH_HIT), prefix the research context with: "Research from GitHub Issue #$ISSUE_NUMBER:" followed by the extracted research sections from `detect_issue_research()`. The planner should treat this identically to merged research from STEP 4.
 
-**Agent**(subagent_type="planner", model="opus") — Pass merged research + feature description + PROJECT.md GOALS and SCOPE sections (verbatim). Read `.claude/PROJECT.md` and extract the GOALS section and SCOPE section (both IN Scope and OUT of Scope). Include them in the planner prompt as: "PROJECT.md GOALS: [verbatim text]. PROJECT.md SCOPE (In Scope): [verbatim items]. PROJECT.md SCOPE (Out of Scope): [verbatim items]. The plan MUST align with these scope boundaries." Output: file-by-file plan, dependencies, edge cases, testing strategy.
+**PRIOR ART IS REQUIRED CONTEXT (HARD GATE, Issue #1669)**: the planner prompt MUST contain the `$PRIOR_ART_BLOCK` produced by STEP 4.9, pasted **verbatim** and unedited, before the research context. Its `SEARCH-EXECUTED` and `PRIOR ART:` status lines MUST survive into the prompt unchanged — summarising, truncating, or dropping the block reproduces the exact defect #1669 records (the mechanism ran, and its result reached no consumer). When the status is `HITS`, append this sentence after the block: "You MUST cite each hit above in your plan and state whether it makes this work redundant, partial, or unrelated." When the status is `UNKNOWN`, append: "Prior art is UNKNOWN, not absent — you MUST NOT write that no prior art exists."
+
+**Agent**(subagent_type="planner", model="opus") — Pass `$PRIOR_ART_BLOCK` (verbatim, see above) + merged research + feature description + PROJECT.md GOALS and SCOPE sections (verbatim). Read `.claude/PROJECT.md` and extract the GOALS section and SCOPE section (both IN Scope and OUT of Scope). Include them in the planner prompt as: "PROJECT.md GOALS: [verbatim text]. PROJECT.md SCOPE (In Scope): [verbatim items]. PROJECT.md SCOPE (Out of Scope): [verbatim items]. The plan MUST align with these scope boundaries." Output: file-by-file plan, dependencies, edge cases, testing strategy.
 
 **MULTI-ISSUE REQUIREMENTS (HARD GATE)**: When ISSUE_COUNT > 1, the planner prompt MUST include the following requirements text:
 
@@ -1973,7 +2125,7 @@ if reviewer_file.exists():
     content = reviewer_file.read_text()
     lines = content.split('\n')
     
-    # Pattern 1: Look for file paths on one line with severity on next line
+    # Pattern 1: match file paths on one line with severity on next line
     for i, line in enumerate(lines):
         # Find lines with file paths
         file_match = re.search(r'([^\s]+\.(py|js|ts|tsx|vue|md))', line)
@@ -1989,7 +2141,7 @@ if reviewer_file.exists():
             elif '[MEDIUM]' in combined_text or '[WARNING]' in combined_text:
                 converged_findings[file_path].append(('reviewer', 'MEDIUM'))
     
-    # Pattern 2: Look for explicit "File:" or "file:" references
+    # Pattern 2: match explicit "File:" or "file:" references
     for match in re.finditer(r'(?:File|file):\s*([^\s]+\.(py|js|ts|tsx|vue|md))', content):
         file_path = match.group(1)
         # Find severity in surrounding context (within 200 chars)
@@ -2007,7 +2159,7 @@ security_file = validator_dir / "security-auditor.txt"
 if security_file.exists():
     content = security_file.read_text()
     
-    # Look for ADVISORY-FINDINGS block
+    # Match the ADVISORY-FINDINGS block
     advisory_match = re.search(r'ADVISORY-FINDINGS:(.*?)(?=\n\n|\Z)', content, re.DOTALL)
     if advisory_match:
         advisory_block = advisory_match.group(1)
@@ -2021,13 +2173,13 @@ if security_file.exists():
                 if severity in ['MEDIUM', 'BLOCKING']:
                     converged_findings[file_path].append(('security-auditor', severity))
     
-    # Also check for BLOCKING findings in main content (not just advisory)
+    # Also detect BLOCKING findings in main content (not just advisory)
     for match in re.finditer(r'(?:BLOCKING|CRITICAL)[^\n]*([^\s]+\.(py|js|ts|tsx|vue|md))', content):
         file_path = match.group(1)
         if ('security-auditor', 'BLOCKING') not in converged_findings[file_path]:
             converged_findings[file_path].append(('security-auditor', 'BLOCKING'))
     
-    # Check for Medium severity findings in main content
+    # Detect Medium severity findings in main content
     for match in re.finditer(r'([^\s]+\.(py|js|ts|tsx|vue|md))[^\n]*(?:Medium|MEDIUM|vulnerability|risk)', content):
         file_path = match.group(1)
         # Avoid duplicate entries
