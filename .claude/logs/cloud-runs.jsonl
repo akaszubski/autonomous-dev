@@ -987,3 +987,4 @@
 {"fire_id": "20260827T063847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "diagnostic": "github_api_forbidden_token_invalid"}
 {"fire_id": "20260827T083745Z", "fired_at": "2026-08-27T08:38:51Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260827T083745Z", "phase": "FIRE_END", "exit_reason": "github_token_403_no_cluster_selectable", "note": "GITHUB_TOKEN in cron env is 14 chars and returns 403; Python cluster-selection produced empty result"}
+{"fire_id": "20260827T103815Z", "fired_at": "2026-08-27T10:38:33Z", "selected_cluster": "none", "phase": "FIRE_START"}
