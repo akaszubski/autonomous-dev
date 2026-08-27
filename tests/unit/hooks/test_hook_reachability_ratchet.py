@@ -152,14 +152,24 @@ What this guard CANNOT detect
    state 2 (fires and returns nothing that acts), a different defect.
 3. **Dynamically constructed importers.** ``importlib.import_module(name)``
    where ``name`` is computed is invisible to the AST resolver.
-4. **A dead LIBRARY still vouches.** ``_utility_route_is_grounded`` treats any
-   importer outside ``HOOKS_DIR`` — a ``lib/`` or ``scripts/`` file — as
-   grounded without asking whether THAT file is reached. The recursion stops at
-   the edge of the hook corpus. Cycles WITHIN the corpus are refused (two
-   ``utility`` hooks vouching for each other ground nothing), but a hook invoked
-   only by an orphaned library function reads as reachable. Closing this means
-   reachability analysis over ``lib/`` as well, which is a wider corpus than
-   #1612.
+4. **A dead LIBRARY still vouches — MEASURED since #1698, no longer merely
+   documented.** ``_utility_route_is_grounded`` treats any importer outside
+   ``HOOKS_DIR`` — a ``lib/`` or ``scripts/`` file — as grounded without asking
+   whether THAT file is reached. The recursion stops at the edge of the hook
+   corpus. Cycles WITHIN the corpus are refused (two ``utility`` hooks vouching
+   for each other ground nothing), but a hook invoked only by an orphaned
+   library function reads as reachable.
+
+   #1698 adds the missing corpus: see the ``ISSUE #1698`` section below, which
+   walks ``lib/`` transitively over all three invocation styles and pins the
+   set for which no route resolves. The hook rule's grounding logic is
+   deliberately UNCHANGED — that is #1612's, and rewriting it here would
+   silently re-verdict five pinned hooks — but the condition it could not see
+   is now visible, and ``test_limitation_four_is_measured_not_merely_
+   documented`` cross-references the two corpora on every run, naming any
+   ``utility`` hook whose only voucher is a library module that is itself
+   UNKNOWN. That set is EMPTY today; the arm carries a positive control so its
+   emptiness is a measurement rather than an inert probe.
 5. It inherits every limitation of the #1588 refusal instruments, including
    their under-reporting of unnamed refusal forms.
 
@@ -174,11 +184,14 @@ detect: a correct check that nothing invoked.
 """
 
 import ast
+import contextlib
 import json
 import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -1031,6 +1044,1182 @@ def unreachable_refusers(
         flagged[path.name] = sorted(reasons)
 
     return flagged
+
+
+# =====================================================================
+# ISSUE #1698 — THE LIBRARY CORPUS
+#
+# Everything below extends the corpus of this ratchet from ``HOOKS_DIR``
+# to ``LIB_DIR``, closing limitation 4 of the module docstring: a hook
+# invoked only by an orphaned library function read as reachable because
+# nothing in the repository ever asked whether THAT library file is
+# reached. ``lib/`` was not ratcheted at all.
+#
+# ``prior_art_search.py`` is the measured case. It shipped under #1669
+# with 7,054 bytes, an entry in ``install_manifest.json``, deployment to
+# every consumer repo and nine green tests — and ZERO production
+# consumers, for a day. ``git show b5f9e726^:.../commands/implement.md |
+# grep -c prior_art_search`` returns 0; the same grep against the wired
+# state returns 5. Nothing failed while it was dead.
+#
+# THE CONTRACT: REACHED or UNKNOWN. Never ABSENT.
+# -----------------------------------------------
+# A false "this module is dead" carries mechanical authority and would
+# license deleting live code, which is strictly worse than no ratchet at
+# all. So every ambiguity resolves towards REACHED: a stem collision
+# across sub-packages credits both, a shell shape that might be an
+# invocation credits it, an unparseable embedded snippet credits nothing
+# but is never counted as proof of death. ``prior_art_search`` itself
+# ships this contract (``PRIOR ART: UNKNOWN — ...``); this inherits it.
+# The output vocabulary carries no ``absent``/``dead``/``unused`` term,
+# and ``test_the_instrument_never_asserts_a_module_is_dead`` enforces
+# that, together with ``library_verdict``, which is the only sanctioned
+# way to phrase a verdict and can emit no third value.
+#
+# WHY NOT IMPORT-ONLY — measured, and the reason a naive version deletes
+# live code: 28 library modules (15,317 lines at the time of writing,
+# both figures DERIVED at runtime by
+# ``test_permitting_arm_modules_reached_only_without_an_import``) are
+# reached by NO ``import`` anywhere in the corpus. They run as
+# ``python3 path/to/X.py`` out of a command file, or through a settings
+# binding, or through Python embedded in a markdown fence. An
+# import-only walk calls all 28 dead.
+#
+# WHY NOT SERENA — stated because the instruments disagree and the
+# disagreement is the finding, not something to resolve quietly.
+# ``find_referencing_symbols`` on ``search_prior_art`` returns exactly
+# one hit, its own ``_main``. Its only production consumer is a
+# ``python3 -c`` script inside a ```bash fence at
+# ``commands/implement.md:1001``, and no LSP can see into a markdown
+# code fence. The instrument used HERE is AST over sources RECOVERED
+# from those carriers (see ``_embedded_python_sources``) — grep locates
+# the carrier, ``ast`` reads what is inside it. Same class as the
+# ``importlib`` blind spot CLAUDE.md already documents.
+# =====================================================================
+
+LIB_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"
+
+# Path components that take a file out of the library analysis entirely.
+#
+# ``.claude`` is the gitignored DEPLOY copy of the plugin tree and
+# ``.worktrees``/``.codex`` are mirrors: counting any of them would let a
+# module vouch for itself through its own deployed duplicate. ``tests``
+# is excluded for the reason the hook corpus excludes it — a test import
+# is evidence of COVERAGE, not of reachability, and ``prior_art_search``
+# is the proof: nine passing tests over a module nothing called.
+LIBRARY_EXCLUDED_PATH_PARTS = frozenset(
+    {
+        "archived",
+        "__pycache__",
+        "htmlcov",
+        "node_modules",
+        ".venv",
+        ".claude",
+        ".codex",
+        ".worktrees",
+        "tests",
+    }
+)
+
+#: The corpus this half of the ratchet classifies. Derived from disk on
+#: every run — a hardcoded module list is stale the moment anything is
+#: added, and inherits the defect it polices.
+LIBRARY_CORPUS_GLOBS = ("plugins/autonomous-dev/lib/**/*.py",)
+
+#: Python files that are BOTH potential consumers and potential targets.
+#: A file here is reached only when something already reached names it;
+#: that recursion is what limitation 4 was missing.
+LIBRARY_CONSUMER_GLOBS = (
+    "plugins/autonomous-dev/hooks/**/*.py",
+    "plugins/autonomous-dev/lib/**/*.py",
+    "plugins/autonomous-dev/scripts/**/*.py",
+    "scripts/**/*.py",
+)
+
+#: Surfaces that RUN on their own authority and therefore need nothing to
+#: vouch for them: slash commands and agent definitions (invoked by the
+#: user or dispatched by a coordinator), CI workflows, git hooks, and
+#: shell scripts (operator-invoked).
+#:
+#: ``docs/**/*.md`` is DELIBERATELY absent. Eleven modules are "invoked"
+#: only inside documentation prose; crediting that would make a tutorial
+#: a reachability route. Those are #1690's subject, not this one's.
+LIBRARY_ENTRY_SURFACE_GLOBS = (
+    "plugins/autonomous-dev/commands/*.md",
+    "plugins/autonomous-dev/agents/*.md",
+    "plugins/autonomous-dev/hooks/**/*.sh",
+    "scripts/**/*.sh",
+    "scripts/hooks/*",
+    ".github/workflows/*.yml",
+    ".github/workflows/*.yaml",
+)
+
+#: Where to LOOK for a settings surface. Which of them IS one is decided
+#: by CONTENT, never by filename — see ``_binding_surfaces``.
+LIBRARY_BINDING_SURFACE_GLOBS = ("plugins/autonomous-dev/**/*.json",)
+
+#: The two classifications this instrument may emit. ``absent``,
+#: ``dead`` and ``unused`` are deliberately NOT here: see the contract
+#: note above, ``library_verdict`` (which joins each verdict to the
+#: result field of the same name) and
+#: ``test_the_instrument_never_asserts_a_module_is_dead``.
+LIBRARY_VERDICTS = frozenset({"REACHED", "UNKNOWN"})
+
+#: A ``.py`` filename inside a command string or a shell line.
+_ANY_PY_TARGET = r"([\w.\-]+)\.py"
+
+#: The interpreter-prefix and variable-interpreter fragments of
+#: ``_shell_invocation_pattern``, restated here ONLY as composition —
+#: every character class they are built from (``_SHELL_INTERPRETERS``,
+#: ``_PATH_CHAR``, ``_COMMAND_POSITION``) is the #1612 constant itself,
+#: so the two patterns cannot drift in what they consider a command.
+_NAMED_INTERPRETER = rf"(?<![\w.\-/])(?:{'|'.join(_SHELL_INTERPRETERS)})\s+"
+_VARIABLE_INTERPRETER = rf"{_COMMAND_POSITION}\s*[\"']?\$\{{?\w+\}}?[\"']?\s+"
+
+#: The generic form of ``_shell_invocation_pattern``: the same accepted
+#: shapes, with the filename left OPEN so one pass over a file yields
+#: every module it runs. Building one pattern per module instead would
+#: be 242 regex passes per file.
+#:
+#: The SECOND alternative — a slash-bearing path in command position with
+#: no interpreter — is correct for a file that IS a shell program (``.sh``,
+#: a workflow step, a settings command string), where every line is a
+#: command by construction. It is NOT correct for markdown narrative,
+#: where line-start is prose position and a path is a citation. See
+#: ``_SHELL_INVOCATION_INTERPRETED`` and ``_references_in``.
+_SHELL_INVOCATION_ANY = re.compile(
+    rf"(?:{_NAMED_INTERPRETER}|{_VARIABLE_INTERPRETER})"
+    rf"(?:-\w+\s+)*[\"']?{_PATH_CHAR}*?{_ANY_PY_TARGET}"
+    rf"|{_COMMAND_POSITION}\s*[\"']?{_PATH_CHAR}*?/{_PATH_CHAR}*?{_ANY_PY_TARGET}"
+    rf"|{_NAMED_INTERPRETER}(?:-\w+\s+)*-m\s+[\"']?([\w.]+)\b"
+)
+
+#: The NARRATIVE form. An EXPLICIT INTERPRETER TOKEN is required; the
+#: bare-path and variable-interpreter alternatives are dropped.
+#:
+#: The rule the rest of this file enforces by AST — presence in text is
+#: not proof of use — was unenforced on the LARGEST entry surface
+#: (``commands/*.md`` + ``agents/*.md``), because that surface is read by
+#: regex and ``^`` is a command position in shell but a sentence start in
+#: prose. Four lines of documentation were grounding a cluster of
+#: modules, MEASURED before this constant existed:
+#:
+#: * ``commands/audit.md:56`` — a MARKDOWN TABLE ROW whose cell holds the
+#:   glob ``**/models.py``. That one cell grounded three ``models.py``
+#:   modules (``agent_tracker/``, ``implement_dispatcher/``,
+#:   ``sync_dispatcher/``), which rooted ~20 more through legitimate
+#:   relative imports. The largest grounding root in the corpus was a
+#:   docs table cell.
+#: * ``commands/triage.md:80`` — ``…/daily_aggregate_manager.py::open_or_
+#:   supersede_daily_aggregate`` cited in a sentence.
+#: * ``commands/improve.md:187`` — a backticked path ending a sentence.
+#: * ``agents/plan-critic.md:133`` — a backticked path inside parentheses.
+#:
+#: None of those four lines runs anything. Note what is NOT done here: no
+#: file is special-cased, no stem is allowlisted, no threshold is tuned.
+#: The category — "a bare path in markdown narrative is a command" — is
+#: removed. Fenced blocks keep the full pattern, because inside a fence
+#: line-start IS command position again.
+#:
+#: MEASURED 2026-08-28 — THIS ARM IS FORWARD HEADROOM, NOT LOAD-BEARING.
+#: Replacing this pattern with a never-matching one and re-walking the live
+#: tree changes the answer by **0 modules** (132 UNKNOWN either way, empty
+#: delta). It does credit 7 modules — ``genai_validate.py``, ``goa_cli.py``,
+#: ``hook_path_validator.py``, ``retrofit_executor.py``,
+#: ``sync_dispatcher.py``, ``validator_diversity.py``,
+#: ``worktree_command.py`` — but every one of them is ALSO credited by a
+#: FENCED block in the same file, so the arm is redundant rather than
+#: unused. 26 modules ground directly through a ``.md``;
+#: ``prior_art_search.py`` is among the fence-credited ones.
+#:
+#: RETAINED anyway, deliberately: an unfenced instruction to run something
+#: should not be silently dropped, and when the vocabulary is
+#: REACHED|UNKNOWN the permissive direction is the safe one. Two permitting
+#: arms exercise it, which makes it LOOK load-bearing — this note exists so
+#: the next reader can tell decoration from load-bearing without
+#: re-measuring.
+_SHELL_INVOCATION_INTERPRETED = re.compile(
+    rf"{_NAMED_INTERPRETER}(?:-\w+\s+)*[\"']?{_PATH_CHAR}*?{_ANY_PY_TARGET}"
+    rf"|{_NAMED_INTERPRETER}(?:-\w+\s+)*-m\s+[\"']?([\w.]+)\b"
+)
+
+#: Suffixes read as NARRATIVE: prose with occasional embedded code, where
+#: a bare path is a citation. Everything else is read as a program.
+NARRATIVE_SUFFIXES = frozenset({".md", ".markdown"})
+
+#: A fenced markdown code block opener/closer.
+#:
+#: KNOWN UNRECOGNISED, declared rather than left to be discovered — and
+#: NOT widened, because untested breadth is worse than a declared gap:
+#:
+#: * ``~~~`` fences (CommonMark's alternative delimiter). This is a NEW
+#:   miss introduced by the narrative rule above: before it, the full
+#:   command grammar ran over the whole ``.md`` and a ``~~~`` block was
+#:   read as commands like any other line. MEASURED 2026-08-28: **0**
+#:   ``~~~`` fence lines across all 43 narrative entry surfaces.
+#: * Attributed fences — ```` ```python title="x" ```` — where the info
+#:   string carries more than a bare language token. MEASURED 2026-08-28:
+#:   **0** occurrences across the same 43 surfaces.
+#:
+#: Both fail toward UNKNOWN, never toward asserting a module dead, so the
+#: REACHED-or-UNKNOWN contract holds: an unrecognised fence under-credits
+#: reachability, which produces a loud false red rather than a silent
+#: green. Latent, not live. If either count stops being zero, widen the
+#: pattern AND add a permitting arm for the new shape in the same diff.
+_MD_FENCE = re.compile(r"^\s*```([\w+-]*)\s*$")
+
+#: Languages whose fenced block is Python source.
+_PYTHON_FENCE_LANGUAGES = frozenset({"python", "py", "python3"})
+
+#: ``python3 -c '<script>'`` — the carrier that holds ``implement.md``'s
+#: only consumer of ``search_prior_art``. Non-greedy to the matching
+#: quote; ``ast`` decides whether what came out is really Python.
+_INLINE_PYTHON_C = re.compile(
+    r"python3?\s+(?:-\w+\s+)*-c\s+('|\")(.*?)(?<!\\)\1", re.DOTALL
+)
+
+#: ``python3 - <<'PY' ... PY`` — the heredoc carrier.
+_PYTHON_HEREDOC = re.compile(
+    r"python3?\s+(?:-\s+)?<<-?\s*[\"']?(\w+)[\"']?\r?\n(.*?)\r?\n\1", re.DOTALL
+)
+
+
+class LibraryReachability(NamedTuple):
+    """The result of one library reachability walk.
+
+    Attributes:
+        corpus: Mapping of module key (posix path relative to ``lib/``)
+            to its absolute path. DERIVED from disk, never hardcoded.
+        reached: Mapping of module key to the evidence that reached it.
+        unknown: Sorted module keys with no route found. NOT "absent" —
+            see the contract note above.
+        grounded: Every file the walk reached, mapped to its evidence.
+        surfaces: The settings surfaces discovered by content.
+    """
+
+    corpus: "dict[str, Path]"
+    reached: "dict[str, str]"
+    unknown: "list[str]"
+    grounded: "dict[Path, str]"
+    surfaces: "list[Path]"
+
+
+def _library_paths(project_root: Path, globs: "tuple[str, ...]") -> "list[Path]":
+    """Resolve ``globs`` under ``project_root``, minus the excluded parts.
+
+    Args:
+        project_root: Repository root to glob against.
+        globs: Glob patterns, relative to the root.
+
+    Returns:
+        Sorted, de-duplicated existing file paths.
+    """
+    found: "set[Path]" = set()
+    for pattern in globs:
+        for path in project_root.glob(pattern):
+            if not path.is_file():
+                continue
+            if LIBRARY_EXCLUDED_PATH_PARTS.intersection(path.parts):
+                continue
+            found.add(path)
+    return sorted(found)
+
+
+def _library_corpus(project_root: Path = PROJECT_ROOT) -> "dict[str, Path]":
+    """The library modules this ratchet classifies.
+
+    Args:
+        project_root: Repository root.
+
+    Returns:
+        Mapping of ``lib/``-relative posix path to absolute path.
+        ``__init__.py`` is excluded: a package initialiser is reached
+        through its package, and classifying twenty of them by the same
+        stem would collide.
+    """
+    lib_dir = project_root / "plugins" / "autonomous-dev" / "lib"
+    return {
+        path.relative_to(lib_dir).as_posix(): path
+        for path in _library_paths(project_root, LIBRARY_CORPUS_GLOBS)
+        if path.name != "__init__.py"
+    }
+
+
+def _consumer_nodes(project_root: Path = PROJECT_ROOT) -> "dict[str, list[Path]]":
+    """Python files addressable by module stem.
+
+    Keyed by STEM because that is how this repo addresses them: every
+    consumer does ``sys.path.insert(0, lib_path)`` and then ``import
+    X``, so ``lib/agent_tracker/state.py`` and any other ``state.py``
+    are indistinguishable to the resolver. A collision credits BOTH,
+    which is the REACHED-or-UNKNOWN direction.
+
+    Args:
+        project_root: Repository root.
+
+    Returns:
+        Mapping of module stem to every file carrying that stem.
+    """
+    nodes: "dict[str, list[Path]]" = {}
+    for path in _library_paths(project_root, LIBRARY_CONSUMER_GLOBS):
+        nodes.setdefault(path.stem, []).append(path)
+    return nodes
+
+
+def _shell_invoked_stems(
+    text: str, pattern: "re.Pattern[str]" = _SHELL_INVOCATION_ANY
+) -> "set[str]":
+    """Module stems that ``text`` EXECUTES as a shell command.
+
+    Comment-stripped per line with the #1588 ``_SHELL_COMMENT``, so a
+    commented-out command runs nothing.
+
+    Args:
+        text: Shell text, a settings command string, or a fenced block.
+        pattern: Which invocation grammar to apply.
+            ``_SHELL_INVOCATION_ANY`` for text that IS a program (a
+            ``.sh`` file, a workflow step, a settings command string, the
+            inside of a fence), where line-start is command position;
+            ``_SHELL_INVOCATION_INTERPRETED`` for markdown NARRATIVE,
+            where line-start is a sentence and a bare path is a citation.
+
+    Returns:
+        The stems of every ``.py`` file in an invocation position, plus
+        the module names of every ``-m`` form.
+    """
+    found: "set[str]" = set()
+    for raw in text.splitlines():
+        line = _SHELL_COMMENT.sub("", raw)
+        for match in pattern.finditer(line):
+            for group in match.groups():
+                if group:
+                    found.add(group.rsplit(".", 1)[-1])
+    return found
+
+
+def _fenced_code_blocks(text: str) -> "list[tuple[str, str]]":
+    """Split ``text`` into its fenced code blocks.
+
+    One walker, two consumers: ``_embedded_python_sources`` takes the
+    Python-language blocks, and ``_references_in`` takes ALL of them so
+    that a shell command inside a fence is still read as a command while
+    the surrounding narrative is not.
+
+    Args:
+        text: Markdown text.
+
+    Returns:
+        ``(language, contents)`` pairs in document order. An unterminated
+        final fence is DROPPED — its extent is unknowable, and guessing
+        it would let the rest of the document be read as code.
+    """
+    blocks: "list[tuple[str, str]]" = []
+    language: "str | None" = None
+    buffer: "list[str]" = []
+    for line in text.splitlines():
+        fence = _MD_FENCE.match(line)
+        if fence:
+            if language is None:
+                language = fence.group(1).lower()
+                buffer = []
+            else:
+                blocks.append((language, "\n".join(buffer)))
+                language = None
+            continue
+        if language is not None:
+            buffer.append(line)
+    return blocks
+
+
+def _embedded_python_sources(text: str) -> "list[str]":
+    """Recover Python source EMBEDDED in a non-Python carrier.
+
+    Three carriers, all of them live in this repo:
+
+    * A fenced ```python block in a command or agent definition.
+    * ``python3 -c '<script>'`` inside a ```bash fence. This is the one
+      that matters: ``commands/implement.md:1001`` carries
+      ``from prior_art_search import search_prior_art`` here, and it is
+      the module's ONLY production consumer. Serena returns one hit for
+      that symbol — its own ``_main`` — because no LSP reads into a
+      markdown fence.
+    * A ``python3 - <<'PY'`` heredoc.
+
+    Args:
+        text: Markdown, shell or workflow text.
+
+    Returns:
+        Candidate Python sources. ``ast`` decides which really parse;
+        this only locates the carriers.
+    """
+    sources: "list[str]" = [
+        contents
+        for language, contents in _fenced_code_blocks(text)
+        if language in _PYTHON_FENCE_LANGUAGES
+    ]
+    sources.extend(m.group(2) for m in _INLINE_PYTHON_C.finditer(text))
+    sources.extend(m.group(2) for m in _PYTHON_HEREDOC.finditer(text))
+    return sources
+
+
+def _python_referenced_stems(source: str) -> "set[str]":
+    """Module stems a Python source IMPORTS or INVOKES.
+
+    AST, never regex — for the reason ``test_anthropic_client_ratchet``
+    records: ``lib/semantic_gate.py`` and ``lib/secret_patterns.py``
+    MENTION module names in a docstring and in regex pattern data, and a
+    text search reports both as consumers.
+
+    Args:
+        source: Python source text.
+
+    Returns:
+        Stems named by an import, or by a ``.py`` filename passed to an
+        INVOCATION-shaped call (``INVOCATION_CALLEES``). A syntax error
+        yields the empty set: an unreadable file vouches for nothing,
+        and never counts as proof that anything is dead.
+    """
+    try:
+        with warnings.catch_warnings():
+            # A recovered snippet may carry a stale escape sequence. That is
+            # the AUTHOR's problem, not this instrument's, and a wall of
+            # SyntaxWarning from ``<unknown>`` line numbers hides real output.
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    found: "set[str]" = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                found.add(alias.name.rsplit(".", 1)[-1])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                found.add(node.module.rsplit(".", 1)[-1])
+        elif isinstance(node, ast.Call):
+            if _callee_name(node) not in INVOCATION_CALLEES:
+                continue
+            for constant in _argument_constants(node):
+                for token in re.findall(r"([\w.\-]+)\.py\b", constant):
+                    found.add(token.rsplit("/", 1)[-1])
+    return found
+
+
+def _references_in(path: Path) -> "set[str]":
+    """Every module stem ``path`` imports, runs, or embeds a call to.
+
+    THE LIVE CALL PATH. Every control in this file must be aimed here
+    rather than at one of the three helpers below it: for a ``.md`` file
+    the shell arm runs FIRST, so a control that exercises only
+    ``_embedded_python_sources`` verifies a function this walk calls
+    second and proves nothing about the half that over-credits. That
+    exact defect shipped in the first cut of #1698 and is now pinned by
+    ``test_negative_control_is_aimed_at_the_live_call_path``.
+
+    Three dispatches, by what the file IS:
+
+    * ``.py`` — AST only.
+    * NARRATIVE (``.md``) — an EXPLICIT INTERPRETER TOKEN is required in
+      the prose, because a sentence start is not a command position. The
+      full command grammar is then applied INSIDE each fenced block,
+      where line-start is command position again.
+    * Everything else (``.sh``, ``.yml``, git hooks) IS a program, so the
+      full grammar applies throughout.
+
+    Embedded Python is recovered from all three (a ``python3 -c`` payload
+    can appear in any of them).
+
+    Args:
+        path: A consumer or entry-surface file.
+
+    Returns:
+        Referenced module stems. All three invocation styles are
+        credited; missing one of them is what makes an import-only walk
+        call 28 live modules dead.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    if path.suffix == ".py":
+        return _python_referenced_stems(text)
+    if path.suffix.lower() in NARRATIVE_SUFFIXES:
+        found = _shell_invoked_stems(text, _SHELL_INVOCATION_INTERPRETED)
+        for _language, contents in _fenced_code_blocks(text):
+            found |= _shell_invoked_stems(contents, _SHELL_INVOCATION_ANY)
+    else:
+        found = _shell_invoked_stems(text, _SHELL_INVOCATION_ANY)
+    for source in _embedded_python_sources(text):
+        found |= _python_referenced_stems(source)
+    return found
+
+
+def _command_entries_under_hooks(node: object) -> "list[str]":
+    """Command strings beneath ANY ``hooks`` key, at any depth.
+
+    Deliberately looser than ``_events_in``, which requires one of the
+    eight ``LIFECYCLE_EVENTS``. ``.claude-plugin/default-settings.json``
+    binds ``auto_fix_docs.py`` under ``PreCommit``, which is not a
+    lifecycle event and which ``_events_in`` therefore refuses. For the
+    HOOK rule that strictness is correct. For the LIBRARY rule the safe
+    direction is the other one: a binding that might run is credited, so
+    the module reads REACHED rather than falsely dead.
+
+    Args:
+        node: Decoded JSON value.
+
+    Returns:
+        Every declared command string under a ``hooks`` key.
+    """
+    found: "list[str]" = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "hooks":
+                found.extend(_command_strings_under(value))
+            else:
+                found.extend(_command_entries_under_hooks(value))
+    elif isinstance(node, list):
+        for value in node:
+            found.extend(_command_entries_under_hooks(value))
+    return found
+
+
+def _binding_surfaces(project_root: Path = PROJECT_ROOT) -> "list[Path]":
+    """Settings surfaces, discovered by CONTENT and never by filename.
+
+    A ``settings*.json`` glob finds five of the seven tracked surfaces in
+    this repo and misses ``config/global_settings_template.json`` (16
+    command entries, sole binder of ``enforce_tier_distribution.py``) and
+    ``.claude-plugin/default-settings.json`` (sole binder of
+    ``auto_fix_docs.py``). Both numbers are MEASURED by
+    ``test_content_discovery_finds_surfaces_a_filename_glob_misses``,
+    which fails if either becomes reachable by a name glob.
+
+    Args:
+        project_root: Repository root.
+
+    Returns:
+        Sorted paths of every JSON carrying command entries under a
+        ``hooks`` key.
+    """
+    surfaces: "list[Path]" = []
+    for path in _library_paths(project_root, LIBRARY_BINDING_SURFACE_GLOBS):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            continue
+        if _command_entries_under_hooks(data):
+            surfaces.append(path)
+    return surfaces
+
+
+def _bound_stems(surfaces: "list[Path]") -> "set[str]":
+    """Module stems bound to a hook event in ``surfaces``.
+
+    Args:
+        surfaces: Binding surfaces from ``_binding_surfaces``.
+
+    Returns:
+        Stems named in an invocation position inside a command entry.
+    """
+    found: "set[str]" = set()
+    for surface in surfaces:
+        try:
+            data = json.loads(surface.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            continue
+        for command in _command_entries_under_hooks(data):
+            found |= _shell_invoked_stems(command)
+    return found
+
+
+#: Walk results, keyed by resolved project root. The walk parses every
+#: consumer and every entry surface, so re-running it per test is the
+#: difference between a fast tier-3 file and a slow one. Any test that
+#: MUTATES a module global feeding the walk must clear it — see
+#: ``_clear_library_reachability_cache``.
+_LIBRARY_REACHABILITY_CACHE: "dict[Path, LibraryReachability]" = {}
+
+
+def _clear_library_reachability_cache() -> None:
+    """Drop every memoised walk. Call after mutating a module global."""
+    _LIBRARY_REACHABILITY_CACHE.clear()
+
+
+def library_reachability(
+    project_root: Path = PROJECT_ROOT, *, use_cache: bool = True
+) -> LibraryReachability:
+    """THE LIBRARY RULE: which ``lib/`` modules something can actually run.
+
+    A file is GROUNDED when it is an entry surface, when a settings
+    surface binds its stem, or when some already-grounded file imports,
+    invokes or embeds a call to it. The walk is transitive, so a module
+    imported only by an orphan is NOT grounded — which is exactly the
+    recursion limitation 4 of the module docstring says stops at the edge
+    of the hook corpus.
+
+    Args:
+        project_root: Repository root to analyse. Overridable so the
+            rule can be watched refusing and permitting on a synthetic
+            tree, driving the IDENTICAL code path as the live corpus.
+        use_cache: Read and write ``_LIBRARY_REACHABILITY_CACHE``. Pass
+            ``False`` from any arm that mutates a module global.
+
+    Returns:
+        A :class:`LibraryReachability`. ``unknown`` means NO ROUTE WAS
+        FOUND — it does not mean the module is dead, and nothing in this
+        file may present it as such.
+    """
+    key = project_root.resolve()
+    if use_cache and key in _LIBRARY_REACHABILITY_CACHE:
+        return _LIBRARY_REACHABILITY_CACHE[key]
+
+    corpus = _library_corpus(project_root)
+    nodes = _consumer_nodes(project_root)
+    surfaces = _binding_surfaces(project_root)
+
+    grounded: "dict[Path, str]" = {}
+    frontier: "list[Path]" = []
+
+    for path in _library_paths(project_root, LIBRARY_ENTRY_SURFACE_GLOBS):
+        grounded[path] = f"entry-surface {path.name}"
+        frontier.append(path)
+
+    for stem in sorted(_bound_stems(surfaces)):
+        for path in nodes.get(stem, ()):
+            if path not in grounded:
+                grounded[path] = f"settings-binding {stem}"
+                frontier.append(path)
+
+    while frontier:
+        source_file = frontier.pop()
+        for stem in _references_in(source_file):
+            for path in nodes.get(stem, ()):
+                if path not in grounded:
+                    grounded[path] = f"referenced by {source_file.name}"
+                    frontier.append(path)
+
+    reached = {k: grounded[p] for k, p in corpus.items() if p in grounded}
+    unknown = sorted(k for k, p in corpus.items() if p not in grounded)
+    result = LibraryReachability(corpus, reached, unknown, grounded, surfaces)
+    if use_cache:
+        _LIBRARY_REACHABILITY_CACHE[key] = result
+    return result
+
+
+def unreached_library_modules(
+    project_root: Path = PROJECT_ROOT, *, use_cache: bool = True
+) -> "list[str]":
+    """Library modules for which no invocation route resolved.
+
+    Args:
+        project_root: Repository root to analyse.
+        use_cache: See :func:`library_reachability`.
+
+    Returns:
+        Sorted ``lib/``-relative keys classified UNKNOWN.
+
+    Raises:
+        RuntimeError: When the corpus is empty. A zero-module corpus
+            makes "nothing is unreached" trivially true and every
+            permitting assertion vacuous — an instrument failure, not a
+            clean repository.
+    """
+    result = library_reachability(project_root, use_cache=use_cache)
+    if not result.corpus:
+        raise RuntimeError(
+            f"Zero library modules found under {project_root} for globs "
+            f"{list(LIBRARY_CORPUS_GLOBS)}.\n"
+            f"Expected: the plugin's lib/ tree. An empty corpus makes "
+            f"every reachability verdict vacuous — the search is broken, "
+            f"not the repository.\n"
+            f"See: the #1698 section of this module's source."
+        )
+    return result.unknown
+
+
+# Library modules for which NO invocation route resolved, as measured on
+# 2026-08-27 over 248 modules (the corpus size is DERIVED at runtime and
+# deliberately not restated as a constant — a hardcoded population is
+# stale the moment anything is added). 59,297 lines sit behind this pin.
+#
+# THIS IS NOT A LIST OF DEAD CODE. Every entry is UNKNOWN, never ABSENT:
+# no route was found by the three styles this instrument reads. Deleting
+# a module on the strength of its membership here is precisely the harm
+# the REACHED-or-UNKNOWN contract exists to prevent — the instrument
+# cannot see a dynamically-constructed import, a consumer in an untracked
+# local settings file, or a route through a surface glob it does not
+# enumerate. What membership DOES mean is that nothing this repository
+# can mechanically check will notice if the module stops working.
+#
+# THE SET MAY ONLY SHRINK. Adding an entry is NOT an acceptable
+# resolution for a failure of this guard: wire the module into the
+# pipeline that is supposed to run it (that is what b5f9e726 did for
+# prior_art_search.py), or open an issue to retire it. Every removal
+# lowers LIBRARY_REACHABILITY_CEILING in the same diff.
+#
+# Worked examples of what is in here and why it matters:
+#  * step5_quality_gate.py — named four times across implement.md and
+#    implementer.md as the gate that "blocks", and invoked by neither.
+#    A gate described in prose is not enforcement (INV-1).
+#  * active_security_scanner.py — named in secret_patterns.py's module
+#    docstring at line 6 as ``lib/active_security_scanner.py``. A
+#    filename-level grep reads that bullet as a consumer; the AST
+#    instrument does not, which is why it is still visible here.
+#  * ideators/*.py — five modules under a sub-package whose only
+#    consumer, ideation_engine.py, is itself UNKNOWN. That transitive
+#    orphan is exactly limitation 4 of the module docstring, one corpus
+#    over: before #1698 nothing asked whether the importer was reached.
+#  * agent_tracker/*, implement_dispatcher/*, sync_dispatcher/* — three
+#    plainly LIVE packages. Read the paragraph below before drawing any
+#    conclusion about them.
+#
+# ON THE THREE PACKAGES — a RE-VERDICT, not a discovery of dead code.
+# 24 modules moved REACHED -> UNKNOWN when the narrative-markdown rule
+# was tightened (see LIBRARY_REACHABILITY_CEILING's history). Their
+# previous REACHED verdict was FALSE: it rested on four lines of
+# documentation prose, of which the load-bearing one was a table cell in
+# ``commands/audit.md:56`` holding the glob ``**/models.py``. That cell
+# grounded three ``models.py`` modules, and ~20 more hung off them by
+# legitimate relative imports — real edges, rooted in a citation.
+#
+# So the packages are live and their INTERNAL wiring is sound; what no
+# tracked surface does is invoke their ENTRY POINT visibly. UNKNOWN is
+# the correct verdict for exactly that state, and it is the state this
+# ratchet exists to make visible. NOTHING HERE IS TO BE DELETED — least
+# of all a whole package. If you know the route, wire it so the
+# instrument can see it, or widen the instrument and say which carrier
+# it was missing.
+PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
+    "acceptance_criteria_parser.py",
+    "active_security_scanner.py",
+    "agent_feedback.py",
+    "agent_pool.py",
+    "agent_tracker/cli.py",
+    "agent_tracker/display.py",
+    "agent_tracker/metrics.py",
+    "agent_tracker/models.py",
+    "agent_tracker/state.py",
+    "agent_tracker/tracker.py",
+    "agent_tracker/verification.py",
+    "alignment_fixer.py",
+    "alignment_gate.py",
+    "auto_approval_consent.py",
+    "auto_approval_engine.py",
+    "auto_implement_pipeline.py",
+    "auto_inject_memory.py",
+    "auto_install_deps.py",
+    "baseline_guardrail.py",
+    "batch_agent_verifier.py",
+    "batch_git_finalize.py",
+    "batch_mode_detector.py",
+    "batch_resume_helper.py",
+    "batch_retry_consent.py",
+    "batch_retry_manager.py",
+    "blocking_signal_classifier.py",
+    "brownfield_retrofit.py",
+    "checkpoint.py",
+    "cia_promotion_filter.py",
+    "claude_md_updater.py",
+    "code_patcher.py",
+    "code_path_analyzer.py",
+    "completion_verifier.py",
+    "complexity_assessor.py",
+    "comprehensive_doc_validator.py",
+    "context_budget_monitor.py",
+    "context_skill_injector.py",
+    "coordinator_log.py",
+    "copy_system.py",
+    "daily_aggregate_manager.py",
+    "distributed_training_validator.py",
+    "doc_master_auto_apply.py",
+    "doc_update_risk_classifier.py",
+    "doc_verdict_validator.py",
+    "drain_revert.py",
+    "error_analyzer.py",
+    "eval_metrics.py",
+    "failure_analyzer.py",
+    "feature_completion_detector.py",
+    "feature_dependency_analyzer.py",
+    "file_discovery.py",
+    "flaky_tests.py",
+    "git_hooks.py",
+    "github_issue_fetcher.py",
+    "hardware_calibrator.py",
+    "headless_mode.py",
+    "health_check.py",
+    "hook_activator.py",
+    "ideation_engine.py",
+    "ideation_report_generator.py",
+    "ideators/accessibility_ideator.py",
+    "ideators/performance_ideator.py",
+    "ideators/quality_ideator.py",
+    "ideators/security_ideator.py",
+    "ideators/tech_debt_ideator.py",
+    "implement_dispatcher/cli.py",
+    "implement_dispatcher/dispatcher.py",
+    "implement_dispatcher/models.py",
+    "implement_dispatcher/modes.py",
+    "implement_dispatcher/validators.py",
+    "install_audit.py",
+    "install_orchestrator.py",
+    "installation_analyzer.py",
+    "installation_validator.py",
+    "macro_promotion.py",
+    "math_utils.py",
+    "mcp_permission_validator.py",
+    "mcp_profile_manager.py",
+    "mcp_server_detector.py",
+    "memory_formatter.py",
+    "memory_layer.py",
+    "memory_relevance.py",
+    "native_tools.py",
+    "orchestrator.py",
+    "parallel_validation.py",
+    "performance_profiler.py",
+    "plan_critic_verdict.py",
+    "plugin_updater.py",
+    "pool_config.py",
+    "project_md_parser.py",
+    "prompt_quality_rules.py",
+    "python_write_detector.py",
+    "qa_self_healer.py",
+    "ralph_loop_manager.py",
+    "realign_orchestrator.py",
+    "retrofit_verifier.py",
+    "retrospective_analyzer.py",
+    "reviewer_benchmark.py",
+    "reviewer_weakness_analyzer.py",
+    "runtime_verification_classifier.py",
+    "scope_detector.py",
+    "search_utils.py",
+    "selector_stall_detector.py",
+    "session_resource_manager.py",
+    "session_state_manager.py",
+    "session_telemetry_reader.py",
+    "skill_evaluator.py",
+    "skill_loader.py",
+    "staging_manager.py",
+    "status_tracker.py",
+    "step5_quality_gate.py",
+    "stuck_detector.py",
+    "success_criteria_validator.py",
+    "sync_dispatcher/cli.py",
+    "sync_dispatcher/dispatcher.py",
+    "sync_dispatcher/models.py",
+    "sync_dispatcher/modes.py",
+    "sync_mode_detector.py",
+    "test_routing.py",
+    "test_runner.py",
+    "token_tracker.py",
+    "tool_approval_audit.py",
+    "tool_validator.py",
+    "training_metrics.py",
+    "uninstall_orchestrator.py",
+    "update_plugin.py",
+    "validate_marketplace_version.py",
+    "version_detector.py",
+    "worker_consistency_validator.py",
+    "workflow_coordinator.py",
+    "workflow_tracker.py",
+    "workflow_violation_logger.py",
+})
+
+# Ceiling on the library pin, asserted by EQUALITY against the pin size —
+# the ``test_anthropic_client_ratchet`` form, which is the stronger one:
+# the set cannot move in EITHER direction without appearing in a diff, so
+# a swap (one module wired, another orphaned) cannot hide behind an
+# unchanged total. Equal counts hiding a changed set is a defect this
+# repository has on record.
+#
+# LOWERING needs no justification and is never blocked; that is the
+# ratchet advancing. Lower LIBRARY_CEILING_HIGH_WATER_MARK in the SAME
+# diff. RAISING is honest in exactly one case: a NEW INVOCATION STYLE or
+# a NEW CORPUS made PRE-EXISTING orphans visible — say which, in the
+# same diff.
+#
+# History — this ratchet may only count DOWN, with ONE sanctioned
+# exception, taken once here and documented in full:
+#   108  Issue #1698, first cut. Derived by running
+#        ``library_reachability()`` over the live tree, NOT copied from
+#        any report. Three figures were in circulation for "how many
+#        modules are unreachable" — 124 (import-only, misses script
+#        invocation), 111 (measured before prior_art_search was wired),
+#        110 (a wider corpus of 255 including hooks/ and scripts/). None
+#        of them answers THIS question, which is scoped to lib/.
+#   132  Issue #1698, review round 1. A RAISE, under the one honest case
+#        this constant's contract allows: A SHARPER INSTRUMENT MADE
+#        PRE-EXISTING ORPHANS VISIBLE. No module changed; the instrument
+#        stopped reading markdown narrative as shell (see
+#        ``_SHELL_INVOCATION_INTERPRETED``). The 108 was wrong, not the
+#        132: 24 modules had been credited to four lines of prose.
+#
+#        The 24, and why each moved — all REACHED -> UNKNOWN, none the
+#        other way, attributed BY SET and not by count:
+#          agent_tracker/{cli,display,metrics,models,state,tracker,
+#            verification}.py, implement_dispatcher/{cli,dispatcher,
+#            models,modes,validators}.py, sync_dispatcher/{cli,dispatcher,
+#            models,modes}.py — 16 modules rooted in ONE table cell,
+#            ``commands/audit.md:56``, whose ``**/models.py`` glob
+#            grounded three ``models.py`` files that then rooted the rest
+#            by real relative imports.
+#          daily_aggregate_manager.py — ``commands/triage.md:80``, a
+#            ``path.py::symbol`` citation in a sentence.
+#          macro_promotion.py — ``commands/improve.md:187``, a backticked
+#            path ending a sentence.
+#          plan_critic_verdict.py — ``agents/plan-critic.md:133``, a
+#            backticked path inside parentheses.
+#          file_discovery.py, hook_activator.py, sync_mode_detector.py,
+#            uninstall_orchestrator.py, version_detector.py — reached
+#            only through one of the 16 above.
+#
+#        CROSS-CHECK, because a re-verdict of 24 modules should not rest
+#        on one instrument. A blunter mutation — dropping the bare-path
+#        alternative for EVERY file type, not just narrative — lands on
+#        132 as well, and the difference set between the two is EMPTY.
+#        The bare-path rule currently grounds nothing outside markdown.
+#        It is nonetheless kept for ``.sh``/``.yml``/settings commands,
+#        where line-start genuinely IS command position and #1612's shell
+#        arms prove it must resolve.
+LIBRARY_REACHABILITY_CEILING = 132
+
+# The highest library ceiling ever REVIEWED. Its only job is to make a
+# RAISE cost a second, visible constant edit — tying the ceiling only to
+# ``len(PINNED_UNREACHED_LIBRARY)`` makes both operands constants in this
+# file, so one edit that adds an entry AND bumps the ceiling moves them
+# together and nothing fires. Same residual-headroom contract as
+# ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
+# is zero.
+LIBRARY_CEILING_HIGH_WATER_MARK = 132
+
+
+#: The functions ``_references_in`` DISPATCHES TO for a non-Python file.
+#: Reaching for one of these directly is the hazard: they each see part of
+#: what the walk sees, so a control aimed at one can be silent while the
+#: walk is loud. Derived from the dispatch in ``_references_in``.
+#:
+#: ``_python_referenced_stems`` is DELIBERATELY absent. It is the Python
+#: arm, not a markdown carrier, and a test exercising it on Python source
+#: (``test_positive_control_the_reference_extractor_resolves_a_real_import``)
+#: is not making a claim about markdown grounding.
+MARKDOWN_CARRIER_HELPERS = frozenset(
+    {"_embedded_python_sources", "_shell_invoked_stems", "_fenced_code_blocks"}
+)
+
+#: Entry points that see EVERYTHING the walk sees. Consulting any one of
+#: them is what makes a markdown claim trustworthy.
+LIVE_REACHABILITY_ENTRY_POINTS = frozenset(
+    {"_references_in", "library_reachability", "unreached_library_modules"}
+)
+
+
+def _direct_calls(node: ast.AST) -> "set[str]":
+    """Bare callee names invoked anywhere inside ``node``.
+
+    Args:
+        node: Any AST node.
+
+    Returns:
+        Callee names, ``self.helper()`` reduced to ``helper``.
+    """
+    found: "set[str]" = set()
+    for call in ast.walk(node):
+        if isinstance(call, ast.Call):
+            name = _callee_name(call)
+            if name is not None:
+                found.add(name)
+    return found
+
+
+def _call_closure(source: str) -> "dict[str, set[str]]":
+    """Map every function in ``source`` to what it can TRANSITIVELY call.
+
+    Needed because the synthetic-corpus arms reach the walk through a
+    class helper (``self._unknown`` -> ``unreached_library_modules``).
+    Requiring a LEXICAL call to a live entry point would flag five
+    perfectly good end-to-end tests, and the natural way to silence that
+    is an allowlist — which is what makes a structural guard vacuous.
+
+    Args:
+        source: Module source text.
+
+    Returns:
+        Mapping of function name to every name reachable from it.
+    """
+    direct: "dict[str, set[str]]" = {}
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            direct.setdefault(node.name, set()).update(_direct_calls(node))
+
+    closure: "dict[str, set[str]]" = {}
+
+    def _resolve(name: str, seen: "set[str]") -> "set[str]":
+        if name in seen:
+            return set()
+        seen.add(name)
+        reachable = set(direct.get(name, ()))
+        for callee in list(reachable):
+            reachable |= _resolve(callee, seen)
+        return reachable
+
+    for name in direct:
+        closure[name] = _resolve(name, set())
+    return closure
+
+
+def controls_bypassing_the_live_call_path(source: str) -> "list[str]":
+    """Test functions that consult a markdown carrier and NOTHING live.
+
+    THE RULE: if a test reaches directly for one of
+    :data:`MARKDOWN_CARRIER_HELPERS`, it is reasoning about how markdown
+    grounds a module, and it MUST also reach — directly or through a
+    helper defined in this file — one of
+    :data:`LIVE_REACHABILITY_ENTRY_POINTS`, so the two answers are
+    compared rather than one being assumed.
+
+    Why this is a CATEGORY guard and not a second regression pin: the
+    round-1 defect was a control aimed at ``_embedded_python_sources``,
+    which the walk calls SECOND for a ``.md`` file. On the identical
+    input the helper returned ``[]`` while ``_references_in`` returned
+    ``['prior_art_search']`` — the control was green over the half that
+    does not over-credit. Pinning that one fixture leaves the recurrence
+    one new test away; a ``test_negative_control_for_workflow_yaml``
+    calling ``_shell_invoked_stems(text)`` directly reintroduces it and a
+    fixture pin stays green. This flags it.
+
+    The asymmetry is deliberate. The TRIGGER is a DIRECT call (you
+    personally reached for a partial view). SATISFACTION uses the call
+    CLOSURE (you may reach the live path through a helper). Keying the
+    trigger on the closure instead would flag ``_bound_stems``' callers,
+    which consult a settings command string and never markdown.
+
+    An earlier form keyed the trigger on FIXTURE SHAPE — a literal
+    containing a fence, an ATX heading or a table row. Measured, it
+    produced a false positive: ``test_utility_arm_refuses_a_declaration_
+    backed_only_by_a_mention`` builds a synthetic PYTHON file whose
+    ``# synthetic_utility_gate.py consumes ...`` comment reads as a
+    markdown heading. Shape is what the fixture looks like; the call is
+    what the test actually consults, which is the property that matters.
+
+    Args:
+        source: Module source text to inspect. Overridable so the rule
+            can be watched REFUSING on synthetic sources — a structural
+            guard only ever observed green over a corpus that already
+            complies is unproven, which is the rule this whole file
+            enforces on everything else.
+
+    Returns:
+        Sorted ``name (carriers=[...])`` descriptions of offenders.
+    """
+    closure = _call_closure(source)
+    offenders: "list[str]" = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.name.startswith("test_"):
+            continue
+        direct = _direct_calls(node)
+        carriers = direct & MARKDOWN_CARRIER_HELPERS
+        if not carriers:
+            continue
+        reachable = set(direct)
+        for callee in direct:
+            reachable |= closure.get(callee, set())
+        if not (reachable & LIVE_REACHABILITY_ENTRY_POINTS):
+            offenders.append(f"{node.name} (carriers={sorted(carriers)})")
+    return sorted(offenders)
+
+
+def library_verdict(module_key: str, result: LibraryReachability) -> str:
+    """The verdict for one module — the ONLY sanctioned way to phrase one.
+
+    Every verdict in :data:`LIBRARY_VERDICTS` maps to the identically
+    named (lower-cased) field of :class:`LibraryReachability`, and this
+    function is the join. That makes the vocabulary LOAD-BEARING rather
+    than decorative: it was previously a frozenset whose only consumer
+    was an assertion comparing two literals in this same file, which
+    costs nothing and proves nothing. Now, renaming a result field or
+    inventing a third verdict breaks this lookup at runtime, on the path
+    the failure message actually takes.
+
+    Args:
+        module_key: A ``lib/``-relative corpus key.
+        result: A completed walk.
+
+    Returns:
+        ``"REACHED"`` or ``"UNKNOWN"`` — never ``"ABSENT"``.
+
+    Raises:
+        KeyError: When the module is in the corpus but in neither bucket,
+            or in both. Either is a broken partition, and a broken
+            partition must be loud rather than silently resolved to the
+            convenient answer.
+    """
+    holders = sorted(
+        verdict
+        for verdict in LIBRARY_VERDICTS
+        if module_key in getattr(result, verdict.lower())
+    )
+    if len(holders) != 1:
+        raise KeyError(
+            f"{module_key!r} resolves to verdicts {holders} — expected "
+            f"exactly one of {sorted(LIBRARY_VERDICTS)}.\n"
+            f"Expected: every corpus member sits in exactly one bucket. "
+            f"Zero means the walk dropped it; two means the buckets "
+            f"overlap and 'reached' no longer excludes 'unknown'.\n"
+            f"See: the #1698 section of this module's source."
+        )
+    return holders[0]
+
+
+def library_failure_message(new: "list[str]", project_root: Path = PROJECT_ROOT) -> str:
+    """Build the message shown when a library module falls out of reach.
+
+    Factored out so the REACHED-or-UNKNOWN contract can be checked
+    MECHANICALLY rather than trusted — see
+    ``test_the_instrument_never_asserts_a_module_is_dead``. A guard that
+    told a maintainer "this module is unused" would license deleting live
+    code, which is strictly worse than no guard.
+
+    Args:
+        new: Module keys that are UNKNOWN and not pinned.
+        project_root: Repository root, for the surfaces line.
+
+    Returns:
+        The failure text.
+    """
+    result = library_reachability(project_root)
+    surfaces = [p.name for p in result.surfaces]
+    # Rendered THROUGH ``library_verdict`` rather than by pasting the
+    # word "UNKNOWN" into an f-string: the vocabulary has to cost
+    # something on the live path, or it is decoration.
+    verdicts = {
+        key: library_verdict(key, result)
+        for key in sorted(new)
+        if key in result.corpus
+    }
+    return (
+        f"Library module(s) classified UNKNOWN — no invocation route was "
+        f"found by any of the three styles: {sorted(new)}\n"
+        f"Per-module verdict: {verdicts or '(synthetic keys, not in corpus)'}\n"
+        f"UNKNOWN means NO ROUTE WAS FOUND. It does NOT mean the module is "
+        f"unused, and it is NOT authority to remove anything.\n"
+        f"Styles searched: (1) import/from-import and invocation-shaped "
+        f"calls, by AST; (2) `python3 path/to/module.py` from an "
+        f"executable surface, including Python recovered from a markdown "
+        f"fence; (3) a hook binding in a settings surface discovered by "
+        f"CONTENT.\n"
+        f"Settings surfaces discovered: {surfaces}\n"
+        f"Expected: wire the module into the pipeline that is supposed to "
+        f"run it — that is what b5f9e726 did for prior_art_search.py, "
+        f"which shipped manifest-registered, deployed and green on nine "
+        f"tests with zero production consumers. If the route exists and "
+        f"this instrument cannot see it, widen the instrument and say "
+        f"which carrier it was missing.\n"
+        f"Adding the module to PINNED_UNREACHED_LIBRARY is NOT a "
+        f"resolution: the pin has a ceiling of "
+        f"{LIBRARY_REACHABILITY_CEILING} and may only shrink."
+    )
 
 
 class TestInstrumentPremises:
@@ -2703,6 +3892,1610 @@ class TestCeilingIsNotATautology:
             f"{sorted(expected)}. If it collapsed to the empty set the arm "
             f"above would exit 0 without running anything and read as a green "
             f"future state.\n{result.stdout}"
+        )
+
+
+class TestLibraryInstrumentPremises:
+    """Verify the library search before trusting one cell of its output.
+
+    A probe that returns zero is not evidence of zero. Every arm here
+    gives the walk a positive control (an input it is KNOWN to reach) and
+    a negative control (an input it is KNOWN to refuse), because the
+    failure mode this whole module exists to detect looks EXACTLY like a
+    clean result.
+    """
+
+    def test_library_corpus_is_populated_and_derived_from_disk(self):
+        """A zero-module corpus makes every verdict below vacuous."""
+        corpus = _library_corpus()
+        assert len(corpus) >= 150, (
+            f"Only {len(corpus)} library module(s) found under {LIB_DIR}. "
+            f"The plugin ships well over a hundred; a collapse means "
+            f"LIBRARY_CORPUS_GLOBS no longer reaches lib/ and every "
+            f"'unreached' verdict is meaningless rather than alarming."
+        )
+        assert "prior_art_search.py" in corpus, (
+            "premise: the #1669 module that proved this gap is still in "
+            "the corpus. Without it the worked example below is fiction."
+        )
+        # NOT ``assert path.is_file()``: ``_library_paths`` already
+        # filters on ``is_file()``, so that assertion cannot fail and
+        # reads as coverage over a check that is structurally guaranteed.
+        # These CAN fail — the key is the join between the pin and disk,
+        # and a key that no longer round-trips silently orphans a pin
+        # entry.
+        lib_root = LIB_DIR.resolve()
+        for key, path in corpus.items():
+            assert path.resolve().relative_to(lib_root).as_posix() == key, (
+                f"corpus key {key!r} does not round-trip to its path "
+                f"{path}. PINNED_UNREACHED_LIBRARY is keyed on this "
+                f"string; a changed keying scheme makes every pin entry "
+                f"stale at once."
+            )
+            assert path.suffix == ".py", f"{key} is not Python: {path}"
+            assert path.name != "__init__.py", (
+                f"{key} is a package initialiser. Twenty of them share "
+                f"the name, so including them collides the corpus."
+            )
+
+    def test_empty_library_corpus_is_a_hard_error(self, tmp_path):
+        """Zero modules must RAISE, never silently pass."""
+        with pytest.raises(RuntimeError, match="Zero library modules"):
+            unreached_library_modules(tmp_path, use_cache=False)
+
+    def test_consumer_node_graph_is_populated(self):
+        """An empty node graph would make every module read as unreached."""
+        nodes = _consumer_nodes()
+        assert len(nodes) >= 200, (
+            f"Only {len(nodes)} consumer node(s) resolved. The walk would "
+            f"ground almost nothing and flag almost everything."
+        )
+
+    def test_content_discovery_finds_surfaces_a_filename_glob_misses(self):
+        """The measured reason surfaces are discovered by CONTENT.
+
+        A ``settings*.json`` glob finds five of the seven tracked binding
+        surfaces here. The two it misses carry real bindings, and one of
+        them (``global_settings_template.json``) holds more command
+        entries than any single template. Every number below is MEASURED
+        on the live tree, so this fails if either file is renamed into
+        (or out of) glob range.
+        """
+        surfaces = _binding_surfaces()
+        names = {p.name for p in surfaces}
+        assert len(surfaces) >= 6, (
+            f"only {len(surfaces)} binding surface(s) discovered: "
+            f"{sorted(names)}. The content walk has stopped resolving."
+        )
+
+        glob_visible = {n for n in names if n.startswith("settings")}
+        invisible = names - glob_visible
+        assert invisible >= {
+            "global_settings_template.json",
+            "default-settings.json",
+        }, (
+            f"the surfaces invisible to a settings*.json glob are "
+            f"{sorted(invisible)}. Both global_settings_template.json and "
+            f".claude-plugin/default-settings.json carry bindings and "
+            f"neither matches such a glob — that is WHY discovery is by "
+            f"content. If they became glob-visible, re-measure before "
+            f"weakening the rule."
+        )
+
+        per_surface = {p.name: _bound_stems([p]) for p in surfaces}
+        everything = set().union(*per_surface.values())
+        only_outside_glob = everything - set().union(
+            *[v for k, v in per_surface.items() if k in glob_visible]
+        )
+        assert only_outside_glob, (
+            f"no hook is bound EXCLUSIVELY outside a settings*.json glob, "
+            f"so content discovery currently costs nothing and this arm "
+            f"is inert. Bound stems: {sorted(everything)}"
+        )
+        assert {"auto_fix_docs", "enforce_tier_distribution"} <= (
+            only_outside_glob
+        ), (
+            f"expected auto_fix_docs (bound only in default-settings.json) "
+            f"and enforce_tier_distribution (bound only in "
+            f"global_settings_template.json) among the glob-invisible "
+            f"bindings; measured {sorted(only_outside_glob)}"
+        )
+
+    def test_positive_control_the_reference_extractor_resolves_a_real_import(self):
+        """The walk's Python arm must FIND a genuine import.
+
+        Without an input it is KNOWN to resolve, "no consumer found" is
+        indistinguishable from "the extractor is broken", and every
+        UNKNOWN verdict in this file is uninterpretable.
+        """
+        source = "from hook_telemetry import record\nimport json\n"
+        assert "hook_telemetry" in _python_referenced_stems(source)
+        assert "json" in _python_referenced_stems(source)
+
+        invocation = (
+            "import subprocess\n"
+            'subprocess.run(["python3", "plugins/x/hooks/some_gate.py"])\n'
+        )
+        assert "some_gate" in _python_referenced_stems(invocation), (
+            "the invocation-shaped-call arm resolved nothing; 28 live "
+            "modules are reached by no import at all and would read as "
+            "orphans"
+        )
+
+    def test_negative_control_a_docstring_mention_is_not_a_consumer(self):
+        """MENTION is not CONSUMPTION — on two live files, not fixtures.
+
+        A negative control of a DIFFERENT SHAPE from the reproducer.
+        ``lib/secret_patterns.py:6`` lists
+        ``- lib/active_security_scanner.py`` as a docstring bullet, and
+        ``lib/semantic_gate.py:21`` states that it deliberately does NOT
+        import ``intent_classifier``. A filename-level grep reads the
+        first as a dependency and the second as its own refutation. These
+        are the two files ``test_anthropic_client_ratchet`` already pins
+        for exactly this, reused rather than re-invented.
+        """
+        secret_patterns = LIB_DIR / "secret_patterns.py"
+        semantic_gate = LIB_DIR / "semantic_gate.py"
+        assert secret_patterns.is_file() and semantic_gate.is_file(), (
+            "premise: both negative-control modules still exist"
+        )
+
+        patterns_text = secret_patterns.read_text(encoding="utf-8")
+        gate_text = semantic_gate.read_text(encoding="utf-8")
+        assert "active_security_scanner" in patterns_text, (
+            "premise: secret_patterns.py still NAMES active_security_"
+            "scanner in prose, so counting the mention would still change "
+            "the answer. If it was reworded, pick another instance."
+        )
+        assert "intent_classifier" in gate_text, (
+            "premise: semantic_gate.py still names intent_classifier in "
+            "prose (it says it deliberately does NOT import it)"
+        )
+
+        assert "active_security_scanner" not in _python_referenced_stems(
+            patterns_text
+        ), (
+            "a docstring bullet naming lib/active_security_scanner.py was "
+            "resolved as a consumer. That is presence-as-proof: an AST "
+            "instrument exists precisely so prose cannot ground a module."
+        )
+        assert "intent_classifier" not in _python_referenced_stems(gate_text), (
+            "semantic_gate.py's statement that it does NOT import "
+            "intent_classifier was resolved as an import"
+        )
+
+        result = library_reachability()
+        assert "active_security_scanner.py" in result.unknown, (
+            "active_security_scanner.py is REACHED, which means something "
+            "other than the docstring bullet now grounds it — good, but "
+            "this control no longer discriminates. Pick another instance."
+        )
+
+    def test_positive_and_negative_controls_for_the_embedded_python_carrier(self):
+        """The markdown carrier, on the live file, both ways.
+
+        ``commands/implement.md`` carries ``search_prior_art``'s only
+        production consumer inside a ``python3 -c`` script in a ```bash
+        fence. Serena ``find_referencing_symbols`` returns exactly one hit
+        for that symbol — the module's own ``_main`` — because no LSP
+        reads into a markdown fence. THIS instrument is grep-for-the-
+        carrier plus AST-for-the-contents, and the disagreement between
+        the two is the finding, not something to resolve quietly.
+        """
+        implement = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / (
+            "implement.md"
+        )
+        assert implement.is_file(), "premise: the command file still exists"
+        text = implement.read_text(encoding="utf-8")
+
+        sources = _embedded_python_sources(text)
+        assert sources, (
+            "no embedded Python was recovered from implement.md at all. "
+            "The carrier extractor is inert and every module reached only "
+            "through a markdown fence reads as an orphan."
+        )
+        assert any(
+            "prior_art_search" in _python_referenced_stems(s) for s in sources
+        ), (
+            f"the wired consumer at implement.md:1001 "
+            f"(`from prior_art_search import search_prior_art`, inside a "
+            f"python3 -c script in a bash fence) was not recovered. "
+            f"Recovered {len(sources)} snippet(s)."
+        )
+
+        # AND the live path must agree. Flagged by
+        # ``test_every_markdown_control_consults_the_live_call_path`` when
+        # this was carrier-only: a control that consults one arm of the
+        # dispatch and reports on the whole is the round-1 defect, and
+        # this test was the last instance of it in the file. Asserting
+        # both is also simply stronger — it proves the carrier's output
+        # actually survives into the walk rather than being recovered and
+        # then dropped.
+        assert "prior_art_search" in _references_in(implement), (
+            f"the carrier recovered the consumer but THE LIVE CALL PATH "
+            f"did not report it. The snippet is being extracted and then "
+            f"lost — which would leave prior_art_search.py UNKNOWN while "
+            f"this control stayed green. Recovered "
+            f"{len(sources)} snippet(s)."
+        )
+
+    #: Markdown NARRATIVE shapes that NAME a module without running it.
+    #: Every one is drawn from a live line that was grounding modules
+    #: before the narrative rule existed; see
+    #: ``_SHELL_INVOCATION_INTERPRETED`` for the four sources.
+    _MARKDOWN_MENTION_SHAPES = {
+        "table row with a glob": (
+            "| Schema/model files (`**/schemas/*.py`, `**/synthetic_orphan.py`)"
+            " | Schema quality | reviewed |\n"
+        ),
+        "backticked path in a sentence": (
+            "They are declared in `plugins/autonomous-dev/lib/"
+            "synthetic_orphan.py`. They are intentional and reviewed.\n"
+        ),
+        "path.py::symbol citation": (
+            "The lifecycle helper `plugins/autonomous-dev/lib/"
+            "synthetic_orphan.py::open_or_supersede` is the only "
+            "sanctioned path for this.\n"
+        ),
+        "bare path on its own line": (
+            "plugins/autonomous-dev/lib/synthetic_orphan.py\n"
+        ),
+        "backticked path in parentheses": (
+            "(see `plugins/autonomous-dev/lib/synthetic_orphan.py`).\n"
+        ),
+        "prose naming the file twice": (
+            "See `synthetic_orphan.py` for the mechanism, and read\n"
+            "plugins/autonomous-dev/lib/synthetic_orphan.py before editing.\n"
+        ),
+    }
+
+    #: Markdown shapes that really DO run the module. Every one must
+    #: still resolve, or the fix above would "pass" by making markdown
+    #: ground nothing at all — a different silent failure, and the one
+    #: that would quietly re-orphan ``prior_art_search``.
+    _MARKDOWN_INVOCATION_SHAPES = {
+        "interpreter prefix in narrative": (
+            "Run `python3 plugins/autonomous-dev/lib/synthetic_orphan.py "
+            "--check` before continuing.\n"
+        ),
+        "bare path inside a fenced block": (
+            "```bash\nplugins/autonomous-dev/lib/synthetic_orphan.py --check\n```\n"
+        ),
+        "interpreter prefix inside a fenced block": (
+            "```bash\npython3 plugins/autonomous-dev/lib/synthetic_orphan.py\n```\n"
+        ),
+        "module form": ("Run `python3 -m synthetic_orphan` to rebuild.\n"),
+        "python fence importing it": (
+            "```python\nfrom synthetic_orphan import run\nprint(run())\n```\n"
+        ),
+    }
+
+    @pytest.mark.parametrize("shape_name", sorted(_MARKDOWN_MENTION_SHAPES))
+    def test_regression_issue_1698_markdown_narrative_mentions_ground_nothing(
+        self, tmp_path, shape_name
+    ):
+        """REFUSING ARM, driven through THE LIVE CALL PATH.
+
+        The first cut of this control asserted against
+        ``_embedded_python_sources``, which the walk calls SECOND. For a
+        ``.md`` file ``_references_in`` runs the shell arm FIRST, so the
+        control exercised the half that does not over-credit and passed
+        for the wrong reason. Measured on the exact prose below:
+        ``_embedded_python_sources`` -> ``[]`` while ``_references_in``
+        -> ``['prior_art_search']``.
+
+        That is the defect this very module's ``_without`` docstring
+        warns about — a check aimed at a sub-helper rather than the live
+        call path — recurring one level down. Every shape here therefore
+        goes through ``_references_in`` on a real file on disk.
+        """
+        note = tmp_path / "note.md"
+        note.write_text(
+            "# Notes\n\n" + self._MARKDOWN_MENTION_SHAPES[shape_name],
+            encoding="utf-8",
+        )
+        assert "synthetic_orphan" not in _references_in(note), (
+            f"the {shape_name!r} shape GROUNDED a module through the live "
+            f"call path. Presence in narrative text is not proof of use — "
+            f"the rule the rest of this file enforces by AST — and this "
+            f"is the one surface where it was unenforced. Four such lines "
+            f"were rooting 24 modules.\n"
+            f"Content: "
+            f"{self._MARKDOWN_MENTION_SHAPES[shape_name]!r}"
+        )
+
+    @pytest.mark.parametrize("shape_name", sorted(_MARKDOWN_INVOCATION_SHAPES))
+    def test_permitting_arm_markdown_shapes_that_really_run_still_resolve(
+        self, tmp_path, shape_name
+    ):
+        """PERMITTING ARM on the SAME entry point, and load-bearing.
+
+        Without it the narrative fix could "pass" every refusing arm by
+        making markdown ground nothing whatsoever — which would re-orphan
+        ``prior_art_search`` and every other module whose only carrier is
+        a command file. An explicit interpreter token in prose, and the
+        full command grammar inside a fence, must both still resolve.
+        """
+        note = tmp_path / "note.md"
+        note.write_text(
+            "# Notes\n\n" + self._MARKDOWN_INVOCATION_SHAPES[shape_name],
+            encoding="utf-8",
+        )
+        assert "synthetic_orphan" in _references_in(note), (
+            f"the {shape_name!r} shape resolved NOTHING through the live "
+            f"call path. Markdown now grounds nothing at all, which "
+            f"refuses the sanctioned route and re-orphans every module "
+            f"whose only consumer is a command file.\n"
+            f"Content: "
+            f"{self._MARKDOWN_INVOCATION_SHAPES[shape_name]!r}"
+        )
+
+    def test_regression_issue_1698_prose_does_not_ground_through_the_live_call_path(
+        self, tmp_path
+    ):
+        """REGRESSION PIN for the exact fixture that shipped green.
+
+        One fixture, one defect. Named for what it asserts rather than
+        for the category — the CATEGORY guard is
+        ``test_every_markdown_control_consults_the_live_call_path``, and
+        spending the category name on a single-fixture pin is how a
+        guard comes to read as coverage it has not earned.
+
+        The pin itself is sound: for markdown, whatever
+        ``_references_in`` concludes is the answer, and in round 1 the
+        sub-helper was silent on this prose while the live path was not.
+        """
+        prose = (
+            "# Notes\n\n"
+            "See `prior_art_search.py` for the search mechanism, and read\n"
+            "plugins/autonomous-dev/lib/prior_art_search.py before editing.\n"
+        )
+        note = tmp_path / "note.md"
+        note.write_text(prose, encoding="utf-8")
+
+        sub_helper = set()
+        for source in _embedded_python_sources(prose):
+            sub_helper |= _python_referenced_stems(source)
+        live = _references_in(note)
+
+        assert "prior_art_search" not in sub_helper, (
+            "the sub-helper recovered a consumer from pure prose"
+        )
+        assert "prior_art_search" not in live, (
+            f"THE LIVE CALL PATH grounded the module from prose while the "
+            f"sub-helper did not: sub-helper={sorted(sub_helper)}, "
+            f"live={sorted(live)}. A control aimed at the sub-helper "
+            f"passes here and proves nothing — that is exactly how the "
+            f"first cut of #1698 shipped."
+        )
+
+    #: Synthetic function sources for the category guard's REFUSING arm.
+    #: A structural rule observed only over a corpus that already
+    #: complies is unproven — the same standard this file holds every
+    #: other guard to.
+    _BYPASSING_CONTROL_SOURCES = {
+        "the round-1 defect, verbatim in shape": (
+            "def test_negative_control(self):\n"
+            '    prose = "# Notes\\n\\nSee `x.py` for the mechanism."\n'
+            "    assert not any(\n"
+            '        "x" in _python_referenced_stems(s)\n'
+            "        for s in _embedded_python_sources(prose)\n"
+            "    )\n"
+        ),
+        "the recurrence one new test away": (
+            "def test_negative_control_for_workflow_yaml(self):\n"
+            '    text = "```yaml\\nrun: python3 lib/x.py\\n```\\n"\n'
+            '    assert "x" not in _shell_invoked_stems(text)\n'
+        ),
+        "aimed at the fence walker": (
+            "def test_fences_are_split_correctly(self):\n"
+            '    blocks = _fenced_code_blocks("```bash\\nrun x.py\\n```")\n'
+            "    assert len(blocks) == 1\n"
+        ),
+    }
+
+    #: The SAME claims, made through a live entry point. Every one must
+    #: be permitted, or the rule would simply ban consulting a sub-helper
+    #: — which would be a different, and wrong, rule.
+    _COMPLIANT_CONTROL_SOURCES = {
+        "sub-helper plus the live path, compared": (
+            "def test_negative_control(self, tmp_path):\n"
+            '    prose = "# Notes\\n\\nSee `x.py` for the mechanism."\n'
+            '    note = tmp_path / "n.md"\n'
+            "    note.write_text(prose)\n"
+            "    assert not _embedded_python_sources(prose)\n"
+            '    assert "x" not in _references_in(note)\n'
+        ),
+        # SELF-CONTAINED on purpose: the closure can only resolve helpers
+        # DEFINED in the source it is given, so the helper is included
+        # here. Driving this arm without it flagged the fixture — which
+        # is the permitting arm doing its job, and is why the five live
+        # synthetic-corpus tests (whose ``_unknown`` helper IS in this
+        # file) resolve correctly while an isolated snippet would not.
+        "live path reached through a helper defined alongside": (
+            "def _unknown(root):\n"
+            "    return unreached_library_modules(root)\n"
+            "\n"
+            "def test_synthetic_corpus_arm(tmp_path):\n"
+            '    assert not _shell_invoked_stems("noise")\n'
+            "    assert _unknown(tmp_path) == []\n"
+        ),
+    }
+
+    def test_every_markdown_control_consults_the_live_call_path(self):
+        """THE CATEGORY GUARD. Not a second pin on one fixture.
+
+        A test that reaches directly for a markdown carrier helper is
+        reasoning about how markdown grounds a module, and must also
+        reach a live entry point so the two answers are COMPARED. See
+        ``controls_bypassing_the_live_call_path`` for why the trigger is
+        a direct call and satisfaction is the call closure.
+        """
+        offenders = controls_bypassing_the_live_call_path(
+            Path(__file__).resolve().read_text(encoding="utf-8")
+        )
+        assert not offenders, (
+            f"test(s) consult a markdown carrier helper and NO live entry "
+            f"point: {offenders}\n"
+            f"Each carrier in {sorted(MARKDOWN_CARRIER_HELPERS)} sees only "
+            f"PART of what the walk sees — for a .md file "
+            f"``_references_in`` runs the shell arm FIRST and the embedded "
+            f"-Python arm second, so a control aimed at one can be silent "
+            f"while the walk is loud. That is exactly how the first cut of "
+            f"#1698 shipped a green negative control over a live path that "
+            f"was grounding 24 modules from prose.\n"
+            f"Expected: also call one of "
+            f"{sorted(LIVE_REACHABILITY_ENTRY_POINTS)} — directly or "
+            f"through a helper defined in this file — and assert the two "
+            f"agree. Consulting the sub-helper as well is fine and often "
+            f"informative; consulting ONLY the sub-helper is not."
+        )
+
+    @pytest.mark.parametrize("shape_name", sorted(_BYPASSING_CONTROL_SOURCES))
+    def test_the_category_guard_refuses_a_sub_helper_aimed_control(
+        self, shape_name
+    ):
+        """REFUSING ARM. Watch the structural rule FIRE.
+
+        The live corpus complies, so the arm above is green — and a
+        structural check that has only ever been observed green over a
+        compliant corpus is indistinguishable from one that matches
+        nothing. Each source here is a control aimed at a sub-helper and
+        at nothing live; the rule must name every one.
+        """
+        offenders = controls_bypassing_the_live_call_path(
+            self._BYPASSING_CONTROL_SOURCES[shape_name]
+        )
+        assert offenders, (
+            f"POSITIVE CONTROL FAILED: the {shape_name!r} source consults "
+            f"a markdown carrier and no live entry point, and the rule did "
+            f"NOT flag it. Its empty result over the live corpus is an "
+            f"inert probe, not a clean file.\n"
+            f"Source:\n{self._BYPASSING_CONTROL_SOURCES[shape_name]}"
+        )
+
+    @pytest.mark.parametrize("shape_name", sorted(_COMPLIANT_CONTROL_SOURCES))
+    def test_the_category_guard_permits_a_control_that_consults_the_walk(
+        self, shape_name
+    ):
+        """PERMITTING ARM. The rule must not simply ban sub-helpers.
+
+        Both sources consult a carrier AND a live entry point — the
+        second reaching it through a class helper, which is why
+        satisfaction uses the call closure. A rule that flagged these
+        would pass every refusing arm above while forbidding the correct
+        pattern, and the cheapest way to satisfy it would be to delete
+        the sub-helper assertion, losing the comparison that makes these
+        controls worth anything.
+        """
+        assert (
+            controls_bypassing_the_live_call_path(
+                self._COMPLIANT_CONTROL_SOURCES[shape_name]
+            )
+            == []
+        ), (
+            f"NEGATIVE CONTROL FAILED: the {shape_name!r} source consults "
+            f"a live entry point and was still flagged, so the rule "
+            f"forbids the correct pattern and its positive results above "
+            f"mean nothing.\n"
+            f"Source:\n{self._COMPLIANT_CONTROL_SOURCES[shape_name]}"
+        )
+
+    def test_the_serena_grep_disagreement_is_measured_not_assumed(self):
+        """When two instruments disagree, the disagreement IS the finding.
+
+        Measured on 2026-08-27:
+
+        * Serena ``find_referencing_symbols`` on ``search_prior_art``
+          returns exactly ONE hit — ``_main/hits`` at
+          ``prior_art_search.py:227``, the module's own CLI entry point.
+        * This walk resolves a consumer in ``commands/implement.md``.
+
+        The LSP is not wrong about symbols; it cannot see into a markdown
+        fence, which is where the only production consumer lives. Same
+        class as the ``importlib`` blind spot CLAUDE.md already records.
+        Resolving the disagreement in the LSP's favour would classify a
+        wired module as an orphan; resolving it silently either way is
+        the failure this arm exists to prevent, so the two populations
+        are counted here and the gap is asserted rather than described.
+        """
+        result = library_reachability()
+        python_consumers = sorted(
+            path.name
+            for path in result.grounded
+            if path.suffix == ".py"
+            and path.name != "prior_art_search.py"
+            and "prior_art_search"
+            in _python_referenced_stems(
+                path.read_text(encoding="utf-8", errors="replace")
+            )
+        )
+        carrier_consumers = sorted(
+            path.name
+            for path in result.grounded
+            if path.suffix != ".py"
+            and "prior_art_search" in _references_in(path)
+        )
+        assert not python_consumers, (
+            f"prior_art_search now has PLAIN-PYTHON consumers "
+            f"{python_consumers}, which an LSP resolves without help. The "
+            f"instruments no longer disagree here, so this arm measures "
+            f"nothing — pick another module whose only carrier is "
+            f"markdown, or retire the arm."
+        )
+        assert carrier_consumers, (
+            "neither instrument resolves a consumer of prior_art_search. "
+            "The wiring from b5f9e726 is gone, or the carrier extractor "
+            "is inert."
+        )
+        assert "prior_art_search.py" in result.reached, (
+            f"the walk found a consumer in {carrier_consumers} and still "
+            f"classified the module UNKNOWN — the disagreement was "
+            f"resolved in favour of the blinder instrument."
+        )
+
+    def test_the_instrument_never_asserts_a_module_is_dead(self):
+        """REACHED or UNKNOWN, never ABSENT. Checked, not promised.
+
+        A false "this module is dead" carries mechanical authority and
+        would license deleting live code — strictly worse than no
+        ratchet. ``prior_art_search`` itself ships this contract
+        (``PRIOR ART: UNKNOWN — ...``); this inherits it, and the
+        inheritance is verified rather than asserted in prose.
+        """
+        assert LIBRARY_VERDICTS == {"REACHED", "UNKNOWN"}, (
+            f"the verdict vocabulary drifted to {sorted(LIBRARY_VERDICTS)}. "
+            f"Any third verdict needs a deliberate edit and a reason."
+        )
+        assert set(LibraryReachability._fields) == {
+            "corpus",
+            "reached",
+            "unknown",
+            "grounded",
+            "surfaces",
+        }, (
+            f"the result shape changed to "
+            f"{sorted(LibraryReachability._fields)}. A field named "
+            f"'absent', 'dead' or 'unused' would present a search miss as "
+            f"a fact about the module."
+        )
+        # TIE the vocabulary to the result shape. Comparing the frozenset
+        # to a literal in this same file costs nothing: both operands are
+        # constants here, so the check is decoration. This one binds them
+        # — every verdict must name a real bucket, which is the join
+        # ``library_verdict`` performs on the live failure path.
+        assert {v.lower() for v in LIBRARY_VERDICTS} <= set(
+            LibraryReachability._fields
+        ), (
+            f"verdict(s) {sorted(LIBRARY_VERDICTS)} do not all map to a "
+            f"result field {sorted(LibraryReachability._fields)}. "
+            f"library_verdict() resolves a verdict by reading the field of "
+            f"the same lower-cased name; an unmapped verdict makes it "
+            f"raise on every module."
+        )
+
+        # And exercise that join, so the vocabulary is load-bearing at
+        # runtime rather than only in an assertion.
+        result = library_reachability()
+        assert library_verdict("prior_art_search.py", result) == "REACHED"
+        assert library_verdict(sorted(result.unknown)[0], result) == "UNKNOWN"
+        with pytest.raises(KeyError, match="expected exactly one"):
+            library_verdict("module_that_is_in_neither_bucket.py", result)
+
+        message = library_failure_message(["synthetic_example.py"]).lower()
+        assert "unknown" in message and "no invocation route" in message, (
+            f"the failure message no longer states the UNKNOWN contract, "
+            f"so a maintainer reads it as a verdict of death: {message}"
+        )
+        assert "does not mean the module is unused" in message, (
+            f"the disclaimer that turns a search miss into a search miss "
+            f"— rather than into a verdict — is gone: {message}"
+        )
+        assert "not authority to remove anything" in message, (
+            f"the message no longer says the finding is not authority to "
+            f"remove code, which is the whole contract: {message}"
+        )
+        # Affirmative shapes only: the disclaimer above legitimately
+        # contains "the module is unused" inside "does NOT mean ...".
+        for forbidden in (
+            "module is dead",
+            "safe to delete",
+            "safe to remove",
+            "you may delete",
+            "has no consumers",
+        ):
+            assert forbidden not in message, (
+                f"the failure message tells a maintainer the module {forbidden!r}. "
+                f"This instrument cannot see a dynamically-constructed "
+                f"import, an untracked local settings binding, or a "
+                f"carrier it does not enumerate. Saying so is the whole "
+                f"contract.\n{message}"
+            )
+
+    def test_the_walk_terminates_in_reasonable_time(self):
+        """A tier-3 file that takes a minute gets excluded from CI."""
+        import time
+
+        _clear_library_reachability_cache()
+        start = time.monotonic()
+        library_reachability(use_cache=False)
+        elapsed = time.monotonic() - start
+        assert elapsed < 15.0, (
+            f"the library walk took {elapsed:.1f}s. It parses every "
+            f"consumer once; a blow-up means a glob started matching a "
+            f"mirror tree (.claude/, .worktrees/, .codex/)."
+        )
+
+
+class TestLibraryRatchet:
+    """The pinned unreached library set may only shrink."""
+
+    def test_no_new_unreached_library_modules(self):
+        """THE RATCHET. A newly-orphaned library module fails here, named.
+
+        Adding the offender to ``PINNED_UNREACHED_LIBRARY`` is NOT an
+        acceptable resolution — the ceiling below refuses it.
+        """
+        live = unreached_library_modules()
+        new = sorted(set(live) - PINNED_UNREACHED_LIBRARY)
+        assert not new, library_failure_message(new)
+
+    def test_pinned_library_entries_are_still_unreached(self):
+        """The arm that makes this a ratchet, not a permanent exemption.
+
+        A module that gets wired drops out of the live set and its stale
+        pin fails until it is deleted. That deletion IS the ratchet
+        advancing, and it is how the fix gets recorded.
+        """
+        result = library_reachability()
+        live = set(result.unknown)
+        stale = sorted(PINNED_UNREACHED_LIBRARY - live)
+        assert not stale, (
+            f"PINNED_UNREACHED_LIBRARY names {stale}, which now resolve to "
+            f"a route: "
+            f"{ {k: result.reached.get(k) for k in stale} }\n"
+            f"Delete them from the pin and lower "
+            f"LIBRARY_REACHABILITY_CEILING and "
+            f"LIBRARY_CEILING_HIGH_WATER_MARK to match — that deletion IS "
+            f"the ratchet advancing."
+        )
+
+    def test_every_pinned_library_module_still_exists(self):
+        """A pin entry naming a deleted file is dead weight in the ceiling."""
+        corpus = _library_corpus()
+        missing = sorted(PINNED_UNREACHED_LIBRARY - set(corpus))
+        assert not missing, (
+            f"PINNED_UNREACHED_LIBRARY names {missing}, which are no longer "
+            f"in the corpus. Remove them and lower "
+            f"LIBRARY_REACHABILITY_CEILING from "
+            f"{LIBRARY_REACHABILITY_CEILING} to "
+            f"{LIBRARY_REACHABILITY_CEILING - len(missing)}."
+        )
+
+    def test_library_pin_has_a_ceiling(self):
+        """The escape hatch cannot grow SILENTLY.
+
+        Equality against the pin size, plus a reviewed high-water mark so
+        that RAISING costs a second visible constant edit. See
+        ``TestLibraryCeilingIsNotATautology`` for both driven end to end
+        over mutated copies.
+        """
+        assert len(PINNED_UNREACHED_LIBRARY) == LIBRARY_REACHABILITY_CEILING, (
+            f"PINNED_UNREACHED_LIBRARY holds "
+            f"{len(PINNED_UNREACHED_LIBRARY)} entries but "
+            f"LIBRARY_REACHABILITY_CEILING is "
+            f"{LIBRARY_REACHABILITY_CEILING}. These move together: "
+            f"equality is what makes a SWAP visible, since equal totals "
+            f"prove nothing about equal sets."
+        )
+        assert LIBRARY_REACHABILITY_CEILING <= LIBRARY_CEILING_HIGH_WATER_MARK, (
+            f"LIBRARY_REACHABILITY_CEILING was RAISED to "
+            f"{LIBRARY_REACHABILITY_CEILING}, over the reviewed high-water "
+            f"mark of {LIBRARY_CEILING_HIGH_WATER_MARK}. LOWER it freely — "
+            f"that is the ratchet advancing. RAISING is honest in exactly "
+            f"one case: a NEW INVOCATION STYLE or a NEW CORPUS made "
+            f"PRE-EXISTING orphans visible. To take that case, in ONE "
+            f"diff: name the style here, raise "
+            f"LIBRARY_CEILING_HIGH_WATER_MARK alongside it, and justify "
+            f"the new entries."
+        )
+
+    def test_the_library_residual_headroom_is_zero(self):
+        """State the hole rather than hide it, and hold it at zero."""
+        residual = LIBRARY_CEILING_HIGH_WATER_MARK - LIBRARY_REACHABILITY_CEILING
+        assert residual >= 0, (
+            f"LIBRARY_REACHABILITY_CEILING ({LIBRARY_REACHABILITY_CEILING}) "
+            f"is above the reviewed high-water mark "
+            f"({LIBRARY_CEILING_HIGH_WATER_MARK}); the bound is inverted "
+            f"and the anti-raise assertion is inert."
+        )
+        assert residual == 0, (
+            f"the ceiling was lowered to {LIBRARY_REACHABILITY_CEILING} "
+            f"while LIBRARY_CEILING_HIGH_WATER_MARK stayed at "
+            f"{LIBRARY_CEILING_HIGH_WATER_MARK}. That pre-authorises "
+            f"{residual} further pin entr(y/ies) no ceiling assertion "
+            f"would see. Lower the mark to "
+            f"{LIBRARY_REACHABILITY_CEILING} — one line, no justification "
+            f"needed, and it is the last step of the edit you have made."
+        )
+
+    def test_regression_issue_1698_the_corpus_cannot_narrow_back_to_hooks_dir(self):
+        """The corpus must still BE the library corpus.
+
+        #1612 shipped with ``HOOKS_DIR`` as its whole world. The cheapest
+        way to make every arm in this file green again is to point the
+        library globs back at ``hooks/`` — every assertion would pass
+        against an empty unreached set and the pin would fail loudly, but
+        a maintainer under pressure could then "fix" it by emptying the
+        pin. This refuses the first step.
+        """
+        assert any("lib" in glob for glob in LIBRARY_CORPUS_GLOBS), (
+            f"LIBRARY_CORPUS_GLOBS no longer names lib/: "
+            f"{list(LIBRARY_CORPUS_GLOBS)}"
+        )
+        corpus = _library_corpus()
+        lib_root = LIB_DIR.resolve()
+        hooks_root = HOOKS_DIR.resolve()
+        for key, path in corpus.items():
+            assert lib_root in path.resolve().parents, (
+                f"corpus member {key} resolves to {path}, outside "
+                f"{lib_root}. The corpus has drifted."
+            )
+            assert path.resolve().parent != hooks_root, (
+                f"corpus member {key} is a HOOK. #1612 already classifies "
+                f"hooks; a library ratchet pointed at hooks/ measures "
+                f"nothing new."
+            )
+        hook_names = {p.name for p in _iter_hook_files(HOOKS_DIR)}
+        assert not (set(corpus) & hook_names), (
+            f"the library corpus and the hook corpus now overlap on "
+            f"{sorted(set(corpus) & hook_names)}"
+        )
+
+    def test_permitting_arm_modules_reached_only_without_an_import(self):
+        """LOAD-BEARING PERMITTING ARM. Import-only analysis deletes code.
+
+        Derived at runtime, never hardcoded: the set of library modules
+        that ARE reached and that NO Python ``import`` anywhere in the
+        walked corpus names. Every one of them runs as
+        ``python3 path/to/X.py`` from a command file, through a settings
+        binding, or through Python recovered from a markdown fence.
+
+        A ratchet built on imports alone calls all of them orphans. The
+        assertion is on the SHAPE (the set is non-trivial and disjoint
+        from the unreached set), not on a count, so it keeps working as
+        modules are wired and unwired.
+        """
+        result = library_reachability()
+        imported: "set[str]" = set()
+        for path in result.grounded:
+            if path.suffix == ".py":
+                imported |= _python_referenced_stems(
+                    path.read_text(encoding="utf-8", errors="replace")
+                )
+
+        non_import_only = sorted(
+            key
+            for key in result.reached
+            if Path(key).stem not in imported
+        )
+        assert len(non_import_only) >= 10, (
+            f"only {len(non_import_only)} reached module(s) resolve "
+            f"WITHOUT a Python import: {non_import_only}. Either the "
+            f"script-invocation and markdown carriers stopped resolving, "
+            f"or the import arm started over-crediting — in both cases "
+            f"this arm no longer proves that dropping the non-import "
+            f"styles would cost anything."
+        )
+        # NOT ``set(non_import_only) & set(result.unknown)``: ``reached``
+        # and ``unknown`` are built as complements over one corpus and
+        # ``non_import_only`` is drawn from ``reached``, so that
+        # intersection is empty by construction and the assertion cannot
+        # fail. THIS one can: it checks the partition those two buckets
+        # are supposed to form, which is the property the complement
+        # relied on, and which a future edit to the walk could break.
+        assert set(result.reached) | set(result.unknown) == set(result.corpus), (
+            f"the walk's buckets do not partition the corpus. "
+            f"Neither bucket: "
+            f"{sorted(set(result.corpus) - set(result.reached) - set(result.unknown))}; "
+            f"outside the corpus: "
+            f"{sorted((set(result.reached) | set(result.unknown)) - set(result.corpus))}"
+        )
+        assert not (set(result.reached) & set(result.unknown)), (
+            f"module(s) are BOTH reached and unknown: "
+            f"{sorted(set(result.reached) & set(result.unknown))}. "
+            f"``library_verdict`` raises on this, so the failure message "
+            f"would crash rather than mislead — but the walk is broken."
+        )
+        lines = sum(
+            len(result.corpus[k].read_text(encoding="utf-8", errors="replace")
+                .splitlines())
+            for k in non_import_only
+        )
+        assert lines >= 1000, (
+            f"the modules reached only by a non-import route total "
+            f"{lines} lines. That is the code an import-only ratchet "
+            f"would call dead; if it collapsed, re-measure before "
+            f"trusting any verdict here."
+        )
+
+
+class TestLibraryGuardIsWatchedFiring:
+    """A ratchet only ever observed GREEN is unproven.
+
+    Each arm removes ONE carrier from the live instrument and shows the
+    answer changes in the direction that matters. Every arm restores the
+    global in ``finally`` and clears the memo, so an arm that fails
+    mid-way cannot poison the rest of the file.
+    """
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _without(attribute: str, replacement):
+        """Swap a carrier out of THIS module object for the block's duration.
+
+        ``sys.modules[__name__]`` rather than ``import test_hook_
+        reachability_ratchet``: this file inserts its own directory on
+        ``sys.path``, so an import by name can bind a SECOND module
+        object whose globals the live functions never read. Patching that
+        copy leaves the walk unchanged and every arm below passes for the
+        wrong reason — measured, on the first run of this class.
+
+        A CONTEXT MANAGER, restoring through the SAME captured attribute
+        name it patched. The earlier form returned ``(module, original)``
+        and left each caller to write ``module._the_name = original`` by
+        hand. All three happened to name it correctly, which is luck, not
+        structure: one typo would leave a stub installed on a module
+        global and silently poison every later test in the file.
+
+        Args:
+            attribute: Module-global name to replace.
+            replacement: The stub to install.
+
+        Yields:
+            The original object, for callers that need to delegate to it.
+        """
+        module = sys.modules[__name__]
+        original = getattr(module, attribute)
+        setattr(module, attribute, replacement)
+        _clear_library_reachability_cache()
+        try:
+            yield original
+        finally:
+            setattr(module, attribute, original)
+            _clear_library_reachability_cache()
+
+    def test_removing_the_markdown_carrier_flips_prior_art_search_to_unknown(self):
+        """THE WORKED EXAMPLE, watched FIRING on the live corpus.
+
+        ``prior_art_search.py``'s only production consumer is Python
+        embedded in a markdown fence. Disable that carrier — which is
+        precisely what a Serena-only or import-only instrument does — and
+        the module falls out of reach and the ratchet goes RED, naming
+        it. This reproduces the state the module actually shipped in for
+        a day before ``b5f9e726``.
+        """
+        before = library_reachability()
+        assert "prior_art_search.py" in before.reached, (
+            "premise: prior_art_search.py is REACHED today. If it is not, "
+            "the wiring in b5f9e726 has been reverted and this arm proves "
+            "nothing about the carrier."
+        )
+        assert "implement.md" in before.reached["prior_art_search.py"], (
+            f"premise: the route is the command file, not something else. "
+            f"Got: {before.reached['prior_art_search.py']!r}"
+        )
+
+        with self._without("_embedded_python_sources", lambda text: []):
+            after = library_reachability(use_cache=False)
+            new = sorted(set(after.unknown) - PINNED_UNREACHED_LIBRARY)
+            # Watch THE RATCHET ITSELF go red, not a re-derivation of it.
+            # An arm that only recomputes the set proves the set changed;
+            # this proves the assertion a maintainer would see changes too.
+            with pytest.raises(AssertionError, match="UNKNOWN"):
+                TestLibraryRatchet().test_no_new_unreached_library_modules()
+
+        assert "prior_art_search.py" in after.unknown, (
+            "with the markdown carrier disabled prior_art_search.py was "
+            "STILL reached, so some other route grounds it and this arm "
+            "does not exercise the carrier. Re-pick the instance."
+        )
+        assert "prior_art_search.py" in new, (
+            f"prior_art_search.py fell out of reach but the ratchet's "
+            f"new-offender set did not name it: {new}. The guard cannot "
+            f"fire on the very case it was built for."
+        )
+
+    def test_removing_the_script_invocation_carrier_grows_the_unknown_set(self):
+        """Watch the guard fire for the ``python3 path/X.py`` style.
+
+        Paired with ``test_permitting_arm_modules_reached_only_without_
+        an_import`` — that arm shows what the style BUYS, this one shows
+        the ratchet actually goes red when it is taken away.
+        """
+        before = set(library_reachability().unknown)
+        with self._without(
+            "_shell_invoked_stems", lambda text, pattern=None: set()
+        ):
+            after = set(library_reachability(use_cache=False).unknown)
+
+        gained = sorted(after - before)
+        assert gained, (
+            "disabling the shell-invocation carrier changed nothing. "
+            "Either the carrier resolves nothing today (in which case the "
+            "28-module permitting arm is lying) or the swap did not take."
+        )
+        assert sorted(set(gained) - PINNED_UNREACHED_LIBRARY), (
+            f"the {len(gained)} module(s) that fell out of reach are all "
+            f"already pinned, so the ratchet would stay GREEN while a "
+            f"whole invocation style stopped working: {gained}"
+        )
+
+    def test_removing_content_discovery_of_settings_surfaces_changes_the_answer(self):
+        """Watch the guard fire for the settings-binding style.
+
+        Restrict surface discovery to what a ``settings*.json`` filename
+        glob would find — the instrument failure the #1698 brief names —
+        and the walk loses ``global_settings_template.json`` (16 command
+        entries) and ``.claude-plugin/default-settings.json``. If nothing
+        changed, content discovery would be decorative.
+        """
+        before = library_reachability()
+        assert len(before.surfaces) >= 6, "premise: content discovery resolves"
+
+        content_discovery = _binding_surfaces
+
+        def _glob_only(project_root: Path = PROJECT_ROOT) -> "list[Path]":
+            """The mutant: the same walk, filtered to glob-visible names."""
+            return [
+                p
+                for p in content_discovery(project_root)
+                if p.name.startswith("settings")
+            ]
+
+        with self._without("_binding_surfaces", _glob_only):
+            after = library_reachability(use_cache=False)
+
+        assert len(after.surfaces) < len(before.surfaces), (
+            "the filename-glob restriction removed no surface, so the two "
+            "discovery rules agree here and this arm is inert"
+        )
+        lost = sorted(set(after.unknown) - set(before.unknown))
+        lost_hooks = sorted(
+            p.name
+            for p in before.grounded
+            if p not in after.grounded and p.suffix == ".py"
+        )
+        assert lost or lost_hooks, (
+            "dropping two binding surfaces cost the walk nothing at all. "
+            "Content discovery would then be decorative and a filename "
+            "glob would do."
+        )
+        assert {"auto_fix_docs.py", "enforce_tier_distribution.py"} <= set(
+            lost_hooks
+        ), (
+            f"expected the two hooks bound ONLY outside a settings*.json "
+            f"glob to lose their grounding; measured {lost_hooks}"
+        )
+
+
+class TestLibraryBothArmsOnSyntheticCorpora:
+    """Watch the library rule REFUSING and PERMITTING, per carrier.
+
+    Synthetic throughout, and deliberately so: as the pin shrinks, live
+    arms stop exercising the refusing case. These keep working either
+    way, and every one drives ``library_reachability`` — the SAME
+    function the live rule uses — over a synthetic repository. A control
+    that re-implements the rule proves nothing about the rule.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> "tuple[Path, Path]":
+        """Build a minimal synthetic tree with an empty settings surface."""
+        plugin = tmp_path / "plugins" / "autonomous-dev"
+        lib = plugin / "lib"
+        lib.mkdir(parents=True)
+        (plugin / "hooks").mkdir(parents=True)
+        (plugin / "commands").mkdir(parents=True)
+        templates = plugin / "templates"
+        templates.mkdir(parents=True)
+        (templates / "settings.default.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+        )
+        return tmp_path, lib
+
+    @staticmethod
+    def _module(lib: Path, name: str, body: str = "def run():\n    return 1\n"):
+        (lib / name).write_text(body, encoding="utf-8")
+
+    @staticmethod
+    def _command(root: Path, name: str, body: str):
+        (root / "plugins" / "autonomous-dev" / "commands" / name).write_text(
+            body, encoding="utf-8"
+        )
+
+    @staticmethod
+    def _unknown(root: Path) -> "list[str]":
+        _clear_library_reachability_cache()
+        return unreached_library_modules(root, use_cache=False)
+
+    def test_refusing_arm_a_module_with_no_consumer_is_unknown(self, tmp_path):
+        """THE #1669 SHAPE. Shipped, tested, deployed, called by nothing."""
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        assert self._unknown(root) == ["synthetic_orphan.py"], (
+            "a library module with no consumer in any of the three styles "
+            "was not classified UNKNOWN. The rule does not detect the "
+            "class it exists to detect."
+        )
+
+    def test_permitting_arm_script_invocation_from_a_command_file(self, tmp_path):
+        """PERMITTING. ``python3 lib/X.py`` from a command file → REACHED.
+
+        The load-bearing arm: without it the ratchet calls 28 live
+        modules orphans. Same module, same tree as the refusing arm above
+        — the ONLY difference is one line in a command file.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```bash\n"
+            "python3 plugins/autonomous-dev/lib/synthetic_orphan.py --check\n"
+            "```\n",
+        )
+        assert self._unknown(root) == [], (
+            "a module invoked as `python3 .../synthetic_orphan.py` from a "
+            "command file was classified UNKNOWN. An import-only walk "
+            "does exactly this, and it is why one must not be used here."
+        )
+
+    def test_permitting_arm_markdown_embedded_python_import(self, tmp_path):
+        """PERMITTING. The ``search_prior_art`` shape, reproduced exactly.
+
+        A ``python3 -c`` script inside a ```bash fence in a command file.
+        Serena resolves nothing here; grep-for-the-carrier plus AST does.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```bash\n"
+            "BLOCK=$(python3 -c '\n"
+            "import sys\n"
+            "from synthetic_orphan import run\n"
+            "print(run())\n"
+            "')\n"
+            "```\n",
+        )
+        assert self._unknown(root) == [], (
+            "a module imported by Python embedded in a markdown fence was "
+            "classified UNKNOWN. That is the ONLY consumer "
+            "prior_art_search.py has, so this instrument would report the "
+            "wired state as still dead."
+        )
+
+    def test_permitting_arm_settings_binding_under_a_non_lifecycle_event(
+        self, tmp_path
+    ):
+        """PERMITTING. A binding grounds the hook, and the hook the module.
+
+        Bound under ``PreCommit``, which is NOT one of the eight
+        ``LIFECYCLE_EVENTS``. That is the live
+        ``.claude-plugin/default-settings.json`` shape, and a rule keyed
+        on the eight event names refuses it — correct for the hook guard,
+        wrong here, where the safe direction is REACHED.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        hook = root / "plugins" / "autonomous-dev" / "hooks" / "synthetic_hook.py"
+        hook.write_text(
+            "from synthetic_orphan import run\n"
+            "def main():\n"
+            "    return run()\n",
+            encoding="utf-8",
+        )
+        surface = root / "plugins" / "autonomous-dev" / ".claude-plugin"
+        surface.mkdir(parents=True)
+        (surface / "default-settings.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreCommit": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": (
+                                            "python3 .claude/hooks/"
+                                            "synthetic_hook.py"
+                                        ),
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert self._unknown(root) == [], (
+            "a module imported by a hook bound in a content-discovered "
+            "settings surface was classified UNKNOWN. Discovery by "
+            "filename glob would miss this surface entirely."
+        )
+
+    def test_refusing_arm_a_mention_in_a_docstring_grounds_nothing(self, tmp_path):
+        """REFUSING, negative control of a DIFFERENT SHAPE.
+
+        The consumer file is real, reached, and NAMES the module in a
+        docstring, a comment and a string literal — the
+        ``secret_patterns.py`` shape. None of that runs anything.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        self._module(
+            lib,
+            "synthetic_consumer.py",
+            '"""Coordinates with synthetic_orphan.py.\n\n'
+            "- lib/synthetic_orphan.py (the real work)\n"
+            '"""\n'
+            "# synthetic_orphan.py is deliberately NOT imported here.\n"
+            'NOTE = "see synthetic_orphan.py"\n'
+            "def run():\n"
+            "    return 1\n",
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "```bash\n"
+            "python3 plugins/autonomous-dev/lib/synthetic_consumer.py\n"
+            "```\n",
+        )
+        assert self._unknown(root) == ["synthetic_orphan.py"], (
+            "a docstring bullet, a comment and a string literal naming "
+            "the module grounded it. That is presence-as-proof, and it is "
+            "why the instrument is AST rather than grep."
+        )
+
+    def test_regression_issue_1698_an_orphan_importer_grounds_nothing(self, tmp_path):
+        """LIMITATION 4, as behaviour. The recursion must not stop early.
+
+        ``synthetic_orphan.py`` is imported by ``synthetic_middle.py``,
+        which nothing reaches. Before #1698 the equivalent check treated
+        any importer outside the hook corpus as grounded on sight, so a
+        module reached only by an orphan read as reachable. Paired below
+        with the identical tree plus one line that grounds the chain.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        self._module(
+            lib,
+            "synthetic_middle.py",
+            "from synthetic_orphan import run\n"
+            "def go():\n"
+            "    return run()\n",
+        )
+        assert self._unknown(root) == [
+            "synthetic_middle.py",
+            "synthetic_orphan.py",
+        ], (
+            "a module imported ONLY by an orphan was accepted as reached. "
+            "The recursion terminates at a file nothing runs, which is "
+            "limitation 4 of this module's docstring, one corpus over."
+        )
+
+    def test_permitting_arm_a_chain_that_terminates_at_an_entry_surface(
+        self, tmp_path
+    ):
+        """PERMITTING. The SAME chain, grounded → both modules REACHED.
+
+        Holding the tree fixed and changing only the terminating line is
+        what makes the pair discriminate the grounding from some other
+        property of the fixture.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        self._module(
+            lib,
+            "synthetic_middle.py",
+            "from synthetic_orphan import run\n"
+            "def go():\n"
+            "    return run()\n",
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "```bash\n"
+            "python3 plugins/autonomous-dev/lib/synthetic_middle.py\n"
+            "```\n",
+        )
+        assert self._unknown(root) == [], (
+            "a two-link chain terminating at a command file was flagged. "
+            "The rule refuses the sanctioned route, so correctly-wired "
+            "helpers read as orphans."
+        )
+
+    def test_a_fabricated_module_name_is_unknown_without_crashing(self, tmp_path):
+        """Boundary: a name this module has never heard of is classified.
+
+        A hardcoded corpus inherits the defect it polices — it can only
+        find the modules someone remembered to list.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "zzz_invented_yesterday.py")
+        assert self._unknown(root) == ["zzz_invented_yesterday.py"]
+
+    def test_a_test_import_is_not_reachability(self, tmp_path):
+        """``prior_art_search`` had nine green tests and no consumers.
+
+        Counting a test import as a route would have reported it reached
+        on the day it shipped dead. ``tests`` is in
+        ``LIBRARY_EXCLUDED_PATH_PARTS`` for exactly this.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        tests = root / "tests" / "unit"
+        tests.mkdir(parents=True)
+        (tests / "test_synthetic_orphan.py").write_text(
+            "from synthetic_orphan import run\n"
+            "def test_run():\n"
+            "    assert run() == 1\n",
+            encoding="utf-8",
+        )
+        assert self._unknown(root) == ["synthetic_orphan.py"], (
+            "a test import grounded the module. Nine passing tests over a "
+            "module nothing calls is the exact state #1669 shipped in."
+        )
+
+    def test_documentation_prose_is_not_an_entry_surface(self, tmp_path):
+        """``docs/**/*.md`` must not ground anything (#1690's subject).
+
+        Eleven live modules are "invoked" only inside documentation. A
+        tutorial showing how to run something is not something running
+        it, and crediting it would silently clear eleven orphans.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "synthetic_orphan.py")
+        docs = root / "docs"
+        docs.mkdir(parents=True)
+        (docs / "guide.md").write_text(
+            "# Guide\n\n```bash\n"
+            "python3 plugins/autonomous-dev/lib/synthetic_orphan.py\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        assert self._unknown(root) == ["synthetic_orphan.py"], (
+            "a docs/ code block grounded a module. That is #1690's "
+            "finding, and crediting it here would clear eleven orphans "
+            "with nothing running them."
+        )
+
+
+class TestLibraryCorpusCrossReference:
+    """Where the hook corpus and the library corpus have to agree."""
+
+    def test_limitation_four_is_measured_not_merely_documented(self):
+        """Name every hook whose only voucher is an UNKNOWN library module.
+
+        ``_utility_route_is_grounded`` accepts any importer outside
+        ``HOOKS_DIR`` on sight. #1698 does NOT rewrite that rule — it is
+        #1612's, and re-verdicting five pinned hooks from here would be
+        the two-ratchets-disagree failure — but the condition it cannot
+        see is now computable, so it is computed on every run instead of
+        being left as a paragraph.
+
+        The set is EMPTY today. That is a measurement, not an assumption:
+        the positive control below shows the detector can produce a
+        non-empty answer, so a zero here means zero rather than an inert
+        probe.
+        """
+        result = library_reachability()
+        registrations = _lifecycle_registrations(_registration_surfaces())
+        hooks_root = HOOKS_DIR.resolve()
+
+        vouched_by_an_orphan: "dict[str, list[str]]" = {}
+        for path in _iter_hook_files(HOOKS_DIR):
+            if not _refusal_evidence(path) or registrations.get(path.name):
+                continue
+            if _sidecar_type(path) != UTILITY_TYPE:
+                continue
+            outside = [
+                importer
+                for importer in _resolve_importers(path)
+                if importer.resolve().parent != hooks_root
+            ]
+            orphaned = [p.name for p in outside if p not in result.grounded]
+            if orphaned:
+                vouched_by_an_orphan[path.name] = sorted(orphaned)
+
+        assert not vouched_by_an_orphan, (
+            f"hook(s) are treated as reachable on the strength of a "
+            f"library or script importer that is ITSELF unreached: "
+            f"{vouched_by_an_orphan}\n"
+            f"That is limitation 4 of this module's docstring, now with a "
+            f"live instance. The hook reads as wired, the library file "
+            f"reads as wired because nothing asked, and neither runs. "
+            f"Wire the importer up, or register the hook directly."
+        )
+
+    def test_positive_control_the_cross_reference_can_produce_a_finding(
+        self, tmp_path
+    ):
+        """A probe that returns zero is not evidence of zero.
+
+        The arm above reports an empty set over the live tree. Drive the
+        same two rules over a synthetic tree that CONTAINS the shape —
+        a ``utility`` hook whose only importer is an orphaned library
+        module — and both must produce the pairing.
+        """
+        plugin = tmp_path / "plugins" / "autonomous-dev"
+        hooks = plugin / "hooks"
+        lib = plugin / "lib"
+        hooks.mkdir(parents=True)
+        lib.mkdir(parents=True)
+        templates = plugin / "templates"
+        templates.mkdir(parents=True)
+        (templates / "settings.default.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+        )
+        (hooks / "synthetic_utility_gate.py").write_text(
+            "import sys\ndef main():\n    sys.exit(2)\n", encoding="utf-8"
+        )
+        (hooks / "synthetic_utility_gate.hook.json").write_text(
+            json.dumps({"name": "synthetic_utility_gate", "type": "utility"}),
+            encoding="utf-8",
+        )
+        (lib / "synthetic_orphan_consumer.py").write_text(
+            "import synthetic_utility_gate\n"
+            "def go():\n"
+            "    return synthetic_utility_gate.main()\n",
+            encoding="utf-8",
+        )
+
+        assert unreachable_refusers(hooks, tmp_path) == {}, (
+            "POSITIVE CONTROL PREMISE FAILED: the hook rule was supposed "
+            "to PERMIT this gate on the strength of its library importer. "
+            "If it already refuses it, limitation 4 does not apply here "
+            "and this control exercises nothing."
+        )
+
+        _clear_library_reachability_cache()
+        result = library_reachability(tmp_path, use_cache=False)
+        _clear_library_reachability_cache()
+        assert "synthetic_orphan_consumer.py" in result.unknown, (
+            f"POSITIVE CONTROL FAILED: the library rule found a route to "
+            f"the sole voucher, so the cross-reference above could never "
+            f"produce a finding and its empty result means nothing. "
+            f"Reached: {result.reached}"
+        )
+
+
+class TestLibraryCeilingIsNotATautology:
+    """The library ceiling must fail on GROWTH, not merely on disagreement.
+
+    ``LIBRARY_REACHABILITY_CEILING == len(PINNED_UNREACHED_LIBRARY)`` is
+    unfalsifiable from inside this file: both operands are constants
+    here, so an edit that adds a pinned entry AND bumps the ceiling moves
+    them together and nothing fires. The arms below are therefore driven
+    over MUTATED copies of this module in a subprocess, reusing
+    ``TestCeilingIsNotATautology``'s harness rather than growing a second
+    one.
+    """
+
+    _SELECTION = "test_library_pin_has_a_ceiling"
+
+    #: Prefix of the single line opening the library pin literal. An
+    #: anchor that survives the pin being emptied, so the harness does
+    #: not need re-anchoring as the ratchet advances.
+    _PIN_PREFIX = "PINNED_UNREACHED_LIBRARY: "
+
+    @staticmethod
+    def _source() -> str:
+        return Path(__file__).resolve().read_text(encoding="utf-8")
+
+    @staticmethod
+    def _library_ceiling_anchor(ceiling: int) -> str:
+        return f"\nLIBRARY_REACHABILITY_CEILING = {ceiling}\n"
+
+    @classmethod
+    def _grow(cls, source: str, count: int) -> str:
+        """Add ``count`` synthetic entries to the library pin."""
+        assert count > 0, (
+            f"a growth mutation of {count} entries adds nothing; the "
+            f"refusing arm would run against an unmutated copy"
+        )
+        declaration = _unique_line(source, cls._PIN_PREFIX, "library pin")
+        entries = "".join(
+            f'    "synthetic_library_offender_{i}.py",\n' for i in range(count)
+        )
+        if "frozenset()" in declaration:
+            replacement = declaration.replace(
+                "frozenset()", "frozenset({\n" + entries + "})"
+            )
+        else:
+            replacement = declaration + entries
+        return TestCeilingIsNotATautology._substitute(
+            source, declaration, replacement
+        )
+
+    @staticmethod
+    def _run(tmp_path: Path, source: str, selection: str):
+        """Run one selected test over a mutated copy, out of tree."""
+        import os
+
+        mutant = tmp_path / "test_library_ceiling_mutant.py"
+        mutant.write_text(source, encoding="utf-8")
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [_THIS_DIR] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else [])
+        )
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(mutant),
+                "-k",
+                selection,
+                "-q",
+                "--no-header",
+                "-p",
+                "no:cacheprovider",
+                "-p",
+                "no:randomly",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(tmp_path),
+            env=env,
+            timeout=180,
+        )
+
+    def test_control_unmutated_copy_passes_the_library_ceiling(self, tmp_path):
+        """NEGATIVE CONTROL for the harness. No mutation → GREEN.
+
+        Without it, a red below could just as easily mean "a subprocess
+        pytest cannot import this module at all".
+        """
+        result = self._run(tmp_path, self._source(), self._SELECTION)
+        assert result.returncode == 0, (
+            f"the UNMUTATED library ceiling test failed in the harness, so "
+            f"every other result here is uninterpretable.\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+        assert "1 passed" in result.stdout, (
+            f"the harness selected {result.stdout!r} — expected exactly "
+            f"one test. A `-k` that matches nothing exits 0 and would read "
+            f"as a pass on every arm."
+        )
+
+    def test_regression_issue_1698_growing_the_library_pin_and_ceiling_fails(
+        self, tmp_path
+    ):
+        """THE REFUSING ARM. Growth must be RED even when self-consistent.
+
+        Add entries to the pin and raise the ceiling to match, in one
+        edit — the shape that lets the next orphan be pinned instead of
+        wired up. The target is derived from
+        ``LIBRARY_CEILING_HIGH_WATER_MARK`` rather than from the ceiling,
+        so the arm keeps biting as the ratchet advances.
+        """
+        target = LIBRARY_CEILING_HIGH_WATER_MARK + 1
+        source = self._grow(
+            self._source(), target - len(PINNED_UNREACHED_LIBRARY)
+        )
+        source = TestCeilingIsNotATautology._substitute(
+            source,
+            self._library_ceiling_anchor(LIBRARY_REACHABILITY_CEILING),
+            self._library_ceiling_anchor(target),
+        )
+        result = self._run(tmp_path, source, self._SELECTION)
+        assert result.returncode != 0, (
+            f"PINNED_UNREACHED_LIBRARY grew to {target} with the ceiling "
+            f"raised to match, and the ceiling test still PASSED. The "
+            f"escape hatch has no ceiling: the next orphan can be pinned "
+            f"instead of wired up, by a two-constant edit no assertion "
+            f"sees.\n{result.stdout}"
+        )
+        assert "LIBRARY_CEILING_HIGH_WATER_MARK" in result.stdout, (
+            f"the mutant failed for some reason other than the library "
+            f"ceiling assertion, so this proves nothing about it.\n"
+            f"{result.stdout}"
+        )
+
+    def test_growing_the_library_pin_alone_fails(self, tmp_path):
+        """The equality arm: pin and ceiling must move together."""
+        source = self._grow(self._source(), 1)
+        result = self._run(tmp_path, source, self._SELECTION)
+        assert result.returncode != 0, (
+            f"an entry was added to PINNED_UNREACHED_LIBRARY without "
+            f"touching the ceiling and nothing fired.\n{result.stdout}"
+        )
+        assert "LIBRARY_REACHABILITY_CEILING" in result.stdout
+
+    def test_raising_the_library_ceiling_alone_fails(self, tmp_path):
+        """The anti-slack arm: a ceiling above the pin pre-authorises."""
+        raised = LIBRARY_CEILING_HIGH_WATER_MARK + 1
+        source = TestCeilingIsNotATautology._substitute(
+            self._source(),
+            self._library_ceiling_anchor(LIBRARY_REACHABILITY_CEILING),
+            self._library_ceiling_anchor(raised),
+        )
+        result = self._run(tmp_path, source, self._SELECTION)
+        assert result.returncode != 0, (
+            f"LIBRARY_REACHABILITY_CEILING was raised to {raised} while "
+            f"the pin stayed at {len(PINNED_UNREACHED_LIBRARY)} and "
+            f"nothing fired. That is a pre-authorised exemption.\n"
+            f"{result.stdout}"
+        )
+        # RED is not enough — an unrelated collection error is also red,
+        # and would read as a pass here. The two sibling arms assert on
+        # the message; this one was the odd one out.
+        assert "LIBRARY_REACHABILITY_CEILING" in result.stdout, (
+            f"the mutant failed for some reason other than a library "
+            f"ceiling assertion, so this proves nothing about it.\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+
+    def test_permitting_arm_shrinking_the_library_pin_and_ceiling_is_allowed(
+        self, tmp_path
+    ):
+        """THE PERMITTING ARM. Wiring a module up must never turn this red.
+
+        The opposite direction from the reproducer, and the outcome this
+        whole ratchet exists to encourage: a module gets wired, its pin
+        entry is deleted, both ceiling constants drop by one. A guard
+        that blocked THAT would be pressure to leave orphans pinned.
+        """
+        assert PINNED_UNREACHED_LIBRARY, "premise: there is an entry to drop"
+        dropped = sorted(PINNED_UNREACHED_LIBRARY)[-1]
+        source = self._source()
+        entry_line = _unique_line(
+            source, f'    "{dropped}",', f"library pin entry {dropped}"
+        )
+        source = TestCeilingIsNotATautology._substitute(source, entry_line, "")
+        source = TestCeilingIsNotATautology._substitute(
+            source,
+            self._library_ceiling_anchor(LIBRARY_REACHABILITY_CEILING),
+            self._library_ceiling_anchor(LIBRARY_REACHABILITY_CEILING - 1),
+        )
+        source = TestCeilingIsNotATautology._substitute(
+            source,
+            f"\nLIBRARY_CEILING_HIGH_WATER_MARK = "
+            f"{LIBRARY_CEILING_HIGH_WATER_MARK}\n",
+            f"\nLIBRARY_CEILING_HIGH_WATER_MARK = "
+            f"{LIBRARY_CEILING_HIGH_WATER_MARK - 1}\n",
+        )
+        result = self._run(tmp_path, source, self._SELECTION)
+        assert result.returncode == 0, (
+            f"a module was wired up, removed from PINNED_UNREACHED_LIBRARY "
+            f"and both ceilings lowered to match — and the ceiling test "
+            f"refused it. Lowering is the ratchet advancing; blocking it "
+            f"creates pressure to leave orphans pinned.\n"
+            f"{result.stdout}\n{result.stderr}"
         )
 
 
