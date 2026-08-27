@@ -979,3 +979,4 @@
 {"fire_id": "20260826T223808Z", "phase": "FIRE_END", "exit_reason": "github_api_forbidden_token_invalid", "commit_sha": "", "note": "GITHUB_TOKEN present but 403 on issues API; list length=14 chars, likely truncated/expired"}
 {"fire_id": "20260827T003750Z", "fired_at": "2026-08-27T00:38:07Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260827T003750Z", "phase": "FIRE_END", "exit_reason": "github_api_forbidden_token_invalid", "note": "GITHUB_TOKEN present but 14 chars; API returns 403 \u2014 token invalid or lacks scope. Cluster selection silently returned empty via sys.exit(0)."}
+{"fire_id": "20260827T023746Z", "fired_at": "2026-08-27T02:38:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
