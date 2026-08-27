@@ -994,3 +994,4 @@
 {"fire_id": "20260827T143834Z", "fired_at": "2026-08-27T14:38:51Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260827T143834Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260827T204043Z", "fired_at": "2026-08-27T20:40:43Z", "selected_cluster": "1437,1651", "phase": "FIRE_START", "note": "REST selection blocked by proxy; used MCP"}
+{"fire_id": "20260827T204043Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "note": "both issues in cluster skipped (retro; hooks/*.py fix)"}
