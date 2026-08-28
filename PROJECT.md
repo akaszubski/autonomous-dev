@@ -118,9 +118,70 @@ These are the load-bearing properties of the harness. A proposed change that con
 
 ---
 
+## DEFINITION OF DONE — two questions, asked of every artifact
+
+*Added 2026-08-28. This is the missing half of "done", and it is stated here rather than in a
+runbook because it changes what may ship, not how work is sequenced.*
+
+Every gate this repo runs today — coverage regression, skip regression, test count, skip rate,
+reviewer, security-auditor, doc-master, agent-completeness — inspects **the artifact**. Not one
+asks whether the artifact is **connected**, and only one narrow mechanism asks whether it
+**behaves as designed**. So "built" acquired a definition of done and "wired" never did, and
+work stops where the checking stops.
+
+The cost is measured, not theorised. In a single session (2026-08-28): `prior_art_search.py`
+shipped to every consumer repo with 9 green tests and **zero callers**; a mutation harness was
+built, hardened through 5 blocking defects, and **wired to nothing**; `--check-timeouts` was
+built and **invoked by nothing**; `step5_quality_gate.py` is named four times across
+`implement.md` and `implementer.md` as the gate that "blocks" and is **invoked by neither**;
+103 tests sat in a flag-gated tier and had **never run**; and `mutmut` was pinned, configured,
+and **never executed** while 19 tests passed over it. None of these was visible: an unwired
+artifact is byte-for-byte indistinguishable from a wired one — file present, tests green,
+manifest entry, deployed.
+
+**Every artifact must answer both questions, and the answer must be mechanical.**
+
+### Q1 — Is this work CONNECTED?
+
+Something must invoke it, and that route must be verifiable by a machine. Prose naming a module
+is not a route (INV-1). Presence in a manifest is not a route. A test that mocks the call site
+is not a route.
+
+| Artifact | Mechanism | Status 2026-08-28 |
+|---|---|---|
+| `hooks/` | reachability ratchet (#1612) | COVERED |
+| `lib/` | reachability ratchet (#1698) | COVERED — 249 modules, **132 UNKNOWN** |
+| `scripts/` (38 files) | — | **UNCOVERED** — where `--check-timeouts` slipped through |
+| `config/` (16 files) | — | **UNCOVERED** — where `hook_time_budgets.json` sits |
+| `commands/` (26), `agents/` (20) | — | **UNCOVERED**, and hardest: a naive walk credits prose, which is the #1698 defect |
+| **the DEPLOYED copy** | — | **UNCOVERED.** Every mechanism above validates SOURCE. Source may say `20` while the executing copy says `5` with nothing red. |
+
+### Q2 — Is this work WORKING AS DESIGNED?
+
+Watched doing its job, and watched *not* doing it when it shouldn't — both arms, on the real
+thing, not a fixture. A guard observed only green is unproven.
+
+| Artifact | Mechanism | Status 2026-08-28 |
+|---|---|---|
+| block-capable hooks (9) | `proof_of_block.py` | ~8 of 9; 7/7 PROVEN in realign |
+| the other 19 hooks | — | **UNCOVERED** — they cannot refuse, so nothing drives them |
+| `lib/` modules | — | **UNCOVERED** |
+| tests themselves | mutation witness (#1660) | BUILT, **not wired** — the harness has no producer |
+| `commands/`, `agents/` | — | **UNCOVERED** |
+
+### The rule
+
+**A finding that can refuse becomes a guard, not an issue** — see the active goal §2 and abort
+condition §7.6. Extending an existing corpus beats adding a mechanism: the reachability ratchet
+is the only thing that has ever caught one of these automatically, and it did so against this
+repo's own work, unprompted, within twelve hours of shipping.
+
 ## ENFORCEMENT
 
 PROJECT.md is the gatekeeper — all work validates against this file before execution. Feature doesn't serve GOALS → BLOCKED. Feature is OUT of SCOPE → BLOCKED. Feature violates CONSTRAINTS → BLOCKED. Options when blocked: (1) update PROJECT.md to include the feature, (2) modify the request to align with current scope, (3) don't implement.
+
+**Added 2026-08-28**: an artifact that cannot answer Q1 and Q2 above is not done. Shipping it is
+a scope decision requiring an explicit, recorded reason — not a default.
 
 ---
 
