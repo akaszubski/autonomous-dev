@@ -1001,3 +1001,4 @@
 {"fire_id": "20260828T023806Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
 {"fire_id": "20260828T043738Z", "fired_at": "2026-08-28T04:37:54Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T043738Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260828T063753Z", "fired_at": "2026-08-28T06:38:08Z", "selected_cluster": "none", "phase": "FIRE_START"}
