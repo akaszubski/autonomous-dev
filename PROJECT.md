@@ -3,7 +3,7 @@
 **Last Updated**: 2026-08-24
 **Version**: v3.51.0
 
-🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. Mid-point abort review 2026-09-07.
+🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. **v4 re-baseline 2026-08-28** — milestones resequenced to root-cause order after three measurements falsified the v3 plan: `claude -p` is 12.8s against a 5s budget, so the LLM tier could never succeed; `install_manifest.json` ships 0 `tests/` paths, so no detector reaches a consumer repo; 266 hook invocations exceeded budget in one week, silently dropping their checks. **1 slip on the board — one more aborts (§7.5).** Mid-point abort review 2026-09-09. Standing rule (§2): a finding that can refuse becomes **a guard, not an issue**.
 
 For behaviour rules see [`CLAUDE.md`](CLAUDE.md). For operational sequences see [`docs/RUNBOOK.md`](docs/RUNBOOK.md). For content placement see [`docs/development/CONTENT_ALLOCATION.md`](docs/development/CONTENT_ALLOCATION.md).
 

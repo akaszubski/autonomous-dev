@@ -1,7 +1,7 @@
 # GOAL — Enforcement Proven Everywhere, and Smaller
 
-**Created**: 2026-08-24 · **Revised**: 2026-08-25 (v3 — two adversarial evaluations against stated intent; #1663 answered; 13 internal contradictions fixed)
-**Status**: ACTIVE
+**Created**: 2026-08-24 · **Revised**: 2026-08-25 (v3 — two adversarial evaluations against stated intent; #1663 answered; 13 internal contradictions fixed) · **Re-baselined**: 2026-08-28 (v4 — §5 milestones resequenced to root-cause order after three measurements falsified the v3 plan; §7.5 slip counter carries forward, §7.6 added)
+**Status**: ACTIVE · **1 slip on the board (§7.5) — one more aborts**
 **Owner**: Andrew Kaszubski (solo dev)
 **Supersedes**: `GOAL_2026-07-31.md`
 
@@ -140,6 +140,28 @@ Five properties, from the stated intent: **effective** (guards demonstrably fire
       "27 dead".
 
 **Simple — fewer mechanisms, not fewer lines**
+
+- [ ] **STANDING RULE (v4, 2026-08-28): a finding that CAN refuse becomes a guard, not an
+      issue.** Before filing, ask whether the finding can be expressed as a check that refuses
+      automatically. If yes, build the guard and do not file. Issues are reserved for decisions
+      that genuinely need human judgement — a budget to choose, a scope call, a tradeoff.
+
+      **Why this is a Definition-of-Done item and not a preference.** Measured 2026-08-28:
+      **114 issues opened, 25 closed in 7 days — net +89, 290 open.** Filing runs 4.5× ahead of
+      resolving, and §Out-of-scope already names volume as *the symptom* of exactly this. An
+      issue at position 290 has near-zero expected value: it needs a human to read, rank and
+      act, against a queue growing faster than it drains. A guard costs the same to write and
+      then acts forever, unread.
+
+      The comparison is not hypothetical — both happened on 2026-08-28. Five issues were filed
+      (#1700, #1702, #1703, #1704, and #1437 reopened) and read by nobody. In the same session
+      the #1698 reachability ratchet **refused this goal's own mutation-harness work at
+      midnight, unprompted**, forcing it out of `lib/` because its only consumer was itself
+      unreached — and the implementing agent retracted a false "the mechanism is live in the
+      pipeline" claim as a direct result. One of those two outputs scales without a reader.
+
+      Enforced by abort condition §7.6.
+
 - [ ] **Count MECHANISMS, not lines.** Line count is the wrong denominator — `lib/*.py` is
       120,001 of the 142,869 and is mostly non-enforcement code, so "net lines down" is
       satisfiable by deleting unrelated library code. The metric is the **named dead-mechanism
@@ -290,15 +312,50 @@ detected.
 
 ## 5. Milestones
 
+> **v4 RE-BASELINE, 2026-08-28 — explicit scope change, user-approved, reason recorded.**
+> The v3 plan below was written 2026-08-24 against facts that 08-27/28 measurement falsified.
+> Milestone 1 (`test-master` enforcement, 2026-08-27) **slipped by one day and is partially
+> delivered**; under §7.5 that is slip #1, and 08-29 was on track to be slip #2 and abort the
+> goal. Rather than slip silently (drift) or race a threshold that says *"≥3 findings each
+> independently re-confirmed"* (gaming — the exact defect filed as #1660), the plan is rewritten
+> against what is now known. **The abort clause stays armed, against the new dates.** The
+> mission and the Definition of Done are UNCHANGED; only sequencing moves.
+>
+> **The three measurements that invalidated the old plan:**
+> 1. **The LLM tier cannot succeed as configured.** `claude -p` is **12,766 ms median**
+>    (3/3 calls 12.2–13.1 s) against `intent_classifier.py:89 DEFAULT_TIMEOUT_SECONDS = 5`.
+>    Telemetry agrees: 42,100 classifications → `fail_open` 32,322 (76.8%), `llm` 370 (0.9%).
+>    This also **corrects the v3 header figure of 3.95 s**, which was measured in Actions and is
+>    2.5× optimistic for local use. Every GenAI item was sequenced behind a transport question
+>    that was already answered; the real blocker was a budget nobody measured.
+> 2. **Detectors do not reach the repos they protect.** `install_manifest.json` ships **0**
+>    `tests/` paths, so every ratchet built under this goal (#1588, #1593, #1667, #1698) is
+>    canonical-repo-only. realign and spektiv have `prior_art_search.py` and **no** reachability
+>    ratchet. The 2026-09-21 "cross-repo proof" milestone had no delivery mechanism under it.
+> 3. **Hook budgets silently drop enforcement.** 266 of 84,339 invocations exceeded 5 s in one
+>    week; 23 were `unified_pre_tool.py`, each skipping all ~51 checks at once. Letting them all
+>    finish costs **803.8 s — about 13 minutes across the entire week**.
+>
+> **And one about how we were working**, which changes the method rather than the dates:
+> **114 issues opened, 25 closed in 7 days — net +89, now 290 open.** Filing is running 4.5×
+> ahead of resolving, and this goal already names the backlog as *the symptom*. New standing
+> rule, §2-enforced: **a finding that can refuse becomes a guard, not an issue.** Issues are
+> reserved for decisions needing human judgement. Evidence it works: the #1698 ratchet refused
+> this goal's own 2026-08-28 work, unprompted, before any human read anything.
+
 | Date | Deliverable | Verification |
 |---|---|---|
-| ~~2026-08-27~~ **DONE 2026-08-25** | ~~#1663 spike~~ — pulled forward and answered | Run 32762603032; `claude -p` authenticates, 3.95s median; abort 2 retired |
-| **2026-08-27** | **`test-master` failure-proof enforcement** — mechanics before tests | Both arms observed; bypass-hunt ≥5 shapes recorded |
-| 2026-08-29 | Deterministic weakness report for one agent | **≥3 findings, each re-confirmed**, 0 LLM calls |
-| 2026-08-31 | 4 silent fail-opens fixed | `proof_of_block` → 0 silent fail-opens, both arms per guard |
-| 2026-09-03 | Dead mechanisms deleted or wired | **0 items UNRESOLVED in the §2 table** (not a line count — that metric was retired as gameable) |
-| **2026-09-07** | **MID-POINT ABORT REVIEW (§7)** | ≥1 consumer proof artifact; 0 UNRESOLVED items ≤ baseline |
-| 2026-09-14 | Collected-floor generalised; dark tiers resolved | EXECUTED=N per tier; each of the 95 files run or removed with a stated reason |
+| ~~2026-08-27~~ **DONE 2026-08-25** | ~~#1663 spike~~ — pulled forward and answered | Run 32762603032; abort 2 retired. **Latency figure superseded — see v4 note** |
+| ~~2026-08-27~~ **PARTIAL 2026-08-28** | `test-master` failure-proof enforcement (#1660) | Harness shipped `a87c0ca2`: 5 blocking defects fixed red→green, 8-shape bypass hunt, 78 tests. **NOT met** — no producer, so it is a harness test-master *may* use, not one it *cannot* avoid. Slip #1, recorded |
+| **2026-08-30** | **#1704 — one canonical timeout config, sized from measurement** | An LLM classification observed **succeeding** in production telemetry (`decision:"llm"` share off 0.9%); a timeout-skip is countable; `5` not independently re-declared. **First, because it is the one cause under the GenAI tier, the 266 skipped runs, and #1660's viability** |
+| **2026-09-01** | **A reader: "what has stopped running?"** | Runs over telemetry that ALREADY exists — zero new instrumentation. Would have caught the 266 bypasses, the 103 never-run tests, and the drainer stall. Must not live in a test tier (that is where #1588/#1593/#1667/#1698 went to be unread); attaches to `/health-check` |
+| 2026-09-03 | Producer for #1660 — closes the real milestone | test-master emits a claim per new test; the completion sink refuses a return that adds test files with zero claims. `test_no_producer_exists_yet` goes red |
+| 2026-09-05 | Deterministic weakness report for one agent | **≥3 findings, each re-confirmed**, 0 LLM calls. Moved from 08-29 — the threshold is not rushable, and #1704 may make the LLM arm available for the first time |
+| 2026-09-07 | 4 silent fail-opens fixed | `proof_of_block` → 0 silent fail-opens, both arms per guard |
+| **2026-09-09** | **MID-POINT ABORT REVIEW (§7)** — moved from 09-07 | ≥1 consumer proof artifact; 0 UNRESOLVED items ≤ baseline; **net issue delta ≤ 0 over the preceding 7 days** (new — the +89 rate is itself an abort-worthy trend) |
+| 2026-09-12 | #1703 — detectors reach consumer repos | Detector ships; baselines generated per-repo, never inherited; both arms proven **in a consumer**. Prerequisite for 09-21, which previously had none |
+| 2026-09-14 | Dead mechanisms deleted or wired | **0 items UNRESOLVED in the §2 table** |
+| 2026-09-18 | Collected-floor generalised; dark tiers resolved | EXECUTED=N per tier; each of the 95 files run or removed with a stated reason |
 | 2026-09-21 | Cross-repo proof in realign and spektiv | Committed artifacts, both repos |
 
 ## 6. Tracking
@@ -333,6 +390,23 @@ the first deterministic weakness report
    no consequence is decoration. Velocity evidence for the scepticism: on 2026-08-24 a
    **two-line comment fix** consumed a full pipeline and three remediation cycles. Milestone
    dates below are estimates against that observed rate, not aspirations.
+
+   > **v4 status, 2026-08-28.** **Slip #1 is on the board**: `test-master` enforcement
+   > (2026-08-27) is partially delivered — harness shipped, producer absent. **One more slip
+   > aborts.** The clause is armed against the §5 v4 dates, NOT the v3 dates. This re-baseline
+   > must not be read as resetting the counter: the counter carries forward, deliberately, so
+   > the kill switch still bites. A re-baseline is available **once**; a second one is itself
+   > an abort, because a plan rewritten twice to avoid its own deadline is drift wearing
+   > process.
+
+6. **Backlog-growth abort (v4, NEW).** If the **net issue delta over any trailing 7 days is
+   positive** at a milestone check, STOP filing and resolve. Measured 2026-08-28: **114 opened,
+   25 closed, net +89, 290 open** — filing is running 4.5× ahead of resolving, and this goal's
+   own §Out-of-scope names volume as *the symptom*. The pivot is not "file fewer findings," it
+   is **§2's standing rule: a finding that can refuse becomes a guard, not an issue.** The
+   evidence that guards outperform issues here is this goal's own: the #1698 ratchet refused
+   the 2026-08-28 mutation work unprompted, at midnight, before any human read anything —
+   while five issues filed the same day were read by nobody.
 
 ## 7a. Known-red CI is in scope, not deferred
 
