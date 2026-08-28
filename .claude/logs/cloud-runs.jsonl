@@ -1007,3 +1007,4 @@
 {"fire_id": "20260828T083853Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260828T103817Z", "fired_at": "2026-08-28T10:38:33Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T103817Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260828T124145Z", "fired_at": "2026-08-28T12:45:03Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "REST returned 403 (GitHub App not connected for session org); no cluster selected"}
