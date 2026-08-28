@@ -1008,3 +1008,4 @@
 {"fire_id": "20260828T103817Z", "fired_at": "2026-08-28T10:38:33Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T103817Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260828T124145Z", "fired_at": "2026-08-28T12:45:03Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "REST returned 403 (GitHub App not connected for session org); no cluster selected"}
+{"fire_id": "20260828T124145Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "REST 403; MCP fallback not exercised (prior fire 20260827T204043Z showed oldest cluster #1437,#1651 exceeds cron-light budget)"}
