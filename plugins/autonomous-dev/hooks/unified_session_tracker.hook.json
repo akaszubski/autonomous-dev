@@ -7,8 +7,7 @@
   "registrations": [
     {
       "event": "SubagentStop",
-      "matcher": "*",
-      "timeout": 5
+      "matcher": "*"
     }
   ]
 }

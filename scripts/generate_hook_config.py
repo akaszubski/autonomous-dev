@@ -5,10 +5,26 @@ Reads .hook.json sidecar files from the hooks directory and generates:
 1. install_manifest.json ``components.hooks.files`` array
 2. global_settings_template.json ``hooks`` object
 
+Timeouts (Issue #1704)
+----------------------
+Hook timeouts are NOT declared here and NOT declared in the sidecars. They come
+from ``config/hook_time_budgets.json``, the canonical source. This module
+previously carried ``reg.get("timeout", 5)`` -- a hard-coded generator default
+that was the ORIGIN of the sprawl: every sidecar and every settings surface
+simply repeated it, and the resulting 5s ceiling silently discarded all ~51
+checks on 23 ``unified_pre_tool.py`` invocations in one week.
+
+``--sync-timeouts`` propagates the canonical budgets to EVERY settings surface,
+discovered BY CONTENT rather than by a ``settings*.json`` glob -- a glob misses
+``config/global_settings_template.json`` entirely, which alone carries 16
+bindings.
+
 Usage:
-    python scripts/generate_hook_config.py --check     # Report drift without modifying
-    python scripts/generate_hook_config.py --write      # Update config files
-    python scripts/generate_hook_config.py --check -v   # Verbose drift report
+    python scripts/generate_hook_config.py --check           # Report drift
+    python scripts/generate_hook_config.py --write           # Update config files
+    python scripts/generate_hook_config.py --check-timeouts  # Report timeout drift
+    python scripts/generate_hook_config.py --sync-timeouts   # Write canonical timeouts
+    python scripts/generate_hook_config.py --check -v        # Verbose drift report
 
 Exit codes:
     0 - Success (no drift in check mode, or write succeeded)
@@ -21,6 +37,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -28,10 +45,21 @@ from typing import Any
 
 # Auto-detect project root from script location
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-HOOKS_DIR = PROJECT_ROOT / "plugins/autonomous-dev/hooks"
-MANIFEST_PATH = PROJECT_ROOT / "plugins/autonomous-dev/config/install_manifest.json"
-SETTINGS_PATH = PROJECT_ROOT / "plugins/autonomous-dev/config/global_settings_template.json"
-SCHEMA_PATH = PROJECT_ROOT / "plugins/autonomous-dev/config/hook-metadata.schema.json"
+PLUGIN_ROOT = PROJECT_ROOT / "plugins/autonomous-dev"
+HOOKS_DIR = PLUGIN_ROOT / "hooks"
+MANIFEST_PATH = PLUGIN_ROOT / "config/install_manifest.json"
+SETTINGS_PATH = PLUGIN_ROOT / "config/global_settings_template.json"
+SCHEMA_PATH = PLUGIN_ROOT / "config/hook-metadata.schema.json"
+
+# Issue #1704: the canonical budget source and its loader.
+sys.path.insert(0, str(PLUGIN_ROOT / "lib"))
+try:
+    import hook_budgets  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - only when lib/ is absent
+    hook_budgets = None  # type: ignore[assignment]
+
+# Matches the hook script basename inside a settings ``command`` string.
+_COMMAND_SCRIPT_RE = re.compile(r"([\w\-.]+)\.(py|sh)(?:\"|'|\s|$)")
 
 # Extension mapping from interpreter to file extension
 INTERPRETER_EXTENSIONS = {
@@ -224,15 +252,53 @@ def build_command_string(sidecar: dict) -> str:
     return f"{interpreter} {script_path}"
 
 
-def generate_settings_hooks(sidecars: list[dict]) -> dict[str, list[dict]]:
+def resolve_timeout(hook_name: str, budgets: dict | None = None) -> int:
+    """Return the canonical budget for ``hook_name``, in seconds.
+
+    Issue #1704. This function replaced ``reg.get("timeout", 5)``. The sidecar
+    is NO LONGER consulted for a timeout: a sidecar-declared timeout would be a
+    second declaration of a number the budget file owns, which is the exact
+    defect being removed. ``test_no_sidecar_declares_a_timeout`` refuses any
+    sidecar that declares one.
+
+    Args:
+        hook_name: Hook identifier from the sidecar ``name`` field.
+        budgets: Pre-loaded budget config (from
+            ``hook_budgets.load_budget_config``). Loaded from disk when None.
+
+    Returns:
+        Budget in seconds.
+
+    Raises:
+        RuntimeError: If the ``hook_budgets`` library is unavailable. Silently
+            substituting a literal here is how the original 5 propagated to
+            every surface, so this fails loudly instead.
+    """
+    if hook_budgets is None:
+        raise RuntimeError(
+            f"Cannot resolve a timeout for {hook_name!r}: the hook_budgets "
+            f"library is unavailable.\n"
+            f"Expected: plugins/autonomous-dev/lib/hook_budgets.py on sys.path\n"
+            f"See: plugins/autonomous-dev/config/hook_time_budgets.json (Issue #1704)"
+        )
+    return hook_budgets.get_hook_budget(hook_name, budgets)
+
+
+def generate_settings_hooks(
+    sidecars: list[dict], *, budgets: dict | None = None
+) -> dict[str, list[dict]]:
     """Generate settings hooks object from LIFECYCLE sidecars only.
 
     Utility hooks are excluded. Inactive hooks are excluded.
     Groups by event. Builds command strings. Sorts events alphabetically.
     Within each event, specific matchers come before wildcard "*".
 
+    Timeouts come from the canonical budget file (Issue #1704), never from the
+    sidecar and never from a literal default in this module.
+
     Args:
         sidecars: List of loaded sidecar data dicts.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
 
     Returns:
         Settings hooks dict matching global_settings_template.json format.
@@ -247,10 +313,10 @@ def generate_settings_hooks(sidecars: list[dict]) -> dict[str, list[dict]]:
     events: dict[str, list[dict]] = {}
     for sidecar in lifecycle_sidecars:
         command = build_command_string(sidecar)
+        timeout = resolve_timeout(sidecar["name"], budgets)
         for reg in sidecar.get("registrations", []):
             event = reg["event"]
             matcher = reg.get("matcher", "*")
-            timeout = reg.get("timeout", 5)
 
             if event not in events:
                 events[event] = []
@@ -281,7 +347,340 @@ def generate_settings_hooks(sidecars: list[dict]) -> dict[str, list[dict]]:
     return result
 
 
-def atomic_write_json(file_path: Path, data: Any) -> None:
+# ---------------------------------------------------------------------------
+# Cross-surface timeout sync (Issue #1704)
+# ---------------------------------------------------------------------------
+
+
+def _is_registration_block(hooks_value: Any) -> bool:
+    """Report whether a JSON ``hooks`` value is a real registration block.
+
+    Discrimination matters: ``plugin.json`` carries ``"hooks": {"active": 27,
+    "archived": 61}`` -- a component COUNT, not registrations -- and a naive
+    "has a hooks key" sweep counts it as a settings surface. It is not one.
+
+    Args:
+        hooks_value: The value of a top-level ``hooks`` key.
+
+    Returns:
+        True when the value maps event names to lists of matcher entries.
+    """
+    if not isinstance(hooks_value, dict) or not hooks_value:
+        return False
+    for entries in hooks_value.values():
+        if not isinstance(entries, list):
+            return False
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                return False
+    return True
+
+
+def discover_settings_surfaces(root: Path) -> list[Path]:
+    """Find every JSON file under ``root`` carrying hook registrations.
+
+    Discovery is BY CONTENT, never by a ``settings*.json`` glob. A glob misses
+    ``config/global_settings_template.json`` -- which alone carries 16
+    bindings -- and would silently leave it at the old value.
+
+    Args:
+        root: Directory to search beneath (normally the plugin root).
+
+    Returns:
+        Sorted list of paths whose top-level ``hooks`` key is a registration
+        block. Files whose ``hooks`` key holds something else are excluded.
+
+    Raises:
+        FileNotFoundError: If ``root`` does not exist.
+    """
+    if not root.is_dir():
+        raise FileNotFoundError(
+            f"Settings-surface root not found: {root}\n"
+            f"Expected: the plugin directory containing config/ and templates/\n"
+            f"See: docs/HOOKS.md"
+        )
+
+    surfaces: list[Path] = []
+    for path in sorted(root.rglob("*.json")):
+        if any(part in ("__pycache__", "archived", "node_modules") for part in path.parts):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict) and _is_registration_block(data.get("hooks")):
+            surfaces.append(path)
+    return surfaces
+
+
+def _hook_name_from_command(command: str) -> str | None:
+    """Extract the hook basename (no extension) from a settings command string.
+
+    Args:
+        command: The ``command`` field of a settings hook entry.
+
+    Returns:
+        The hook name, or None when the command runs no script (e.g. a bare
+        ``echo`` banner, which carries no budget and must not be rewritten).
+    """
+    match = _COMMAND_SCRIPT_RE.search(str(command))
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def collect_timeout_drift(
+    surfaces: list[Path], budgets: dict | None = None
+) -> list[tuple[Path, str, str, int | None, int]]:
+    """Return every settings entry whose timeout differs from the canonical one.
+
+    Args:
+        surfaces: Paths returned by :func:`discover_settings_surfaces`.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
+
+    Issue #1704 remediation (W6). An entry whose hook HAS a declared budget but
+    carries NO bound on this surface is DRIFT, not a warning: the budget exists
+    and the surface is ignoring it. Only an entry with neither a budget nor a
+    bound is a warning (:func:`collect_unbounded_entries`) -- there is nothing
+    declared to sync, and adding an unjustified bound is a different change
+    with different risk (``auto_format`` running black on a large file may
+    legitimately need longer).
+
+    Entries whose hook has NO budget entry at all are returned by
+    :func:`collect_unbudgeted_entries` and are a hard error, never defaulted.
+
+    Returns:
+        List of ``(path, event, hook_name, current_timeout, canonical_timeout)``
+        tuples. ``current_timeout`` is None for the "budgeted but unbound" case.
+    """
+    drift: list[tuple[Path, str, str, int | None, int]] = []
+    for path, event, hook_name, hook_entry in _iter_hook_entries(surfaces):
+        if not _has_budget(hook_name, budgets):
+            continue  # collect_unbudgeted_entries owns this class
+        current = hook_entry.get("timeout")
+        canonical = resolve_timeout(hook_name, budgets)
+        if current != canonical:
+            drift.append((path, event, hook_name, current, canonical))
+    return drift
+
+
+def collect_unbudgeted_entries(
+    surfaces: list[Path], budgets: dict | None = None
+) -> list[tuple[Path, str, str, int | None]]:
+    """Return entries whose hook has NO entry in the canonical budget file.
+
+    Issue #1704 remediation (BLOCKING-1). ``sync_timeouts`` previously called
+    ``resolve_timeout`` for these and got the silent default -- rewriting a
+    declared bound down to 5 across every surface and exiting 0. That is
+    ``reg.get("timeout", 5)``, the line this issue names as the origin of the
+    sprawl, reintroduced in the WRITE path. An undeclared hook is now refused,
+    never defaulted.
+
+    Args:
+        surfaces: Paths returned by :func:`discover_settings_surfaces`.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
+
+    Returns:
+        List of ``(path, event, hook_name, current_timeout)`` tuples.
+    """
+    return [
+        (path, event, hook_name, hook_entry.get("timeout"))
+        for path, event, hook_name, hook_entry in _iter_hook_entries(surfaces)
+        if not _has_budget(hook_name, budgets)
+        and hook_entry.get("timeout") is not None
+    ]
+
+
+def collect_unbounded_entries(
+    surfaces: list[Path], budgets: dict | None = None
+) -> list[tuple[Path, str, str]]:
+    """Return entries with NEITHER a declared budget NOR a bound.
+
+    Nothing is declared for these, so there is nothing to sync and no evidence
+    on which to invent a bound. Reported, never auto-filled. An entry with a
+    budget but no bound is DRIFT (see :func:`collect_timeout_drift`), not this.
+
+    Args:
+        surfaces: Paths returned by :func:`discover_settings_surfaces`.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
+
+    Returns:
+        List of ``(path, event, hook_name)`` tuples.
+    """
+    return [
+        (path, event, hook_name)
+        for path, event, hook_name, hook_entry in _iter_hook_entries(surfaces)
+        if hook_entry.get("timeout") is None and not _has_budget(hook_name, budgets)
+    ]
+
+
+def _display_path(path: Path) -> str:
+    """Return ``path`` relative to the project root, or absolute if outside it.
+
+    ``Path.relative_to`` RAISES for a path outside the anchor, so the reporting
+    loops crashed on any surface that is not under ``PROJECT_ROOT`` -- which is
+    every surface in a test fixture, and any absolute path a caller passes in.
+    A reporter that crashes while printing a violation loses the violation.
+
+    Args:
+        path: Path to render.
+
+    Returns:
+        A display string. Never raises.
+    """
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _has_budget(hook_name: str, budgets: dict | None = None) -> bool:
+    """Report whether ``hook_name`` has an explicit canonical budget entry.
+
+    Args:
+        hook_name: Hook identifier.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
+
+    Returns:
+        True when an explicit entry exists.
+
+    Raises:
+        RuntimeError: If the ``hook_budgets`` library is unavailable.
+    """
+    if hook_budgets is None:
+        raise RuntimeError(
+            f"Cannot determine whether {hook_name!r} is budgeted: the "
+            f"hook_budgets library is unavailable.\n"
+            f"Expected: plugins/autonomous-dev/lib/hook_budgets.py on sys.path\n"
+            f"See: plugins/autonomous-dev/config/hook_time_budgets.json (Issue #1704)"
+        )
+    return hook_budgets.has_hook_budget(hook_name, budgets)
+
+
+def _iter_hook_entries(surfaces: list[Path]):
+    """Yield ``(path, event, hook_name, hook_entry)`` for every script entry.
+
+    Entries whose command runs no script (a bare ``echo`` banner, for example)
+    are skipped: they carry no budget and must not be rewritten.
+
+    Args:
+        surfaces: Paths returned by :func:`discover_settings_surfaces`.
+
+    Yields:
+        Tuples of surface path, event name, hook name and the mutable entry.
+    """
+    for path in surfaces:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for event, entries in data.get("hooks", {}).items():
+            for entry in entries:
+                for hook_entry in entry.get("hooks", []):
+                    hook_name = _hook_name_from_command(hook_entry.get("command", ""))
+                    if hook_name is None:
+                        continue
+                    yield path, event, hook_name, hook_entry
+
+
+def sync_timeouts(
+    surfaces: list[Path], budgets: dict | None = None, *, verbose: bool = False
+) -> int:
+    """Rewrite the ``timeout`` field of every hook entry from the canonical source.
+
+    Only the ``timeout`` field is touched. Hook SELECTION per template is
+    hand-curated on purpose (``settings.strict-mode.json`` and
+    ``settings.granular-bash.json`` deliberately register different subsets),
+    so regenerating those files wholesale would destroy intent.
+
+    Two refusals guard the write (Issue #1704 remediation, BLOCKING-1):
+
+    1. **Nothing is written until the config validates.** ``check_ceiling``,
+       ``check_nesting`` and ``check_declared_hosts_match_derived`` run FIRST.
+       Previously this function validated nothing before touching 7 files, so a
+       config that violated the very constraints this issue added would still be
+       propagated everywhere.
+    2. **An undeclared hook is refused, not defaulted.** A missing or mistyped
+       key used to resolve to the silent default and rewrite that hook down to
+       5 across every surface, exiting 0 -- the sprawl's origin line
+       reintroduced in the write path. Note the asymmetry that made it easy to
+       miss: this function refused to ADD an unjustified bound while happily
+       REMOVING a justified one.
+
+    Args:
+        surfaces: Paths returned by :func:`discover_settings_surfaces`.
+        budgets: Pre-loaded budget config. Loaded from disk when None.
+        verbose: Print each rewritten entry.
+
+    Returns:
+        Number of entries updated.
+
+    Raises:
+        RuntimeError: If the canonical config fails validation, or if any
+            surface registers a hook with no budget entry.
+    """
+    violations: list[str] = []
+    for checker in (
+        hook_budgets.check_ceiling,
+        hook_budgets.check_nesting,
+        hook_budgets.check_declared_hosts_match_derived,
+    ):
+        violations.extend(f"{checker.__name__}: {v}" for v in checker(budgets))
+    if violations:
+        raise RuntimeError(
+            "Refusing to write: the canonical budget config does not validate.\n"
+            + "\n".join(f"  {v}" for v in violations)
+            + "\nExpected: check_ceiling, check_nesting and "
+            "check_declared_hosts_match_derived all clean before any surface "
+            "is touched.\nSee: docs/HOOKS.md (Issue #1704)"
+        )
+
+    unbudgeted = collect_unbudgeted_entries(surfaces, budgets)
+    if unbudgeted:
+        raise RuntimeError(
+            "Refusing to overwrite a declared bound with an undeclared "
+            "default. These registrations carry a timeout but have NO entry in "
+            "hook_time_budgets.json:\n"
+            + "\n".join(
+                f"  {p}: {ev}/{hk} has timeout={cur}" for p, ev, hk, cur in unbudgeted
+            )
+            + "\nExpected: add each hook to the 'hooks' object with a measured "
+            "budget, or correct the spelling.\n"
+            "See: docs/HOOKS.md (Issue #1704)"
+        )
+
+    updated = 0
+    for path in surfaces:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        changed = False
+        for event, entries in data.get("hooks", {}).items():
+            for entry in entries:
+                for hook_entry in entry.get("hooks", []):
+                    hook_name = _hook_name_from_command(hook_entry.get("command", ""))
+                    if hook_name is None:
+                        continue
+                    current = hook_entry.get("timeout")
+                    if current is None and not _has_budget(hook_name, budgets):
+                        # Neither declared nor bound: nothing to sync, and no
+                        # evidence on which to invent a bound. See
+                        # collect_unbounded_entries.
+                        continue
+                    canonical = resolve_timeout(hook_name, budgets)
+                    if current != canonical:
+                        if verbose:
+                            print(
+                                f"  {path.name}: {event}/{hook_name} "
+                                f"{current} -> {canonical}"
+                            )
+                        hook_entry["timeout"] = canonical
+                        changed = True
+                        updated += 1
+        if changed:
+            # Key ORDER is preserved here (unlike atomic_write_json, which
+            # sorts): these are hand-curated files and a wholesale re-key would
+            # bury a one-field change in a whole-file diff.
+            atomic_write_json(path, data, sort_keys=False)
+    return updated
+
+
+def atomic_write_json(file_path: Path, data: Any, *, sort_keys: bool = True) -> None:
     """Write JSON data to file atomically.
 
     Uses tempfile + os.replace for atomic write to prevent corruption.
@@ -289,6 +688,9 @@ def atomic_write_json(file_path: Path, data: Any) -> None:
     Args:
         file_path: Target file path.
         data: Data to serialize as JSON.
+        sort_keys: Sort object keys. True for generated files (deterministic
+            output); False for hand-curated settings surfaces, where a
+            wholesale re-key would bury a one-field timeout change.
 
     Raises:
         OSError: If file cannot be written.
@@ -298,7 +700,7 @@ def atomic_write_json(file_path: Path, data: Any) -> None:
     )
     try:
         with os.fdopen(temp_fd, "w") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
+            json.dump(data, f, indent=2, sort_keys=sort_keys)
             f.write("\n")  # trailing newline
             f.flush()
             os.fsync(f.fileno())
@@ -549,10 +951,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Update config files",
     )
+    group.add_argument(
+        "--check-timeouts",
+        action="store_true",
+        help="Report timeout drift across every settings surface (Issue #1704)",
+    )
+    group.add_argument(
+        "--sync-timeouts",
+        action="store_true",
+        help="Write canonical timeouts into every settings surface (Issue #1704)",
+    )
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="Print detailed output",
+    )
+    parser.add_argument(
+        "--allow-skew",
+        action="store_true",
+        help=(
+            "Acknowledge a known pre-deploy window: report skew between the "
+            "canonical budgets and the INSTALLED settings without failing. "
+            "Skew is normally exit 1 (Issue #1704)."
+        ),
     )
     parser.add_argument(
         "--hooks-dir",
@@ -616,6 +1037,80 @@ def main(argv: list[str] | None = None) -> int:
             schema_path=schema_path,
             verbose=args.verbose,
         )
+    elif args.check_timeouts or args.sync_timeouts:
+        surfaces = discover_settings_surfaces(PLUGIN_ROOT)
+        if not surfaces:
+            # A sweep that finds nothing is a broken sweep, not a clean repo.
+            print(
+                f"No settings surfaces found beneath {PLUGIN_ROOT}. Expected at "
+                f"least config/global_settings_template.json.",
+                file=sys.stderr,
+            )
+            return 1
+        if args.verbose:
+            print(f"Surfaces discovered by content ({len(surfaces)}):")
+            for surface in surfaces:
+                print(f"  {_display_path(surface)}")
+        if args.sync_timeouts:
+            try:
+                updated = sync_timeouts(surfaces, verbose=args.verbose)
+            except RuntimeError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(f"Timeout sync complete: {updated} entr(y/ies) updated.")
+            return 0
+
+        unbudgeted = collect_unbudgeted_entries(surfaces)
+        if unbudgeted:
+            print(
+                f"REFUSED: {len(unbudgeted)} registration(s) carry a timeout "
+                f"but have NO canonical budget entry:"
+            )
+            for path, event, hook_name, current in unbudgeted:
+                print(
+                    f"  {_display_path(path)}: {event}/{hook_name} "
+                    f"has timeout={current}, budget=UNDECLARED"
+                )
+            print("  --sync-timeouts would overwrite these with a default. Fixed?")
+            return 1
+
+        skew = hook_budgets.check_installed_settings_skew()
+        if skew:
+            print(
+                f"SKEW between the canonical config and the INSTALLED settings "
+                f"({len(skew)}):"
+            )
+            for message in skew:
+                print(f"  {message}")
+            if not args.allow_skew:
+                print(
+                    "  Run `bash scripts/deploy-all.sh --global-settings`, or "
+                    "pass --allow-skew to acknowledge a known pre-deploy window."
+                )
+                return 1
+            print("  ACKNOWLEDGED via --allow-skew (pre-deploy window).")
+
+        unbounded = collect_unbounded_entries(surfaces)
+        if unbounded:
+            print(f"WARNING: {len(unbounded)} entr(y/ies) declare NO timeout:")
+            for path, event, hook_name in unbounded:
+                print(f"  {_display_path(path)}: {event}/{hook_name}")
+            print(
+                "  These are bounded only by the runtime default, which this "
+                "repo has never measured. Reported, not auto-filled."
+            )
+        drift = collect_timeout_drift(surfaces)
+        if not drift:
+            print(f"No timeout drift across {len(surfaces)} settings surface(s).")
+            return 0
+        print(f"Timeout drift detected in {len(drift)} entr(y/ies):")
+        for path, event, hook_name, current, canonical in drift:
+            print(
+                f"  {_display_path(path)}: {event}/{hook_name} "
+                f"has {current}, canonical is {canonical}"
+            )
+        print("Run with --sync-timeouts to update.")
+        return 1
 
     return 2
 

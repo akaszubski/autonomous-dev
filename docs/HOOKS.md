@@ -421,6 +421,112 @@ See [TROUBLESHOOTING.md](../plugins/autonomous-dev/docs/TROUBLESHOOTING.md#unive
 
 ---
 
+## Hook Time Budgets
+
+Every hook timeout in this repo comes from ONE file:
+`plugins/autonomous-dev/config/hook_time_budgets.json` (Issue #1704). Nothing
+else may declare one -- not a sidecar, not a settings surface, not a module
+constant.
+
+**Why it exists.** The value `5` used to be declared independently in the 7
+registration surfaces, in `genai_prompts.DEFAULT_TIMEOUT`, in
+`intent_classifier_config.json` and in `semantic_gate.TIMEOUT_S`, seeded by a
+hard-coded `reg.get("timeout", 5)` default in `scripts/generate_hook_config.py`.
+Nobody had measured it against the work it governs. MEASURED over
+`~/.claude/logs/hook_timings_*.jsonl` for `ts >= 2026-08-21` (89,442 rows):
+`unified_pre_tool.py` ran to a p99 of 2,223.4ms and a max of 13,139.7ms across
+34,973 invocations, and **23 of those exceeded the 5s budget** -- each one
+discarding all ~51 checks with no record in either log.
+
+**Budgets are sized from measurement per class**, never by feel:
+
+| class | example | measurement | budget |
+|---|---|---|---|
+| `fast_local` | `plan_gate`, `validate_paid_dependency` | p50 5.4-9.0ms | 3-5s |
+| `composite_gate` | `unified_pre_tool` | p99 2,223.4ms, max 13,139.7ms | 20s |
+| `session_lifecycle` | `stop_quality_gate` | max 28,038.1ms | 60s |
+| `llm_host` | `unified_prompt_validator` | `claude -p` median 12,766ms | 50s |
+
+**60 is a hard ceiling** declared once, in
+`hook-metadata.schema.json` (`timeout.maximum`), and read by
+`hook_budgets.schema_max_seconds()`. Whether the runtime honours a larger value
+is UNTESTED and moot while the schema refuses it.
+
+**The nesting constraint.** A library's own subprocess/API timeout and its host
+hook's budget are DIFFERENT knobs. The library's MUST be strictly less, or the
+runtime discards the hook at the same instant the library gives up and a
+library timeout becomes indistinguishable from a hook crash. Declared under
+`libraries` with an explicit `host_hooks` list and enforced by
+`hook_budgets.check_nesting()`.
+
+**A timeout-skip is countable.** `HookTimer` calls
+`maybe_record_budget_overrun()`, which routes one row to the existing refusal
+sink under `decision_shape="budget_overrun"`. One query finds them all:
+
+```bash
+grep hook_budget_overrun .claude/logs/hook-blocks.jsonl
+```
+
+The shape is deliberately outside `BLOCK_SHAPES`, so `is_refusal_row()` never
+counts an overrun as a refusal -- enforcement *skipped* is the opposite of a
+refusal. `HOOK_BUDGET_OVERRUN_DISABLED=1` is the rollback switch and leaves the
+timing row intact.
+
+### Changing a budget
+
+```bash
+# 1. Edit plugins/autonomous-dev/config/hook_time_budgets.json
+# 2. Propagate to every settings surface (discovered BY CONTENT, not by a
+#    settings*.json glob -- which misses global_settings_template.json):
+python3 scripts/generate_hook_config.py --sync-timeouts -v
+# 3. Verify no surface drifted:
+python3 scripts/generate_hook_config.py --check-timeouts
+# 4. Deploy. --global-settings is REQUIRED, not optional:
+bash scripts/deploy-all.sh --global-settings
+```
+
+**Step 4 needs `--global-settings`, and a bare `deploy-all.sh` is actively
+harmful here.** `deploy-all.sh:110` sets `DO_GLOBAL_SETTINGS=false`; the flag is
+opt-in at `:129`. Without it, deploy ships `lib/hook_budgets.py`,
+`intent_classifier_config.json` (40s) and `genai_prompts.DEFAULT_TIMEOUT` (15s)
+into `~/.claude/` while `~/.claude/settings.json` stays at **5** — producing
+`15 > 5` and `40 > 5`, the exact nesting violation this whole section exists to
+remove. **The libraries and the settings land together or not at all.**
+
+`check_nesting()` cannot see that state: it reads the canonical config's
+`hooks` section, not the installed settings. `check_installed_settings_skew()`
+is the check that can, and `--check-timeouts` runs it:
+
+```bash
+python3 scripts/generate_hook_config.py --check-timeouts        # exit 1 on skew
+# SKEW between the canonical config and the INSTALLED settings (4):
+#   ~/.claude/settings.json: unified_pre_tool declares 20s but the INSTALLED
+#   registration enforces 5s. A run between 5s and 20s is discarded by the
+#   runtime and records NO overrun row.
+#   Run `bash scripts/deploy-all.sh --global-settings`, or pass --allow-skew
+#   to acknowledge a known pre-deploy window.
+
+python3 scripts/generate_hook_config.py --check-timeouts --allow-skew   # exit 0
+#   ACKNOWLEDGED via --allow-skew (pre-deploy window).
+```
+
+**Skew exits 1.** It was originally a print statement that returned 0 — nothing
+could gate on it, which made the "make skips countable" work unenforceable
+where it mattered most. `--allow-skew` is the narrow, explicit acknowledgement
+for the pre-deploy window; it does NOT mask drift or unbudgeted registrations,
+which keep failing. Without that flag a permanently-red check would train
+everyone to ignore the whole class — the cry-wolf failure this repo treats as a
+first-class defect.
+
+That last sentence is the reason skew is a correctness bug and not just
+untidiness: `maybe_record_budget_overrun` compares against the **declared**
+budget, so under skew a real skip produces no row. A guard that validates the
+declaration and calls it enforcement is the defect, not the fix. Every overrun
+row therefore carries `metadata.budget_source` naming the file its threshold
+came from.
+
+---
+
 ## Safe Failure Behavior
 
 All 27 hooks wrap their `main()` function with `safe_main()` from `plugins/autonomous-dev/lib/hook_safety.py` (Issue #953). `cloud_drain_telemetry.py` was the last holdout — it invoked `main()` directly with no safety net — and gained the standard wrapper in Issue #1471, closing the gap.

@@ -86,7 +86,25 @@ except ImportError:
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 PROMPT_VERSION = "v1"
 MAX_TOKENS = 300
-TIMEOUT_S = 3
+
+# Issue #1704: sourced from config/hook_time_budgets.json, NOT declared here.
+# The VALUE is unchanged at 3 -- this constant already satisfied the nesting
+# constraint against its host (unified_pre_tool) even at the old 5s budget,
+# which is exactly why it serves as the nesting guard's PERMITTING arm: a
+# correctly-nested shape that predates the guard and was not authored for it.
+# Centralising it anyway is the point -- an independent declaration that
+# happens to be right today is still an independent declaration. The two
+# fail-safe literals below are locked STATICALLY by
+# TestRemediation3FallbackLiteralsAreReallyLocked (a runtime comparison is
+# X == X, because library_timeout_or discards the literal whenever the config
+# is readable); the `# pragma: no cover` handler is unreachable while
+# hook_budgets is importable, but its VALUE is checked by that static test.
+try:
+    from hook_budgets import library_timeout_or as _library_timeout_or_1704
+
+    TIMEOUT_S = _library_timeout_or_1704("semantic_gate.TIMEOUT_S", 3)
+except ImportError:  # pragma: no cover - lib/ unavailable in a stripped install
+    TIMEOUT_S = 3
 
 # Truncate diff strings before wrapping to keep Haiku context affordable.
 # This is an upper bound; production diffs rarely exceed this.

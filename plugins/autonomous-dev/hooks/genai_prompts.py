@@ -630,7 +630,41 @@ Variables: {feature}, {evidence}
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 100
-DEFAULT_TIMEOUT = 5  # seconds
+
+# Issue #1704: sourced from config/hook_time_budgets.json, NOT declared here.
+# This is the library-WIDE default for GenAIAnalyzer, reachable from an open
+# set of callers, so it is bounded by the SMALLEST budget among its declared
+# host hooks (unified_pre_tool, 20s) rather than by the LLM class. It is
+# therefore deliberately NOT 3x the measured 12,766ms `claude -p` median: an
+# unattributed caller does not get the LLM budget. The one path proven to host
+# an LLM call carries its own, larger entry (intent_classifier.timeout_seconds).
+#
+# The literals below are FAIL-SAFES for an unreadable config at import time
+# inside a hook subprocess, never the source of truth. They are deliberately
+# NOT the pre-#1704 value (5): degrading to 5 would silently recreate the
+# nesting violation this change removed. library_timeout_or() also emits a
+# stderr line when it degrades, so a fallback is never mistaken for a
+# configured value.
+#
+# HOW THEY ARE LOCKED, precisely (Issue #1704 remediation 3): a STATIC check,
+# TestRemediation3FallbackLiteralsAreReallyLocked, parses these literals out of
+# this file and compares them to hook_time_budgets.json. It MUST be static: at
+# runtime the attribute holds library_timeout_or(key, literal), which DISCARDS
+# the literal whenever the config is readable, so comparing the runtime
+# attribute to the canonical value is X == X and passes for any literal. An
+# earlier comment here claimed a cross-validation test locked these; that test
+# was exactly that tautology. A false coverage claim is worse than an
+# uncovered line.
+#
+# The `# pragma: no cover` below is honest rather than a hiding place: the
+# handler cannot execute while hook_budgets is importable, so LINE coverage can
+# never reach it -- but its VALUE is checked by that same static test.
+try:
+    from hook_budgets import library_timeout_or as _library_timeout_or_1704
+
+    DEFAULT_TIMEOUT = _library_timeout_or_1704("genai_prompts.DEFAULT_TIMEOUT", 15)
+except ImportError:  # pragma: no cover - lib/ unavailable in a stripped install
+    DEFAULT_TIMEOUT = 15  # seconds
 
 # Feature flags for prompt usage
 # Can be controlled via environment variables (e.g., GENAI_SECURITY_SCAN=false)

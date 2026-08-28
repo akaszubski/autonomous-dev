@@ -109,6 +109,27 @@ SHAPE_EXCEPTION: str = "exception"
 SHAPE_EXIT_NONZERO: str = "exit_nonzero"
 SHAPE_DEFAULT: str = "allow"
 
+# Issue #1704: rollback switch for the budget-overrun record ONLY. Setting it
+# leaves timing rows intact and silences the ``hook-blocks.jsonl`` side effect.
+BUDGET_OVERRUN_DISABLE_ENV_VAR: str = "HOOK_BUDGET_OVERRUN_DISABLED"
+
+# Issue #1704 remediation (W7). The smallest budget any hook declares. No
+# invocation shorter than this can possibly be an overrun, so the check
+# short-circuits here BEFORE importing ``hook_budgets`` and reading a ~9KB
+# JSON file. MEASURED: that import+read costs 3.28ms median in a fresh process
+# (n=15) -- +51% on ``unified_pre_tool``'s 6.4ms p50, paid on ~89k invocations
+# per week to detect 23 events.
+#
+# The value is a LITERAL here on purpose: importing ``hook_budgets`` to learn it
+# would pay exactly the cost being avoided. ``hook_budgets.OVERRUN_FLOOR_SECONDS``
+# is the AUTHORITY; this is its mirror. Two tests lock the relationship:
+# ``test_min_budget_ns_matches_the_canonical_minimum`` (mirror == authority) and
+# ``check_ceiling``'s refusal of any budget below the floor, so a budget that
+# would overrun undetectably is refused at the config rather than only noticed
+# by a repo-local test a consumer never runs.
+MIN_BUDGET_SECONDS: int = 3
+MIN_BUDGET_NS: int = MIN_BUDGET_SECONDS * 1_000_000_000
+
 # Attribute name stamped onto a ``SystemExit`` that :func:`hook_safety.safe_main`
 # synthesised from an unhandled crash. Kept as a module constant because
 # ``hook_safety`` must agree on the spelling; a cross-validation test locks
@@ -509,6 +530,75 @@ def emit_timing_event(
             pass
 
 
+def is_budget_overrun_disabled() -> bool:
+    """Return True iff the budget-overrun record is disabled via env var.
+
+    Narrower than :func:`is_timing_disabled`: this silences only the
+    ``hook-blocks.jsonl`` side effect, leaving the timing row in place.
+    """
+    raw = os.environ.get(BUDGET_OVERRUN_DISABLE_ENV_VAR)
+    if raw is None:
+        return False
+    return raw.strip().lower() not in _FALSY_ENV_VALUES
+
+
+def maybe_record_budget_overrun(hook_name: str, dur_ns: int) -> bool:
+    """Record a countable skip when ``hook_name`` blew its configured budget.
+
+    Issue #1704. When a hook exceeds its registered timeout the Claude Code
+    runtime stops waiting and DISCARDS its decision -- for
+    ``unified_pre_tool.py`` that silently drops all ~51 checks. Before this
+    function existed the event was invisible in both directions: no row in
+    ``hook-blocks.jsonl``, and an ordinary ``"allow"`` in the timing log.
+
+    The record is possible at all because the runtime abandons the *wait*, not
+    the *process*: the timing log contains COMPLETED rows at 13,139.7ms for a
+    hook budgeted at 5s, so the hook is still alive here and can report.
+
+    Only hooks with an explicit entry in ``hook_time_budgets.json`` are
+    considered. Non-hook processes that borrow :class:`HookTimer` (notably
+    ``scripts/mutation_witness_gate.py``, which is registered nowhere and
+    contributed 56 spurious over-5s rows to the production sink) have no entry
+    and are silently skipped.
+
+    NEVER raises.
+
+    Args:
+        hook_name: Filename of the hook, e.g. ``"unified_pre_tool.py"``.
+        dur_ns: Measured duration of the invocation in nanoseconds.
+
+    Returns:
+        True when an overrun row was written; False otherwise.
+    """
+    # W7 fast path, BEFORE any import or file read. Ordered cheapest-first: an
+    # integer comparison rejects >99.9% of invocations (p50 is 6.4ms against a
+    # 3s floor) for the cost of one comparison.
+    if dur_ns < MIN_BUDGET_NS:
+        return False
+    if is_budget_overrun_disabled():
+        return False
+    try:
+        lib_dir = str(Path(__file__).resolve().parent)
+        if lib_dir not in sys.path:
+            sys.path.insert(0, lib_dir)
+        import hook_budgets  # type: ignore[import-not-found]
+
+        if not hook_budgets.has_hook_budget(hook_name):
+            return False
+        budget_seconds = hook_budgets.get_hook_budget(hook_name)
+        duration_ms = float(dur_ns) / 1_000_000.0
+        if duration_ms <= budget_seconds * 1000.0:
+            return False
+        return hook_budgets.record_budget_overrun(
+            hook_name=hook_name,
+            duration_ms=duration_ms,
+            budget_seconds=budget_seconds,
+        )
+    except Exception:
+        # Telemetry must never break the host hook.
+        return False
+
+
 class HookTimer:
     """Context manager that emits one timing event on ``__exit__``.
 
@@ -577,6 +667,9 @@ class HookTimer:
                 decision_shape=shape,
                 log_dir=self._log_dir,
             )
+            # Issue #1704: a discarded decision must be COUNTABLE. Emitted
+            # after the timing row so a failure here cannot cost us the row.
+            maybe_record_budget_overrun(self.hook_name, dur_ns)
         except Exception:
             # Last-resort guard: a bug in emit_timing_event must not block
             # the host hook. ``emit_timing_event`` already swallows errors

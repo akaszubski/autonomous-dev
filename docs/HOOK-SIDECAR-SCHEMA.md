@@ -42,7 +42,7 @@ Each entry in the `registrations` array:
 |-------|------|----------|---------|-------------|
 | `event` | enum | Yes | - | One of 9 lifecycle events (see below) |
 | `matcher` | string | No | `"*"` | Tool name pattern (e.g., `"Write\|Edit\|MultiEdit"`) |
-| `timeout` | integer | No | - | Execution timeout in seconds (1-60) |
+| `timeout` | integer | No | - | Schema-permitted for backward compatibility, but no sidecar in this repo declares it (Issue #1704). Timeouts are resolved from `plugins/autonomous-dev/config/hook_time_budgets.json` — see [Hook Time Budgets](HOOKS.md#hook-time-budgets). A sidecar-declared `timeout` is a regression, caught by `tests/regression/regression/test_issue_1704_hook_time_budgets.py::test_no_sidecar_declares_a_timeout`. |
 
 ### Lifecycle Events
 
@@ -72,12 +72,13 @@ Lifecycle hooks register for one or more Claude Code events. They **must** have 
   "registrations": [
     {
       "event": "PreToolUse",
-      "matcher": "*",
-      "timeout": 5
+      "matcher": "*"
     }
   ]
 }
 ```
+
+No `timeout` field — it is resolved from `config/hook_time_budgets.json`, not declared per-sidecar (Issue #1704).
 
 ### Utility Modules
 
@@ -110,19 +111,17 @@ A single hook can register for multiple events. For example, `session_activity_l
   "registrations": [
     {
       "event": "PostToolUse",
-      "matcher": "*",
-      "timeout": 5
+      "matcher": "*"
     },
     {
       "event": "Stop",
-      "matcher": "*",
-      "timeout": 3
+      "matcher": "*"
     }
   ]
 }
 ```
 
-Each registration entry can have its own matcher and timeout, allowing fine-grained control.
+Each registration entry can have its own matcher, allowing fine-grained control per event. (Timeout is no longer per-registration in the sidecar — see the `timeout` field note above.)
 
 ## How to Add a New Hook
 
@@ -153,6 +152,12 @@ python scripts/generate_hook_config.py --write
 python scripts/generate_hook_config.py --write -v
 ```
 
+There are two additional flags for the timeout-sync workflow specifically
+(Issue #1704), documented in [HOOKS.md — Hook Time
+Budgets](HOOKS.md#hook-time-budgets): `--check-timeouts` and
+`--sync-timeouts`. They propagate `config/hook_time_budgets.json` — not the
+sidecars, which no longer carry a `timeout` — to every settings surface.
+
 ### What It Generates
 
 The generator creates two config files from the discovered `.hook.json` sidecars:
@@ -163,7 +168,9 @@ The generator creates two config files from the discovered `.hook.json` sidecars
 
 2. **global_settings_template.json** — `hooks` object
    - Registers lifecycle hooks with Claude Code events
-   - Extracts matchers, timeouts, and environment variables from sidecars
+   - Extracts matchers and environment variables from sidecars; resolves each
+     hook's `timeout` from `config/hook_time_budgets.json` via
+     `resolve_timeout()` — never from the sidecar (Issue #1704)
    - Groups registrations by event, sorted alphabetically
    - Specific matchers appear before wildcard matchers within each event
 

@@ -120,7 +120,7 @@
           {
             "type": "command",
             "command": "SANDBOX_ENABLED=false MCP_AUTO_APPROVE=true python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/unified_pre_tool.py\"",
-            "timeout": 5
+            "timeout": 20
           }
         ]
       },
@@ -140,7 +140,7 @@
           {
             "type": "command",
             "command": "ACTIVITY_LOGGING=true python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/session_activity_logger.py\"",
-            "timeout": 3
+            "timeout": 5
           }
         ]
       }

@@ -86,7 +86,37 @@ except ImportError:
 # stability across model upgrades since it gates security-critical routing.
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 300
-DEFAULT_TIMEOUT_SECONDS = 5
+
+# Issue #1704: sourced from config/hook_time_budgets.json, NOT declared here.
+# Was 5, against a host budget (unified_prompt_validator) that was ALSO 5 --
+# so the library could never fail cleanly and report, because the runtime
+# discarded the hook at the same instant this timeout fired. 5 >= 5 violates
+# the nesting constraint; 40 < 50 satisfies it, and 40 is 3.1x the MEASURED
+# 12,766ms `claude -p` median (a 1x budget fails half the time by
+# construction).
+#
+# This does NOT make the GenAI tier live: that tier is dead because
+# GenAIAnalyzer needs ANTHROPIC_API_KEY, which INV-8 forbids, so _get_analyzer
+# returns None and every call short-circuits to fail_open BEFORE any timeout is
+# read. The budget is a PREREQUISITE for the `claude -p` migration (#1000), not
+# a cure for today's fail-open. See the correction on Issue #1704.
+#
+# The literals are FAIL-SAFES for an unreadable config, never the source of
+# truth. Locked STATICALLY by TestRemediation3FallbackLiteralsAreReallyLocked,
+# which parses them out of this file: at runtime the attribute holds
+# library_timeout_or(key, literal), which discards the literal whenever the
+# config is readable, so a runtime comparison is X == X and passes for any
+# value. The `# pragma: no cover` handler is unreachable while hook_budgets is
+# importable, but its VALUE is checked by the same static test.
+try:
+    from hook_budgets import library_timeout_or as _library_timeout_or_1704
+
+    DEFAULT_TIMEOUT_SECONDS = _library_timeout_or_1704(
+        "intent_classifier.timeout_seconds", 40
+    )
+except ImportError:  # pragma: no cover - lib/ unavailable in a stripped install
+    DEFAULT_TIMEOUT_SECONDS = 40
+
 DEFAULT_CONFIDENCE_THRESHOLD = 0.85
 DEFAULT_MAX_PROMPT_CHARS = 10000
 

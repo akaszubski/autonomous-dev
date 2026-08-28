@@ -10,18 +10,15 @@
   "registrations": [
     {
       "event": "PreToolUse",
-      "matcher": "Task|Agent",
-      "timeout": 3
+      "matcher": "Task|Agent"
     },
     {
       "event": "PostToolUse",
-      "matcher": "*",
-      "timeout": 5
+      "matcher": "*"
     },
     {
       "event": "Stop",
-      "matcher": "*",
-      "timeout": 3
+      "matcher": "*"
     }
   ]
 }

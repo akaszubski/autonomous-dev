@@ -1,7 +1,7 @@
 {
   "name": "unified_pre_tool",
   "type": "lifecycle",
-  "description": "Unified pre-tool validation — pipeline enforcement, file protection, sandbox checks",
+  "description": "Unified pre-tool validation \u2014 pipeline enforcement, file protection, sandbox checks",
   "interpreter": "python3",
   "active": true,
   "env": {
@@ -11,8 +11,7 @@
   "registrations": [
     {
       "event": "PreToolUse",
-      "matcher": "*",
-      "timeout": 5
+      "matcher": "*"
     }
   ]
 }

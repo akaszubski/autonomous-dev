@@ -444,13 +444,45 @@ class TestGenerateSettingsHooks:
         assert "command" in entry["hooks"][0]
         assert "timeout" in entry["hooks"][0]
 
-    def test_timeout_from_registration(self) -> None:
-        """Should use timeout from registration, not a default."""
-        result = generate_settings_hooks([SAMPLE_LIFECYCLE_SIDECAR])
-        stop_entry = result["Stop"][0]
-        assert stop_entry["hooks"][0]["timeout"] == 3
-        post_tool_entry = result["PostToolUse"][0]
-        assert post_tool_entry["hooks"][0]["timeout"] == 5
+    def test_timeout_comes_from_the_canonical_budget_not_the_registration(
+        self,
+    ) -> None:
+        """Issue #1704: the sidecar no longer decides the timeout.
+
+        This test previously asserted that a per-registration timeout won
+        (Stop=3, PostToolUse=5). That behaviour WAS the defect: every sidecar
+        and every settings surface independently re-declared the number, and
+        the generator's own ``reg.get("timeout", 5)`` default seeded it. The
+        budget now comes from ``config/hook_time_budgets.json`` and is uniform
+        per hook, so BOTH events get the same value.
+
+        The expected value is read from the canonical source, never hardcoded
+        here -- a literal would just re-create the third copy.
+        """
+        budgets = {
+            "default": {"budget_seconds": 11, "warning_pct": 0.8},
+            "hooks": {},
+            "libraries": {},
+        }
+        result = generate_settings_hooks([SAMPLE_LIFECYCLE_SIDECAR], budgets=budgets)
+        expected = budgets["default"]["budget_seconds"]
+        assert result["Stop"][0]["hooks"][0]["timeout"] == expected
+        assert result["PostToolUse"][0]["hooks"][0]["timeout"] == expected
+
+    def test_per_hook_budget_overrides_the_default(self) -> None:
+        """A hook with its own entry gets it; NEGATIVE CONTROL for the above.
+
+        Without this, the previous test alone would pass even if
+        ``resolve_timeout`` ignored the per-hook table entirely and always
+        returned the default.
+        """
+        budgets = {
+            "default": {"budget_seconds": 11, "warning_pct": 0.8},
+            "hooks": {SAMPLE_LIFECYCLE_SIDECAR["name"]: {"budget_seconds": 23}},
+            "libraries": {},
+        }
+        result = generate_settings_hooks([SAMPLE_LIFECYCLE_SIDECAR], budgets=budgets)
+        assert result["Stop"][0]["hooks"][0]["timeout"] == 23
 
     def test_empty_sidecars_returns_empty_dict(self) -> None:
         """Should return empty dict when no sidecars provided."""

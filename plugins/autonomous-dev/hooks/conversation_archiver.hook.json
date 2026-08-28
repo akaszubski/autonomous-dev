@@ -10,8 +10,7 @@
   "registrations": [
     {
       "event": "Stop",
-      "matcher": "*",
-      "timeout": 10
+      "matcher": "*"
     }
   ]
 }

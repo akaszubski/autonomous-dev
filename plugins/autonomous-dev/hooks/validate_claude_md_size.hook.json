@@ -7,8 +7,7 @@
   "registrations": [
     {
       "event": "PostToolUse",
-      "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-      "timeout": 5
+      "matcher": "Write|Edit|MultiEdit|NotebookEdit"
     }
   ]
 }

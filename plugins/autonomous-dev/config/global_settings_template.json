@@ -61,7 +61,7 @@
         "hooks": [
           {
             "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
-            "timeout": 3,
+            "timeout": 5,
             "type": "command"
           }
         ],
@@ -111,7 +111,7 @@
         "hooks": [
           {
             "command": "MCP_AUTO_APPROVE=true SANDBOX_ENABLED=false python3 ~/.claude/hooks/unified_pre_tool.py",
-            "timeout": 5,
+            "timeout": 20,
             "type": "command"
           }
         ],
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
-            "timeout": 3,
+            "timeout": 5,
             "type": "command"
           }
         ],
@@ -169,7 +169,7 @@
         "hooks": [
           {
             "command": "python3 ~/.claude/hooks/unified_prompt_validator.py",
-            "timeout": 5,
+            "timeout": 50,
             "type": "command"
           }
         ],

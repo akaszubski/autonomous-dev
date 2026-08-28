@@ -327,7 +327,12 @@ class TestLLMFallback:
             kwargs = mock_cls.call_args.kwargs
             assert kwargs.get("model") == DEFAULT_MODEL
             assert kwargs.get("max_tokens") == 300
-            assert kwargs.get("timeout") == 5
+            # Issue #1704: read the timeout from the classifier, never from a
+            # literal here. This assertion used to hardcode 5 -- a THIRD copy
+            # of a number that also lived in intent_classifier_config.json and
+            # in genai_prompts, which is the sprawl #1704 removed. The
+            # canonical source is config/hook_time_budgets.json.
+            assert kwargs.get("timeout") == c.timeout_seconds
         assert r.intent == IntentClass.IMPLEMENT
 
     def test_llm_unavailable_falls_open(self, tmp_path: Path) -> None:

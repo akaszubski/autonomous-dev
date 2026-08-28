@@ -1,0 +1,227 @@
+{
+  "_status": "LIVE IN SOURCE, NOT YET DEPLOYED. Consumed by lib/hook_budgets.py, scripts/generate_hook_config.py (--sync-timeouts) and the three library constants. The 7 settings surfaces in this repo agree with it. The copy that EXECUTES (~/.claude/settings.json, ~/.claude/lib/) does NOT -- it still carries the old 5s values and a pre-change hook_timing.py. Verify with `python3 scripts/generate_hook_config.py --check-timeouts`, which reports the skew.",
+
+  "_deploy": "THE LIBRARIES AND THE SETTINGS LAND TOGETHER OR NOT AT ALL. Deploy with `bash scripts/deploy-all.sh --global-settings`. The `--global-settings` flag is REQUIRED: deploy-all.sh:110 sets DO_GLOBAL_SETTINGS=false and the flag is opt-in at :129, so a bare `deploy-all.sh` ships lib/hook_budgets.py, intent_classifier_config.json (40s) and genai_prompts.DEFAULT_TIMEOUT (15s) into ~/.claude/ while ~/.claude/settings.json stays at 5 -- producing 15 > 5 and 40 > 5, the exact nesting violation this change exists to remove. check_nesting() cannot see that state because it reads this file's `hooks` section, not the installed settings; check_installed_settings_skew() is the check that can, and it reads ~/.claude/settings.json and the project .claude/settings.json directly.",
+  "_comment": "CANONICAL source for hook execution budgets and for the subprocess timeouts of libraries those hooks host. Issue #1704. Nothing else may declare these numbers: generate_hook_config.py writes them into every settings surface (discovered BY CONTENT, never by a settings*.json glob) and the library constants read them through lib/hook_budgets.py. Field names mirror config/pipeline_time_budgets.json (budget_seconds / warning_pct) on purpose -- this is the same mechanism applied to a second namespace, not a fourth pattern. That file could not simply be extended: its loader unconditionally merges STATIC_THRESHOLDS (8 pipeline-agent names) into every result.",
+  "_comment_ceiling": "The maximum is NOT declared here. It is read from hook-metadata.schema.json (registrations.items.properties.timeout.maximum) by hook_budgets.schema_max_seconds(), so 60 has exactly one home. Whether the Claude Code runtime would honour a value above 60 is UNTESTED and irrelevant while the schema refuses it.",
+  "_comment_measurement": "Every measured_* field below was MEASURED from ~/.claude/logs/hook_timings_*.jsonl over the window recorded in _measurement_window. Rows before 2026-08-20 carry the hook_timing.py schema-1 labelling artifact and are excluded. null means the hook emitted no rows in that window -- an absence of measurement, not a measurement of zero. measured_n drifts upward as the log grows (a recount on the same window gave 35,446 for unified_pre_tool vs the 34,973 recorded, +1.3%); p99 and max reproduce exactly. Re-derive with the window below before treating any count as authoritative.",
+  "_comment_classes": "fast_local = sub-second structural checks (p50 5.4-9.0ms across ten hooks). composite_gate = the ~51-check PreToolUse gate. session_lifecycle = Stop-slot gates that run test/quality work. llm_host = a hook that can host an LLM call; sized against the MEASURED claude -p median of 12,766ms (3/3 calls, 12.2-13.1s), not against the inherited 4-6s figure, which was wrong by 2x.",
+  "default": {
+    "budget_seconds": 5,
+    "warning_pct": 0.8,
+    "class": "fast_local"
+  },
+  "hooks": {
+    "unified_pre_tool": {
+      "budget_seconds": 20,
+      "warning_pct": 0.8,
+      "class": "composite_gate",
+      "measured_n": 34973,
+      "measured_p50_ms": 6.4,
+      "measured_p99_ms": 2223.4,
+      "measured_max_ms": 13139.7,
+      "rationale": "Was 5. 23 invocations exceeded 5s in the window and each one discarded ALL ~51 checks (#1631). 20s is 1.52x the observed max and 9.0x p99, and the p50 of 6.4ms means the ceiling is not binding on 99.7% of calls -- a timeout is a ceiling, not a delay."
+    },
+    "unified_prompt_validator": {
+      "budget_seconds": 50,
+      "warning_pct": 0.8,
+      "class": "llm_host",
+      "measured_n": 1900,
+      "measured_p50_ms": 8.2,
+      "measured_p99_ms": 268.5,
+      "measured_max_ms": 742.8,
+      "rationale": "Was 5. Its own measured work fits in 1s, but it is the ONLY registered lifecycle hook proven to reach an LLM call (-> intent_classifier -> GenAIAnalyzer). Sized so a 40s library budget (3.1x the 12,766ms claude -p median) can sit strictly inside it. 50 < 60 schema ceiling."
+    },
+    "stop_quality_gate": {
+      "budget_seconds": 60,
+      "warning_pct": 0.8,
+      "class": "session_lifecycle",
+      "measured_n": 374,
+      "measured_p50_ms": 7274.9,
+      "measured_p99_ms": 13211.3,
+      "measured_max_ms": 28038.1,
+      "rationale": "Already 60 in the executing copy (~/.claude/settings.json). Its 256 rows over 5s are NOT budget violations -- they were measured against the wrong number. Max 28.0s sits inside 60s. Recorded here so the next reader does not have to re-derive that."
+    },
+    "conversation_archiver": {
+      "budget_seconds": 10,
+      "warning_pct": 0.8,
+      "class": "session_lifecycle",
+      "measured_n": 577,
+      "measured_p50_ms": 187.5,
+      "measured_p99_ms": 455.0,
+      "measured_max_ms": 484.3,
+      "rationale": "Unchanged. 22x p99."
+    },
+    "session_activity_logger": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 37746,
+      "measured_p50_ms": 7.2,
+      "measured_p99_ms": 16.5,
+      "measured_max_ms": 1005.0,
+      "rationale": "Unchanged. Zero rows over 5s in 37,746 invocations. Also unifies the two values it currently carries (5 on PostToolUse, 3 on PreToolUse) onto one budget."
+    },
+    "unified_session_tracker": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 3935,
+      "measured_p50_ms": 539.1,
+      "measured_p99_ms": 604.4,
+      "measured_max_ms": 786.6,
+      "rationale": "Unchanged. 8.3x p99, zero rows over budget."
+    },
+    "enforce_file_organization": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 2846,
+      "measured_p50_ms": 8.6,
+      "measured_p99_ms": 43.7,
+      "measured_max_ms": 245.6,
+      "rationale": "Unchanged. 114x p99."
+    },
+    "validate_paid_dependency": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 1028,
+      "measured_p50_ms": 7.6,
+      "measured_p99_ms": 13.3,
+      "measured_max_ms": 24.5,
+      "rationale": "Unchanged. 376x p99."
+    },
+    "validate_claude_md_size": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 669,
+      "measured_p50_ms": 5.4,
+      "measured_p99_ms": 31.1,
+      "measured_max_ms": 46.1,
+      "rationale": "Unchanged. 161x p99."
+    },
+    "plan_gate": {
+      "budget_seconds": 3,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 4785,
+      "measured_p50_ms": 7.7,
+      "measured_p99_ms": 30.2,
+      "measured_max_ms": 166.1,
+      "rationale": "Unchanged. 99x p99."
+    },
+    "plan_mode_exit_detector": {
+      "budget_seconds": 3,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 176,
+      "measured_p50_ms": 9.0,
+      "measured_p99_ms": 50.4,
+      "measured_max_ms": 74.0,
+      "rationale": "Unchanged. 60x p99."
+    },
+    "task_completed_handler": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 39,
+      "measured_p50_ms": 0.0,
+      "measured_p99_ms": 5.2,
+      "measured_max_ms": 5.2,
+      "rationale": "Unchanged. n=39 is thin but the spread is flat."
+    },
+    "enforce_tier_distribution": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 0,
+      "measured_p50_ms": null,
+      "measured_p99_ms": null,
+      "measured_max_ms": null,
+      "rationale": "Registered in global_settings_template.json but emitted ZERO timing rows in the window -- it may never fire. Budget left at the fast_local default; UNMEASURED, and the p99 guard skips it rather than pretending otherwise."
+    },
+    "post_compact_enricher": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 0,
+      "measured_p50_ms": null,
+      "measured_p99_ms": null,
+      "measured_max_ms": null,
+      "rationale": "Bash hook; does not use HookTimer, so it emits no timing rows. UNMEASURED."
+    },
+    "pre_compact_batch_saver": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 0,
+      "measured_p50_ms": null,
+      "measured_p99_ms": null,
+      "measured_max_ms": null,
+      "rationale": "Bash hook; does not use HookTimer. UNMEASURED."
+    },
+    "auto_fix_docs": {
+      "budget_seconds": 20,
+      "warning_pct": 0.8,
+      "class": "llm_host",
+      "measured_n": 4,
+      "measured_p50_ms": 6.6,
+      "measured_max_ms": 7.0,
+      "measured_p99_ms": 7.0,
+      "rationale": "ADDED in remediation (W5). It was registered in .claude-plugin/default-settings.json (PreCommit) with NO timeout and NO budget entry, while its import closure reaches genai_prompts -- so a 15s library timeout sat under an unbounded host and check_nesting never looked. Found by deriving host_hooks from the import graph rather than trusting the hand-written literal. Budgeted at 20 so the 15s library nests strictly inside; its own measured work is 7.0ms max over n=4."
+    },
+    "SessionStart-batch-recovery": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 0,
+      "measured_p50_ms": null,
+      "measured_p99_ms": null,
+      "measured_max_ms": null,
+      "rationale": "Bash hook; does not use HookTimer. UNMEASURED."
+    }
+  },
+  "_comment_libraries": "THE NESTING CONSTRAINT. A library's own subprocess/API timeout and its host hook's budget are different knobs. The library's MUST be strictly less than every host's, or the runtime kills the hook before the library can fail cleanly and report -- the failure then looks like a hook crash instead of a library timeout. Enforced by hook_budgets.check_nesting() and by tests/regression/regression/test_issue_1704_hook_time_budgets.py.",
+  "libraries": {
+    "genai_prompts.DEFAULT_TIMEOUT": {
+      "timeout_seconds": 15,
+      "host_hooks": [
+        "auto_fix_docs",
+        "unified_pre_tool",
+        "unified_prompt_validator"
+      ],
+      "_host_hooks_note": "DERIVED, not hand-written: check_declared_hosts_match_derived() walks the import graph and refuses this list if it omits a registered hook that reaches source_module. auto_fix_docs was omitted in the first pass and the guard caught it. security_scan also reaches genai_prompts but is registered in NO settings surface, so it is not a host.",
+      "source_module": "genai_prompts",
+      "source_file": "plugins/autonomous-dev/hooks/genai_prompts.py",
+      "rationale": "Was 5. This is the library-WIDE default for GenAIAnalyzer, reachable from an open set of callers, so it is bounded by the SMALLEST host budget in the list (20) rather than by the LLM class. 15 is therefore deliberately NOT 3x the 12,766ms claude -p median -- an unattributed caller does not get the LLM budget. The one path proven to host an LLM call gets it under intent_classifier below."
+    },
+    "intent_classifier.timeout_seconds": {
+      "timeout_seconds": 40,
+      "host_hooks": [
+        "unified_prompt_validator"
+      ],
+      "source_file": "plugins/autonomous-dev/config/intent_classifier_config.json",
+      "rationale": "Was 5, against a host budget of 5 -- the library could never fail cleanly and report, because the runtime discarded the hook at the same instant. 40 is 3.1x the MEASURED 12,766ms claude -p median (a 1x budget fails half the time by construction) and is strictly inside its 50s host. NOTE: this does not make the GenAI tier live; that tier is dead because it needs ANTHROPIC_API_KEY, which INV-8 forbids. See the correction on Issue #1704. This budget is a PREREQUISITE for the claude -p migration (#1000), not a cure for today's fail-open.",
+      "source_module": "intent_classifier"
+    },
+    "semantic_gate.TIMEOUT_S": {
+      "timeout_seconds": 3,
+      "host_hooks": [
+        "unified_pre_tool"
+      ],
+      "source_file": "plugins/autonomous-dev/lib/semantic_gate.py",
+      "rationale": "Unchanged at 3. Already satisfied the nesting constraint against the old 5s host budget, which is why it is the guard's PERMITTING arm -- a shape the guard was not written from.",
+      "source_module": "semantic_gate"
+    }
+  },
+  "_measurement_window": {
+    "log_glob": "~/.claude/logs/hook_timings_*.jsonl",
+    "start_date_inclusive": "2026-08-21",
+    "end_date_inclusive": "2026-08-28",
+    "total_rows_at_capture": 89442,
+    "captured_at": "2026-08-28",
+    "schema_version": 2
+  }
+}

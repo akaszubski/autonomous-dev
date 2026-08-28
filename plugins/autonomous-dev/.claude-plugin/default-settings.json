@@ -25,7 +25,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/auto_fix_docs.py || exit 1"
+            "command": "python .claude/hooks/auto_fix_docs.py || exit 1",
+            "timeout": 20
           }
         ]
       }
