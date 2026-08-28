@@ -1011,3 +1011,5 @@
 {"fire_id": "20260828T124145Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "REST 403; MCP fallback not exercised (prior fire 20260827T204043Z showed oldest cluster #1437,#1651 exceeds cron-light budget)"}
 {"fire_id": "20260828T143756Z", "fired_at": "2026-08-28T14:38:50Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T143756Z", "phase": "FIRE_END", "exit_reason": "github_api_forbidden", "detail": "GITHUB_TOKEN in session returned 403 on issues list; cluster selection cannot run. Token length 14 (real ghp_ is 40, github_pat_ is 93+); likely placeholder or unscoped token. Routine is a no-op until token is refreshed."}
+{"fire_id": "20260828T203757Z", "fired_at": "2026-08-28T20:38:25Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260828T203757Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
