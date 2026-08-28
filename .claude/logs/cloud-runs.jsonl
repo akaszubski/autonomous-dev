@@ -997,3 +997,5 @@
 {"fire_id": "20260827T204043Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "note": "both issues in cluster skipped (retro; hooks/*.py fix)"}
 {"fire_id": "20260827T223802Z", "fired_at": "2026-08-27T22:39:05Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260827T223802Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
+{"fire_id": "20260828T023806Z", "fired_at": "2026-08-28T02:38:06Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260828T023806Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
