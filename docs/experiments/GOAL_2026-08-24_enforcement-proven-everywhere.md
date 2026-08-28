@@ -322,12 +322,33 @@ detected.
 > mission and the Definition of Done are UNCHANGED; only sequencing moves.
 >
 > **The three measurements that invalidated the old plan:**
-> 1. **The LLM tier cannot succeed as configured.** `claude -p` is **12,766 ms median**
->    (3/3 calls 12.2–13.1 s) against `intent_classifier.py:89 DEFAULT_TIMEOUT_SECONDS = 5`.
->    Telemetry agrees: 42,100 classifications → `fail_open` 32,322 (76.8%), `llm` 370 (0.9%).
->    This also **corrects the v3 header figure of 3.95 s**, which was measured in Actions and is
->    2.5× optimistic for local use. Every GenAI item was sequenced behind a transport question
->    that was already answered; the real blocker was a budget nobody measured.
+> 1. **The LLM tier is dead, and it is dead on a PAID dependency this project forbids.**
+>
+>    > **CORRECTED 2026-08-28, same day, before acting on it.** My first version of this bullet
+>    > said the tier "cannot succeed as configured" because `claude -p` is 12,766 ms against a
+>    > 5 s budget, and cited the 76.8% fail-open as agreeing telemetry. **The causal claim was
+>    > false and I am not leaving it in.** The two facts are unrelated: `intent_classifier`
+>    > does not use `claude -p` at all. It calls `GenAIAnalyzer` (`hooks/genai_utils.py`), which
+>    > uses the **Anthropic SDK on `ANTHROPIC_API_KEY`**. Measured: no key is set (correctly —
+>    > INV-8 forbids paid dependencies), so the client is `None`, `_get_analyzer()` returns
+>    > `None` at `:665-666`, and every call short-circuits to `fail_open` before any timeout is
+>    > consulted. **The 76.8% is an AUTH failure, not a budget failure** — which is exactly what
+>    > #1593's title says, and I read the timeout into it because I had just measured a timeout.
+>    > A correlation between two numbers I happened to hold at once.
+>
+>    What is measured and stands: 42,100 classifications → `fail_open` 32,322 (76.8%),
+>    `regex` 9,408 (22.3%), `llm` 370 (0.9%). No API key present; `GenAIAnalyzer.client is None`.
+>    The tier was built on a metered API that INV-8 forbids, so it is correctly unconfigured and
+>    therefore permanently dead. **The fix is the `claude -p` migration (#1000), not a budget.**
+>
+>    The budget matters *next*, not now: at **12,766 ms median** (3/3 calls 12.2–13.1 s),
+>    `claude -p` cannot fit a 5 s hook slot, so the timeout work is a **prerequisite for the
+>    migration** rather than a cure for today's fail-open. Sequencing is unchanged; the reason
+>    is. This also corrects v3's 3.95 s figure, measured in Actions and 2.5× optimistic locally.
+>
+>    A third independent `5` was found while establishing this: `genai_utils.py` carries its own
+>    `DEFAULT_TIMEOUT`, alongside `intent_classifier_config.json:timeout_seconds` and the hook
+>    registrations — three declarations, no shared source.
 > 2. **Detectors do not reach the repos they protect.** `install_manifest.json` ships **0**
 >    `tests/` paths, so every ratchet built under this goal (#1588, #1593, #1667, #1698) is
 >    canonical-repo-only. realign and spektiv have `prior_art_search.py` and **no** reachability
