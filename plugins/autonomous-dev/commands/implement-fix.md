@@ -4,7 +4,7 @@ description: Minimal pipeline for test-fixing tasks
 version: 1.0.0
 user-invocable: false
 user_facing: false
-allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__searxng__search, mcp__searxng__fetch]
+allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__searxng__search, mcp__searxng__fetch, WebSearch]
 ---
 
 # FIX MODE

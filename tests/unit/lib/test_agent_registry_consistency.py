@@ -873,8 +873,9 @@ COMMANDS_DIR = PLUGIN_DIR / "commands"
 SKILLS_DIR = PLUGIN_DIR / "skills"
 
 # Native web tools that require Anthropic's hosted search/fetch service. They
-# are no-ops in this environment, so a declaration naming them grants a
-# subagent a capability it provably does not have.
+# work on the hosted backend and silently no-op on any other, so a declaration
+# naming one ALONE grants a capability that is not portable. PROJECT.md permits
+# them only alongside a local route (INV-8 never-alone).
 HOSTED_WEB_TOOLS = frozenset({"WebSearch", "WebFetch"})
 
 # The self-hosted replacement pair.
@@ -887,6 +888,7 @@ SEARXNG_TOOLS = frozenset({"mcp__searxng__search", "mcp__searxng__fetch"})
 RESEARCH_MARKERS = (
     "Research: searxng",
     "Research: unavailable (no searxng server)",
+    "Research: web",
 )
 
 
@@ -909,7 +911,14 @@ def _command_and_skill_paths(
 
 
 def check_no_hosted_web_tools(path: Path, *, key: str) -> "list[str]":
-    """Check that one declaration file grants no hosted web tool.
+    """Check that a hosted web tool is never granted ALONE (INV-8 never-alone).
+
+    A hosted tool (``WebSearch``/``WebFetch``) MAY be declared — including as
+    the primary route — but ONLY alongside a local ``mcp__searxng__*`` tool.
+    The binding constraint is never-alone, not prohibition: a hosted-only
+    declaration silently no-ops on any backend without Anthropic's hosted
+    service, which is exactly the portability defect the rule exists to catch.
+    Declaring neither is also clean; the rule inspects hosted grants only.
 
     This is the single implementation behind R1 (agents, ``tools:``) and R2
     (commands/skills, ``allowed-tools:``). The live corpus and every negative
@@ -923,19 +932,23 @@ def check_no_hosted_web_tools(path: Path, *, key: str) -> "list[str]":
 
     Returns:
         List of human-readable violation strings, one per hosted web tool
-        found. Empty list means the file is clean.
+        declared without any local searxng tool. Empty list means the file
+        satisfies never-alone.
 
     Raises:
         ValueError: If the frontmatter is missing or unparseable.
     """
     frontmatter, _body = _split_frontmatter(path)
     declared = set(_as_tool_list(frontmatter.get(key)))
+    hosted = declared & HOSTED_WEB_TOOLS
+    if not hosted or (declared & SEARXNG_TOOLS):
+        return []
     return [
-        f"{path.name}: {key}: declares hosted web tool {tool!r}. WebSearch/"
-        f"WebFetch require Anthropic's hosted service and are no-ops here; a "
-        f"tools: entry is a BLOCKING dependency for a subagent. Use "
-        f"mcp__searxng__search / mcp__searxng__fetch instead."
-        for tool in sorted(declared & HOSTED_WEB_TOOLS)
+        f"{path.name}: {key}: declares hosted web tool {tool!r} with no "
+        f"local searxng tool also declared. PROJECT.md permits a hosted "
+        f"tool only ALONGSIDE a local one (INV-8 never-alone) — hosted-only "
+        f"silently no-ops on any backend without Anthropic's hosted service."
+        for tool in sorted(hosted)
     ]
 
 
@@ -963,7 +976,8 @@ def check_researcher_web_disclosure(path: Path) -> "list[str]":
     for tool in sorted(SEARXNG_TOOLS - granted):
         violations.append(
             f"{path.name}: tools: must grant {tool!r} — it is the researcher's "
-            f"only route to the web now that WebSearch/WebFetch are withdrawn."
+            f"only route to the web that survives on a backend without "
+            f"Anthropic's hosted service (INV-8 never-alone)."
         )
 
     for marker in RESEARCH_MARKERS:
@@ -1108,7 +1122,11 @@ def check_consumes_research_markers(path: Path) -> "list[str]":
 
 
 class TestNoHostedWebTools:
-    """No declaration may grant WebSearch/WebFetch; the researcher uses searxng.
+    """No declaration may grant a hosted web tool ALONE (INV-8 never-alone).
+
+    ``WebSearch``/``WebFetch`` MAY be declared, including as the primary route,
+    but only alongside a local ``mcp__searxng__*`` tool — a hosted-only grant
+    silently no-ops on any backend without Anthropic's hosted service.
 
     R1 agents, R2 commands+skills, R3 the researcher's disclosure contract.
     Each rule is factored into a helper taking a path so the synthetic corpora
@@ -1142,7 +1160,7 @@ class TestNoHostedWebTools:
     # ---- The three rules, over the shipped corpus ------------------------
 
     def test_r1_no_active_agent_grants_a_hosted_web_tool(self):
-        """R1: no agents/*.md tools: entry names WebSearch or WebFetch."""
+        """R1: no agents/*.md grants a hosted tool without a local one."""
         violations = [
             v
             for path in _active_agent_paths()
@@ -1153,7 +1171,7 @@ class TestNoHostedWebTools:
         )
 
     def test_r2_no_command_or_skill_allows_a_hosted_web_tool(self):
-        """R2: no commands/*.md or skills/*/SKILL.md allowed-tools: names them."""
+        """R2: no command/skill grants a hosted tool without a local one."""
         violations = [
             v
             for path in _command_and_skill_paths()
@@ -1385,9 +1403,9 @@ class TestNoHostedWebTools:
             "control-honest-prose",
             "description: synthetic coordinator step",
             "Validation: the researcher ends its output with "
-            "`Research: searxng` or `Research: unavailable (no searxng "
-            "server)`. Read that marker; if it is absent, dispatch the "
-            "researcher once more.",
+            "`Research: searxng`, `Research: web`, or `Research: unavailable "
+            "(no searxng server)`. Read that marker; if it is absent, "
+            "dispatch the researcher once more.",
         )
         assert not check_no_unperformed_tool_count_claim(path)
         assert not check_consumes_research_markers(path)
@@ -1431,6 +1449,24 @@ class TestNoHostedWebTools:
             "name: control-searxng\n"
             "tools: [mcp__searxng__search, mcp__searxng__fetch, Read]",
             "Use `mcp__searxng__search` for prior art.",
+        )
+        assert not check_no_hosted_web_tools(path, key="tools")
+
+    def test_positive_control_hosted_alongside_local_passes_r1(self, tmp_path):
+        """R1 must PERMIT a hosted tool declared alongside a local one.
+
+        This is the arm that proves the rule inverted rather than being
+        renamed: under the previous prohibition rule this same fixture was
+        REFUSED. PROJECT.md (commit 951fdf1e) permits a hosted search tool as
+        primary "ONLY alongside a local one" — never-alone, not prohibition.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-hosted-plus-local",
+            "name: control-hosted-plus-local\n"
+            "tools: [WebSearch, mcp__searxng__search, Read]",
+            "Search with `WebSearch`, and always issue at least one "
+            "`mcp__searxng__search` query.",
         )
         assert not check_no_hosted_web_tools(path, key="tools")
 
@@ -1500,7 +1536,7 @@ class TestNoHostedWebTools:
             tmp_path,
             "researcher",
             "name: researcher\ntools: [Read, Grep, Glob]",
-            "End with `Research: searxng` or "
+            "End with `Research: searxng`, `Research: web`, or "
             "`Research: unavailable (no searxng server)`.",
         )
         violations = check_researcher_web_disclosure(path)

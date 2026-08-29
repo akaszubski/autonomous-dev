@@ -33,7 +33,7 @@ Compare actual file count against the Step 1 estimate. If drift exceeds 50%, hal
 
 ### Step 3: Existing Solutions
 
-Search the codebase (Grep, Glob) and web (`mcp__searxng__search`) for prior art. Document what was found. Even "nothing found" is a valid finding that should be recorded. Hosted `WebSearch`/`WebFetch` are no-ops in this environment; searxng is the only live route to the web.
+Search the codebase (Grep, Glob) and web (`mcp__searxng__search`, required; hosted `WebSearch`, permitted as a supplement) for prior art. Document what was found. Even "nothing found" is a valid finding that should be recorded. `mcp__searxng__search` is the only route that survives on a backend without Anthropic's hosted service (INV-8 never-alone) and MUST be queried on every task; hosted `WebSearch` may be used alongside it, never in place of it.
 
 ### Step 4: Minimal Path
 

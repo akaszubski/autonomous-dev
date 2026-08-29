@@ -166,7 +166,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: Research web best practices and industry standards
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns, documentation-guide
-**Tools**: `mcp__searxng__search`, `mcp__searxng__fetch`, Read, Grep, Glob (external research only; hosted `WebSearch`/`WebFetch` are no-ops in this environment and are not granted — the agent discloses `Research: searxng` or `Research: unavailable (no searxng server)` at the end of its output)
+**Tools**: `mcp__searxng__search`, `mcp__searxng__fetch`, `WebSearch`, Read, Grep, Glob (external research only; `mcp__searxng__*` is the local route and REQUIRED on every task — it is the only route that survives on a backend without Anthropic's hosted service (INV-8 never-alone); hosted `WebSearch` is additionally granted and MAY supplement or lead when it gives the better answer, e.g. vendor-hosted docs absent from searxng's index — the agent discloses `Research: searxng`, `Research: web`, or `Research: unavailable (no searxng server)` at the end of its output)
 **Execution**: Step 1B of /implement workflow (parallel with researcher-local)
 **Output Format**: JSON schema with antipatterns array plus implementation_guidance and testing_guidance sections
   - **antipatterns**: Industry-standard pitfalls and how to avoid them

@@ -2,7 +2,7 @@
 name: plan
 description: "Create a validated planning document with adversarial critique before implementation"
 argument-hint: "Feature description [--no-issues] (e.g., '/plan Add JWT authentication for API endpoints')"
-allowed-tools: [Task, Read, Bash, Grep, Glob, mcp__searxng__search, Write]
+allowed-tools: [Task, Read, Bash, Grep, Glob, mcp__searxng__search, WebSearch, Write]
 disable-model-invocation: false
 user-invocable: true
 user_facing: true

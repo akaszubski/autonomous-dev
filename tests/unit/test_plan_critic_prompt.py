@@ -162,20 +162,24 @@ class TestSerenaSymbolToolGrants:
     def test_pre_existing_tools_preserved(self):
         """Additive only: the original tool grants must survive.
 
-        The web-search grant is the one deliberate SUBSTITUTION rather than a
-        loss: ``WebSearch`` needs Anthropic's hosted service and is a no-op
-        here, so the Existing Solution Search criterion is now carried by
-        ``mcp__searxng__search``. The capability is preserved; the carrier
-        changed. Every other grant is unchanged.
+        The Existing Solution Search criterion is carried by BOTH web routes.
+        ``mcp__searxng__search`` is the local one and is REQUIRED, because it
+        is the only route that survives on a backend without Anthropic's
+        hosted service. ``WebSearch`` MAY be declared alongside it — PROJECT.md
+        (commit 951fdf1e) permits a hosted tool "ONLY alongside a local one" —
+        but never alone. Every other grant is unchanged.
         """
         tools = _declared_tools()
         for tool in ("mcp__searxng__search", "Read", "Grep", "Glob", "Bash"):
             assert tool in tools, f"plan-critic.md lost pre-existing tool {tool!r}"
 
-        assert "WebSearch" not in tools, (
-            "plan-critic.md re-declared WebSearch. It is a no-op in this "
-            "environment; use mcp__searxng__search."
-        )
+        hosted = set(tools) & {"WebSearch", "WebFetch"}
+        if hosted:
+            assert "mcp__searxng__search" in tools, (
+                f"plan-critic.md declares hosted web tool(s) {sorted(hosted)} "
+                f"with no local mcp__searxng__search alongside. PROJECT.md "
+                f"permits a hosted tool only ALONGSIDE a local one."
+            )
 
     @pytest.mark.parametrize("tool", FORBIDDEN_WRITE_TOOLS)
     def test_no_write_capable_tool_is_granted(self, tool: str):

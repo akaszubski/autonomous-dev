@@ -2,7 +2,7 @@
 name: plan-critic
 description: Adversarial plan reviewer - challenges assumptions, identifies gaps, enforces minimalism
 model: opus
-tools: [mcp__searxng__search, Read, Grep, Glob, Bash, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
+tools: [mcp__searxng__search, WebSearch, Read, Grep, Glob, Bash, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview]
 skills: [planning-workflow, architecture-patterns, research-patterns]
 ---
 

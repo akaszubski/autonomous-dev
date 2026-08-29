@@ -50,20 +50,26 @@ class TestResearcherQuality:
         )
 
     def test_researcher_declares_no_hosted_web_tools(self):
-        """The withdrawn native pair must not creep back in.
+        """A hosted web tool is permitted, but never ALONE (INV-8).
 
-        A tools: entry is a BLOCKING dependency for a subagent: it is the
-        only route to the capability. Naming a tool that is a no-op here
-        grants the researcher a capability it provably does not have.
+        ``WebSearch``/``WebFetch`` need Anthropic's hosted service and
+        silently no-op on any other backend. PROJECT.md (commit 951fdf1e)
+        therefore permits a hosted tool — including as the primary route —
+        only alongside a local one. If the researcher ever ships a hosted
+        grant with no ``mcp__searxng__search``, it loses the web entirely the
+        moment it runs against a local model.
         """
         content = (AGENTS_DIR / "researcher.md").read_text()
         config = yaml.safe_load(content.split("---")[1].strip())
         tools = set(config["tools"])
 
-        assert not (tools & {"WebSearch", "WebFetch"}), (
-            f"researcher.md re-declared hosted web tools: "
-            f"{sorted(tools & {'WebSearch', 'WebFetch'})}"
-        )
+        hosted = tools & {"WebSearch", "WebFetch"}
+        if hosted:
+            assert "mcp__searxng__search" in tools, (
+                f"researcher.md declares hosted web tool(s) {sorted(hosted)} "
+                f"with no local mcp__searxng__search alongside. PROJECT.md "
+                f"permits a hosted tool only ALONGSIDE a local one."
+            )
 
     def test_researcher_prompt_maintains_quality_standards(self):
         """Researcher prompt must enforce quality standards.

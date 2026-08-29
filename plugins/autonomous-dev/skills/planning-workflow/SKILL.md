@@ -1,7 +1,7 @@
 ---
 name: planning-workflow
 description: "7-step planning workflow for pre-implementation design. Plan EXISTENCE is enforced by the plan_gate hook; the plan-critic CRITIQUE is enforced separately (unified_pre_tool's plan-exit marker gate, and the /implement STEP 5.5b verdict gate). Use when creating plans, design documents, or architecture decisions before implementation. TRIGGER when: plan, planning, /plan, design document, architecture decision. DO NOT TRIGGER when: implementation, coding, testing."
-allowed-tools: [Read, Grep, Glob, mcp__searxng__search, Bash, Write]
+allowed-tools: [Read, Grep, Glob, mcp__searxng__search, WebSearch, Bash, Write]
 ---
 
 # Planning Workflow
