@@ -38,6 +38,52 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# The self-hosted web-research pair that replaced the native WebSearch/WebFetch
+# tools in every agent, command and skill declaration. Every settings surface
+# must permit them, or a subagent granted them still hits a live permission
+# prompt no human is present to answer.
+SEARXNG_TOOLS = ("mcp__searxng__search", "mcp__searxng__fetch")
+
+
+def check_settings_template_searxng(path: Path) -> "list[str]":
+    """Check R4 for one settings template: searxng in allow, and only allow.
+
+    Placement is the whole rule. An ``ask`` entry on a non-interactive
+    subagent's only web tool blocks it on a prompt nobody can answer, and a
+    ``deny`` entry withdraws the capability outright — both are failures even
+    though the tool NAME is correct in each case.
+
+    The live templates and the synthetic control below both call THIS
+    function; a control that re-implemented the check would prove nothing.
+
+    Args:
+        path: Path to a ``settings.*.json`` template.
+
+    Returns:
+        List of violation strings. Empty list means R4 is satisfied.
+    """
+    perms = _read_json(path).get("permissions", {})
+    allow = set(perms.get("allow") or [])
+    violations: "list[str]" = []
+
+    for tool in SEARXNG_TOOLS:
+        if tool not in allow:
+            violations.append(
+                f"{path.name}: permissions.allow must list {tool!r} — it is the "
+                f"researcher's only route to the web, and an unlisted tool "
+                f"triggers a live permission prompt mid-pipeline."
+            )
+        for bucket in ("ask", "deny"):
+            if tool in set(perms.get(bucket) or []):
+                violations.append(
+                    f"{path.name}: permissions.{bucket} lists {tool!r}. searxng "
+                    f"tools belong in allow ONLY — an {bucket} entry on a "
+                    f"non-interactive subagent's only web tool blocks it."
+                )
+
+    return violations
+
+
 # ============================================================================
 # TestSyncIdempotent - Verify no duplicate hooks on repeated sync
 # ============================================================================
@@ -261,6 +307,120 @@ class TestTemplateIntegrity:
             assert not missing, (
                 f"{template_file.name} missing lifecycle events: {missing}"
             )
+
+    # ---- R4: searxng permitted in every settings surface -----------------
+
+    def test_r4_all_templates_allow_searxng_tools(self):
+        """R4: every settings.*.json lists both searxng tools in allow only.
+
+        Reuses the same glob and the same non-empty guard as
+        ``test_all_templates_have_consistent_hooks`` above — a rule over an
+        empty glob would pass without inspecting a single template (NC3).
+        """
+        templates_dir = PLUGIN_DIR / "templates"
+        template_files = sorted(templates_dir.glob("settings.*.json"))
+
+        assert len(template_files) >= 2, (
+            f"Expected at least 2 settings templates, found {len(template_files)}"
+        )
+
+        violations = [
+            v for template_file in template_files
+            for v in check_settings_template_searxng(template_file)
+        ]
+        assert not violations, "searxng permission drift:\n" + "\n".join(violations)
+
+    def test_r4_global_settings_template_allows_searxng_tools(self):
+        """R4 extends to config/global_settings_template.json.
+
+        The global template is not matched by the ``settings.*.json`` glob, so
+        it would silently escape the rule above.
+        """
+        path = PLUGIN_DIR / "config" / "global_settings_template.json"
+        assert path.exists(), f"Global template missing: {path}"
+        violations = check_settings_template_searxng(path)
+        assert not violations, "searxng permission drift:\n" + "\n".join(violations)
+
+    def test_r4_templates_retain_native_web_tools(self):
+        """Positive control: R4 adds searxng, it does not withdraw anything.
+
+        WebSearch/WebFetch stay in ``allow``. A frontmatter ``tools:`` entry is
+        a blocking dependency; a ``permissions.allow`` entry for an absent
+        capability is inert. Removing them would be an unrelated change, and a
+        rule that quietly did so would be watched only refusing.
+        """
+        templates_dir = PLUGIN_DIR / "templates"
+        template_files = sorted(templates_dir.glob("settings.*.json"))
+        assert len(template_files) >= 2, (
+            f"Expected at least 2 settings templates, found {len(template_files)}"
+        )
+
+        for template_file in template_files:
+            allow = set(_read_json(template_file)["permissions"].get("allow") or [])
+            assert {"WebSearch", "WebFetch"} <= allow, (
+                f"{template_file.name}: native web tools were withdrawn from "
+                f"permissions.allow. They are inert, not harmful — leave them."
+            )
+
+    def test_nc2_searxng_in_ask_bucket_is_refused(self, tmp_path):
+        """NC2: right tool, WRONG BUCKET → R4 MUST refuse.
+
+        A different shape from the migration bug: nothing hosted is present
+        and both tool names are correct. The only defect is placement, so a
+        rule that merely grepped for the strings would pass this file.
+        """
+        path = tmp_path / "settings.wrong-bucket.json"
+        _write_json(
+            path,
+            {
+                "permissions": {
+                    "allow": ["Read", "Grep", "WebSearch", "WebFetch"],
+                    "ask": list(SEARXNG_TOOLS),
+                    "deny": [],
+                }
+            },
+        )
+        violations = check_settings_template_searxng(path)
+        # One "missing from allow" + one "present in ask", per tool.
+        assert len(violations) == 2 * len(SEARXNG_TOOLS), (
+            f"expected 4 violations, got {violations}"
+        )
+        assert any("permissions.ask lists" in v for v in violations)
+
+    def test_nc2_searxng_in_deny_bucket_is_refused(self, tmp_path):
+        """NC2 mirror: allow-listed AND deny-listed → R4 MUST refuse.
+
+        Harder than the ask case: the allow arm is satisfied, so only the
+        bucket-exclusion clause can catch it.
+        """
+        path = tmp_path / "settings.contradictory.json"
+        _write_json(
+            path,
+            {
+                "permissions": {
+                    "allow": ["Read", *SEARXNG_TOOLS],
+                    "deny": list(SEARXNG_TOOLS),
+                }
+            },
+        )
+        violations = check_settings_template_searxng(path)
+        assert len(violations) == len(SEARXNG_TOOLS), (
+            f"expected 2 violations, got {violations}"
+        )
+        assert all("permissions.deny lists" in v for v in violations)
+
+    def test_nc2_positive_control_compliant_synthetic_template_passes(self, tmp_path):
+        """Positive control: the same helper must PERMIT a correct template.
+
+        Without this, a helper that returned a violation unconditionally would
+        satisfy both negative controls above.
+        """
+        path = tmp_path / "settings.compliant.json"
+        _write_json(
+            path,
+            {"permissions": {"allow": ["Read", *SEARXNG_TOOLS], "ask": [], "deny": []}},
+        )
+        assert not check_settings_template_searxng(path)
 
 
 # ============================================================================

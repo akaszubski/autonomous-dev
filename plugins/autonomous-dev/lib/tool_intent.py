@@ -153,6 +153,19 @@ MCP_READ_TOOLS: "frozenset[str]" = frozenset({
     "mcp__serena__list_dir",
     "mcp__serena__find_file",
     "mcp__serena__search_for_pattern",
+    # --- searxng (web research) -------------------------------------------
+    # The self-hosted replacement for the native WebSearch/WebFetch pair,
+    # which are no-ops in this environment. Both are read-only: `search`
+    # issues a metasearch query, `fetch` retrieves a URL's content.
+    #
+    # SECURITY CONSEQUENCE (stated, not hidden): MCP_READ_TOOLS membership
+    # grants plan-exit passage in unified_pre_tool.py, and
+    # ``mcp__searxng__fetch`` retrieves ARBITRARY URLs. That is net-neutral
+    # against the posture already shipped for native WebFetch (which holds
+    # the same plan-mode allowance), not a new hole — but it is a real
+    # egress capability and must be read as one.
+    "mcp__searxng__search",
+    "mcp__searxng__fetch",
 })
 
 # MCP tools that mutate files or persisted state.

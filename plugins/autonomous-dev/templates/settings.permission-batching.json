@@ -19,6 +19,8 @@
       "Glob",
       "Task",
       "WebSearch",
+      "mcp__searxng__search",
+      "mcp__searxng__fetch",
       "TodoWrite",
       "mcp__",
       "Write",

@@ -836,10 +836,15 @@ class SettingsGenerator:
         allow_patterns = add_write_companions(allow_patterns)
 
         # Add Claude Code standalone tools (not Bash patterns)
+        # This list is the 8th settings surface: it is GENERATED rather than
+        # templated, so a searxng entry added to templates/settings.*.json
+        # alone would not reach settings produced by this generator.
         standalone_tools = [
             "Task",
             "WebFetch",
             "WebSearch",
+            "mcp__searxng__search",
+            "mcp__searxng__fetch",
             "TodoWrite",
             "NotebookEdit",
         ]

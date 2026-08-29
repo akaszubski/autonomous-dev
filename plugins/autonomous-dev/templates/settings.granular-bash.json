@@ -17,6 +17,8 @@
       "Task",
       "WebFetch",
       "WebSearch",
+      "mcp__searxng__search",
+      "mcp__searxng__fetch",
       "TodoWrite",
       "NotebookEdit",
       "mcp__",

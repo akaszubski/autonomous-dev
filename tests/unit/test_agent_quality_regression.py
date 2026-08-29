@@ -22,10 +22,13 @@ class TestResearcherQuality:
     """Regression tests for researcher agent quality properties."""
 
     def test_researcher_still_has_web_search_capability(self):
-        """Researcher agent must retain WebSearch and WebFetch tool access.
+        """Researcher agent must retain a search AND a fetch capability.
 
-        These tools are essential for the researcher's core function.
-        Any model or prompt change must preserve them.
+        The CAPABILITY is what this test protects, not the tool names. The
+        carrier changed from the native WebSearch/WebFetch pair (which needs
+        Anthropic's hosted service and is a no-op in this environment) to the
+        self-hosted searxng pair. Any model or prompt change must preserve
+        both halves — search alone cannot read a source document.
         """
         researcher_file = AGENTS_DIR / "researcher.md"
         assert researcher_file.exists(), "researcher.md agent file should exist"
@@ -37,8 +40,30 @@ class TestResearcherQuality:
         assert "tools" in config, "Researcher should have tools defined"
         tools = config["tools"]
 
-        assert "WebSearch" in tools, "Researcher should have WebSearch capability"
-        assert "WebFetch" in tools, "Researcher should have WebFetch capability"
+        assert "mcp__searxng__search" in tools, (
+            "Researcher should have a web SEARCH capability "
+            "(mcp__searxng__search)"
+        )
+        assert "mcp__searxng__fetch" in tools, (
+            "Researcher should have a web FETCH capability "
+            "(mcp__searxng__fetch) — search alone cannot read a source"
+        )
+
+    def test_researcher_declares_no_hosted_web_tools(self):
+        """The withdrawn native pair must not creep back in.
+
+        A tools: entry is a BLOCKING dependency for a subagent: it is the
+        only route to the capability. Naming a tool that is a no-op here
+        grants the researcher a capability it provably does not have.
+        """
+        content = (AGENTS_DIR / "researcher.md").read_text()
+        config = yaml.safe_load(content.split("---")[1].strip())
+        tools = set(config["tools"])
+
+        assert not (tools & {"WebSearch", "WebFetch"}), (
+            f"researcher.md re-declared hosted web tools: "
+            f"{sorted(tools & {'WebSearch', 'WebFetch'})}"
+        )
 
     def test_researcher_prompt_maintains_quality_standards(self):
         """Researcher prompt must enforce quality standards.

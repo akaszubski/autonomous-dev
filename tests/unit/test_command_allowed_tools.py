@@ -28,9 +28,37 @@ POLICY_FILE = PROJECT_ROOT / "plugins" / "autonomous-dev" / "config" / "auto_app
 
 
 def _load_valid_tools() -> set[str]:
-    """Load valid tool names from policy file (single source of truth)."""
+    """Load valid tool names for command ``allowed-tools:`` frontmatter.
+
+    Two registries, because a command may legitimately name either kind:
+
+    - ``policy["tools"]["always_allowed"]`` — the NATIVE Claude Code tools.
+      It cannot carry MCP names: ``test_native_tool_auto_approval.py``
+      requires it to be a subset of the hook's ``NATIVE_TOOLS`` set, and an
+      MCP tool is by definition not native.
+    - ``tool_intent.MCP_READ_TOOLS`` — the read-classified MCP registry. This
+      is the same allowlist agent ``tools:`` grants are checked against
+      (INV-2 in ``test_agent_registry_consistency.py``), so commands and
+      agents are now validated against one shared source of truth.
+
+    Before this, VALID_TOOLS read the native registry alone and any MCP tool
+    in a command's frontmatter was reported invalid — which is why granting
+    ``mcp__searxng__search`` to /plan and /advise tripped this check.
+
+    Returns:
+        Set of every tool name a command may legally list.
+    """
     with open(POLICY_FILE) as f:
-        return set(json.load(f)["tools"]["always_allowed"])
+        native = set(json.load(f)["tools"]["always_allowed"])
+
+    import sys
+
+    lib_path = PROJECT_ROOT / "plugins" / "autonomous-dev" / "lib"
+    if str(lib_path) not in sys.path:
+        sys.path.insert(0, str(lib_path))
+    from tool_intent import MCP_READ_TOOLS
+
+    return native | set(MCP_READ_TOOLS)
 
 
 VALID_TOOLS = _load_valid_tools()

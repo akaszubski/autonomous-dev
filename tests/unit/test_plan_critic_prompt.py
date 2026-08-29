@@ -160,10 +160,22 @@ class TestSerenaSymbolToolGrants:
         )
 
     def test_pre_existing_tools_preserved(self):
-        """Additive only: the original tool grants must survive."""
+        """Additive only: the original tool grants must survive.
+
+        The web-search grant is the one deliberate SUBSTITUTION rather than a
+        loss: ``WebSearch`` needs Anthropic's hosted service and is a no-op
+        here, so the Existing Solution Search criterion is now carried by
+        ``mcp__searxng__search``. The capability is preserved; the carrier
+        changed. Every other grant is unchanged.
+        """
         tools = _declared_tools()
-        for tool in ("WebSearch", "Read", "Grep", "Glob", "Bash"):
+        for tool in ("mcp__searxng__search", "Read", "Grep", "Glob", "Bash"):
             assert tool in tools, f"plan-critic.md lost pre-existing tool {tool!r}"
+
+        assert "WebSearch" not in tools, (
+            "plan-critic.md re-declared WebSearch. It is a no-op in this "
+            "environment; use mcp__searxng__search."
+        )
 
     @pytest.mark.parametrize("tool", FORBIDDEN_WRITE_TOOLS)
     def test_no_write_capable_tool_is_granted(self, tool: str):

@@ -125,7 +125,8 @@
       "Fetch",
       "WebFetch",
       "WebSearch",
-      "mcp__searxng__web_search",
+      "mcp__searxng__search",
+      "mcp__searxng__fetch",
       "mcp__*__search",
       "mcp__*__web_search"
     ],

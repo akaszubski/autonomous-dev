@@ -2,7 +2,7 @@
 name: advise
 description: Critical thinking analysis - validates alignment, challenges assumptions, identifies risks
 argument-hint: Proposal or decision to analyze (e.g., "Add Redis for caching")
-allowed-tools: [Read, Grep, Glob, WebSearch, WebFetch]
+allowed-tools: [Read, Grep, Glob, mcp__searxng__search, mcp__searxng__fetch]
 disable-model-invocation: false
 user-invocable: true
 user_facing: true
@@ -65,7 +65,7 @@ For every proposal, generate at least three alternatives:
 2. **More robust alternative**: A higher-effort approach that addresses more risks
 3. **Hybrid alternative**: A phased approach (start simple, evolve if needed)
 
-Use WebSearch if needed to research technology choices, trade-offs, or industry patterns relevant to the proposal.
+Use `mcp__searxng__search` if needed to research technology choices, trade-offs, or industry patterns relevant to the proposal.
 
 **Verification** — After generating all three alternatives, verify each one against these criteria:
 - Does it actually achieve the stated goal? (If not, replace it with one that does)
@@ -238,7 +238,7 @@ After receiving advice:
 
 This command executes inline -- Claude reads the instructions and follows them directly in conversation. No subagent is invoked.
 
-- **Tools**: Read, Grep, Glob, WebSearch, WebFetch
+- **Tools**: Read, Grep, Glob, mcp__searxng__search, mcp__searxng__fetch
 - **Permissions**: Read-only analysis (cannot modify code)
 
 ---

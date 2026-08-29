@@ -257,8 +257,32 @@ class TestIssue1503McpCoverageIsNotBlanket:
         assert audit_mod._classify_summary("mcp__serena__find_symbol") == "READ (mcp)"
 
     def test_known_exec_mcp_tool_is_covered(self, audit_mod):
+        """A tool in MCP_KNOWN_EXEC_TOOLS only must classify EXEC (mcp).
+
+        The exemplar was ``mcp__searxng__search`` until it was promoted into
+        ``tool_intent.MCP_READ_TOOLS`` (it is read-only: a metasearch query
+        mutates nothing). ``mcp__ms365__send-mail`` is used instead because it
+        genuinely executes an effect and is in no read/write registry — an
+        exemplar that had drifted into READ would have made this test assert
+        the wrong class while still looking green.
+        """
+        assert audit_mod._is_covered("mcp__ms365__send-mail") is True
+        assert audit_mod._classify_summary("mcp__ms365__send-mail") == "EXEC (mcp)"
+
+    def test_searxng_is_classified_read_not_exec(self, audit_mod):
+        """Registry precedence, made explicit because two sets disagree.
+
+        ``mcp__searxng__search`` appears in BOTH
+        ``scripts/audit_tool_intent_coverage.py::MCP_KNOWN_EXEC_TOOLS`` and
+        ``tool_intent.MCP_READ_TOOLS``. ``_classify_summary`` consults
+        MCP_READ_TOOLS first, so READ wins — which is the correct answer, and
+        it is what grants the tool plan-exit passage. Recording the precedence
+        here so the stale MCP_KNOWN_EXEC_TOOLS entry cannot silently flip the
+        classification if that ordering is ever changed.
+        """
         assert audit_mod._is_covered("mcp__searxng__search") is True
-        assert audit_mod._classify_summary("mcp__searxng__search") == "EXEC (mcp)"
+        assert audit_mod._classify_summary("mcp__searxng__search") == "READ (mcp)"
+        assert audit_mod._classify_summary("mcp__searxng__fetch") == "READ (mcp)"
 
     def test_covered_and_classify_helpers_agree(self, audit_mod):
         """Both helpers must apply the same registry test (half-fix guard)."""

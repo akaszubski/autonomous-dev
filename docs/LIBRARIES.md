@@ -4486,7 +4486,7 @@ JSON session files stored in `docs/sessions/YYYYMMDD-HHMMSS-pipeline.json`:
       "completed_at": "2025-11-19T14:35:10",
       "duration_seconds": 285,
       "message": "Found 3 JWT patterns",
-      "tools_used": ["WebSearch", "Grep", "Read"]
+      "tools_used": ["mcp__searxng__search", "Grep", "Read"]
     }
   ]
 }
@@ -4689,7 +4689,7 @@ tracker.start_agent("researcher", "Researching JWT patterns")
 
 # Log agent completion
 tracker.complete_agent("researcher", "Found 3 patterns",
-                       tools_used=["WebSearch", "Grep", "Read"],
+                       tools_used=["mcp__searxng__search", "Grep", "Read"],
                        github_issue=79)
 
 # Display status
@@ -6711,7 +6711,7 @@ Build allow patterns from discovered commands and safe operations.
 - **File operations**: `Read(**)`, `Write(**)`, `Edit(**)`, `Glob(**)`, `Grep(**)`
 - **Safe Bash patterns**: `Bash(git:*)`, `Bash(python:*)`, `Bash(pytest:*)`, `Bash(pip:*)`
 - **Discovered commands**: `Task(researcher)`, `Task(planner)`, etc.
-- **Standalone tools**: `Task`, `WebFetch`, `WebSearch`, `TodoWrite`, `NotebookEdit`
+- **Standalone tools**: `Task`, `WebFetch`, `WebSearch`, `mcp__searxng__search`, `mcp__searxng__fetch`, `TodoWrite`, `NotebookEdit` (searxng entries added so a template-level searxng permission is not undone by this GENERATED list — the 8th of the 8 settings surfaces)
 
 **Example Output**:
 ```python

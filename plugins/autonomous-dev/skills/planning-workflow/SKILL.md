@@ -1,7 +1,7 @@
 ---
 name: planning-workflow
 description: "7-step planning workflow for pre-implementation design. Plan EXISTENCE is enforced by the plan_gate hook; the plan-critic CRITIQUE is enforced separately (unified_pre_tool's plan-exit marker gate, and the /implement STEP 5.5b verdict gate). Use when creating plans, design documents, or architecture decisions before implementation. TRIGGER when: plan, planning, /plan, design document, architecture decision. DO NOT TRIGGER when: implementation, coding, testing."
-allowed-tools: [Read, Grep, Glob, WebSearch, Bash, Write]
+allowed-tools: [Read, Grep, Glob, mcp__searxng__search, Bash, Write]
 ---
 
 # Planning Workflow
@@ -31,7 +31,7 @@ Two different enforcers, two different things enforced — do not conflate them:
 |------|------|-------------|-------|
 | Step 1 | **Problem Statement** | Define WHY this change is needed and WHAT is in scope | Read, Grep |
 | Step 2 | **Scope Check** | Estimate files affected; halt if >50% drift from initial estimate | Glob, Grep |
-| Step 3 | **Existing Solutions** | Search codebase + web for prior art before building new | Grep, Glob, WebSearch |
+| Step 3 | **Existing Solutions** | Search codebase + web for prior art before building new | Grep, Glob, mcp__searxng__search |
 | Step 4 | **Minimal Path** | Design the smallest change that achieves the goal | Read |
 | Step 5 | **Adversarial Critique** | plan-critic agent reviews the plan (min 2 rounds) | plan-critic agent |
 | Step 6 | **Issue Decomposition** | Break into trackable issues if needed (via /create-issue) | Bash |
@@ -52,7 +52,7 @@ Estimate the number of files that will be created or modified. If during plannin
 
 Before building anything new, search for existing solutions:
 - **Codebase search**: Use Grep and Glob to find similar patterns in the project
-- **Web search**: Use WebSearch to find libraries, patterns, or prior art
+- **Web search**: Use `mcp__searxng__search` to find libraries, patterns, or prior art
 - **Document findings**: Even if nothing is found, document what was searched
 
 This step prevents reinventing the wheel and catches cases where a library or existing code already solves the problem.

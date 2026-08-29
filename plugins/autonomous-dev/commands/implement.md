@@ -2,7 +2,7 @@
 name: implement
 description: "Smart code implementation with full pipeline and batch modes"
 argument-hint: "<feature> | --batch <file> | --issues <nums> | --resume <id>"
-allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch]
+allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__searxng__search, mcp__searxng__fetch]
 user-invocable: true
 user_facing: true
 ---
@@ -834,9 +834,9 @@ Otherwise: proceed to STEP 4.
 
 Invoke TWO agents in PARALLEL (single message, both Agent tool calls):
 1. **Agent**(subagent_type="researcher-local", model="haiku") — "Search codebase for patterns related to: {feature}. Output JSON with findings and sources."
-2. **Agent**(subagent_type="researcher", model="sonnet") — "Research best practices for: {feature}. MUST use WebSearch. Output JSON with findings, sources, security considerations."
+2. **Agent**(subagent_type="researcher", model="sonnet") — "Research best practices for: {feature}. MUST use mcp__searxng__search. Output JSON with findings, sources, security considerations."
 
-Validation: If web researcher shows 0 tool uses, retry. Merge both outputs. Persist research via `save_merged_research()`.
+Validation: read the web researcher's returned text. It ends with exactly one of `Research: searxng` (it queried searxng and its findings are grounded in what came back) or `Research: unavailable (no searxng server)` (it could not search, and every finding is UNVERIFIED). That marker is the only web-research signal the pipeline actually produces — nothing counts an agent's tool invocations, so do not claim otherwise. If the marker is absent, dispatch the researcher once more with the same prompt; a second dispatch that still returns no marker, or returns `Research: unavailable`, is carried forward as UNVERIFIED and MUST be reported as a source-quality gap in STEP 4.5. This is the coordinator reading a returned string, not an enforced gate (INV-1). Merge both outputs. Persist research via `save_merged_research()`.
 
 ### STEP 4.5: Research Completeness Critique (inline — no agent)
 

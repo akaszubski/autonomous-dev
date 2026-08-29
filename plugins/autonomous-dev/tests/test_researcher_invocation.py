@@ -99,8 +99,8 @@ def test_invoke_researcher():
         ("recommended_libraries" in prompt, "Mentions recommended_libraries field"),
         ("alternatives_considered" in prompt, "Mentions alternatives_considered field"),
         ("Grep" in prompt or "grep" in prompt, "Instructs to use Grep for codebase search"),
-        ("WebSearch" in prompt, "Instructs to use WebSearch"),
-        ("WebFetch" in prompt, "Instructs to use WebFetch"),
+        ("mcp__searxng__search" in prompt, "Instructs to use mcp__searxng__search"),
+        ("mcp__searxng__fetch" in prompt, "Instructs to use mcp__searxng__fetch"),
     ]
 
     all_valid = True

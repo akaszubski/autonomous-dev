@@ -33,7 +33,7 @@ Compare actual file count against the Step 1 estimate. If drift exceeds 50%, hal
 
 ### Step 3: Existing Solutions
 
-Search the codebase (Grep, Glob) and web (WebSearch) for prior art. Document what was found. Even "nothing found" is a valid finding that should be recorded.
+Search the codebase (Grep, Glob) and web (`mcp__searxng__search`) for prior art. Document what was found. Even "nothing found" is a valid finding that should be recorded. Hosted `WebSearch`/`WebFetch` are no-ops in this environment; searxng is the only live route to the web.
 
 ### Step 4: Minimal Path
 

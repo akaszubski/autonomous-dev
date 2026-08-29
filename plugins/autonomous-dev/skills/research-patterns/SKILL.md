@@ -1,7 +1,7 @@
 ---
 name: research-patterns
 description: "4-phase research methodology: codebase recon, targeted web search, deep source analysis, and evidence synthesis. Use when investigating patterns, evaluating libraries, or analyzing best practices. TRIGGER when: research, investigate, evaluate options, compare libraries. DO NOT TRIGGER when: implementation tasks, bug fixes, routine code changes."
-allowed-tools: [WebSearch, WebFetch, Read, Grep, Glob]
+allowed-tools: [mcp__searxng__search, mcp__searxng__fetch, Read, Grep, Glob]
 ---
 
 # Research Patterns Enforcement Skill

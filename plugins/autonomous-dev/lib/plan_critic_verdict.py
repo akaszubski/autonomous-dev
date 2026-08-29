@@ -1,7 +1,8 @@
 """Helper for persisting plan-critic verdicts to disk.
 
 Issue #1468: The `plan-critic` agent (`agents/plan-critic.md`) is a
-read-only agent (`tools: [WebSearch, Read, Grep, Glob, Bash]` — no
+read-only agent (`tools: [mcp__searxng__search, Read, Grep, Glob, Bash,
+plus three read-only mcp__serena__* navigation tools]` — no
 `Write`). Its previous prompt instructed it to persist the HARD GATE
 artifact `.claude/plan_critic_verdict.json` via an inline Python heredoc
 executed through `Bash`. That heredoc-write is not a first-class tool

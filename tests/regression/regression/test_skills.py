@@ -58,10 +58,15 @@ TRIGGER_MARKER = "TRIGGER when:"
 # Minimum activation keywords a skill must declare for reliable auto-activation.
 MIN_TRIGGER_KEYWORDS = 3
 
-# Valid Claude Code tools (comprehensive list)
+# Valid Claude Code tools (comprehensive list), plus the self-hosted searxng
+# MCP pair that replaced the native WebSearch/WebFetch tools in skill
+# frontmatter (the native pair needs Anthropic's hosted service and is a no-op
+# in this environment). The native names are retained: they remain valid tool
+# names, they are simply no longer the ones the skills request.
 VALID_TOOLS = {
     "Task", "Read", "Write", "Edit", "Bash", "Grep", "Glob",
-    "WebSearch", "WebFetch", "TodoWrite", "TodoRead"
+    "WebSearch", "WebFetch", "TodoWrite", "TodoRead",
+    "mcp__searxng__search", "mcp__searxng__fetch",
 }
 
 # Dangerous tools that should be restricted
@@ -85,7 +90,18 @@ EXCLUDED_SKILL_DIRS = {"archived"}
 MAX_TOOLS_PER_SKILL = 5
 
 # Web-research tools. Granting a skill network access is a privileged decision.
-WEB_TOOLS = {"WebSearch", "WebFetch"}
+#
+# The searxng pair MUST be listed here, not merely in VALID_TOOLS. They are the
+# tools that now actually reach the network, so omitting them would leave the
+# WEB_TOOL_ALLOWLIST gate below inspecting two names no skill requests any more
+# — a guard that still passed while the capability it governs flowed through an
+# unlisted door. Adding a skill's network access remains a conscious edit.
+WEB_TOOLS = {
+    "WebSearch",
+    "WebFetch",
+    "mcp__searxng__search",
+    "mcp__searxng__fetch",
+}
 
 # Only these skills may request WEB_TOOLS. Adding an entry here is a deliberate
 # grant of network access and must be a conscious edit, never auto-blessed from

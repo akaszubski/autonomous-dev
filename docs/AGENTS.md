@@ -166,7 +166,7 @@ These agents execute the main autonomous development workflow and provide specia
 **Purpose**: Research web best practices and industry standards
 **Model**: Haiku (Tier 1 - cost optimized for pattern matching)
 **Skills**: research-patterns, documentation-guide
-**Tools**: WebSearch, WebFetch (external research only)
+**Tools**: `mcp__searxng__search`, `mcp__searxng__fetch`, Read, Grep, Glob (external research only; hosted `WebSearch`/`WebFetch` are no-ops in this environment and are not granted — the agent discloses `Research: searxng` or `Research: unavailable (no searxng server)` at the end of its output)
 **Execution**: Step 1B of /implement workflow (parallel with researcher-local)
 **Output Format**: JSON schema with antipatterns array plus implementation_guidance and testing_guidance sections
   - **antipatterns**: Industry-standard pitfalls and how to avoid them

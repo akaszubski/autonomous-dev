@@ -7,12 +7,16 @@ These tests read real files to catch drift between:
 - Agent .md files in agents/ and agents/archived/
 - AGENT_SKILL_MAP in skill_loader.py
 - MCP tool tokens cited in agent prose vs. tools:/optional_mcp: frontmatter
+- Hosted web tools (WebSearch/WebFetch) declared anywhere in the declaration
+  corpus. This module therefore also walks ``commands/*.md`` and
+  ``skills/*/SKILL.md``, not agents/ alone — see ``TestNoHostedWebTools``.
 
 Issue: #411 (Agent registry naming collisions)
 Issue: #1546 (Agent MCP tool declarations must match cited prose and the
     read/write tool registries in tool_intent.py)
 """
 
+import inspect
 import re
 import sys
 from pathlib import Path
@@ -862,6 +866,653 @@ class TestAgentMcpToolDeclarations:
         assert not violations, (
             "hyphenated token truncated by MCP_TOKEN_RE: " + "\n".join(violations)
         )
+
+
+PLUGIN_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev"
+COMMANDS_DIR = PLUGIN_DIR / "commands"
+SKILLS_DIR = PLUGIN_DIR / "skills"
+
+# Native web tools that require Anthropic's hosted search/fetch service. They
+# are no-ops in this environment, so a declaration naming them grants a
+# subagent a capability it provably does not have.
+HOSTED_WEB_TOOLS = frozenset({"WebSearch", "WebFetch"})
+
+# The self-hosted replacement pair.
+SEARXNG_TOOLS = frozenset({"mcp__searxng__search", "mcp__searxng__fetch"})
+
+# The researcher's availability-disclosure markers. Copied in shape from the
+# shipped serena precedent ("Navigation: serena" / "Navigation: grep (serena
+# unavailable)") asserted by
+# ``test_granted_serena_tools_cover_the_navigation_prose`` above.
+RESEARCH_MARKERS = (
+    "Research: searxng",
+    "Research: unavailable (no searxng server)",
+)
+
+
+def _command_and_skill_paths(
+    commands_dir: Path = COMMANDS_DIR, skills_dir: Path = SKILLS_DIR
+) -> "list[Path]":
+    """Return every command and skill declaration file.
+
+    Args:
+        commands_dir: Directory holding ``*.md`` command definitions.
+        skills_dir: Directory holding ``*/SKILL.md`` skill packages.
+
+    Returns:
+        Sorted list of paths. Both globs are non-recursive by shape, so an
+        ``archived/`` subdirectory of commands_dir is excluded automatically.
+    """
+    commands = sorted(f for f in commands_dir.glob("*.md") if f.is_file())
+    skills = sorted(f for f in skills_dir.glob("*/SKILL.md") if f.is_file())
+    return commands + skills
+
+
+def check_no_hosted_web_tools(path: Path, *, key: str) -> "list[str]":
+    """Check that one declaration file grants no hosted web tool.
+
+    This is the single implementation behind R1 (agents, ``tools:``) and R2
+    (commands/skills, ``allowed-tools:``). The live corpus and every negative
+    control below call THIS function — a control that re-implemented the rule
+    would prove nothing about the rule.
+
+    Args:
+        path: Path to an agent/command/skill markdown file.
+        key: Frontmatter key holding the tool list — ``"tools"`` for agents,
+            ``"allowed-tools"`` for commands and skills.
+
+    Returns:
+        List of human-readable violation strings, one per hosted web tool
+        found. Empty list means the file is clean.
+
+    Raises:
+        ValueError: If the frontmatter is missing or unparseable.
+    """
+    frontmatter, _body = _split_frontmatter(path)
+    declared = set(_as_tool_list(frontmatter.get(key)))
+    return [
+        f"{path.name}: {key}: declares hosted web tool {tool!r}. WebSearch/"
+        f"WebFetch require Anthropic's hosted service and are no-ops here; a "
+        f"tools: entry is a BLOCKING dependency for a subagent. Use "
+        f"mcp__searxng__search / mcp__searxng__fetch instead."
+        for tool in sorted(declared & HOSTED_WEB_TOOLS)
+    ]
+
+
+def check_researcher_web_disclosure(path: Path) -> "list[str]":
+    """Check R3: the researcher grants searxng AND discloses availability.
+
+    Frontmatter grants alone are not enough. Without the two markers the
+    coordinator cannot distinguish a searched answer from an unsearched one,
+    which is precisely the failure the deleted (and never-implemented)
+    "coordinator will check your tool usage count" gate pretended to cover.
+
+    Args:
+        path: Path to the researcher agent markdown file.
+
+    Returns:
+        List of violation strings. Empty list means R3 is satisfied.
+
+    Raises:
+        ValueError: If the frontmatter is missing or unparseable.
+    """
+    frontmatter, body = _split_frontmatter(path)
+    granted = set(_as_tool_list(frontmatter.get("tools")))
+    violations: "list[str]" = []
+
+    for tool in sorted(SEARXNG_TOOLS - granted):
+        violations.append(
+            f"{path.name}: tools: must grant {tool!r} — it is the researcher's "
+            f"only route to the web now that WebSearch/WebFetch are withdrawn."
+        )
+
+    for marker in RESEARCH_MARKERS:
+        if marker not in body:
+            violations.append(
+                f"{path.name}: body must instruct emitting the verbatim marker "
+                f"{marker!r}. Without both markers an unsearched answer is "
+                f"indistinguishable from a searched one."
+            )
+
+    return violations
+
+
+# The two prose sites that together describe the researcher's web-research
+# contract: the agent that EMITS the disclosure marker, and the coordinator
+# step that CONSUMES it. They must agree, and neither may assert a check that
+# no code performs.
+RESEARCH_CONTRACT_SITES = (
+    AGENTS_DIR / "researcher.md",
+    COMMANDS_DIR / "implement.md",
+)
+
+# Claims of a tool-use count that the pipeline never performs. ``tools_used``
+# is stored by ``agent_tracker/state.py`` and rendered by
+# ``agent_tracker/display.py``; nothing in ``lib/`` or ``hooks/`` branches on
+# it. Prose promising a count-driven retry therefore describes a gate that
+# cannot fire, which is exactly what INV-1 forbids.
+#
+# WHAT FOLLOWS IS A LINT, NOT A DECISION PROCEDURE. Whether a sentence asserts
+# a check that nothing performs is a question about natural language, and no
+# regex answers it: these alternations recognise the phrasings observed in the
+# wild plus close paraphrases of them, and a determined rewording gets past
+# them. That limit is accepted deliberately rather than papered over, because
+# the positive rule below (``check_consumes_research_markers``, R5) is what
+# carries the weight — it asserts the contract slot DOES contain the
+# marker-based text, and text that says the right thing there cannot
+# simultaneously say the wrong thing. This lint is the cheap second line that
+# catches the known shapes; R5 is the guarantee.
+_ZERO = r"(?:0|zero|none|no|empty)"
+_COUNT_NOUN = (
+    r"(?:uses?|usages?|calls?|queries|invocations?|dispatches|searches|counts?)"
+)
+_RETRY = (
+    r"(?:retr(?:y|ies|ied|ying)|re-?dispatch(?:es|ed|ing)?"
+    r"|re-?invoke[sd]?|re-?invoking|re-?run(?:s|ning)?|try\s+again)"
+)
+# A period must NOT defeat the lint: a claim routinely spans two sentences
+# ("...performed 0 queries. Then retry the whole step."). Bounded at 160 chars
+# so the window stays local rather than pairing unrelated paragraphs.
+_GAP = r"[\s\S]{0,160}?"
+_ZERO_COUNT = rf"\b{_ZERO}\s+(?:\w+\s+){{0,2}}?{_COUNT_NOUN}\b"
+
+UNPERFORMED_COUNT_CLAIMS = (
+    (
+        re.compile(r"tool[\s\-]*(?:usage[\s\-]*)?count", re.IGNORECASE),
+        "asserts a 'tool usage count' check",
+    ),
+    (
+        re.compile(rf"{_ZERO_COUNT}{_GAP}\b{_RETRY}\b", re.IGNORECASE),
+        "asserts a retry triggered by a zero tool-use count",
+    ),
+    (
+        re.compile(rf"\b{_RETRY}\b{_GAP}{_ZERO_COUNT}", re.IGNORECASE),
+        "asserts a retry triggered by a zero tool-use count (reversed order)",
+    ),
+    (
+        re.compile(rf"\btools_used\b{_GAP}\b{_RETRY}\b", re.IGNORECASE),
+        "branches a retry on the unconsumed 'tools_used' field",
+    ),
+    (
+        re.compile(rf"\b{_RETRY}\b{_GAP}\btools_used\b", re.IGNORECASE),
+        "branches a retry on the unconsumed 'tools_used' field (reversed order)",
+    ),
+)
+
+
+def check_no_unperformed_tool_count_claim(path: Path) -> "list[str]":
+    """Check R4 — a BEST-EFFORT LINT over KNOWN SHAPES, not a complete rule.
+
+    This function is deliberately incomplete and must not be described as
+    covering every way the false promise could be worded. It recognises the
+    phrasings seen in the wild plus close paraphrases; a rewording outside
+    that family gets past it. The complete, load-bearing rule is
+    ``check_consumes_research_markers`` (R5): that one is decidable and total
+    over the slot it inspects, so it is what the contract rests on. This lint
+    exists to catch the known shapes cheaply, behind R5.
+
+    The live corpus and every control below call THIS function, so a control
+    proves something about the lint rather than about a paraphrase of it.
+
+    Args:
+        path: Path to a markdown file in the research contract (agent or
+            command). Read whole — the claim is prose and may sit anywhere.
+
+    Returns:
+        List of violation strings, one per matched phrasing. An empty list
+        means no KNOWN shape matched — it is NOT proof that the file carries
+        no such promise.
+    """
+    text = path.read_text(encoding="utf-8")
+    violations: "list[str]" = []
+    for pattern, description in UNPERFORMED_COUNT_CLAIMS:
+        for match in pattern.finditer(text):
+            line_no = text.count("\n", 0, match.start()) + 1
+            violations.append(
+                f"{path.name}:{line_no}: {description} — {match.group(0)!r}. "
+                f"No consumer of tools_used makes any decision, so this "
+                f"promises enforcement that cannot fire (INV-1). Read the "
+                f"{RESEARCH_MARKERS[0]!r} / {RESEARCH_MARKERS[1]!r} marker in "
+                f"the agent's returned text instead — that is observable."
+            )
+    return violations
+
+
+def check_consumes_research_markers(path: Path) -> "list[str]":
+    """Check R5 — the LOAD-BEARING rule, and COMPLETE over the slot it reads.
+
+    Unlike the R4 lint, this rule is decidable and total. It asks whether the
+    coordinator names the verbatim strings ``researcher.md`` is required to
+    emit. A file either contains those literals or it does not; there is no
+    paraphrase that satisfies the contract while evading the check, because
+    here the contract IS the literal marker. That is why the guarantee lives
+    on this side: R4 subtracts an unobservable signal by recognising known
+    phrasings, while R5 requires the observable one positively, and positive
+    text that says the right thing cannot at the same time say the wrong
+    thing in that same slot.
+
+    Args:
+        path: Path to the coordinator command file.
+
+    Returns:
+        List of violation strings, one per absent marker. Empty means clean.
+    """
+    text = path.read_text(encoding="utf-8")
+    return [
+        f"{path.name}: must name the verbatim marker {marker!r} that "
+        f"researcher.md is required to emit. The Agent tool's return value is "
+        f"the only web-research signal the coordinator actually receives."
+        for marker in RESEARCH_MARKERS
+        if marker not in text
+    ]
+
+
+class TestNoHostedWebTools:
+    """No declaration may grant WebSearch/WebFetch; the researcher uses searxng.
+
+    R1 agents, R2 commands+skills, R3 the researcher's disclosure contract.
+    Each rule is factored into a helper taking a path so the synthetic corpora
+    in the negative controls execute the IDENTICAL code path as the live one.
+    """
+
+    # ---- NC3 (vacuity): a rule over an empty corpus inspects nothing ------
+
+    def test_nc3_agent_corpus_is_non_empty(self):
+        """NC3: R1's glob must find files, or R1 passes without looking."""
+        paths = _active_agent_paths()
+        assert len(paths) >= 15, (
+            f"Expected the full active agent roster, found {len(paths)} in "
+            f"{AGENTS_DIR}. R1 over an empty glob is vacuously true."
+        )
+
+    def test_nc3_command_and_skill_corpus_is_non_empty(self):
+        """NC3: R2's globs must find files, or R2 passes without looking."""
+        paths = _command_and_skill_paths()
+        commands = [p for p in paths if p.parent == COMMANDS_DIR]
+        skills = [p for p in paths if p.name == "SKILL.md"]
+        assert len(commands) >= 20, (
+            f"Expected the full command roster, found {len(commands)} in "
+            f"{COMMANDS_DIR}. R2 over an empty glob is vacuously true."
+        )
+        assert len(skills) >= 15, (
+            f"Expected the full skill roster, found {len(skills)} under "
+            f"{SKILLS_DIR}. R2 over an empty glob is vacuously true."
+        )
+
+    # ---- The three rules, over the shipped corpus ------------------------
+
+    def test_r1_no_active_agent_grants_a_hosted_web_tool(self):
+        """R1: no agents/*.md tools: entry names WebSearch or WebFetch."""
+        violations = [
+            v
+            for path in _active_agent_paths()
+            for v in check_no_hosted_web_tools(path, key="tools")
+        ]
+        assert not violations, "Hosted web tools granted to agents:\n" + "\n".join(
+            violations
+        )
+
+    def test_r2_no_command_or_skill_allows_a_hosted_web_tool(self):
+        """R2: no commands/*.md or skills/*/SKILL.md allowed-tools: names them."""
+        violations = [
+            v
+            for path in _command_and_skill_paths()
+            for v in check_no_hosted_web_tools(path, key="allowed-tools")
+        ]
+        assert not violations, (
+            "Hosted web tools in command/skill allowed-tools:\n" + "\n".join(violations)
+        )
+
+    def test_r3_researcher_grants_searxng_and_discloses_availability(self):
+        """R3: researcher.md grants both searxng tools and ships both markers."""
+        violations = check_researcher_web_disclosure(AGENTS_DIR / "researcher.md")
+        assert not violations, "researcher.md web-research contract:\n" + "\n".join(
+            violations
+        )
+
+    @pytest.mark.parametrize(
+        "site", RESEARCH_CONTRACT_SITES, ids=lambda p: p.name
+    )
+    def test_r4_no_contract_site_claims_an_unperformed_tool_count(self, site):
+        """R4 lint: neither prose site may carry a KNOWN count-claim shape.
+
+        Both sites shipped the same false claim — researcher.md said "the
+        coordinator will check your tool usage count", implement.md STEP 4
+        said "if web researcher shows 0 tool uses, retry". Nothing in
+        ``lib/`` or ``hooks/`` branches on ``tools_used``; it is stored by
+        ``agent_tracker/state.py`` and rendered by ``display.py`` only. One
+        lint now runs over both sites so fixing one cannot leave the other.
+
+        This is a lint over known phrasings, so a green result here is not
+        proof the sites are free of such a promise — R5 below is the rule
+        that carries the contract.
+        """
+        violations = check_no_unperformed_tool_count_claim(site)
+        assert not violations, "Unperformed tool-count claim:\n" + "\n".join(
+            violations
+        )
+
+    def test_r5_coordinator_consumes_the_researcher_markers(self):
+        """R5: implement.md must read the markers researcher.md emits.
+
+        R4 removes the unobservable signal; without R5 the coordinator would
+        be left with no research signal at all.
+        """
+        violations = check_consumes_research_markers(COMMANDS_DIR / "implement.md")
+        assert not violations, "Coordinator/researcher marker drift:\n" + "\n".join(
+            violations
+        )
+
+    # ---- NC5/NC6 for R4: same shape, then a DIFFERENT shape --------------
+
+    def test_nc5_synthetic_reproducer_claim_is_refused(self, tmp_path):
+        """NC5: the verbatim implement.md:839 shape MUST be refused."""
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-count-claim",
+            "description: synthetic coordinator step",
+            "Validation: If web researcher shows 0 tool uses, retry. "
+            "Merge both outputs.",
+        )
+        violations = check_no_unperformed_tool_count_claim(path)
+        assert len(violations) == 1, f"expected 1 violation, got {violations}"
+        assert "zero tool-use count" in violations[0]
+
+    def test_nc6_differently_shaped_count_claim_is_refused(self, tmp_path):
+        """NC6: a DIFFERENT shape from the reproducer MUST also be refused.
+
+        Reversed clause order, a different noun ("searxng uses" rather than
+        "tool uses"), and no "Validation:" prefix. A lint scoped to the one
+        sentence that prompted it would pass this file. This wording sits
+        inside the known-shape family the lint recognises, so it refuses —
+        which bounds the lint's reach without implying it is complete.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-count-claim-variant",
+            "description: synthetic coordinator step",
+            "Re-dispatch and retry the agent whenever it reports 0 searxng "
+            "uses, and note its tool-usage count in the run log.",
+        )
+        violations = check_no_unperformed_tool_count_claim(path)
+        assert len(violations) == 2, f"expected 2 violations, got {violations}"
+        assert any("reversed order" in v for v in violations), violations
+        assert any("'tool usage count' check" in v for v in violations), violations
+
+    # ---- The guard on the guard's own self-description -------------------
+
+    # Wordings that would assert the R4 lint reaches further than it does.
+    # None of these can appear innocently in a description of a lint that is
+    # openly partial, so each is a reliable signal of an overclaim.
+    _OVERCLAIM_WORDINGS = (
+        r"\bclass\b",
+        r"\bany\s+phrasing\b",
+        r"\ball\s+phrasings?\b",
+        r"\bevery\s+phrasing\b",
+        r"\bevery\s+wording\b",
+        r"\bexhaustive\b",
+    )
+
+    def test_r4_lint_docstring_does_not_overclaim_its_own_coverage(self):
+        """R4's self-description must not outrun R4's behaviour.
+
+        A lint that advertises itself as complete commits the very defect it
+        exists to catch — a check whose subject is the description rather
+        than the behaviour. This is measured, not argued: after broadening,
+        the lint catches the five paraphrases the reviewer supplied, and
+        five FURTHER rewordings of the same false promise ("come back
+        empty-handed... run the step a second time", "never touched the
+        web", "if that figure is nil") still walk past it. Any wording here
+        promising coverage of the whole family would therefore be false.
+        Completeness legitimately lives on R5, which is asserted separately
+        by ``test_r5_docstring_states_it_is_the_load_bearing_rule``.
+        """
+        doc = inspect.getdoc(check_no_unperformed_tool_count_claim) or ""
+        assert doc, "R4 lint has no docstring, so it describes itself nowhere."
+
+        for pattern in self._OVERCLAIM_WORDINGS:
+            match = re.search(pattern, doc, re.IGNORECASE)
+            assert match is None, (
+                f"R4's docstring overclaims via {match.group(0)!r}. The lint "
+                f"recognises known phrasings only — rewordings outside that "
+                f"family are known to evade it. Describe it as partial."
+            )
+
+        lowered = doc.lower()
+        for required in ("best-effort", "known shapes"):
+            assert required in lowered, (
+                f"R4's docstring must contain {required!r} so a reader "
+                f"cannot mistake a green result for proof of absence."
+            )
+
+    def test_no_test_docstring_overclaims_the_r4_lint(self):
+        """Every docstring describing the lint must be honest, not just one.
+
+        Fixing only the helper's own docstring would repeat the defect this
+        remediation exists to correct: a guard scoped to the single instance
+        that prompted it. The removed overclaim — a sentence asserting the
+        lint covered the whole family of count-driven-retry prose — lived on
+        NC6, not on the helper, so a check inspecting only the helper would
+        have missed the original. This discovers its subjects by reading which
+        methods CALL the lint, so a future test added to the family is
+        covered without anyone remembering to enrol it.
+        """
+        target = "check_no_unperformed_tool_count_claim"
+        callers = {
+            name: method
+            for name, method in inspect.getmembers(
+                TestNoHostedWebTools, inspect.isfunction
+            )
+            if name.startswith("test_") and target in inspect.getsource(method)
+        }
+        assert len(callers) >= 4, (
+            f"Expected the family of tests exercising the R4 lint, found "
+            f"{sorted(callers)}. A docstring sweep over an empty or tiny set "
+            f"is vacuously true."
+        )
+
+        offenders: "list[str]" = []
+        for name, method in sorted(callers.items()):
+            doc = inspect.getdoc(method) or ""
+            for pattern in self._OVERCLAIM_WORDINGS:
+                match = re.search(pattern, doc, re.IGNORECASE)
+                if match is not None:
+                    offenders.append(f"{name}: {match.group(0)!r}")
+
+        assert not offenders, (
+            "Test docstrings describe the R4 lint as reaching further than "
+            "it does:\n" + "\n".join(offenders) + "\nThe lint recognises "
+            "known phrasings; rewordings outside that family evade it."
+        )
+
+    def test_r5_docstring_states_it_is_the_load_bearing_rule(self):
+        """R5 must name itself as the half that carries the contract.
+
+        The honest architecture is only useful if it is written down where
+        the next reader meets it: R4 subtracts known bad phrasings, R5
+        positively requires the observable marker and is total over that
+        slot. If R5 stops saying so, the pair silently becomes two lints.
+        """
+        doc = (inspect.getdoc(check_consumes_research_markers) or "").lower()
+        assert doc, "R5 has no docstring, so it describes itself nowhere."
+        assert "load-bearing" in doc, (
+            "R5's docstring must identify it as the load-bearing rule — it "
+            "is what remains if the R4 lint is evaded."
+        )
+        assert "complete" in doc or "total" in doc, (
+            "R5's docstring must state that it is complete/total over the "
+            "slot it inspects; that property is why it carries the weight."
+        )
+
+    def test_control_overclaiming_docstring_would_be_refused(self):
+        """Negative control: the honesty check must be able to REFUSE.
+
+        Aimed at the ORIGINAL overclaiming sentence this remediation
+        removed, so the control is a real prior artifact rather than a
+        strawman. Without this arm, a typo in the pattern list would leave
+        both honesty tests passing over prose they no longer inspect.
+        """
+        overclaiming = (
+            "Check R4: a file must not claim a tool-use count that never "
+            "happens. The rule covers the class 'prose asserting a "
+            "count-driven retry', so it refuses any phrasing of it."
+        )
+        hits = [
+            p
+            for p in self._OVERCLAIM_WORDINGS
+            if re.search(p, overclaiming, re.IGNORECASE)
+        ]
+        assert len(hits) >= 2, (
+            f"The honesty check failed to flag the known overclaiming "
+            f"wording it was built from; it matched only {hits}. A pattern "
+            f"list that cannot refuse cannot inform."
+        )
+
+        honest = inspect.getdoc(check_no_unperformed_tool_count_claim) or ""
+        assert not [
+            p for p in self._OVERCLAIM_WORDINGS if re.search(p, honest, re.IGNORECASE)
+        ], "The shipped docstring must be permitted by the same pattern list."
+
+    def test_positive_control_marker_based_prose_is_permitted(self, tmp_path):
+        """R4/R5 must be watched PERMITTING the honest replacement.
+
+        This file talks about the researcher, about retrying, and about
+        research being unavailable — everything except a count-driven gate. A
+        rule that refused it would refuse the very prose it demands.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-honest-prose",
+            "description: synthetic coordinator step",
+            "Validation: the researcher ends its output with "
+            "`Research: searxng` or `Research: unavailable (no searxng "
+            "server)`. Read that marker; if it is absent, dispatch the "
+            "researcher once more.",
+        )
+        assert not check_no_unperformed_tool_count_claim(path)
+        assert not check_consumes_research_markers(path)
+
+    def test_nc7_prose_missing_the_markers_fails_r5(self, tmp_path):
+        """NC7 for R5: honest-but-silent prose names no marker → refused."""
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-no-markers",
+            "description: synthetic coordinator step",
+            "Validation: merge both research outputs and persist them.",
+        )
+        violations = check_consumes_research_markers(path)
+        assert len(violations) == len(RESEARCH_MARKERS), (
+            f"expected one violation per absent marker, got {violations}"
+        )
+        for marker in RESEARCH_MARKERS:
+            assert any(marker in v for v in violations), f"{marker!r} not reported"
+
+    # ---- Positive control: the rules must be watched PERMITTING ----------
+
+    def test_positive_control_serena_grant_still_passes_r1(self, tmp_path):
+        """R1 targets hosted web tools specifically, not every tool.
+
+        A rule that refused everything would pass every negative control. This
+        agent declares an MCP tool and native readers and must be PERMITTED.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-serena",
+            "name: control-serena\ntools: [mcp__serena__find_symbol, Read, Grep, Glob]",
+            "Use `mcp__serena__find_symbol` to locate the definition.",
+        )
+        assert not check_no_hosted_web_tools(path, key="tools")
+
+    def test_positive_control_searxng_grant_passes_r1(self, tmp_path):
+        """R1 must permit the replacement pair it is migrating everyone to."""
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-searxng",
+            "name: control-searxng\n"
+            "tools: [mcp__searxng__search, mcp__searxng__fetch, Read]",
+            "Use `mcp__searxng__search` for prior art.",
+        )
+        assert not check_no_hosted_web_tools(path, key="tools")
+
+    # ---- NC1 (same shape, baseline) --------------------------------------
+
+    @pytest.mark.parametrize("hosted_tool", sorted(HOSTED_WEB_TOOLS))
+    def test_nc1_synthetic_agent_granting_a_hosted_tool_is_refused(
+        self, tmp_path, hosted_tool
+    ):
+        """NC1: tools: [WebSearch, Read] → R1's helper MUST refuse."""
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-hosted",
+            f"name: control-hosted\ntools: [{hosted_tool}, Read]",
+            "Search the web for prior art.",
+        )
+        violations = check_no_hosted_web_tools(path, key="tools")
+        assert len(violations) == 1, f"expected 1 violation, got {violations}"
+        assert hosted_tool in violations[0]
+
+    def test_nc1_synthetic_command_allowing_a_hosted_tool_is_refused(self, tmp_path):
+        """NC1 for R2: allowed-tools: [Read, WebFetch] MUST be refused.
+
+        Also proves the ``key`` argument is load-bearing: the same file is
+        CLEAN when inspected under the agent key, because ``tools:`` is absent.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "control-command",
+            "description: synthetic command\nallowed-tools: [Read, WebFetch]",
+            "Fetch the upstream docs.",
+        )
+        violations = check_no_hosted_web_tools(path, key="allowed-tools")
+        assert len(violations) == 1, f"expected 1 violation, got {violations}"
+        assert "WebFetch" in violations[0]
+        assert not check_no_hosted_web_tools(path, key="tools")
+
+    # ---- NC4 (different shape: partial compliance) -----------------------
+
+    def test_nc4_correct_grants_but_stripped_markers_fail_r3(self, tmp_path):
+        """NC4: right frontmatter, missing markers → R3 MUST refuse.
+
+        Different shape from the bug (nothing hosted is declared; the grants
+        are exactly right). Proves R3 is not satisfiable by frontmatter alone.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "researcher",
+            "name: researcher\n"
+            "tools: [mcp__searxng__search, mcp__searxng__fetch, Read, Grep, Glob]",
+            "Research best practices with `mcp__searxng__search`.",
+        )
+        violations = check_researcher_web_disclosure(path)
+        assert len(violations) == len(RESEARCH_MARKERS), (
+            f"expected one violation per missing marker, got {violations}"
+        )
+        for marker in RESEARCH_MARKERS:
+            assert any(marker in v for v in violations), f"{marker!r} not reported"
+
+    def test_nc4_markers_present_but_grants_missing_fail_r3(self, tmp_path):
+        """NC4 mirror: right markers, no searxng grants → R3 MUST refuse.
+
+        The complementary half. Together these prove R3 requires BOTH arms,
+        so neither half alone can satisfy it.
+        """
+        path = TestAgentMcpToolDeclarations._write_agent(
+            tmp_path,
+            "researcher",
+            "name: researcher\ntools: [Read, Grep, Glob]",
+            "End with `Research: searxng` or "
+            "`Research: unavailable (no searxng server)`.",
+        )
+        violations = check_researcher_web_disclosure(path)
+        assert len(violations) == len(SEARXNG_TOOLS), (
+            f"expected one violation per missing grant, got {violations}"
+        )
+        for tool in sorted(SEARXNG_TOOLS):
+            assert any(tool in v for v in violations), f"{tool!r} not reported"
+
+    def test_nc4_the_shipped_researcher_is_permitted(self):
+        """Positive control paired with NC4: the real file must PASS R3."""
+        assert not check_researcher_web_disclosure(AGENTS_DIR / "researcher.md")
 
 
 if __name__ == "__main__":

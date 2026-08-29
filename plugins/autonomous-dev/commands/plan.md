@@ -2,7 +2,7 @@
 name: plan
 description: "Create a validated planning document with adversarial critique before implementation"
 argument-hint: "Feature description [--no-issues] (e.g., '/plan Add JWT authentication for API endpoints')"
-allowed-tools: [Task, Read, Bash, Grep, Glob, WebSearch, Write]
+allowed-tools: [Task, Read, Bash, Grep, Glob, mcp__searxng__search, Write]
 disable-model-invocation: false
 user-invocable: true
 user_facing: true
@@ -63,7 +63,7 @@ Compare the estimated file count from Step 1 against what you discover during re
 Search for existing solutions before building anything new:
 
 1. **Codebase search**: Use Grep and Glob to find similar patterns
-2. **Web search**: Use WebSearch to find libraries, patterns, or prior art
+2. **Web search**: Use `mcp__searxng__search` to find libraries, patterns, or prior art
 3. **Document findings**: Record what was searched and what was found
 
 This section becomes the "## Existing Solutions" in the plan output.
