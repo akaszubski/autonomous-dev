@@ -1022,3 +1022,4 @@
 {"fire_id": "20260829T043847Z", "fired_at": "2026-08-29T04:38:47Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260829T043847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260829T063923Z", "fired_at": "2026-08-29T06:39:23Z", "selected_cluster": "none", "phase": "FIRE_START", "notes": "github_token_403_invalid"}
+{"fire_id": "20260829T063923Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "notes": "github_token_403_invalid"}
