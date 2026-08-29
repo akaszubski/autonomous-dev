@@ -1031,3 +1031,4 @@
 {"fire_id": "20260829T143809Z", "fired_at": "2026-08-29T14:38:52Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
 {"fire_id": "20260829T143809Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1437,1651", "action": "skip-comments-posted"}
 {"timestamp": "2026-08-29T15:19:11.117859+00:00", "fire_type": "FIRE_END", "cluster": "1661,1699,1702", "exit_reason": "cluster_too_complex_for_cloud_window", "suppressed_commit": true, "notes": "3 independent infra issues (hook + state carrier + cross-mode wiring); each needs own pipeline"}
+{"fire_id": "20260829T163752Z", "fired_at": "2026-08-29T16:38:08Z", "selected_cluster": "none", "phase": "FIRE_START"}
