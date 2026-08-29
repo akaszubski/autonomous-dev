@@ -55,7 +55,14 @@ autonomous-dev provides **macro alignment with micro flexibility**: PROJECT.md d
 - Skipping PROJECT.md alignment — never proceed without validation
 - Optional best practices — all SDLC steps are mandatory
 - Language-specific lock-in — stay generic
-- SaaS / cloud hosting — local-first
+- SaaS / cloud hosting — local-first. **One named exception: web research.**
+  Research is inherently a network call, and no local index covers current
+  vendor documentation — measured 2026-08-29, a self-hosted SearXNG returned
+  3 relevant results in 10 for a Claude Code docs question while the hosted
+  tool returned 8 of 8 including the official docs. Agents MAY therefore
+  declare a hosted search tool as primary, but ONLY alongside a local one,
+  which can never be removed. On a local-model backend the hosted tool does
+  not resolve and the local one is used. See INV-8.
 - Paid features — 100% free, MIT licence
 
 ---
@@ -114,7 +121,7 @@ These are the load-bearing properties of the harness. A proposed change that con
 - **INV-5 — One topic, one home.** Every piece of content has exactly one canonical location; everything else links to it rather than restating it.
 - **INV-6 — Deterministic before probabilistic.** Where a check can be made mechanically (path match, keyword list, signature verification), the mechanical check runs first, and its BLOCK/ESCALATE outcome cannot be overridden by an LLM judgment.
 - **INV-7 — Gating state is signed and fails closed.** State that gates enforcement is HMAC-signed. Any verification failure, missing field, or missing file is treated as "not passed" — never as "passed".
-- **INV-8 — Local-first and free.** No gate requires a paid API, a network call, or a hosted service to function. Gates degrade to deterministic-only rather than demanding a key.
+- **INV-8 — Local-first and free.** No gate requires a paid API, a network call, or a hosted service to function. Gates degrade to deterministic-only rather than demanding a key. **Web research is the one named exception** (see SCOPE OUT): it is inherently a network call and cannot be served by a local index. The invariant that still binds it is narrower — an agent may declare a hosted search tool, but never *alone*: a local search tool must always be declared alongside, so the capability degrades rather than disappears when the hosted one cannot reach the backend. An agent declaring a hosted tool with no local companion is refused. Nothing that *enforces* — no hook, no gate, no pipeline step — may depend on a hosted service.
 
 ---
 
