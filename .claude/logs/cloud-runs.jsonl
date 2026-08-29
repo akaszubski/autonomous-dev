@@ -1019,3 +1019,5 @@
 {"fire_id": "20260829T003834Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex_dedup_no_recomment", "commit_sha": "", "cluster": "1437,1651", "note": "both issues are architectural (retro on cron itself + 3-finding hook security advisory); both already have dedup skip comments from previous fires (#1437: 1x on 2026-08-27, #1651: 3x through 2026-08-27); re-commenting would reproduce the noise #1437 documents"}
 {"fire_id": "20260829T023738Z", "fired_at": "2026-08-29T02:37:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260829T023738Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T043847Z", "fired_at": "2026-08-29T04:38:47Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T043847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
