@@ -1015,3 +1015,4 @@
 {"fire_id": "20260828T203757Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
 {"fire_id": "20260828T223749Z", "fired_at": "2026-08-28T22:38:05Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T223749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T003834Z", "fired_at": "", "selected_cluster": "1437,1651", "phase": "FIRE_START", "source": "cloud-drain-cron", "note": "REST blocked at proxy (GitHub App not connected for org) - cluster selected via MCP github"}
