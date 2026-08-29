@@ -1,7 +1,13 @@
 {
   "name": "PreToolUseWrite-protect-sensitive",
-  "type": "utility",
-  "description": "Protects sensitive files from unauthorized writes",
+  "type": "lifecycle",
+  "description": "Denies writes to credentials/secrets/private keys/.git, asks the human for .env and PROJECT.md",
   "interpreter": "bash",
-  "active": true
+  "active": true,
+  "registrations": [
+    {
+      "event": "PreToolUse",
+      "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*"
+    }
+  ]
 }

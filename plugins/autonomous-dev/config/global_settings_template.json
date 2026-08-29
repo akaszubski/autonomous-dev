@@ -70,6 +70,16 @@
       {
         "hooks": [
           {
+            "command": "bash ~/.claude/hooks/PreToolUseWrite-protect-sensitive.sh",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*"
+      },
+      {
+        "hooks": [
+          {
             "command": "python3 ~/.claude/hooks/enforce_file_organization.py",
             "timeout": 5,
             "type": "command"

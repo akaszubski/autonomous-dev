@@ -356,13 +356,18 @@ _UNREGISTERED_UTILITY = frozenset(
 #
 # Adding an entry is NOT an acceptable resolution for a guard failure: register
 # the hook on the lifecycle event it is meant to gate, give it a real importer,
-# or delete it. Whether each of these five should be registered or deleted is
+# or delete it. Whether each of these four should be registered or deleted is
 # the policy half of #1612 and is deliberately NOT decided here.
 #
-#  * PreToolUseWrite-protect-sensitive.sh — emits ``permissionDecision: deny``
-#    through its own fusing ``deny_and_record`` shell function, and its FILENAME
-#    asserts a lifecycle event. Nothing in the repo invokes it. Its relationship
-#    to the ``unified_pre_tool.py`` protected-path floor is unresolved (#1612).
+# RESOLVED and REMOVED — ``PreToolUseWrite-protect-sensitive.sh``. It was pinned
+# here because it emitted a refusal through its own fusing ``deny_and_record``
+# shell function while nothing in the repo invoked it, exactly the state this
+# ratchet exists to make visible. #1588 wired it up: its sidecar now declares
+# ``type: "lifecycle"`` with a ``PreToolUse`` registration, and every settings
+# surface that registers ``unified_pre_tool.py`` registers it too. The ratchet
+# advanced by five to four; ``REACHABILITY_CEILING`` and
+# ``CEILING_HIGH_WATER_MARK`` were lowered in the same diff.
+#
 #  * enforce_orchestrator.py — refuses via ``sys.exit(2)`` (line 320). It has
 #    280 block rows, every one of them manufactured by its own unit suite; see
 #    the module docstring. NOT among the four hooks named in #1612's body: the
@@ -378,7 +383,6 @@ _UNREGISTERED_UTILITY = frozenset(
 #    mention is ``scripts/test-autonomous-workflow.sh:86``, an ``[ -f ... ]``
 #    existence check.
 PINNED_UNREACHABLE: "dict[str, frozenset[str]]" = {
-    "PreToolUseWrite-protect-sensitive.sh": _UNREGISTERED_UTILITY,
     "enforce_orchestrator.py": _UNREGISTERED_UTILITY,
     "enforce_prunable_threshold.py": _UNREGISTERED_UTILITY,
     "enforce_regression_test.py": _UNREGISTERED_UTILITY,
@@ -393,7 +397,7 @@ PINNED_UNREACHABLE: "dict[str, frozenset[str]]" = {
 # ``CEILING_HIGH_WATER_MARK`` in the SAME diff. RAISING is honest in exactly one
 # case: a NEW ROUTE or a NEW INSTRUMENT made PRE-EXISTING unreachable hooks
 # visible, in which case say which, in the same diff.
-REACHABILITY_CEILING = 5
+REACHABILITY_CEILING = 4
 
 # The highest ceiling ever REVIEWED. Its only job is to make a RAISE cost a
 # second, visible constant edit — tying the ceiling only to
@@ -415,7 +419,7 @@ REACHABILITY_CEILING = 5
 # sanctioned edit — wiring a hook up and lowering the pin — red until a third
 # constant was also touched, and pressure on the correct action is the failure
 # mode this whole class exists to prevent.
-CEILING_HIGH_WATER_MARK = 5
+CEILING_HIGH_WATER_MARK = 4
 
 
 #: Prefix of the single line that opens the ``PINNED_UNREACHABLE`` literal. Used
@@ -2726,11 +2730,18 @@ class TestRatchet:
     def test_registered_refusers_are_permitted(self):
         """A guard that fails on everything is not a guard.
 
-        The four registered gates refuse and MUST pass. This watches the rule
+        The five registered gates refuse and MUST pass. This watches the rule
         PERMITTING over the live corpus, which a refusal-only guard never
         proves. The premise assertion is what stops it passing vacuously: each
         must still be DETECTED as a refuser, so it is permitted because it is
         reachable and not because it became invisible.
+
+        ``PreToolUseWrite-protect-sensitive.sh`` is here as of #1588. It is the
+        one entry that MOVED from ``PINNED_UNREACHABLE`` to this list, so it is
+        also the arm that proves the ratchet advances rather than merely
+        refuses: a hook that gets wired up must stop being flagged, and the
+        only shell hook in the corpus is the case where that could quietly
+        break.
         """
         candidates = refusal_candidates()
         live = unreachable_refusers()
@@ -2739,6 +2750,7 @@ class TestRatchet:
             "unified_prompt_validator.py",
             "plan_gate.py",
             "enforce_file_organization.py",
+            "PreToolUseWrite-protect-sensitive.sh",
         ):
             assert name in candidates, (
                 f"premise: {name} is detected as refusal-capable, so its "

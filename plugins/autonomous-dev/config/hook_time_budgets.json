@@ -181,6 +181,16 @@
       "measured_p99_ms": null,
       "measured_max_ms": null,
       "rationale": "Bash hook; does not use HookTimer. UNMEASURED."
+    },
+    "PreToolUseWrite-protect-sensitive": {
+      "budget_seconds": 5,
+      "warning_pct": 0.8,
+      "class": "fast_local",
+      "measured_n": 0,
+      "measured_p50_ms": null,
+      "measured_p99_ms": null,
+      "measured_max_ms": null,
+      "rationale": "Bash hook; does not use HookTimer. UNMEASURED, and unmeasurable before Issue #1588: it was registered on no lifecycle event, so it had never run in production and emitted no timing rows. Budgeted at the fast_local default: the allow path is three greps over one string, and python3 is spawned only on the refusal path."
     }
   },
   "_comment_libraries": "THE NESTING CONSTRAINT. A library's own subprocess/API timeout and its host hook's budget are different knobs. The library's MUST be strictly less than every host's, or the runtime kills the hook before the library can fail cleanly and report -- the failure then looks like a hook crash instead of a library timeout. Enforced by hook_budgets.check_nesting() and by tests/regression/regression/test_issue_1704_hook_time_budgets.py.",

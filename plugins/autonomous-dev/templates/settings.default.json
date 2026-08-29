@@ -137,6 +137,16 @@
         ]
       },
       {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/PreToolUseWrite-protect-sensitive.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent|Bash",
         "hooks": [
           {
