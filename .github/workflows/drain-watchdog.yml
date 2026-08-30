@@ -9,9 +9,23 @@ name: Drain Watchdog
 # On STUCK: runs /implement --light via claude-code-action on a fresh runner
 # (full pipeline overruns even the 60-min runner budget on hard clusters).
 
+# SCHEDULE REMOVED 2026-08-30 — paused alongside drain-driver.yml, which carries
+# the full rationale and the measurements. Also disabled in GitHub's workflow
+# state (`gh workflow disable drain-watchdog.yml`); this removal is the durable
+# record, since that state does not survive a clone.
+#
+# Watchdog-specific note: this workflow heals a loop that is now stopped, so
+# leaving it scheduled would have it firing every 30 minutes to watch something
+# that cannot move. Its STUCK criteria (no commit on master in 2h; open queue
+# > 30 with nothing closed in 3h) would evaluate as STUCK more or less
+# permanently while the driver is paused, and its remedy is to run the same
+# `/implement --light` the driver runs — the reduced pipeline that skips the
+# reviewer and security-auditor. Re-enable it only after the driver returns.
+#
+# `workflow_dispatch` with `force_heal` is retained for attended use.
 on:
-  schedule:
-    - cron: '*/30 * * * *'   # every 30 min
+  # schedule:
+  #   - cron: '*/30 * * * *'   # every 30 min — PAUSED, see drain-driver.yml
   workflow_dispatch:
     inputs:
       force_heal:

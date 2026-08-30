@@ -16,9 +16,40 @@ name: Drain Driver
 # cleanly via concurrency. Offset (:05/:35) avoids contention with
 # drain-watchdog's :00/:30 slots.
 
+# SCHEDULE REMOVED 2026-08-30 — autonomous draining is PAUSED until the pipeline
+# it drives is demonstrably reliable. Also disabled in GitHub's workflow state
+# (`gh workflow disable drain-driver.yml`); this removal is the DURABLE record,
+# because that state is invisible to a clone and to the other machine.
+#
+# Measured over the 7 days to 2026-08-30, all branches: 169 commits total, of
+# which 101 (59%) were `telemetry(cloud-drain)` FIRE_START/FIRE_END pairs written
+# by this workflow about its own firing. Outcomes: 44 `cluster=none`, 43
+# `no_drainable_cluster`, 4 auth failures (`github_api_forbidden`,
+# `token_invalid`), 1 `exit=implementer_no_commit`. Real work commits produced in
+# that window: ONE (1d348d5a). The comment above claiming "5 real autonomous
+# closures over 7 days" is not supported by the git history for this period —
+# treat it as unverified rather than as a baseline.
+#
+# Four gaps to close before the schedule returns:
+#   1. It fires `/implement --light` (see the run step below) — 4 agents, NO
+#      reviewer, NO security-auditor. On 2026-08-30 those two agents produced the
+#      only two BLOCKING findings of the day: a confused deputy left unfixed in
+#      the batch-aggregate gates, and a sticky run_id that reopened the same
+#      defect in the crash-then-resume case. A drain that skips them ships
+#      precisely what they exist to catch.
+#   2. The pipeline it drives must be proven reliable first. The prior autonomous
+#      attempt failed because the pipeline was not — automating an unreliable
+#      pipeline multiplies the unreliability instead of amortising it.
+#   3. Self-telemetry must not be commits. 59% of a week's history recording that
+#      a cron fired is not provenance, it is noise that hides the real signal.
+#   4. Auth failures must surface to a human. Four fires died on invalid tokens
+#      and the only trace was a commit nobody reads.
+#
+# `workflow_dispatch` is retained deliberately: manual, attended firing remains
+# available and is the supported path meanwhile.
 on:
-  schedule:
-    - cron: '5,35 * * * *'   # every 30 min at :05 and :35 (offset from drain-watchdog's :00/:30) — Issue #1318: GHA cron lag resilience
+  # schedule:
+  #   - cron: '5,35 * * * *'   # every 30 min at :05 and :35 — PAUSED, see above
   workflow_dispatch:
     inputs:
       cluster_override:
