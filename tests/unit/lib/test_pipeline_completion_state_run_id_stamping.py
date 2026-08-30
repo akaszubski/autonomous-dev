@@ -119,11 +119,18 @@ def isolate_gate_environment(monkeypatch, tmp_path):
     3. The ``'unknown'``-session merge — reads a process-global
        ``/tmp`` file that real pipeline runs write. Disabled here by pinning
        the staleness TTL to 0; no test in this file exercises that merge.
+    4. The process CWD — the gate's validator-artifact cross-check resolves
+       ``.claude/logs/activity/`` by walking UP from it. Without this chdir the
+       tests would read (and would have to write into) THIS REPO's real
+       activity log. Chdir'ing into a throwaway skeleton keeps the assertions
+       hermetic and keeps the tests from leaving artifacts in the repo.
     """
     monkeypatch.delenv("SKIP_AGENT_COMPLETENESS_GATE", raising=False)
     monkeypatch.delenv("SKIP_PYTEST_GATE", raising=False)
     monkeypatch.setattr(P, "SKIP_GATE_FILE", tmp_path / "no-such-bypass-file")
     monkeypatch.setattr(P, "STALE_UNKNOWN_TTL_SECONDS", 0)
+    (tmp_path / ".claude" / "logs" / "activity").mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(tmp_path)
     yield
 
 
@@ -155,6 +162,27 @@ def _record_five(session_id: str) -> None:
             record_agent_completion(session_id, agent)
 
 
+def _write_validator_artifacts(tmp_path: Path, run: str) -> None:
+    """Write the validator artifacts the completeness gate cross-checks.
+
+    ``verify_pipeline_agent_completions`` requires that a *recorded* reviewer /
+    security-auditor completion be backed by a non-empty
+    ``<activity>/validators/<run>/<agent>.txt`` — the file ``implement.md``
+    tells the coordinator to persist. These tests record completions through
+    the production writer but are not coordinators, so they must supply the
+    artifacts too or the gate will (correctly) refuse them.
+
+    Scoped to ``run``, so a two-run test that writes artifacts only for run A
+    does not accidentally satisfy the check for run B.
+    """
+    d = tmp_path / ".claude" / "logs" / "activity" / "validators" / run
+    d.mkdir(parents=True, exist_ok=True)
+    for agent in ("reviewer", "security-auditor"):
+        (d / f"{agent}.txt").write_text(
+            f"{agent} verdict for {run}\n", encoding="utf-8"
+        )
+
+
 def _strip_current_run_id(session_id: str) -> None:
     """Delete ``current_run_id`` from the on-disk state, leaving stamps intact.
 
@@ -176,11 +204,12 @@ def _strip_current_run_id(session_id: str) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_current_run_agents_are_credited(sid, run_a) -> None:
+def test_current_run_agents_are_credited(sid, run_a, tmp_path) -> None:
     """(d): agents recorded during the current run satisfy the gate."""
     assert record_run_start(sid, run_a) is True
 
     _record_five(sid)
+    _write_validator_artifacts(tmp_path, run_a)
 
     passed, completed, missing = verify_pipeline_agent_completions(
         sid, "fix", issue_number=0
@@ -197,7 +226,9 @@ def test_current_run_agents_are_credited(sid, run_a) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_second_run_does_not_inherit_first_runs_authority(sid, run_a, run_b) -> None:
+def test_second_run_does_not_inherit_first_runs_authority(
+    sid, run_a, run_b, tmp_path
+) -> None:
     """(c) THE DEFECT: run B must not be credited with run A's agents.
 
     Confused deputy: before this change the gate believed run B held authority
@@ -209,6 +240,9 @@ def test_second_run_does_not_inherit_first_runs_authority(sid, run_a, run_b) -> 
     # RUN A: full pipeline, all five agents recorded (production writer shape).
     assert record_run_start(sid, run_a) is True
     _record_five(sid)
+    # Artifacts are written for run A ONLY. Run B must therefore fail on its
+    # own missing completions, not merely on absent artifacts.
+    _write_validator_artifacts(tmp_path, run_a)
     passed_a, _, _ = verify_pipeline_agent_completions(sid, "fix", issue_number=0)
     assert passed_a is True, "precondition: run A must satisfy the gate"
 

@@ -69,6 +69,12 @@ _RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 # Issue #802
 SKIP_GATE_FILE = Path("/tmp/skip_agent_completeness_gate")
 
+# Validators whose verbatim output implement.md requires the coordinator to
+# persist to ``.claude/logs/activity/validators/<run_id>/<agent>.txt``.
+# Recording the completion and writing the artifact are two INDEPENDENTLY
+# FORGETTABLE writes by the same party (see _missing_validator_artifacts).
+_VALIDATOR_ARTIFACT_AGENTS = ("reviewer", "security-auditor")
+
 # Staleness TTL for the 'unknown' session-id fallback merge.
 # When the primary-session lookup in get_completed_agents() falls back to
 # reading the 'unknown' state file (for the Issue #738/#777 in-flight boot
@@ -138,6 +144,122 @@ def _find_activity_log_dir(start_dir: Optional[Path] = None) -> Optional[Path]:
         if log_dir.is_dir():
             return log_dir
     return None
+
+
+def _missing_validator_artifacts(
+    state_run_id: Optional[str],
+    completed: set[str],
+    required: set[str],
+    issue_number: int,
+    activity_dir: Optional[Path] = None,
+) -> frozenset[str]:
+    """Cross-check recorded validator completions against artifacts on disk.
+
+    ``implement.md`` (the "Validator artifact write" block) instructs the
+    coordinator to persist reviewer / security-auditor output verbatim to
+    ``.claude/logs/activity/validators/<run_id>/<agent>.txt``. That instruction
+    is prose, and prose is not enforcement: on 2026-08-29 the write was skipped
+    entirely and a reviewer REQUEST_CHANGES finding that had driven a full
+    remediation cycle existed only in narration, unverifiable by the CIA.
+
+    The value here is narrow and worth stating honestly. The coordinator writes
+    BOTH the completion record and the artifact, so there is **no trust-domain
+    separation** — this is not a second principal attesting to the first. What
+    it buys is a redundant cross-check against a party that skips its own
+    mandated write, because the two writes are *independently forgettable*: the
+    completion call fires on agent return, the artifact write happens later,
+    after both validators return and their verdicts are parsed.
+
+    **Residual, stated plainly**: a coordinator that skips BOTH the completion
+    call and the artifact write is NOT caught here. Skipping the record is not
+    free — the pre-existing gate blocks on a missing ``reviewer`` in full/fix
+    mode. This removes the only currently-free path through the class; it does
+    not close the class.
+
+    **Scope — single-issue runs only.** In batch mode the artifact directory
+    name is not derivable from ``current_run_id``: ``implement-batch.md`` binds
+    ``ISSUE_RUN_ID`` twice, to two different shapes. The value that NAMES the
+    validators directory is ``"${BATCH_ID}-issue${ISSUE_NUMBER}"``, while the
+    value that reaches ``record_run_start`` (and so becomes ``current_run_id``)
+    is ``"issue-${ISSUE_NUMBER}-$(date ...)"``. A batch-scoped check would look
+    in the wrong directory, find nothing, and block a batch run that DID write
+    its artifacts. Restricting to ``issue_number == 0`` is a response to that
+    verified divergence, not caution.
+
+    Emptiness is judged by **zero bytes only**. No byte-count or line-count
+    threshold: the smallest genuine artifact in the real corpus is a 138-byte,
+    single-line APPROVE verdict, and a ``>=200 bytes AND >=2 lines`` rule
+    misclassified 6 of 19 genuine artifacts. Do not reintroduce a threshold.
+
+    INV-7 (fail closed only when determinate):
+
+    * **Determinable-absent** — identity resolved, activity dir resolved, agent
+      present in both *completed* and *required*, file missing or zero-byte:
+      emit a sentinel (fail closed).
+    * **Indeterminate** — batch scope, no ``current_run_id``, a
+      ``current_run_id`` failing ``_RUN_ID_RE``, no activity dir, or any
+      ``OSError``: contribute nothing, leaving the verdict byte-identical to
+      pre-change behaviour.
+
+    Args:
+        state_run_id: ``state["current_run_id"]`` for the run under test.
+        completed: Agents credited to the current run.
+        required: Agents the pipeline mode demands.
+        issue_number: Issue scope; only ``0`` (single-issue) is checked.
+        activity_dir: Activity-log root. Resolved via ``_find_activity_log_dir``
+            when omitted.
+
+    Returns:
+        Sentinels of the form ``"<agent>-artifact:<path>(absent-or-empty)"``,
+        one per validator credited as complete but lacking its artifact. Empty
+        frozenset whenever the answer is indeterminate. Never raises.
+    """
+    try:
+        # (1) Batch scope — the directory name is not derivable here.
+        if issue_number != 0:
+            return frozenset()
+
+        # (2) No run identity recorded — indeterminate, not absent.
+        if not state_run_id:
+            return frozenset()
+
+        # (3) PATH-TRAVERSAL GUARD — do NOT remove as redundant. state_run_id
+        # comes from a JSON state file on disk and is interpolated directly
+        # into a filesystem path below. Re-validating here mirrors the existing
+        # checks in record_run_start / _stamp_current_run_id / the run-id-scoped
+        # state path builder. A value like "../../etc" must never be stat'd.
+        if not _RUN_ID_RE.match(state_run_id):
+            return frozenset()
+
+        # (4) Activity dir unresolvable — indeterminate.
+        #
+        # Assumes the commit-time process CWD resolves to the same
+        # ``.claude/logs/activity/`` tree that implement.md's CWD-relative
+        # ``mkdir -p`` wrote into. Holds in this harness's persistent-CWD
+        # model; implement.md contains no ``cd`` and worktrees are batch-only,
+        # and batch completions are invisible under issue key 0
+        # (``get_completed_agents`` keys strictly on ``str(issue_number)`` with
+        # no union across keys, so *completed* is empty here during a batch run
+        # and this helper emits nothing).
+        if activity_dir is None:
+            activity_dir = _find_activity_log_dir()
+        if activity_dir is None:
+            return frozenset()
+
+        sentinels: set[str] = set()
+        for agent in _VALIDATOR_ARTIFACT_AGENTS:
+            # Only agents this mode actually demands AND that were credited.
+            if agent not in completed or agent not in required:
+                continue
+            path = activity_dir / "validators" / state_run_id / f"{agent}.txt"
+            # No file reads: st_size answers emptiness without opening it.
+            if not path.is_file() or path.stat().st_size == 0:
+                sentinels.add(f"{agent}-artifact:{path}(absent-or-empty)")
+        return frozenset(sentinels)
+    except Exception:
+        # Indeterminate by failure — contribute nothing, never raise. This
+        # helper must not be able to turn a passing gate into an error.
+        return frozenset()
 
 
 def _resolve_session_id_from_activity_log(
@@ -2326,6 +2448,18 @@ def verify_pipeline_agent_completions(
     entire compound command before touch executes, so the bypass file is absent
     when the gate checks it. (Issue #1212)
 
+    **Validator-artifact cross-check (single-issue runs only)**: for runs with
+    ``issue_number == 0``, an agent in ``_VALIDATOR_ARTIFACT_AGENTS`` that is
+    both required and recorded complete must also have a non-empty
+    ``<activity>/validators/<current_run_id>/<agent>.txt`` on disk — the file
+    ``implement.md`` instructs the coordinator to write. A recorded completion
+    with no artifact adds a ``<agent>-artifact:<path>(absent-or-empty)``
+    sentinel to *missing*. Batch runs are deliberately exempt: the artifact
+    directory name there is not derivable from ``current_run_id`` (see
+    :func:`_missing_validator_artifacts`), so checking them would block runs
+    that DID write their artifacts. Every indeterminate case contributes
+    nothing.
+
     Args:
         session_id: The pipeline session identifier.
         pipeline_mode: Pipeline mode — "full", "light", "fix", or "tdd-first".
@@ -2383,6 +2517,17 @@ def verify_pipeline_agent_completions(
             plan_critic_skipped=plan_critic_skipped,
         )
         missing = required - completed
+
+        # Cross-check the validator artifacts implement.md requires the
+        # coordinator to persist. Only single-issue runs are checked (see
+        # _missing_validator_artifacts for the batch-divergence reason), so the
+        # state re-read is skipped entirely in batch mode. No state object is
+        # in hand on this path — get_completed_agents returns a bare set.
+        if issue_number == 0:
+            _state_run_id = _read_state(session_id, run_id=run_id).get("current_run_id")
+            missing = missing | _missing_validator_artifacts(
+                _state_run_id, completed, required, issue_number
+            )
 
         if missing:
             return (False, completed, missing)
