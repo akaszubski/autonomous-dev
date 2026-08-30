@@ -1052,3 +1052,4 @@
 {"fire_id": "20260830T123827Z", "fired_at": "2026-08-30T12:38:45Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260830T123827Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260830T143729Z", "fired_at": "2026-08-30T14:38:26Z", "selected_cluster": "1437,1651", "phase": "FIRE_START", "note": "REST API blocked by proxy (403); cluster selected via MCP github__list_issues"}
+{"fire_id": "20260830T143729Z", "phase": "FIRE_END", "ended_at": "2026-08-30T14:39:51Z", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1437,1651", "skip_comments": ["https://github.com/akaszubski/autonomous-dev/issues/1437#issuecomment-5469323405", "https://github.com/akaszubski/autonomous-dev/issues/1651#issuecomment-5469323692"], "note": "cluster selected via MCP github tools (REST 403 in this session)"}
