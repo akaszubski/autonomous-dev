@@ -362,6 +362,10 @@ driver's module docstring.
 
 Repository structure validation, command validation, manifest sync, lib import checks, hook documentation checks, and documentation tests.
 
+**The documentation-test gate refuses as of 2026-08-30; before that it did not.** From `0b00185f` (2025-11-11) the check ran `pytest ... || true` and then read `$?`, which is the exit status of `true` and therefore always `0` — the `exit` below it was unreachable dead code for 9.5 months. It now captures with `if/else` and blocks the commit on failure. Proven refusing *and* permitting by `tests/regression/test_precommit_fail_open_guard.py`, which runs the hook through a real `git commit` in a sandbox repo and asserts on both the return code and whether a commit object exists.
+
+Not shipped to consumers: this hook is not in `install_manifest.json` and has no installer. It applies to this repository and any clone where you create the symlink below by hand.
+
 ```bash
 # Install
 ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit

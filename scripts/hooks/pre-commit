@@ -110,26 +110,44 @@ fi
 
 echo "🔍 Running documentation validation tests..."
 
-# Check if venv exists and has pytest
+# Select a pytest. Capture with if/else, never `|| true`: under `set -e`
+# (line 17) a bare `cmd; rc=$?` aborts before the message prints, and
+# `cmd || true` makes the capture unconditionally 0 — the defect that
+# left this gate unable to refuse for 9.5 months (introduced 0b00185f).
 if [ -f "venv/bin/pytest" ]; then
-    venv/bin/pytest tests/integration/test_documentation_references.py -q --tb=line 2>/dev/null || true
-    TEST_EXIT=$?
-    if [ $TEST_EXIT -ne 0 ]; then
-        echo ""
-        echo "⚠️  Documentation tests failed. Fix issues or bypass with: git commit --no-verify"
-        exit $TEST_EXIT
-    fi
+    PYTEST_BIN="venv/bin/pytest"
 elif command -v pytest &> /dev/null; then
-    pytest tests/integration/test_documentation_references.py -q --tb=line 2>/dev/null || true
-    TEST_EXIT=$?
+    PYTEST_BIN="pytest"
+else
+    PYTEST_BIN=""
+fi
+
+if [ -z "$PYTEST_BIN" ]; then
+    echo "⚠️  pytest not installed — documentation tests DID NOT RUN."
+    echo "   This commit was not checked. Install:"
+    echo "     python3 -m venv venv && venv/bin/pip install pytest"
+else
+    # stderr is deliberately NOT discarded: the previous `2>/dev/null` threw
+    # away the diagnostic a blocked committer needs, and would hide a
+    # collection error as a silent pass.
+    if "$PYTEST_BIN" tests/integration/test_documentation_references.py -q --tb=line; then
+        TEST_EXIT=0
+    else
+        TEST_EXIT=$?
+    fi
     if [ $TEST_EXIT -ne 0 ]; then
         echo ""
-        echo "⚠️  Documentation tests failed. Fix issues or bypass with: git commit --no-verify"
+        echo "❌ Documentation tests failed — commit blocked."
+        echo ""
+        echo "REQUIRED NEXT ACTION — reproduce and fix:"
+        echo "  $PYTEST_BIN tests/integration/test_documentation_references.py -q"
+        echo ""
+        echo "These check docs/{LIBRARIES,PERFORMANCE,GIT-AUTOMATION}.md and"
+        echo "CLAUDE.md for broken links, dead heading anchors, and absolute"
+        echo "paths outside code fences. A failure means a link or path you"
+        echo "touched no longer resolves."
         exit $TEST_EXIT
     fi
-else
-    echo "⚠️  pytest not installed, skipping documentation tests"
-    echo "   Install: python3 -m venv venv && source venv/bin/activate && pip install pytest pytest-cov"
 fi
 
 # If all validations pass, allow commit
