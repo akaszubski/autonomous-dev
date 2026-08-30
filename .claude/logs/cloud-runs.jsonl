@@ -1040,3 +1040,4 @@
 {"fire_id": "20260829T223734Z", "fired_at": "2026-08-29T22:38:04Z", "selected_cluster": "pending_mcp_query", "phase": "FIRE_START", "note": "direct-urllib-403 in cloud env; using mcp__github__ tools for issue listing (prompt-stated urllib path unavailable here)"}
 {"fire_id": "20260829T223734Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "selected_cluster": "1437,1651", "skip_reasons": {"1437": "architectural-retrospective-multi-file", "1651": "security-batch-with-subprocess-budget-interaction"}}
 {"fire_id": "20260830T004006Z", "fired_at": "2026-08-30T00:40:06Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
+{"fire_id": "20260830T004006Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "notes": "both candidates too complex; GITHUB_TOKEN=14ch->403; implementer subagent not in roster; used MCP for context lookup"}
