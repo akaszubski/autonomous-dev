@@ -1,7 +1,16 @@
 # Project Context — Autonomous Development Plugin
 
-**Last Updated**: 2026-08-24
+**Last Updated**: 2026-08-30
 **Version**: v3.51.0
+
+> **This is a gate input, not documentation.** The alignment gate reads it on every
+> `/implement` run and refuses work that contradicts it — twice on 2026-08-30 alone.
+> **Only statements capable of REFUSING belong here.** Two tests before adding a line:
+> *what would this refuse?* (nothing → it belongs in
+> [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md)) and *can it be checked?*
+> (a count with no stated method is unfalsifiable). Same mechanism in every repo, different
+> content — keep it short and portable. Hard ceiling 225 lines, target 150; it loads every
+> turn. Contract added 2026-08-30, #1708.
 
 🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. **v4 re-baseline 2026-08-28** — milestones resequenced to root-cause order after three measurements falsified the v3 plan: `claude -p` is 12.8s against a 5s budget, so the LLM tier could never succeed; `install_manifest.json` ships 0 `tests/` paths, so no detector reaches a consumer repo; 266 hook invocations exceeded budget in one week, silently dropping their checks. **v5 2026-08-29**: §2.0 names the mechanism this file's DEFINITION OF DONE section states — Q1 connected, Q2 works-as-designed, carried by the existing sidecar (+`invoked_by`/`proves`), enforced by the existing manifest, declarations generated, non-conformance ratcheted. **1 slip on the board — one more aborts (§7.5), and no third rewrite.** Mid-point abort review 2026-09-09. Standing rule (§2): a finding that can refuse becomes **a guard, not an issue**.
 
@@ -11,44 +20,51 @@ For behaviour rules see [`CLAUDE.md`](CLAUDE.md). For operational sequences see 
 
 ## GOALS
 
-**Mission**: Make Claude Code CLI follow the full software development lifecycle — requirements, architecture, coding, testing, review, security, documentation, deployment — with the discipline of a senior engineering team.
+**Mission**: Make Claude Code CLI follow the full software development lifecycle — requirements,
+architecture, coding, testing, review, security, documentation, deployment — **consistently**,
+and prove **continuously** that each control is working. Following the steps is not the goal; a
+control that ran, refused when it should have, permitted when it should have, and left a receipt
+saying so — that is the goal.
 
-**Why this exists**: Claude is trained as a generalist to get things done. It executes brilliantly but lacks judgment about *what* to do, *when*, and *why*. It will skip tests, bypass process, and drift from intent — not out of malice, but because its training optimises for immediate completion, not sustainable engineering. CLAUDE.md instructions drift under context pressure. The context window is finite and the world is bigger than the window. You cannot teach judgment through rules — rules say "always do X" while judgment says "it depends."
+**Why controls and not instructions**: adherence cannot be assumed. The operator forgets between
+sessions, rationalises around prose in both directions, and asserts what it has not verified. So
+each step is administered by something that *refuses*.
 
-autonomous-dev compensates by enforcing process through hooks (deterministic, can't be argued with) and injecting the right context at the right time (PROJECT.md, GitHub issues, research). The system doesn't replace human judgment — it ensures Claude follows the SDLC steps where human judgment has already determined what "good" looks like.
+**Why assurance and not trust**: the controls themselves drift, die, and misreport. Measured
+2026-08-30: a shipped guard was dead four independent ways and its own test suite agreed with it.
 
-**The core tension**: enforcement works but is expensive in tokens. Every session re-teaches fundamentals. This is a known cost, not a design flaw — it's the price of working with a generalist that doesn't yet carry domain judgment in its weights.
+**Direction** (2026-03-28): the system should get better every week without anyone thinking about
+it. That requires it to be measurable before it is autonomous, and small enough to reason about
+before it is trusted.
 
-autonomous-dev provides **macro alignment with micro flexibility**: PROJECT.md defines goals, scope, constraints — Claude checks alignment before every feature. Claude can still improve the implementation when it finds better patterns.
-
-**User Intent** (stated 2025-10-26):
-> "I speak requirements and Claude Code delivers a first grade software engineering outcome in minutes by following all the necessary steps that would need to be taken in top level software engineering but so much quicker with the use of AI and validation"
-
-**Current Direction** (stated 2026-03-28):
-> Building complete autonomous improvements using real-time runtime data as it's used. The system should get better every week without anyone thinking about it.
+*Rationale, failure taxonomy and history: [`docs/MAINTAINING-PHILOSOPHY.md`](docs/MAINTAINING-PHILOSOPHY.md).*
 
 ---
 
 ## SCOPE
 
 **IN Scope:**
-- Feature request detection and auto-orchestration
-- 8-step pipeline: alignment → research → plan → test → implement → validate → verify → git
-- PROJECT.md alignment validation before any work begins
-- File organisation enforcement (src/, tests/, docs/)
-- Brownfield project support (`/align --retrofit`, `/align --content`)
-- Batch processing with crash recovery (`/implement --batch`, `--issues`, `--resume`)
-- Automated git operations (commit, push, PR creation)
+*Compressed 2026-08-30 from 17 bullets to 9. "enforcement" appeared in 5, "alignment" in 4,
+"improvement" in 2, "benchmark" in 2 — the list had become an inventory of what was built
+rather than a boundary. A permission list refuses only by omission, and this one had grown to
+permit nearly everything: when the gate refused on 2026-08-30 it cited the Mission, not any
+of these.*
+
+- The 8-step pipeline — alignment → research → plan → test → implement → validate → verify →
+  git — including feature detection, batch modes, and crash recovery
+- PROJECT.md alignment validation, and the enforcement that makes it non-advisory rather than
+  advisory text
+- HARD GATE enforcement patterns: hooks that refuse, registered on a lifecycle event, and
+  proven on both arms
+- Operational wiring — hooks ↔ settings templates ↔ manifest — and file organisation
+- Continuous → autonomous self-improvement: runtime data → diagnosis → fix → verify → deploy,
+  as a closed loop
+- Effectiveness measurement: GenAI intent testing, benchmarking against labelled datasets, and
+  skills as explicit evaluation criteria
 - MCP security validation and tool auto-approval
-- Continuous improvement (session activity logging → drift detection → auto-filed issues)
-- GenAI intent testing (LLM-as-judge validation of architecture, congruence, and alignment)
-- Hook-settings bidirectional sync enforcement (hooks ↔ settings templates ↔ manifest)
-- HARD GATE enforcement patterns for pipeline quality
-- Alignment validation enforcement (strengthening PROJECT.md scope checks beyond advisory text)
-- Effectiveness benchmarking (labeled datasets, balanced-accuracy scoring per-category and per-difficulty)
-- Skill-based standards enforcement (skills as explicit evaluation criteria, not just documentation)
-- Autonomous self-improvement (runtime aggregation → diagnosis → fix → benchmark verify → deploy, closed loop)
-- Content allocation pattern (this file's shape — one topic, one home — extended to other repos via `/align --content`)
+- Automated git operations (commit, push, PR creation)
+- Brownfield support (`/align --retrofit`, `--content`) and the content allocation pattern —
+  one topic, one home
 
 **OUT of Scope:**
 - Replacing human developers — AI augments, doesn't replace
@@ -95,20 +111,15 @@ autonomous-dev provides **macro alignment with micro flexibility**: PROJECT.md d
 
 ## ARCHITECTURE (Solution-on-a-Page)
 
-autonomous-dev is a **harness** — the software layer that wraps an AI model to keep it on deterministic rails. Reliability in multi-step AI workflows compounds multiplicatively: a 10-step process with 90% accuracy per step fails over 60% of the time. Prompt-level instructions produce unreliable compliance (research-confirmed: "LLM Agents Are Hypersensitive to Nudges", 2025). The harness implements all 12 elements of harness engineering: state machine, validation loops, isolated sub-agents, virtual file system, human-in-the-loop, hook enforcement, state persistence, context management, deterministic ordering, output validation, observability, error recovery.
+A **harness** — the layer that keeps a model on deterministic rails, because reliability
+compounds multiplicatively: ten steps at 90% fails more than 60% of the time. Four layers, in
+descending order of guarantee: **hooks** (enforcement, blocking, always run) → **agents**
+(intelligence, conditional) → **continuous improvement** (post-hoc analysis, files issues) →
+**autonomous self-improvement** (closed loop, evidence-driven).
 
-**Four-layer system:**
-
-1. **Hook-Based Enforcement** (automatic, 100% reliable) — Hooks run on every tool call, commit, and prompt submission. Enforces PROJECT.md alignment, security, tests, docs, file organisation. Blocks on violation. Guaranteed execution.
-2. **Agent-Based Intelligence** (user-invoked, AI-enhanced) — `/implement` coordinates specialist agents through the 8-step pipeline. Claude decides which agents based on complexity.
-3. **Continuous Improvement Loop** (post-session, self-correcting) — Hook layers log JSONL to `.claude/logs/activity/`. `continuous-improvement-analyst` evaluates logs against PROJECT.md + CLAUDE.md and emits structured finding records via `append_finding()` to `.claude/logs/findings/` (#1200); `/improve --auto-file` promotes recurring findings into issues labeled `auto-improvement`. Runs asynchronously, never blocks active work.
-4. **Autonomous Self-Improvement** (closed-loop, evidence-driven) — Effectiveness benchmarks measure reviewer/agent accuracy; runtime signals consolidated into ranked weakness reports; HIGH confidence diagnoses applied autonomously, MEDIUM filed as issues; benchmarks before/after every change, revert if regressed. Today's shipped loop: `continuous-improvement-analyst` agent → `/improve --auto-file` → `/triage --auto-improvement` (issues #579–#584 track the deeper integrations). The originally-named `/self-improve` command was never built; the three above form the current closed loop.
-
-**Periodic-aggregation layer**: per-event automations (doc-master per commit, baseline per session, CIA per session) have periodic counterparts that aggregate across many events (`/refactor --docs`, baseline snapshots, `/triage --auto-improvement`). See [RUNBOOK.md](docs/RUNBOOK.md#periodic-aggregation-passes-per-event-automation--periodic-aggregation-duality-issue-1075).
-
-**Key distinctions:** hooks = enforcement (always active, blocking); agents = intelligence (conditional, advisory); continuous improvement = learning (post-hoc analysis, issue filing); self-improvement = evolution (autonomous closed loop); periodic-aggregation = visibility (cross-event sweeps).
-
-Full diagram (pipeline flow, model tiers, hook lifecycle events, repository structure) lives in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md). Diamond Testing Model details in [`docs/TESTING-STRATEGY.md`](docs/TESTING-STRATEGY.md).
+*Layer detail, diagram, pipeline flow, model tiers and repository structure:
+[`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md). Testing model:
+[`docs/TESTING-STRATEGY.md`](docs/TESTING-STRATEGY.md).*
 
 ### INVARIANTS
 
@@ -127,24 +138,14 @@ These are the load-bearing properties of the harness. A proposed change that con
 
 ## DEFINITION OF DONE — two questions, asked of every artifact
 
-*Added 2026-08-28. This is the missing half of "done", and it is stated here rather than in a
-runbook because it changes what may ship, not how work is sequenced.*
+*Added 2026-08-28. Stated here, not in a runbook, because it changes what may SHIP.*
 
-Every gate this repo runs today — coverage regression, skip regression, test count, skip rate,
-reviewer, security-auditor, doc-master, agent-completeness — inspects **the artifact**. Not one
-asks whether the artifact is **connected**, and only one narrow mechanism asks whether it
-**behaves as designed**. So "built" acquired a definition of done and "wired" never did, and
-work stops where the checking stops.
-
-The cost is measured, not theorised. In a single session (2026-08-28): `prior_art_search.py`
-shipped to every consumer repo with 9 green tests and **zero callers**; a mutation harness was
-built, hardened through 5 blocking defects, and **wired to nothing**; `--check-timeouts` was
-built and **invoked by nothing**; `step5_quality_gate.py` is named four times across
-`implement.md` and `implementer.md` as the gate that "blocks" and is **invoked by neither**;
-103 tests sat in a flag-gated tier and had **never run**; and `mutmut` was pinned, configured,
-and **never executed** while 19 tests passed over it. None of these was visible: an unwired
-artifact is byte-for-byte indistinguishable from a wired one — file present, tests green,
-manifest entry, deployed.
+Every gate this repo runs inspects **the artifact**. None asks whether it is **connected**, and
+one narrow mechanism asks whether it **behaves as designed**. An unwired artifact is
+byte-for-byte indistinguishable from a wired one — file present, tests green, manifest entry,
+deployed. Six such artifacts shipped in one session on 2026-08-28; a guard dead four ways
+shipped to five repos and its own suite agreed with it on 2026-08-30. Cases:
+[`docs/MAINTAINING-PHILOSOPHY.md`](docs/MAINTAINING-PHILOSOPHY.md).
 
 **Every artifact must answer both questions, and the answer must be mechanical.**
 
@@ -154,27 +155,22 @@ Something must invoke it, and that route must be verifiable by a machine. Prose 
 is not a route (INV-1). Presence in a manifest is not a route. A test that mocks the call site
 is not a route.
 
-| Artifact | Mechanism | Status 2026-08-28 |
-|---|---|---|
-| `hooks/` | reachability ratchet (#1612) | COVERED |
-| `lib/` | reachability ratchet (#1698) | COVERED — 249 modules, **132 UNKNOWN** |
-| `scripts/` (38 files) | — | **UNCOVERED** — where `--check-timeouts` slipped through |
-| `config/` (16 files) | — | **UNCOVERED** — where `hook_time_budgets.json` sits |
-| `commands/` (26), `agents/` (20) | — | **UNCOVERED**, and hardest: a naive walk credits prose, which is the #1698 defect |
-| **the DEPLOYED copy** | — | **UNCOVERED.** Every mechanism above validates SOURCE. Source may say `20` while the executing copy says `5` with nothing red. |
+Covered today by the reachability ratchets (#1612, #1698). **Uncovered: `scripts/`, `config/`,
+`commands/`, `agents/`, and — the one that keeps biting — the DEPLOYED copy.** Every mechanism
+validates SOURCE; source and runtime diverged three times in the two days to 2026-08-30.
 
 ### Q2 — Is this work WORKING AS DESIGNED?
 
 Watched doing its job, and watched *not* doing it when it shouldn't — both arms, on the real
 thing, not a fixture. A guard observed only green is unproven.
 
-| Artifact | Mechanism | Status 2026-08-28 |
-|---|---|---|
-| block-capable hooks (9) | `proof_of_block.py` | ~8 of 9; 7/7 PROVEN in realign |
-| the other 19 hooks | — | **UNCOVERED** — they cannot refuse, so nothing drives them |
-| `lib/` modules | — | **UNCOVERED** |
-| tests themselves | mutation witness (#1660) | BUILT, **not wired** — the harness has no producer |
-| `commands/`, `agents/` | — | **UNCOVERED** |
+Covered today by `proof_of_block.py` for block-capable hooks. **Uncovered: hooks that cannot
+refuse, `lib/` modules, `commands/`, `agents/`, and the tests themselves** — the mutation
+witness (#1660) is built and wired to nothing.
+
+*Per-artifact status counts live in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md),
+not here: they drift, and this file must stay refusable rather than current. The 2026-08-28
+table this replaced asserted `249 lib modules` — three counting methods give 229 / 249 / 254.*
 
 ### The rule
 
