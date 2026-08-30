@@ -244,7 +244,7 @@ ARGUMENTS: {{ARGUMENTS}}
 
 ### STEP 0: Parse Mode and Route
 
-Parse ARGUMENTS: `--batch` → see [implement-batch.md](implement-batch.md), `--issues` → see [implement-batch.md](implement-batch.md), `--resume <id>` → classify via `classify_resume_id` (Issue #1047): `batch-*` prefix → [implement-resume.md](implement-resume.md); 16-char hex or `YYYYMMDD-HHMMSS` → single-run resume (skip RUN_ID gen, set `RUN_ID=<id>`, load completions via `get_completed_agents(sid, run_id=<id>)`); other → BLOCK listing all 3 accepted forms, `--fix` → see [implement-fix.md](implement-fix.md), `--light` → LIGHT PIPELINE MODE (below), `--tdd-first` → FULL PIPELINE (TDD variant), `--acceptance-first` → recognized but no-op (same as default), `--full-tests` → disable smart test routing (run complete test suite in STEP 8), `--no-worktree` → MODIFIER (Issue #1133) for `--batch`/`--issues`: run cluster serially in-place on the current branch (no `git worktree add`) — LAST-RESORT fallback for repos where `.claude/*` is gitignored (e.g., autonomous-dev self-maintenance). **Mode-selection ordering (Issue #1487)**: FIRST attempt worktree mode with the STEP B1 sync (settings.json + hooks/ + config/ copy from parent); ONLY use `--no-worktree` when that sync is impossible. See the "When to use (LAST-RESORT fallback)" bullet in [implement-batch.md](implement-batch.md) for the full sequencing rule and the single-issue warning requirement. Example: `/implement --issues 1131 1132 1133 --no-worktree`. else → FULL PIPELINE (acceptance-first default). Reject `--quick`. Auto-detect batch: 2+ issue refs → BATCH ISSUES MODE. Check `--no-cache` flag.
+Parse ARGUMENTS: `--batch` → see [implement-batch.md](implement-batch.md), `--issues` → see [implement-batch.md](implement-batch.md), `--resume <id>` → classify via `classify_resume_id` (Issue #1047): `batch-*` prefix → [implement-resume.md](implement-resume.md); 16-char hex or `YYYYMMDD-HHMMSS` → single-run resume (skip RUN_ID gen, set `RUN_ID=<id>`; completions survive because STEP 0 re-calls `record_run_start(sid, RUN_ID)` with the SAME id against the session-hashed state file — **not** via `get_completed_agents(sid, run_id=<id>)`, which reads a separate run-id-scoped file no production writer populates and always returns empty); other → BLOCK listing all 3 accepted forms, `--fix` → see [implement-fix.md](implement-fix.md), `--light` → LIGHT PIPELINE MODE (below), `--tdd-first` → FULL PIPELINE (TDD variant), `--acceptance-first` → recognized but no-op (same as default), `--full-tests` → disable smart test routing (run complete test suite in STEP 8), `--no-worktree` → MODIFIER (Issue #1133) for `--batch`/`--issues`: run cluster serially in-place on the current branch (no `git worktree add`) — LAST-RESORT fallback for repos where `.claude/*` is gitignored (e.g., autonomous-dev self-maintenance). **Mode-selection ordering (Issue #1487)**: FIRST attempt worktree mode with the STEP B1 sync (settings.json + hooks/ + config/ copy from parent); ONLY use `--no-worktree` when that sync is impossible. See the "When to use (LAST-RESORT fallback)" bullet in [implement-batch.md](implement-batch.md) for the full sequencing rule and the single-issue warning requirement. Example: `/implement --issues 1131 1132 1133 --no-worktree`. else → FULL PIPELINE (acceptance-first default). Reject `--quick`. Auto-detect batch: 2+ issue refs → BATCH ISSUES MODE. Check `--no-cache` flag.
 
 **Mutual exclusivity**: `--fix` and `--light` are each mutually exclusive with `--batch`, `--issues`, and `--resume`. If combined, BLOCK with error. `--light` and `--fix` are also mutually exclusive. `--no-worktree` is a MODIFIER (not a mode) and requires `--batch` or `--issues`; combining it with `--fix`, `--light`, `--resume`, `--quick`, or a bare feature description is an error.
 
@@ -420,6 +420,25 @@ def _resolve_session_id():
     return 'unknown'
 
 sid = _resolve_session_id()
+
+# Issue #1045 — REQUIRED. Stamp this run's identity into the session
+# completion-state file BEFORE any agent runs. Without it the completeness
+# gate is keyed by SESSION, so a second /implement run inside one session
+# inherits the authority the first run earned and reads 'satisfied' with
+# zero agents executed (confused deputy). Idempotent, so --resume
+# re-entering STEP 0 with the same RUN_ID keeps the earlier completions.
+# sys.path prefers .claude/lib, so the copy loaded here is the DEPLOYED one.
+# A stale deployment lacks record_run_start; say so actionably instead of
+# emitting a bare ImportError traceback.
+try:
+    from pipeline_completion_state import record_run_start
+except ImportError:
+    print('[RUN-START-FAILED run_id=$RUN_ID] record_run_start absent from the deployed pipeline_completion_state on sys.path. Run: bash scripts/deploy-all.sh', file=sys.stderr)
+    sys.exit(1)
+if not record_run_start(sid, '$RUN_ID'):
+    print('[RUN-START-FAILED run_id=$RUN_ID]', file=sys.stderr)
+    sys.exit(1)
+
 state = {
     'session_start': '$(date +%Y-%m-%dT%H:%M:%S)',
     'mode': 'MODE',

@@ -11,10 +11,25 @@ State file path (run_id):  /tmp/pipeline_agent_completions_{run_id}.json
 
 When ``run_id`` is provided to any public function, the run-id-scoped path is
 used instead of the legacy sha256(session_id) path. This enables per-invocation
-isolation and crash-resume without collision. Existing callers that omit
-``run_id`` continue to use the legacy path with no behavior change. (#1041)
+isolation and crash-resume without collision. Callers that omit ``run_id``
+continue to use the legacy session-hashed path. (#1041)
 
-Issues: #625, #629, #632, #1041
+Run identity within the legacy session file (#1045)
+---------------------------------------------------
+Omitting ``run_id`` no longer means "no behavior change" — that claim was true
+of #1041 and is now false. Because ALL production writers omit ``run_id``, the
+session file was the only file the completeness gate ever read, and it carried
+no notion of which RUN produced a completion. A second ``/implement`` run in one
+session therefore inherited the authority the first run earned (confused
+deputy).
+
+``record_run_start`` now stamps ``state["current_run_id"]`` at STEP 0, every
+subsequent completion is stamped into the ``completion_run_ids`` sibling map,
+and ``get_completed_agents`` credits only completions belonging to the current
+run. A file with neither key behaves exactly as before (permissive) — see
+``_filter_to_current_run`` for the full policy table.
+
+Issues: #625, #629, #632, #1041, #1045
 """
 
 import fcntl
@@ -776,6 +791,7 @@ def record_agent_completion(
             _time_scope_keys = scope_keys
 
         _record_completion_times(state, _time_scope_keys, agent_type)
+        _record_completion_run_ids(state, _time_scope_keys, agent_type)
 
     _locked_rmw(session_id, _mutator, run_id=run_id)
 
@@ -812,6 +828,150 @@ def _record_completion_times(
     now = time.time()
     for key in scope_keys:
         completion_times.setdefault(key, {})[agent_type] = now
+
+
+def _record_completion_run_ids(
+    state: dict, scope_keys: set[str], agent_type: str
+) -> None:
+    """Stamp ``completion_run_ids[scope][agent_type]`` with the current run id.
+
+    Issue #1045 follow-up (confused-deputy): the completeness gate keyed
+    completions by SESSION, not by RUN. A second ``/implement`` run inside the
+    same session therefore inherited the authority the first run earned — the
+    gate read "all five agents completed" for a run in which zero agents had
+    executed. Stamping each completion with the run that produced it is what
+    lets :func:`_filter_to_current_run` tell "this run" from "a prior run".
+
+    This is a SIBLING map for exactly the reason given in
+    :func:`_record_completion_times` — the completion readers iterate
+    ``issue_completions.items()`` treating every key as an agent name, so a
+    nested key inside the entry would be mistaken for an agent.
+
+    **If ``state["current_run_id"]`` is falsy this writes NOTHING.** That is
+    load-bearing, not an optimisation: it is what makes the presence of stamps
+    alongside an absent ``current_run_id`` a corruption-only signal (policy
+    state (a2)). A pre-migration state file, or any non-``/implement`` session
+    that never called :func:`record_run_start`, has no stamps at all and lands
+    in the permissive state (a1) instead.
+
+    Args:
+        state: The state dict being mutated inside a ``_locked_rmw`` mutator.
+        scope_keys: The scope keys that received this completion.
+        agent_type: The agent that completed.
+
+    Issues: #1045, #1454
+    """
+    run_id = state.get("current_run_id")
+    if not run_id:
+        # No run identity for this session — do not stamp. See docstring.
+        return
+    completion_run_ids = state.setdefault("completion_run_ids", {})
+    for key in scope_keys:
+        completion_run_ids.setdefault(key, {})[agent_type] = run_id
+
+
+def _report_run_start_failure(session_id: str, run_id: str, detail: str) -> None:
+    """Report a failed :func:`record_run_start` on stderr.
+
+    Modelled on :func:`_report_unreadable_state`: loud, degraded, non-raising.
+    A failure here means completions for this run will be written WITHOUT a run
+    stamp, so the gate falls back to today's permissive session-scoped
+    behaviour (policy state (a1)) rather than blocking the pipeline.
+
+    Args:
+        session_id: The pipeline session identifier.
+        run_id: The run identifier that could not be recorded.
+        detail: Short description of the failure (exception text).
+
+    Issues: #1045
+    """
+    try:
+        print(
+            f"[pipeline_completion_state] WARNING: failed to record run start "
+            f"for run_id={run_id!r} (session={session_id!r})\n"
+            f"  Cause: {detail}\n"
+            f"  Effect: agent completions for this run will NOT be stamped with "
+            f"a run id, so the agent-completeness gate degrades to session-"
+            f"scoped (pre-#1045) behavior and may credit a prior run's agents.\n"
+            f"  See: plugins/autonomous-dev/docs/TROUBLESHOOTING.md",
+            file=sys.stderr,
+        )
+    except Exception:  # pragma: no cover - stderr itself is broken
+        pass
+
+
+def record_run_start(
+    session_id: str,
+    run_id: str,
+    *,
+    issue_number: Optional[int] = None,
+    _run_id_for_path: Optional[str] = None,
+) -> bool:
+    """Stamp ``state["current_run_id"]`` for *session_id*.
+
+    Called once per ``/implement`` invocation at STEP 0, BEFORE any agent runs.
+    Every subsequent :func:`record_agent_completion` for this session is then
+    stamped with *run_id*, and :func:`get_completed_agents` credits only the
+    completions belonging to the current run.
+
+    When *issue_number* is supplied the run additionally claims OWNERSHIP of
+    that issue scope, in ``state["issue_run_starts"][str(issue_number)]``. That
+    is what the batch aggregate gates read; see :func:`_filter_to_owning_run`
+    for why they cannot use ``current_run_id``.
+
+    Idempotent: calling twice with the same *run_id* (the ``--resume`` case)
+    leaves the state unchanged and returns ``True``.
+
+    **Never raises.** State code must not be able to block the gate, so any
+    failure is reported loudly on stderr and reported as ``False`` to the
+    caller. The resulting degraded behaviour is the pre-#1045 permissive
+    session-scoped gate, not a deadlock.
+
+    Args:
+        session_id: The pipeline session identifier.
+        run_id: The per-invocation run identifier. Must match
+            ``[a-zA-Z0-9_-]{1,64}`` — the same regex :func:`_state_file_path`
+            enforces.
+        issue_number: The issue this run is processing, when there is one.
+            ``None`` (the default, and every non-batch caller) records no
+            ownership, leaving the batch gates at their pre-change permissive
+            behaviour for that scope.
+        _run_id_for_path: Test/advanced hook — the run id used to CHOOSE the
+            state file. Defaults to ``None`` (the legacy session-hashed path,
+            which is the only shape production uses). This is deliberately
+            separate from *run_id*, which is the value STAMPED INTO the file.
+
+    Returns:
+        ``True`` when ``current_run_id`` was written (or already matched),
+        ``False`` on invalid input or any write failure.
+
+    Issues: #1045
+    """
+    try:
+        if not run_id or not _RUN_ID_RE.match(run_id):
+            _report_run_start_failure(
+                session_id,
+                str(run_id),
+                "run_id must match [a-zA-Z0-9_-]{1,64}",
+            )
+            return False
+
+        def _mutator(state: dict) -> None:
+            _ensure_state_inplace(state, session_id)
+            # Idempotent by construction: writing the same value twice is a
+            # no-op, so --resume re-entering STEP 0 costs nothing.
+            state["current_run_id"] = run_id
+            if issue_number is not None:
+                # Claim ownership of this issue scope. Last writer wins: a
+                # retry of issue N supersedes the run that handled it before.
+                owners = state.setdefault("issue_run_starts", {})
+                owners[str(issue_number)] = run_id
+
+        _locked_rmw(session_id, _mutator, run_id=_run_id_for_path)
+        return True
+    except Exception as exc:  # noqa: BLE001 - never raise out of state code
+        _report_run_start_failure(session_id, str(run_id), f"{type(exc).__name__}: {exc}")
+        return False
 
 
 def _completion_is_success(entry) -> bool:
@@ -889,6 +1049,231 @@ def is_remediation_completion(
     return False
 
 
+def _report_lost_run_id(issue_key: str, agent_count: int) -> None:
+    """Report policy state (a2) — run stamps present, ``current_run_id`` gone.
+
+    Args:
+        issue_key: The scope key whose completions are being excluded.
+        agent_count: How many completions are being excluded.
+
+    Issues: #1045
+    """
+    try:
+        print(
+            f"[pipeline_completion_state] REFUSING: state file carries agent run "
+            f"stamps but has NO current_run_id (scope {issue_key!r}, "
+            f"{agent_count} completion(s) excluded).\n"
+            f"  Cause: the run id written at /implement STEP 0 was LOST. A stamp "
+            f"is only ever written while current_run_id is set, so this "
+            f"combination cannot arise from normal operation.\n"
+            f"  Effect: NO agent completion is credited — the agent-completeness "
+            f"gate will refuse, rather than credit records to an unknown run.\n"
+            f"  Recovery: re-run /implement STEP 0, or bypass deliberately with "
+            f"SKIP_AGENT_COMPLETENESS_GATE (touch "
+            f"/tmp/skip_agent_completeness_gate as a SEPARATE Bash call, then "
+            f"retry). Every bypass is audited.\n"
+            f"  See: plugins/autonomous-dev/docs/TROUBLESHOOTING.md",
+            file=sys.stderr,
+        )
+    except Exception:  # pragma: no cover - stderr itself is broken
+        pass
+
+
+def _filter_to_current_run(state: dict, issue_key: str, agents: set[str]) -> set[str]:
+    """Restrict *agents* to those recorded during ``state["current_run_id"]``.
+
+    Fixes a confused-deputy defect: completions were keyed by SESSION, so a
+    second ``/implement`` run inside one session inherited the authority the
+    first run earned — the completeness gate read "satisfied" for a run in
+    which zero agents had executed.
+
+    *state* is the dict the agents were read FROM, not a global. The
+    ``'unknown'``-session merge in :func:`get_completed_agents` therefore gets
+    filtered by the ``'unknown'`` file's own run identity, not the primary
+    session's.
+
+    Policy:
+
+    ===== ================================================= ==================
+    State  Condition                                         Behaviour
+    ===== ================================================= ==================
+    (a1)   no ``current_run_id``, no ``completion_run_ids``  pass through
+    (a2)   no ``current_run_id``, stamps present            exclude all, loud
+    (b)    ``current_run_id`` set, record unstamped         excluded
+    (c)    ``current_run_id`` set, stamp != current         excluded
+    (d)    stamp == current                                 included
+    ===== ================================================= ==================
+
+    (a1) is the pre-migration state file AND every non-``/implement`` session —
+    including the ``unified_session_tracker`` SubagentStop path, which fires for
+    ANY subagent and never calls :func:`record_run_start`. It must stay
+    permissive and SILENT or the warning fires on ordinary sessions.
+
+    (a2) is unreachable through the public API: :func:`_record_completion_run_ids`
+    only stamps while ``current_run_id`` is set, so stamps-without-current means
+    the run id was LOST. Crediting those records would credit an unknown run, so
+    we refuse — recoverably, via the documented audited bypasses.
+
+    Args:
+        state: The state dict *agents* was derived from.
+        issue_key: The completions scope key (``str(issue_number)``).
+        agents: Candidate agent names, already filtered for success and
+            gate-countability by the caller.
+
+    Returns:
+        The subset of *agents* attributable to the current run.
+
+    Issues: #1045
+    """
+    current_run_id = state.get("current_run_id")
+    stamp_map = state.get("completion_run_ids")
+    if not isinstance(stamp_map, dict):
+        stamp_map = {}
+
+    if not current_run_id:
+        if stamp_map:
+            # (a2) — corruption-only signal. Report ONCE per call.
+            _report_lost_run_id(issue_key, len(agents))
+            return set()
+        # (a1) — pre-migration file or non-pipeline session. Today's behaviour.
+        return agents
+
+    # (b) unstamped and (c) stamped-for-another-run both fall out here.
+    return _agents_stamped_with(state, issue_key, agents, current_run_id)
+
+
+def _agents_stamped_with(
+    state: dict, issue_key: str, agents: set[str], run_id: str
+) -> set[str]:
+    """Return the members of *agents* stamped with *run_id* under *issue_key*.
+
+    The single place the ``completion_run_ids`` sibling map is intersected with
+    a candidate agent set. Both scoping rules — :func:`_filter_to_current_run`
+    (session-wide, keyed on ``current_run_id``) and
+    :func:`_filter_to_owning_run` (per-issue, keyed on ``issue_run_starts``) —
+    differ only in WHICH run id is authoritative, never in how the match is
+    made, so the match lives here once.
+
+    Args:
+        state: The state dict *agents* was derived from.
+        issue_key: The completions scope key (``str(issue_number)``).
+        agents: Candidate agent names.
+        run_id: The run id an agent must be stamped with to be credited.
+
+    Returns:
+        The subset of *agents* stamped with *run_id*.
+
+    Issues: #1045
+    """
+    stamp_map = state.get("completion_run_ids")
+    if not isinstance(stamp_map, dict):
+        stamp_map = {}
+    scope_stamps = stamp_map.get(issue_key)
+    if not isinstance(scope_stamps, dict):
+        scope_stamps = {}
+    return {a for a in agents if scope_stamps.get(a) == run_id}
+
+
+def _report_superseded_scope(issue_key: str, owning_run_id: str, excluded: set[str]) -> None:
+    """Report that an issue scope's completions belong to a superseded run.
+
+    Without this the batch gate's refusal is actively misleading: it reports
+    "doc-master never ran for #N" for an issue whose doc-master DID run — in a
+    run that a later run for the same issue superseded.
+
+    Args:
+        issue_key: The issue scope whose completions were excluded.
+        owning_run_id: The run that most recently started work on the scope.
+        excluded: The agent names that were dropped.
+
+    Issues: #1045
+    """
+    try:
+        print(
+            f"[pipeline_completion_state] EXCLUDING issue scope {issue_key!r}: "
+            f"{len(excluded)} completion(s) belong to a SUPERSEDED run "
+            f"({', '.join(sorted(excluded))}).\n"
+            f"  Cause: run {owning_run_id!r} most recently started work on issue "
+            f"{issue_key}, but these completions were recorded by an earlier run. "
+            f"A later run for the same issue supersedes the earlier one — "
+            f"crediting it would let a retry that executed nothing inherit the "
+            f"authority the first attempt earned.\n"
+            f"  Effect: the batch commit gate reports issue {issue_key} as "
+            f"incomplete. This is NOT 'the agent never ran'.\n"
+            f"  Recovery: re-run the named agent(s) for issue {issue_key}, or "
+            f"bypass deliberately with SKIP_BATCH_CIA_GATE / "
+            f"SKIP_BATCH_DOC_MASTER_GATE.\n"
+            f"  See: plugins/autonomous-dev/docs/TROUBLESHOOTING.md",
+            file=sys.stderr,
+        )
+    except Exception:  # pragma: no cover - stderr itself is broken
+        pass
+
+
+def _filter_to_owning_run(state: dict, issue_key: str, agents: set[str]) -> set[str]:
+    """Restrict *agents* to those recorded by the run that OWNS *issue_key*.
+
+    The scoping rule for the BATCH AGGREGATE gates
+    (:func:`verify_batch_cia_completions`,
+    :func:`verify_batch_doc_master_completions`). They read
+    ``state["completions"]`` directly, never through
+    :func:`get_completed_agents`, so the first pass of #1045 left them at the
+    pre-fix session-scoped shape and a batch retry inherited a prior run's
+    completions.
+
+    **These gates cannot use ``current_run_id``.** Batch mode creates ONE RUN
+    PER ISSUE inside ONE session (``implement-batch.md`` sets a fresh
+    ``ISSUE_RUN_ID`` per issue), so ``current_run_id`` is overwritten by each
+    issue in turn and is the LAST issue's id by the time the batch commits.
+    Filtering every scope to it would drop every earlier issue of a perfectly
+    healthy batch and refuse the commit — measured: a clean 3-issue batch loses
+    issues 1 and 2. The authority for a per-issue aggregate is instead the run
+    that most recently STARTED work on that issue.
+
+    Policy:
+
+    ===== ================================================== ==================
+    State  Condition                                          Behaviour
+    ===== ================================================== ==================
+    (o0)   no ``issue_run_starts`` entry for the scope        pass through
+    (o1)   owner set, agent stamped with owner                credited
+    (o2)   owner set, agent stamped with a superseded run     excluded, loud
+    (o3)   owner set, agent unstamped                         excluded
+    ===== ================================================== ==================
+
+    (o0) is the pre-migration state file AND every caller that does not pass
+    ``issue_number`` to :func:`record_run_start`. It must stay permissive: a
+    stale deployment of ``implement-batch.md`` records no ownership, and
+    refusing there would block every batch commit rather than degrade to the
+    pre-change behaviour.
+
+    Args:
+        state: The state dict *agents* was derived from.
+        issue_key: The completions scope key (``str(issue_number)``).
+        agents: Candidate agent names, already filtered for success by the
+            caller.
+
+    Returns:
+        The subset of *agents* attributable to the owning run.
+
+    Issues: #1045
+    """
+    owners = state.get("issue_run_starts")
+    if not isinstance(owners, dict):
+        return agents
+    owning_run_id = owners.get(issue_key)
+    if not owning_run_id:
+        # (o0) — no run has claimed this scope. Pre-change behaviour.
+        return agents
+
+    credited = _agents_stamped_with(state, issue_key, agents, owning_run_id)
+    excluded = agents - credited
+    if excluded:
+        # (o2)/(o3) — say WHY, so the refusal is not read as "never ran".
+        _report_superseded_scope(issue_key, owning_run_id, excluded)
+    return credited
+
+
 def get_completed_agents(
     session_id: str,
     *,
@@ -929,10 +1314,16 @@ def get_completed_agents(
         issue_key = str(issue_number)
         issue_completions = completions.get(issue_key, {})
         if isinstance(issue_completions, dict):
-            result = {
-                k for k, v in issue_completions.items()
-                if _completion_is_success(v) and _is_gate_countable_agent(k)
-            }
+            # #1045: composed with (never replacing) the success and
+            # gate-countability filters — an agent must satisfy all three.
+            result = _filter_to_current_run(
+                state,
+                issue_key,
+                {
+                    k for k, v in issue_completions.items()
+                    if _completion_is_success(v) and _is_gate_countable_agent(k)
+                },
+            )
 
     # Skip the unknown-session fallback merge when run_id is set.
     # Run-id-scoped state files are per-invocation; the 'unknown' bootstrap
@@ -969,10 +1360,18 @@ def get_completed_agents(
             issue_key = str(issue_number)
             issue_completions = completions.get(issue_key, {})
             if isinstance(issue_completions, dict):
-                fallback_result = {
-                    k for k, v in issue_completions.items()
-                    if _completion_is_success(v) and _is_gate_countable_agent(k)
-                }
+                # #1045: filtered by the 'unknown' FILE'S OWN run identity —
+                # fallback_state, not state. The two files are independent; the
+                # primary session's run id says nothing about which run wrote
+                # the bootstrap records.
+                fallback_result = _filter_to_current_run(
+                    fallback_state,
+                    issue_key,
+                    {
+                        k for k, v in issue_completions.items()
+                        if _completion_is_success(v) and _is_gate_countable_agent(k)
+                    },
+                )
                 if fallback_result - result:
                     import logging
                     logging.getLogger("pipeline_completion_state").info(
@@ -1237,6 +1636,42 @@ def get_validation_mode(
     return state.get("validation_mode", "sequential")
 
 
+def _credited_agents_for_scope(
+    state: dict, issue_key: str, issue_completions: dict
+) -> set[str]:
+    """Agents creditable for *issue_key*: successful AND owned by this run.
+
+    The single read-side rule for the batch aggregate gates. Mirrors the
+    composition in :func:`get_completed_agents` — the success filter and the
+    run filter are ANDed, neither replaces the other — but scopes to the
+    OWNING run rather than ``current_run_id``, for the reason set out in
+    :func:`_filter_to_owning_run`.
+
+    Non-agent keys stored alongside completions (``doc-master-verdict`` holds a
+    plain string) are dropped by :func:`_completion_is_success`, which treats
+    any non-``bool``/non-``dict`` entry as unsuccessful.
+
+    Args:
+        state: The state dict *issue_completions* was read from.
+        issue_key: The completions scope key (``str(issue_number)``).
+        issue_completions: The per-issue completions mapping.
+
+    Returns:
+        The agent names creditable for this scope.
+
+    Issues: #1045
+    """
+    candidates = {
+        agent for agent, entry in issue_completions.items()
+        if _completion_is_success(entry)
+    }
+    if not candidates:
+        # Nothing to filter. Skipping the call avoids a spurious "0 completions
+        # excluded" report; the filtered result would be empty either way.
+        return candidates
+    return _filter_to_owning_run(state, issue_key, candidates)
+
+
 def verify_batch_cia_completions(session_id: str) -> tuple[bool, list[int], list[int]]:
     """Verify CIA completed for all batch issues.
 
@@ -1290,9 +1725,12 @@ def verify_batch_cia_completions(session_id: str) -> tuple[bool, list[int], list
             if not isinstance(issue_completions, dict):
                 continue
 
-            if _completion_is_success(
-                issue_completions.get("continuous-improvement-analyst")
-            ):
+            # #1045: credit only completions attributable to the run that owns
+            # this issue scope. Composed with (never replacing) the existing
+            # success filter, exactly as get_completed_agents composes.
+            credited = _credited_agents_for_scope(state, issue_key, issue_completions)
+
+            if "continuous-improvement-analyst" in credited:
                 issues_with_cia.append(issue_num)
             else:
                 issues_missing_cia.append(issue_num)
@@ -1408,7 +1846,16 @@ def verify_batch_doc_master_completions(session_id: str) -> tuple[bool, list[int
             if not isinstance(issue_completions, dict):
                 continue
 
-            if _completion_is_success(issue_completions.get("doc-master")):
+            # #1045: credit only completions attributable to the run that owns
+            # this issue scope. The VERDICT below is deliberately still read
+            # raw: it is not an agent completion, carries no run stamp, and is
+            # only ever consulted once doc-master itself passed this filter.
+            # Filtering it would turn an invalid verdict into the
+            # backward-compatible "no verdict recorded" branch and WEAKEN the
+            # gate.
+            credited = _credited_agents_for_scope(state, issue_key, issue_completions)
+
+            if "doc-master" in credited:
                 # Doc-master completed — now check verdict if present
                 verdict = issue_completions.get("doc-master-verdict")
                 if verdict is None:

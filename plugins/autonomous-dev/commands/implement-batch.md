@@ -710,14 +710,64 @@ Same as BATCH FILE MODE:
    ```bash
    ISSUE_RUN_ID="issue-${ISSUE_NUMBER}-$(date +%Y%m%d-%H%M%S)"
    python3 -c "
-   import sys, os as _os
-   for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
-       if _os.path.isdir(_p):
+   import sys, os, json, time
+   for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+       if os.path.isdir(_p):
            sys.path.insert(0, _p)
            break
    from pipeline_state import create_pipeline, save_pipeline
    state = create_pipeline('$ISSUE_RUN_ID', 'Issue #$ISSUE_NUMBER: $ISSUE_TITLE', mode='batch')
    save_pipeline(state)
+
+   # Same session-ID fallback chain as Pre-Dispatch / Post-Dispatch (Issue #904).
+   def _resolve_session_id():
+       sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
+       if sid and sid != 'unknown':
+           return sid
+       sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
+       try:
+           if os.path.exists(sentinel):
+               mtime = os.path.getmtime(sentinel)
+               if time.time() - mtime < 3600:
+                   with open(sentinel) as _f:
+                       _state = json.load(_f)
+                   _recovered = str(_state.get('session_id', '')).strip()
+                   if _recovered and _recovered != 'unknown':
+                       return _recovered
+       except (OSError, ValueError, json.JSONDecodeError):
+           pass
+       return 'unknown'
+
+   # Issue #1045 — REQUIRED, and load-bearing here specifically. Batch mode
+   # creates ONE RUN PER ISSUE inside a SINGLE session, so it is the highest-
+   # volume generator of the confused-deputy shape: without this stamp, issue
+   # N+1 inherits issue N's completed agents and its gate passes having run
+   # nothing.
+   #
+   # issue_number= is REQUIRED here and is what arms the BATCH AGGREGATE gates
+   # (verify_batch_cia_completions / verify_batch_doc_master_completions). It
+   # records that THIS run now owns issue N, superseding any earlier run for the
+   # same issue — so a retry of issue N that executes nothing can no longer
+   # inherit the first attempt's CIA / doc-master credit at the batch commit.
+   # Omitting it leaves those two gates at their pre-#1045 session-scoped
+   # behaviour (permissive), which is a silent degradation, not an error.
+   #
+   # sys.path prefers .claude/lib, so the copy loaded here is the DEPLOYED one.
+   try:
+       from pipeline_completion_state import record_run_start
+   except ImportError:
+       print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID] record_run_start absent from the deployed pipeline_completion_state on sys.path. Run: bash scripts/deploy-all.sh', file=sys.stderr)
+       sys.exit(1)
+   try:
+       _ok = record_run_start(_resolve_session_id(), '$ISSUE_RUN_ID', issue_number=int('$ISSUE_NUMBER'))
+   except TypeError:
+       # Deployed copy predates the issue_number keyword. Fall back rather than
+       # abort — the batch aggregate gates degrade to pre-#1045 permissive.
+       print('[RUN-START-DEGRADED run_id=$ISSUE_RUN_ID] deployed pipeline_completion_state.record_run_start has no issue_number keyword; batch CIA/doc-master gates stay session-scoped. Run: bash scripts/deploy-all.sh', file=sys.stderr)
+       _ok = record_run_start(_resolve_session_id(), '$ISSUE_RUN_ID')
+   if not _ok:
+       print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID]', file=sys.stderr)
+       sys.exit(1)
    "
    ```
 
