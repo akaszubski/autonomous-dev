@@ -1,24 +1,12 @@
 ---
 name: api-design
 description: "REST API design best practices covering versioning, error handling, pagination, and OpenAPI documentation. Use when designing or implementing REST APIs or HTTP endpoints. TRIGGER when: API design, REST endpoint, HTTP route, OpenAPI, swagger, pagination. DO NOT TRIGGER when: internal library code, CLI tools, non-HTTP interfaces."
-allowed-tools: [Read]
+allowed-tools: "Read"
 ---
 
 # API Design Skill
 
-REST API design best practices, HTTP conventions, versioning, error handling, and documentation standards.
-
-## When This Skill Activates
-
-- Designing REST APIs
-- Creating HTTP endpoints
-- Writing API documentation
-- Handling API errors
-- Implementing pagination
-- API versioning strategies
-- Keywords: "api", "rest", "endpoint", "http", "json", "openapi"
-
----
+Project conventions for REST API design, error handling, versioning, and documentation.
 
 ## Core Concepts
 
@@ -36,27 +24,7 @@ RESTful resource design using nouns (not verbs), proper HTTP methods, and hierar
 
 ---
 
-### 2. HTTP Status Codes
-
-Proper status code usage for success (2xx), client errors (4xx), and server errors (5xx).
-
-**Common Codes**:
-- **200 OK**: Successful GET/PUT/PATCH
-- **201 Created**: Successful POST (includes Location header)
-- **204 No Content**: Successful DELETE
-- **400 Bad Request**: Invalid input
-- **401 Unauthorized**: Authentication required
-- **403 Forbidden**: Authenticated but not allowed
-- **404 Not Found**: Resource doesn't exist
-- **422 Unprocessable**: Validation error
-- **429 Too Many Requests**: Rate limit exceeded
-- **500 Internal Server Error**: Server failure
-
-**See**: `docs/http-status-codes.md` for complete reference and examples
-
----
-
-### 3. Error Handling
+### 2. Error Handling
 
 RFC 7807 Problem Details format for consistent, structured error responses.
 
@@ -207,90 +175,43 @@ Idempotency, content negotiation, HATEOAS, bulk operations, and webhooks.
 
 ---
 
-## Quick Reference
+## API Design Workflow
 
-| Pattern | Use Case | Details |
-|---------|----------|---------|
-| REST Principles | Resource-based URLs | `docs/rest-principles.md` |
-| Status Codes | HTTP response codes | `docs/http-status-codes.md` |
-| Error Handling | RFC 7807 errors | `docs/error-handling.md` |
-| Pagination | Large datasets | `docs/pagination.md` |
-| Versioning | Breaking changes | `docs/versioning.md` |
-| Authentication | API security | `docs/authentication.md` |
-| Rate Limiting | Abuse prevention | `docs/rate-limiting.md` |
-| Documentation | OpenAPI/Swagger | `docs/documentation.md` |
-
----
-
-## API Design Checklist
-
-**Before Launch**:
-- [ ] Use RESTful resource naming (nouns, not verbs)
-- [ ] Implement proper HTTP status codes
-- [ ] Add RFC 7807 error responses
-- [ ] Include pagination for collections
-- [ ] Add API versioning strategy
-- [ ] Implement authentication
-- [ ] Add rate limiting
-- [ ] Configure CORS (if browser clients)
-- [ ] Generate OpenAPI documentation
-- [ ] Test idempotency for POST/PUT/DELETE
+1. **Define resources** — identify nouns and relationships (`/users`, `/users/{id}/posts`)
+2. **Design endpoints** — map CRUD to HTTP methods, keep URLs max 3 levels deep
+3. **Implement error handling** — RFC 7807 format on all endpoints
+4. **Add pagination** — offset or cursor-based on all collection endpoints
+5. **Version the API** — URL path versioning (`/v1/`)
+6. **Secure endpoints** — authentication (API key or JWT) + rate limiting
+7. **Generate documentation** — OpenAPI spec, verify all endpoints documented
+8. **Validate** — test idempotency for POST/PUT/DELETE, verify CORS if browser clients
 
 **See**: `docs/patterns-checklist.md` for complete checklist
 
 ---
 
-## Progressive Disclosure
+## Reference Documentation
 
-This skill uses progressive disclosure to prevent context bloat:
-
-- **Index** (this file): High-level concepts and quick reference (<500 lines)
-- **Detailed docs**: `docs/*.md` files with implementation details (loaded on-demand)
-
-**Available Documentation**:
-- `docs/rest-principles.md` - RESTful design patterns
-- `docs/http-status-codes.md` - Complete status code reference
-- `docs/error-handling.md` - Error response patterns
-- `docs/request-response-format.md` - JSON structure conventions
-- `docs/pagination.md` - Pagination strategies
-- `docs/versioning.md` - API versioning patterns
-- `docs/authentication.md` - Authentication methods
-- `docs/rate-limiting.md` - Rate limiting implementation
-- `docs/advanced-features.md` - CORS, filtering, sorting
-- `docs/documentation.md` - OpenAPI/Swagger
-- `docs/idempotency-content-negotiation.md` - Advanced patterns
-- `docs/patterns-checklist.md` - Design checklist and common patterns
-
----
+| Topic | File |
+|-------|------|
+| REST principles | `docs/rest-principles.md` |
+| Status codes | `docs/http-status-codes.md` |
+| Error handling | `docs/error-handling.md` |
+| Request/response format | `docs/request-response-format.md` |
+| Pagination | `docs/pagination.md` |
+| Versioning | `docs/versioning.md` |
+| Authentication | `docs/authentication.md` |
+| Rate limiting | `docs/rate-limiting.md` |
+| CORS, filtering, sorting | `docs/advanced-features.md` |
+| OpenAPI/Swagger | `docs/documentation.md` |
+| Idempotency, HATEOAS, webhooks | `docs/idempotency-content-negotiation.md` |
+| Full checklist | `docs/patterns-checklist.md` |
 
 ## Cross-References
 
-**Related Skills**:
-- **error-handling-patterns** - Error handling best practices
-- **security-patterns** - API security hardening
-- **python-standards** - Python API implementation and documentation standards
-
-**Related Libraries**:
-- FastAPI - Python API framework with auto-documentation
-- Pydantic - Data validation and serialization
-- JWT libraries - Token-based authentication
-
----
-
-## Key Takeaways
-
-1. **Resources are nouns**: `/users`, not `/getUsers`
-2. **Use HTTP methods correctly**: GET (read), POST (create), PUT (replace), DELETE (remove)
-3. **Return proper status codes**: 200 (success), 201 (created), 404 (not found), 422 (validation error)
-4. **Structured errors**: Use RFC 7807 format
-5. **Paginate collections**: Offset or cursor-based
-6. **Version your API**: URL path versioning (e.g., `/v1/users`)
-7. **Secure endpoints**: API keys or JWT
-8. **Rate limit**: Prevent abuse
-9. **Document thoroughly**: OpenAPI/Swagger
-10. **Test idempotency**: Safe retries for POST/PUT/DELETE
-
----
+- [error-handling](../error-handling/SKILL.md) — Error handling best practices
+- [security-patterns](../security-patterns/SKILL.md) — API security hardening
+- [python-standards](../python-standards/SKILL.md) — Python API implementation standards
 
 ## Hard Rules
 
@@ -301,7 +222,7 @@ This skill uses progressive disclosure to prevent context bloat:
 - Endpoints that accept unbounded input without pagination or limits
 
 **REQUIRED**:
-- All endpoints MUST have consistent error response format (`{error, message, code}`)
+- All endpoints MUST use RFC 7807 Problem Details error format
 - All collection endpoints MUST support pagination
 - All mutations MUST be idempotent or explicitly documented as non-idempotent
 - Rate limiting MUST be documented in API specification

@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: "10-point code review checklist covering correctness, tests, error handling, type hints, naming, security, and performance. Use when reviewing PRs or evaluating code quality. TRIGGER when: code review, PR review, review checklist, code quality check. DO NOT TRIGGER when: writing new code, debugging, refactoring without review context."
-allowed-tools: [Read, Grep, Glob, Bash]
+allowed-tools: "Read, Grep, Glob, Bash"
 ---
 
 # Code Review Enforcement Skill
@@ -135,13 +135,12 @@ Every review MUST conclude with exactly one of:
 
 ---
 
-## Anti-Patterns
+## Example
 
 ### BAD: Rubber-stamp approval
 ```
 "Looks good to me, ship it!"
 ```
-Missing: checklist, line references, test results, security review.
 
 ### GOOD: Structured review
 ```
@@ -159,16 +158,10 @@ Missing: checklist, line references, test results, security review.
 ### Verdict: REQUEST_CHANGES
 ```
 
-### BAD: Nitpicking style, missing logic bugs
-Spending 10 comments on variable naming while an off-by-one error goes unnoticed.
-
-### BAD: "Will fix later" acceptance
-Approving with known BLOCKING issues and a verbal promise to fix. If it is BLOCKING, it blocks.
-
 ---
 
 ## Cross-References
 
-- **python-standards**: Style and type hint requirements
-- **testing-guide**: Test coverage expectations
-- **security-patterns**: Security checklist details
+- [python-standards](../python-standards/SKILL.md) — Style and type hint requirements
+- [testing-guide](../testing-guide/SKILL.md) — Test coverage expectations
+- [security-patterns](../security-patterns/SKILL.md) — Security checklist details
