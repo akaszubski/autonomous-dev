@@ -7,8 +7,8 @@ covers:
 
 # Maintaining the Core Philosophy
 
-**Last Updated**: 2025-11-03
-**Version**: v3.1.0
+**Last Updated**: 2026-08-30
+**Version**: v3.51.0
 
 ---
 
@@ -17,6 +17,196 @@ covers:
 This guide explains what you need to keep updated as you improve and iterate to maintain the core philosophy:
 
 > **"Trust the model, enforce via hooks, enhance via agents"**
+
+**Read that line precisely — 2026-08-30.** It means *trust the model's capability, never its
+adherence*. Claude does not lack the ability to do the work; it lacks the judgement about when
+the rules apply to itself, forgets between sessions, and rationalises around prose in both
+directions. So the sentence is not "trust the model, therefore fewer controls" — it is "the model
+is capable enough that the only thing worth spending effort on is what refuses it."
+
+Read the other way, the line contradicts the thesis below and has been misread that way: the
+archived material in `docs/archived/` uses "Trust the model" to argue for *removing*
+prescriptiveness. That argument applies to agent prompts, not to gates.
+
+The section below is the thesis this guide serves, and PROJECT.md points here for it
+("Rationale, failure taxonomy and history", "Cases"). Everything after "The Golden Rule" is
+maintenance mechanics — a different topic, kept for reference.
+
+---
+
+## WHAT THIS PROJECT IS
+
+*Added 2026-08-30. Recorded here because it existed only in session transcripts, which are not
+a carrier — the same failure this whole document is about.*
+
+### The one-line version
+
+**Policy as code, for software development itself.** Not policy as documentation that a
+diligent reader might follow, but policy compiled into things that refuse.
+
+### The layering
+
+Four layers, and the distinction between them is the whole design:
+
+| Layer | What it is | Where it lives | Binds by |
+|---|---|---|---|
+| **Macro policy** | Directional intent for the repo — what this repo is *for*, what it will not do | `.claude/PROJECT.md` | Being read by the alignment gate on every `/implement` run |
+| **Situational policy** | Narrow, machine-readable rules for one decision class | `config/*.json` — `auto_approve_policy.json`, `hard_floor_hooks.json`, `sandbox_policy.json` | Being loaded by a control at decision time |
+| **Controls** | Code that refuses | `hooks/*.py` returning `{"decision": "block"}` | Executing on a lifecycle event |
+| **Assurance** | Evidence that the controls ran and worked | proof artifacts, ratchets, reachability walks | Refusing when the evidence is absent |
+
+PROJECT.md is the **macro policy** — the governing directional intent, one per repo, same
+mechanism across every repo (`autonomous-dev`, `realign`, `spektiv`, `homeassistant`,
+`vllm-mlx`), different content in each. For *this* repo the direction is: improve how software
+development is done. One of the controls exists specifically to enforce alignment with that
+macro policy — that is the alignment gate at pipeline STEP 2, and it is why PROJECT.md is a
+**gate input, not documentation**.
+
+The corollary, learned the hard way: **only statements capable of refusing belong in
+PROJECT.md.** Counts drift. Values like "less is more" are self-answerable. Feature
+inventories become permission lists that permit everything by omission. On 2026-08-30 the gate
+refused twice and cited the Mission both times — not one of the 17 SCOPE IN bullets, which
+were compressed to 9 the same day for exactly that reason.
+
+### Why controls and not instructions
+
+Adherence cannot be assumed, and the reason is specific rather than general. The operator:
+
+- forgets between sessions (context does not persist),
+- rationalises around prose **in both directions** (the same rule was argued for and against
+  within one hour of a single session),
+- and asserts what it has not verified.
+
+So each step is administered by something that *refuses*. A rule that can be argued either way
+is not a mechanism. What binds behaviour is what refuses, not what is known — and knowing is
+stored in prose, the same carrier that keeps failing.
+
+### Why assurance and not trust
+
+The controls themselves drift, die, and misreport. Measured 2026-08-30: a shipped guard was
+dead four independent ways and **its own test suite agreed with it**. An unwired artifact is
+byte-for-byte indistinguishable from a wired one — file present, tests green, manifest entry,
+deployed. Hence the two questions in PROJECT.md's DEFINITION OF DONE (Q1 connected, Q2 works
+as designed, both arms).
+
+### Carrier ranking
+
+When a rule must hold, put it in the strongest available carrier. In descending order of force:
+
+1. **Hooks** — execute, refuse, ship to every consumer repo
+2. **Agent definitions** — ship, and are read at dispatch, but are prose
+3. **Tests** — real, but repo-local; `install_manifest.json` ships **zero** `tests/` paths, so
+   they reach no consumer
+4. **Prose** (CLAUDE.md, PROJECT.md body, command markdown) — reaches nowhere mechanically
+
+The standing rule follows directly: **a finding that can refuse becomes a guard, not an
+issue.** Filing has run 4.5x ahead of resolving (114 opened / 25 closed in 7 days, 290 open),
+so a net-positive 7-day issue delta is itself an abort condition on the active goal.
+
+---
+
+## THE ERROR TAXONOMY
+
+The five ways this system's operator gets things wrong. Every control here targets one of
+them; a proposed control that targets none is probably not needed.
+
+| # | Failure | Shape | What catches it |
+|---|---|---|---|
+| 1 | **Looks instead of runs** | Reports what code *appears* to do rather than what it does when executed. Reads source, asserts on comments, treats a `print` as a gate. | Driving the real function; both arms; a positive **and** a negative control |
+| 2 | **Hallucinates** | Confident, specific, wrong — a line number, a symbol, a closed issue that does not exist | Citation verification; adversarial review; `file:line` receipts |
+| 3 | **Reads stale as current** | A once-true statement, still believed. "This gate has never fired" — written when true, quoted long after it stopped being true | Dated claims with a check; staleness bounds that are *enforced*, not documented |
+| 4 | **Locally valid, globally wrong** | Each step correct, the composition wrong. A fix that narrows scope to pass; a guard scoped to the instance that prompted it | A negative control of a **different shape** than the triggering bug; call-boundary audits |
+| 5 | **Ordinary mistakes** | Typos, wrong variable, dropped block during transcription | Tests, types, the gate that reads the artifact rather than the narration |
+
+**The defect shape that recurs most:** *a check whose subject is the description rather than
+the behaviour.* Six instances in one session on 2026-08-28 — a rule written into an unwired
+gate; a flag reintroducing the very default it was fixing; a recorder measuring the declared
+rather than the enforced budget; a fallback test comparing X to X; a deploy script passing
+"deny rules syntactically valid" on an **empty** deny list. None was caught by whoever made
+it. Every one was caught by a ratchet, an adversarial reviewer, or the user.
+
+---
+
+## CASE LOG
+
+Concrete instances, with receipts. New cases append here.
+
+### 2026-08-30 — the four-defect pipeline run
+
+A single `/implement` run on a ~55-line change was BLOCKED at the plan gate. Four false
+load-bearing claims were caught before any code was written:
+
+1. Research asserted "the only artifact reader is an undeployed example." False —
+   `agents/continuous-improvement-analyst.md:345` reads both files as real CLI arguments, and
+   `commands/implement-batch.md:202` is a fourth writer. *Caught by: planner.*
+2. Research placed a `try` block at line 2366, making placement a genuine dilemma. It opens at
+   **2354**; the dilemma did not exist. *Caught by: planner.*
+3. The plan asserted `.claude/logs/activity/validators/` "does not exist in this repo" and
+   rejected a design alternative on that basis. One `ls` showed **14 run directories, 19
+   artifacts, and 2 empty directories** — the last being the defect itself, already on disk.
+   *Caught by: coordinator, by checking.*
+4. The plan closed its central problem by arguing the completion record is written by the
+   SubagentStop hook, "a different principal" from the coordinator — the SLSA L1→L2 separation.
+   False: `commands/implement.md:181` and `:237` **mandate that the coordinator itself** call
+   `record_agent_completion()`, and the exemption at `:233` covers only doc-master. The same
+   principal writes both the claim and the evidence. *Caught by: plan-critic.*
+
+Claim 4 is the instructive one. It was not a slip; it was a **plausible, well-cited, entirely
+wrong** justification that made a weak check look strong — failure mode 2 wearing failure mode
+4's clothes. It survived a planner and a coordinator and died to an adversarial reader with
+file access.
+
+The run also produced a *smaller* design: a byte-and-line threshold calibrated against an
+imagined corpus misclassified **6 of 19 real artifacts** (32%) as absent, including a complete
+OWASP audit that happened to be on one line. The defensible check turned out to be
+`is_file() and st_size > 0`. **The evidence made the change smaller, not larger** — which is
+the outcome PROJECT.md's minimalism gate exists to produce and rarely does.
+
+### 2026-08-30 — the guard that was dead four ways
+
+`PreToolUseWrite-protect-sensitive.sh`: six independent defects, five of them fail-open. It
+read `.parameters.file_path` where the payload carries `.tool_input.file_path`, so it saw
+nothing. Its own test suite passed. Measured after the fix: 0/12 wrong on fixed source versus
+9/12 on the deployed copy. Q1 (connected) and Q2 (both arms) would each have caught this
+alone; neither existed for shell hooks.
+
+### 2026-08-30 — a gate misfiring on its own subject matter
+
+`unified_pre_tool.py:8074` matches the substring `"git commit"` anywhere in a Bash command
+string, including inside heredoc **data**. Consequence: a pipeline whose feature text is
+*about* the commit gate cannot write its own feature file. Proven with a matched pair —
+identical heredocs differing only in `commit` versus `git commit`; the first wrote, the second
+was blocked. Failure mode 4: locally valid (detect commits), globally wrong (detects the
+words, not the act).
+
+---
+
+## ⚠️ STALENESS BOUNDARY — everything below this line
+
+**Audited 2026-08-30. Treat the rest of this file as untrusted until each section is checked.**
+
+Everything above was written or corrected on 2026-08-30. Everything below dates from
+**2025-11-03** and describes an earlier architecture. Three classes of error were found and only
+partially fixed, so the boundary is marked rather than pretended away:
+
+1. **Archived components described as live.** The `orchestrator` agent was replaced by the thin
+   coordinator (#444) and now lives at `agents/archived/orchestrator.md`. It is still named
+   ~30 times below. Its one dedicated section has been rewritten; the scattered mentions have
+   **not**. PROJECT.md's *Archived code rule* forbids active content referencing archived
+   components, so each remaining mention is a live defect.
+2. **Stale counts.** Corrected where found ("19 agents" → 17 on disk; "19 skills" → 21;
+   "8 commands" → 26). Counts should not appear here at all — CLAUDE.md gives
+   [`ARCHITECTURE-OVERVIEW.md`](ARCHITECTURE-OVERVIEW.md) as their single home, because two homes
+   is how they drift. Any count you find below is unverified.
+3. **`vim <protected path>` instructions.** Several update patterns below tell you to directly
+   edit `agents/*.md`, `hooks/*.py` or `lib/*.py`. **INV-4 forbids this** — those paths are
+   implementer-only and the hard floor holds even under `.claude/.bypass`. Route such changes
+   through `/implement`. The instructions predate the invariant.
+
+*Why this boundary is marked instead of the file being rewritten: a 950-line rewrite is a
+separate change with its own review, and deleting content whose intent has not been read is the
+failure mode described in the CASE LOG above. Marking the boundary removes the harm — acting on
+stale instructions — at a fraction of the risk.*
 
 ---
 
@@ -52,10 +242,16 @@ These are the backbone of the system. Update these first:
 - Architecture decisions made
 
 **Why critical:**
-- orchestrator agent reads this FIRST before validating any feature
-- `unified_doc_validator.py` hook (consolidates validate_project_alignment) checks all commits against this
-- All 19 agents reference this for context
+- The alignment gate at pipeline STEP 2 reads it on every `/implement` run and can refuse
+  (`lib/alignment_classifier.py`; Stage 0 is deterministic and its ESCALATE cannot be overridden)
+- `unified_doc_validator.py` hook checks commits against it
+- Every pipeline agent receives its GOALS and SCOPE as context
 - This IS the alignment mechanism
+
+*Corrected 2026-08-30: this list previously named the `orchestrator` agent, which is archived
+(`agents/archived/orchestrator.md`) and was replaced by the thin coordinator (#444); and asserted
+"all 19 agents", a count that was wrong (17 on disk) and that CLAUDE.md forbids restating outside
+[`ARCHITECTURE-OVERVIEW.md`](ARCHITECTURE-OVERVIEW.md) because two homes is how counts drift.*
 
 **Example workflow:**
 ```bash
@@ -117,51 +313,40 @@ git commit -m "docs: update scope to GraphQL architecture"
 
 See [`plugins/autonomous-dev/commands/align.md`](../plugins/autonomous-dev/commands/align.md) "INVARIANTS Derivation & Audit" for the full approval-gated flow.
 
-#### 2. **orchestrator.md** (Gatekeeper Behavior)
+#### 2. **implement.md** (Coordination Behaviour)
 
-**Location**: `plugins/autonomous-dev/agents/orchestrator.md`
+> **Rewritten 2026-08-30.** This section previously documented `orchestrator.md` as the live
+> gatekeeper and instructed the reader to `vim plugins/autonomous-dev/agents/orchestrator.md`.
+> That agent is **archived** (`plugins/autonomous-dev/agents/archived/orchestrator.md`) — it was
+> replaced by the thin coordinator in #444. Following the old instruction would have edited a
+> nonexistent file, and PROJECT.md's *Archived code rule* says active content must never
+> reference archived components. The instruction also violated INV-4.
 
-**When to update:**
-- Coordination logic needs adjustment
-- Agent invocation patterns change
-- Workflow sequence needs modification
-- Skills usage patterns evolve
+**Location**: `plugins/autonomous-dev/commands/implement.md`
+
+**When to update:** step ordering or gate placement changes; a new specialist joins the pipeline;
+a FORBIDDEN clause needs adding after a bypass is observed.
 
 **Why critical:**
-- Controls WHEN other agents are invoked
-- First line of PROJECT.md alignment validation
-- Determines the autonomous workflow
+- It defines the 8-step pipeline and every HARD GATE position
+- It is what the coordinator executes; there is no separate orchestrator agent
+- Its FORBIDDEN lists are the record of previously-observed bypasses
 
-**Key sections:**
-```yaml
----
-description: "Master coordinator - validates PROJECT.md alignment..."
-tools: [Task, Read, Bash]
----
+**How to update — this is the part that changed:**
 
-# System prompt defining coordination behavior
-# Lines 1-150: Core coordination logic
+`commands/*.md` is **protected infrastructure under INV-4**: never edited outside `/implement`,
+and the hard floor holds even under `.claude/.bypass`. There is no `vim` path.
 
-## Skills Available (lines 74-109)
-- List all 19 skills with descriptions
-- Tell orchestrator HOW to reference skills
-- Define WHEN to invoke specialist agents
-```
-
-**Update pattern:**
 ```bash
-# Test current behavior
-/implement "add feature X"
-# Review session log: docs/sessions/*orchestrator*.md
-
-# If orchestrator behavior is wrong:
-vim plugins/autonomous-dev/agents/orchestrator.md
-# Update coordination logic
-
-# Test again
-/implement "add feature Y"
-# Verify improved behavior
+# Correct: route the change through the pipeline that owns the file
+/implement "add a FORBIDDEN clause to implement.md STEP N covering <the observed bypass>"
 ```
+
+**And prefer a guard over prose.** A FORBIDDEN clause in `implement.md` is advisory text — INV-1
+says that is never enforcement, and the failure log in the CASE LOG above is largely a log of
+advisory text being rationalised around. If the rule can be checked mechanically, the change
+belongs in a hook or a `lib/` gate, not here. Adding prose to this file is the fallback when it
+genuinely cannot.
 
 #### 3. **settings.local.json** (Enforcement Rules)
 
@@ -408,9 +593,11 @@ Check these regularly to ensure alignment:
 python .claude/hooks/unified_doc_validator.py
 
 # If drift detected:
-vim CLAUDE.md  # Update counts, versions, descriptions
+# NOTE (2026-08-30): do NOT add counts to CLAUDE.md. ARCHITECTURE-OVERVIEW.md is their single
+# home; CLAUDE.md restating them is how they drift. Fix by REMOVING the count, not updating it.
+vim CLAUDE.md  # Remove the restated count; link to ARCHITECTURE-OVERVIEW.md instead
 git add CLAUDE.md
-git commit -m "docs: fix CLAUDE.md alignment (19 agents, 8 commands)"
+git commit -m "docs(CLAUDE.md): drop restated counts, link the canonical home"
 ```
 
 **Review schedule:**
