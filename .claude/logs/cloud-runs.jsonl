@@ -1045,3 +1045,5 @@
 {"fire_id": "20260830T043812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260830T063814Z", "fired_at": "2026-08-30T06:39:14Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
 {"fire_id": "20260830T063814Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex_recent_dup_suppressed", "commit_sha": "", "note": "cluster 1437,1651 both already skipped <9h ago (last comments 2026-08-29T22:39Z); suppressed duplicate comment posting per #1437 retrospective; no implementer invoked"}
+{"fire_id": "20260830T083857Z", "fired_at": "2026-08-30T08:38:57Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T083857Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
