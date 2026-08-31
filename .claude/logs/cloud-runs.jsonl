@@ -1065,3 +1065,4 @@
 {"fire_id": "20260831T103959Z", "fired_at": "2026-08-31T10:39:59Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260831T103959Z", "phase": "FIRE_END", "exit_reason": "github_token_403", "note": "GitHub REST 403 \u2014 access not enabled for this session; scheduled prompt requires GITHUB_TOKEN direct-REST path"}
 {"fire_id": "20260831T163826Z", "fired_at": "2026-08-31T16:38:42Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260831T163826Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
