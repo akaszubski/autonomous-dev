@@ -1057,3 +1057,4 @@
 {"fire_id": "20260830T163802Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260830T183815Z", "fired_at": "2026-08-30T18:38:59Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "github_rest_403_token_stub"}
 {"fire_id": "20260830T183815Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_rest_403_token_stub_len14"}
+{"fire_id": "20260831T023741Z", "fired_at": "2026-08-31T02:37:57Z", "selected_cluster": "none", "phase": "FIRE_START"}
