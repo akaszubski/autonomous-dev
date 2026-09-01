@@ -1,0 +1,746 @@
+[
+ {
+  "file": "plugins/autonomous-dev/hooks/auto_fix_docs.py",
+  "line": 629,
+  "func": "validate_auto_fix",
+  "body": "return True"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/enforce_orchestrator.py",
+  "line": 168,
+  "func": "check_commit_message",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/enforce_tdd.py",
+  "line": 303,
+  "func": "check_git_history_for_tests",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/session_activity_logger.py",
+  "line": 862,
+  "func": "_check_and_log_budget",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/session_activity_logger.py",
+  "line": 898,
+  "func": "_check_and_log_heartbeat",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 633,
+  "func": "_record_tier1_allow",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 985,
+  "func": "_is_gated_repo_source",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 1710,
+  "func": "validate_pipeline_ordering",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2090,
+  "func": "_enforce_protected_infrastructure",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2026,
+  "func": "_enforce_protected_infrastructure",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2677,
+  "func": "_allowed_alignment_verdicts",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2917,
+  "func": "_check_write_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2931,
+  "func": "_check_write_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3008,
+  "func": "_check_write_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 2928,
+  "func": "_check_write_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3069,
+  "func": "_check_bash_code_file_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3083,
+  "func": "_check_bash_code_file_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3080,
+  "func": "_check_bash_code_file_pipeline_required",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3822,
+  "func": "_check_drain_pending_commit_gate",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 3827,
+  "func": "_check_drain_pending_commit_gate",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 4930,
+  "func": "_detect_architectural_decision_without_plan_critic",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 4886,
+  "func": "_detect_architectural_decision_without_plan_critic",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 4911,
+  "func": "_detect_architectural_decision_without_plan_critic",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 4846,
+  "func": "_detect_architectural_decision_without_plan_critic",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 5307,
+  "func": "_check_batch_cia_completions",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 5385,
+  "func": "_check_batch_doc_master_completions",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 5506,
+  "func": "_check_pipeline_agent_completions",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 5434,
+  "func": "_check_pipeline_agent_completions",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6244,
+  "func": "_log_write_gate_bypass_consumed",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6207,
+  "func": "_log_write_gate_bypass_consumed",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6418,
+  "func": "_update_deny_cache",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6467,
+  "func": "_check_deny_cache",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6463,
+  "func": "_check_deny_cache",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6574,
+  "func": "_check_agent_denial",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6562,
+  "func": "_check_agent_denial",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6570,
+  "func": "_check_agent_denial",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6834,
+  "func": "_check_bash_state_deletion",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6909,
+  "func": "_check_rm_rf_unresolved_vars",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 6970,
+  "func": "_check_worktree_path_boundary",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7034,
+  "func": "_check_spec_test_deletion_scope",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7207,
+  "func": "_check_bash_infra_writes",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7297,
+  "func": "_check_bash_infra_writes",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7330,
+  "func": "_check_bash_infra_writes",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7721,
+  "func": "_check_plan_exit_native",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7793,
+  "func": "_check_plan_exit_native",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7861,
+  "func": "_check_plan_exit_mcp",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_pre_tool.py",
+  "line": 7898,
+  "func": "_check_plan_exit_mcp",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_prompt_validator.py",
+  "line": 556,
+  "func": "_check_compaction_recovery",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_session_tracker.py",
+  "line": 329,
+  "func": "_validate_transcript_path",
+  "body": "return ''"
+ },
+ {
+  "file": "plugins/autonomous-dev/hooks/unified_session_tracker.py",
+  "line": 852,
+  "func": "check_pipeline_complete",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/agent_tracker/tracker.py",
+  "line": 471,
+  "func": "_validate_agent_data",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/alignment_classifier.py",
+  "line": 1295,
+  "func": "write_alignment_verdict",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/alignment_classifier.py",
+  "line": 1301,
+  "func": "write_alignment_verdict",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/auto_implement_git_integration.py",
+  "line": 1435,
+  "func": "check_git_available",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/auto_implement_git_integration.py",
+  "line": 1475,
+  "func": "check_gh_available",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/checkpoint.py",
+  "line": 272,
+  "func": "load_checkpoint",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/checkpoint.py",
+  "line": 286,
+  "func": "delete_checkpoint",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/comprehensive_doc_validator.py",
+  "line": 185,
+  "func": "validate_all",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/comprehensive_doc_validator.py",
+  "line": 573,
+  "func": "validate_code_examples",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/daily_aggregate_manager.py",
+  "line": 147,
+  "func": "open_or_supersede_daily_aggregate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/daily_aggregate_manager.py",
+  "line": 181,
+  "func": "open_or_supersede_daily_aggregate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/daily_aggregate_manager.py",
+  "line": 196,
+  "func": "open_or_supersede_daily_aggregate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/daily_aggregate_manager.py",
+  "line": 136,
+  "func": "open_or_supersede_daily_aggregate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/drain_queue_state.py",
+  "line": 470,
+  "func": "_validate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/enforcement_decision.py",
+  "line": 97,
+  "func": "should_skip_enforcement",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/feature_completion_detector.py",
+  "line": 208,
+  "func": "_check_genai",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/feature_completion_detector.py",
+  "line": 392,
+  "func": "_check_git_log",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/feature_flags.py",
+  "line": 55,
+  "func": "validate_path",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/genai_manifest_validator.py",
+  "line": 69,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/genai_manifest_validator.py",
+  "line": 76,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/git_operations.py",
+  "line": 108,
+  "func": "check_git_config",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/git_operations.py",
+  "line": 122,
+  "func": "check_git_config",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/health_check.py",
+  "line": 102,
+  "func": "check_progress",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_bypass.py",
+  "line": 290,
+  "func": "check_bypass_staleness",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_bypass.py",
+  "line": 329,
+  "func": "check_bypass_staleness",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_bypass.py",
+  "line": 557,
+  "func": "warn_global_enforcement_deprecated_once",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_recovery.py",
+  "line": 149,
+  "func": "log_block_with_recovery",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_recovery.py",
+  "line": 179,
+  "func": "log_block_with_recovery",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_safety.py",
+  "line": 792,
+  "func": "_check_command_dir",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_safety.py",
+  "line": 782,
+  "func": "_check_command_dir",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_safety.py",
+  "line": 811,
+  "func": "_check_installed_plugins",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 412,
+  "func": "log_block_event",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 419,
+  "func": "log_block_event",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 392,
+  "func": "log_block_event",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 402,
+  "func": "log_block_event",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 494,
+  "func": "deny_and_record",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 632,
+  "func": "block_event_decorator",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/hook_telemetry.py",
+  "line": 612,
+  "func": "block_event_decorator",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 203,
+  "func": "check_pause_requested",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 198,
+  "func": "check_pause_requested",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 364,
+  "func": "save_checkpoint",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 421,
+  "func": "load_checkpoint",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 400,
+  "func": "load_checkpoint",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 414,
+  "func": "load_checkpoint",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pause_controller.py",
+  "line": 417,
+  "func": "load_checkpoint",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pipeline_completion_state.py",
+  "line": 500,
+  "func": "_check_file_bypass",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pipeline_completion_state.py",
+  "line": 497,
+  "func": "_check_file_bypass",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/pipeline_intent_validator.py",
+  "line": 1682,
+  "func": "validate_pipeline_intent",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/plan_critic_verdict.py",
+  "line": 193,
+  "func": "write_verdict",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/ralph_loop_manager.py",
+  "line": 415,
+  "func": "checkpoint",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/ralph_loop_manager.py",
+  "line": 732,
+  "func": "cleanup_old_checkpoints",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/research_persistence.py",
+  "line": 411,
+  "func": "check_cache",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/research_persistence.py",
+  "line": 417,
+  "func": "check_cache",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/research_persistence.py",
+  "line": 441,
+  "func": "check_cache",
+  "body": "return None"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/runtime_data_aggregator.py",
+  "line": 195,
+  "func": "_validate_path",
+  "body": "return False"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 449,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 457,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 465,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 330,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 336,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 390,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/security_utils.py",
+  "line": 396,
+  "func": "validate_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/session_resource_manager.py",
+  "line": 333,
+  "func": "check_resource_limits",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/session_tracker.py",
+  "line": 187,
+  "func": "_check_directory_permissions",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/step5_quality_gate.py",
+  "line": 269,
+  "func": "check_coverage_regression",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/step5_quality_gate.py",
+  "line": 295,
+  "func": "check_coverage_regression",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/step5_quality_gate.py",
+  "line": 440,
+  "func": "run_quality_gate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/step5_quality_gate.py",
+  "line": 457,
+  "func": "run_quality_gate",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/success_criteria_validator.py",
+  "line": 218,
+  "func": "validate_pytest",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/sync_validator.py",
+  "line": 560,
+  "func": "validate_semantic",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/test_issue_tracer.py",
+  "line": 404,
+  "func": "check_issue_has_test",
+  "body": "return True"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/tool_validator.py",
+  "line": 617,
+  "func": "_validate_path_containment",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/user_state_manager.py",
+  "line": 120,
+  "func": "_validate_state_file_path",
+  "body": "pass"
+ },
+ {
+  "file": "plugins/autonomous-dev/lib/user_state_manager.py",
+  "line": 126,
+  "func": "_validate_state_file_path",
+  "body": "pass"
+ }
+]
