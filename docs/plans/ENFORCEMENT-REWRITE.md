@@ -187,6 +187,45 @@ everything the hook does, delete; otherwise keep at ~100 lines.
 **Nothing is deleted on a single signal.** Every deletion needs an independent second signal,
 and "an agent said so" is not one.
 
+### 8a-pre. PROVEN 2026-09-01: provenance is already available, free
+
+The writer-side provenance stamp proposed below is **unnecessary**. Claude Code's own
+OpenTelemetry instrumentation emits dispatcher-level hook events. Verified by capture, not by
+research — `OTEL_*` is stripped from hook subprocess environments, so the TUI cannot be used to
+observe this; the probe ran in headless mode where stdout is capturable:
+
+    env CLAUDE_CODE_ENABLE_TELEMETRY=1 OTEL_LOGS_EXPORTER=console claude -p "..."
+
+52,637 bytes of OTel output, containing:
+
+| `event.name` | count |
+|---|---:|
+| `hook_registered` | 27 |
+| `hook_execution_start` | 2 |
+| `hook_execution_complete` | 2 |
+| `mcp_server_connection` | 5 |
+
+**Why this is the discriminator.** These events come from the Claude Code dispatcher, which sits
+*outside* the hooks. `scripts/capture_baseline.py` invokes hook files directly as subprocesses,
+bypassing the dispatcher entirely — so it can produce a `refused: true` row in
+`hook-blocks.jsonl` with **no** corresponding `hook_execution_start`. Joining the two streams on
+timestamp separates real refusals from synthetic ones with zero new code.
+
+This claim was asserted from research, then **withdrawn** when a TUI-based check found nothing,
+then **restored** when the headless probe produced the events above. The withdrawal was the
+error: the instrument was blind, not the mechanism absent. Recorded because the withdrawal is
+the more instructive half — a negative result from an instrument that *cannot* observe its
+target is not evidence of absence.
+
+**Enabled** in `.claude/settings.local.json` via `env`. Note `CLAUDE_CODE_ENABLE_TELEMETRY`
+propagates to subprocesses but `OTEL_LOGS_EXPORTER` does not — confirmed empirically, and the
+reason any subprocess-based verification of this returns a false negative.
+
+**Still unfixed, and NOT solved by telemetry**: `session_id` is empty on refusal rows. Confirmed
+against a fresh production block at 2026-09-01T11:07:04Z — the protected-infrastructure floor
+refusing a direct edit to `unified_pre_tool.py` — which recorded `session_id: ''`. Telemetry
+supplies provenance *alongside* the log; it does not repair the log's own broken field.
+
 ### 8a. The refusal log is contaminated — twice
 
 `.claude/logs/hook-blocks.jsonl` is the only evidence of what enforcement actually does, and two
