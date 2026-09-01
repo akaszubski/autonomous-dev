@@ -256,11 +256,16 @@ Per-repo opt-out: touch .claude/.bypass && git commit.
    /implement "describe the feature"       # tier=full (new class OR ≥100 lines)
    ```
 
-2. **One-shot bypass** (allows a single edit, file consumed on first check):
+2. **One-shot bypass** (allows a single edit; the sentinel is consumed by the
+   first Write/Edit it actually unblocks — Issue #1638):
    ```bash
    touch /tmp/skip_write_pipeline_gate
    # Now retry the Write/Edit — bypass is consumed and gate re-enables
    ```
+   Intervening tool calls are safe: a `ls`, a `git status`, a docs or test-file
+   Write no longer spend the token, and the advisory-only Bash-to-code-file gate
+   never consumes it. Before Issue #1638 any of those silently burned the
+   sentinel, so an operator who followed these instructions was refused anyway.
    Issue #1408: the consumed-bypass log entry now records a `reason` string.
    Write one for a more auditable trail: `echo "hotfix for prod incident" >
    /tmp/skip_write_pipeline_gate` (falls back to `$WRITE_GATE_BYPASS_REASON`,

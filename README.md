@@ -352,7 +352,9 @@ git worktree or covered by `.gitignore` are also exempt — pipeline review adds
 no value for files that are never committed (Issue #1408).
 
 One-shot operator bypass: `touch /tmp/skip_write_pipeline_gate` (consumed on
-first check). The sentinel file's contents (or `$WRITE_GATE_BYPASS_REASON`)
+the first refusal it buys passage past — not on the first check, Issue #1638;
+unrelated tool calls such as a `ls` or a docs write no longer spend it, and the
+advisory-only Bash gate never consumes it). The sentinel file's contents (or `$WRITE_GATE_BYPASS_REASON`)
 are captured as a reason string in the activity log when the bypass is
 consumed (Issue #1408) — `echo "why" > /tmp/skip_write_pipeline_gate` records
 the reason.

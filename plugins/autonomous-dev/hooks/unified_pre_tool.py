@@ -2864,6 +2864,68 @@ def _has_significant_additions(old_string: str, new_string: str, file_path: str 
     return False, "", ""
 
 
+#: The one-shot operator bypass sentinel for the write-pipeline gate.
+#: Declared once so the (single) consumption site and every message that
+#: advertises it cannot drift apart.
+WRITE_GATE_BYPASS_SENTINEL = Path("/tmp/skip_write_pipeline_gate")
+
+
+def _consume_write_gate_bypass(file_path: str = "") -> bool:
+    """Consume the one-shot operator bypass sentinel, if it is present.
+
+    This is the SINGLE sanctioned consumption point for
+    :data:`WRITE_GATE_BYPASS_SENTINEL`. It MUST only be called once a gate has
+    already established that it would otherwise REFUSE the current tool call.
+
+    Rationale (the defect this shape removes): the sentinel used to be checked
+    eagerly, at the top of both :func:`_check_write_pipeline_required` and
+    :func:`_check_bash_code_file_pipeline_required`, *before* either gate had
+    determined that it applied at all. Consequently any tool call that reached
+    a gate burned the operator's one-shot token even though nothing was ever
+    going to be refused — a bare ``ls`` reaching the Bash gate, or a Write to
+    ``README.md`` reaching the Write/Edit gate, silently spent it. The operator
+    then followed the gate's own printed instructions, found the token already
+    gone, and was refused anyway. Deferring consumption to the point of refusal
+    removes that whole class: the token can now only ever be spent to buy
+    passage past an actual refusal.
+
+    A one-shot token must not be consumable by more than one gate, so the
+    advisory-only Bash path (downgraded to non-blocking in Issue #1408) does
+    NOT consume it — there is nothing there to bypass. The Write/Edit gate is
+    the sole consumer.
+
+    Args:
+        file_path: The target file being written/edited, recorded in the audit
+            log. Empty string when no specific path applies.
+
+    Returns:
+        True when the sentinel existed and has been consumed (the caller MUST
+        then allow the operation); False otherwise.
+
+    Note:
+        Consumption is logged exactly once via
+        :func:`_log_write_gate_bypass_consumed` (Issue #1356), which records
+        the scoped-escape reason and the sentinel's age. Removal of the
+        sentinel fails OPEN: a filesystem error unlinking it must not crash
+        the hook, and the bypass still counts as consumed.
+    """
+    skip_file = WRITE_GATE_BYPASS_SENTINEL
+    try:
+        if not skip_file.exists():
+            return False
+    except OSError:
+        return False  # cannot tell -> do not grant a bypass we cannot audit
+
+    # Log BEFORE unlinking: the logger reads the sentinel's own contents as the
+    # scoped-escape reason (Issue #1408), so it must still be on disk.
+    _log_write_gate_bypass_consumed(file_path, skip_file)
+    try:
+        skip_file.unlink()
+    except OSError:
+        pass  # fail-open on unlink — bypass still consumed
+    return True
+
+
 def _check_write_pipeline_required(
     tool_name: str,
     file_path: str,
@@ -2917,19 +2979,12 @@ def _check_write_pipeline_required(
     except Exception:
         pass  # fall through; if we cannot tell, continue with other checks
 
-    # Tier 0c: one-shot operator bypass (mirrors /tmp/skip_agent_completeness_gate pattern)
-    skip_file = Path("/tmp/skip_write_pipeline_gate")
-    try:
-        if skip_file.exists():
-            # Log the sentinel consumption (Issue #1356)
-            _log_write_gate_bypass_consumed(file_path, skip_file)
-            try:
-                skip_file.unlink()
-            except OSError:
-                pass  # fail-open on unlink — bypass still consumed
-            return (False, "operator_bypass", "")
-    except OSError:
-        pass
+    # NOTE: the one-shot operator bypass is NOT checked here. It used to be
+    # (as "Tier 0c"), which meant every Write/Edit that reached this function
+    # consumed it — including writes to docs, tests, scratch paths and
+    # out-of-tree files that Tier 0d–0h below allow unconditionally. The token
+    # is now consumed only at the point of actual refusal, after Tier 0h. See
+    # _consume_write_gate_bypass.
 
     # Tier 0d: no path provided
     if not file_path:
@@ -2973,6 +3028,19 @@ def _check_write_pipeline_required(
     # git error — never raises.
     if not _is_gated_repo_source(file_path):
         return (False, "tier0_out_of_tree", "")
+
+    # Tier 0i: one-shot operator bypass (mirrors the
+    # /tmp/skip_agent_completeness_gate pattern). Deliberately placed HERE and
+    # not at the top: every Tier 0 exit above returns block=False, so this is
+    # the first point at which refusal is certain — whatever tier the
+    # classifier below assigns, the function returns block=True. Consuming the
+    # token only when a refusal is actually being bought means an unrelated
+    # doc/test/scratch write can no longer silently spend it.
+    #
+    # It also precedes the sliding-window bookkeeping so a bypassed edit does
+    # not pollute the per-(session, file) ring buffer.
+    if _consume_write_gate_bypass(file_path):
+        return (False, "operator_bypass", "")
 
     # Tier classification via AST-based classifier (Phase 1, #1142+).
     tier, reason = _safe_classify_edit_tier(file_path, old_string or "", new_string or "")
@@ -3021,7 +3089,7 @@ def _check_write_pipeline_required(
         flag = ""
     directive = (
         f"Run /implement {flag}\"<brief description of change to {file_name}>\". "
-        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
+        f"Operator one-shot bypass: touch {WRITE_GATE_BYPASS_SENTINEL}."
     )
     if escalated_by_sliding_window:
         directive = (
@@ -3069,19 +3137,13 @@ def _check_bash_code_file_pipeline_required(
     except Exception:
         pass
 
-    # One-shot operator bypass.
-    skip_file = Path("/tmp/skip_write_pipeline_gate")
-    try:
-        if skip_file.exists():
-            # Log the sentinel consumption (Issue #1356)
-            _log_write_gate_bypass_consumed("", skip_file)  # No specific file path in Bash context
-            try:
-                skip_file.unlink()
-            except OSError:
-                pass
-            return (False, "operator_bypass", "", "")
-    except OSError:
-        pass
+    # NOTE: this path does NOT consume the one-shot operator bypass sentinel.
+    # It used to, unconditionally and before the detector below had even run,
+    # so ANY Bash command whatsoever — `ls`, `git status` — spent the
+    # operator's token. Since Issue #1408 this gate is ADVISORY: it never
+    # refuses, so there is nothing here for a bypass to buy. The Write/Edit
+    # gate is the sole consumer (see _consume_write_gate_bypass), which is what
+    # keeps a single token from being spendable by two gates.
 
     # Detect the code-file write target.
     if _detect_bash_code_file_write_fn is None:
@@ -3168,7 +3230,9 @@ def _check_bash_code_file_pipeline_required(
     directive = (
         f"Run /implement {flag}\"<brief description of change to {basename}>\" "
         f"instead of Bash-writing to code files (pattern: {pattern}). "
-        f"Operator one-shot bypass: touch /tmp/skip_write_pipeline_gate."
+        f"This path is advisory and does not block, so it needs no bypass; the "
+        f"one-shot {WRITE_GATE_BYPASS_SENTINEL} sentinel applies to the "
+        f"Write/Edit gate only and is NOT consumed here."
     )
     return (True, tier, directive, target)
 
