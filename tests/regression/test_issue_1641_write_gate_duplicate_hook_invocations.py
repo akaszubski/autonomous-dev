@@ -198,13 +198,24 @@ def _activity_log_line_count() -> int:
     return len(log_file.read_text().splitlines()) if log_file.exists() else 0
 
 
-def _consumption_records_since(before: int) -> list[dict[str, Any]]:
-    """Every ``write_gate_operator_bypass_consumed`` record written after ``before``."""
-    log_file = _activity_log()
+#: Every audit event that records a GRANTED write-gate bypass. Consumption and
+#: deferral are deliberately DISTINCT events: exactly one copy in a fan-out
+#: spends the token (``..._consumed``), and every other copy grants the same
+#: write by honouring that copy's receipt (``..._deferred``). Counting only the
+#: first is what made a deferred grant invisible; counting them as one event
+#: would break the consumed-exactly-once invariant. Both are needed.
+GRANT_EVENTS = (
+    "write_gate_operator_bypass_consumed",
+    "write_gate_operator_bypass_deferred",
+)
+
+
+def _records_in(log_file: Path, events: tuple[str, ...], *, since: int = 0) -> list[dict[str, Any]]:
+    """Every record in ``log_file`` after line ``since`` whose event is in ``events``."""
     if not log_file.exists():
         return []
     records: list[dict[str, Any]] = []
-    for line in log_file.read_text().splitlines()[before:]:
+    for line in log_file.read_text().splitlines()[since:]:
         line = line.strip()
         if not line:
             continue
@@ -212,9 +223,26 @@ def _consumption_records_since(before: int) -> list[dict[str, Any]]:
             entry = json.loads(line)
         except ValueError:
             continue
-        if entry.get("event") == "write_gate_operator_bypass_consumed":
+        if entry.get("event") in events:
             records.append(entry)
     return records
+
+
+def _tmp_activity_log(root: Path) -> Path:
+    """The activity log the hook writes when ``os.getcwd()`` is ``root``."""
+    return root / ".claude" / "logs" / "activity" / f"{time.strftime('%Y-%m-%d')}.jsonl"
+
+
+def _consumption_records_since(before: int) -> list[dict[str, Any]]:
+    """Every ``write_gate_operator_bypass_consumed`` record written after ``before``."""
+    return _records_in(
+        _activity_log(), ("write_gate_operator_bypass_consumed",), since=before
+    )
+
+
+def _grant_records_since(before: int) -> list[dict[str, Any]]:
+    """Every record of a GRANTED bypass — consumed OR deferred — after ``before``."""
+    return _records_in(_activity_log(), GRANT_EVENTS, since=before)
 
 
 def registered_pretooluse_copies() -> int:
@@ -612,18 +640,27 @@ class TestLiveGateEntryPointBothArms:
     def test_consume_defers_to_a_sibling_without_logging_a_second_time(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A copy that consumes nothing must record nothing (Issue #1356)."""
+        """A copy that consumes nothing must not log a CONSUMPTION (Issue #1356).
+
+        Adjusted: this arm originally asserted the deferring copy wrote no log
+        line at all, which is what let a granted bypass leave no trace. The
+        invariant it was protecting is narrower than that — one token, one
+        ``..._consumed`` record — and it is asserted here directly. The grant
+        itself is now recorded under the distinct ``..._deferred`` event; see
+        :class:`TestEveryGrantLeavesAReceipt`.
+        """
         monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
         key = upt._write_gate_bypass_call_key("Write", "/x/y.py", "", "z")
         self._plant_sibling_receipt(key)
         monkeypatch.setattr(upt, "_HOOK_PROCESS_START_TIME", time.time() - 30.0)
 
         assert upt._consume_write_gate_bypass("/x/y.py", call_key=key) is True
-        log_file = (
-            tmp_path / ".claude" / "logs" / "activity" / f"{time.strftime('%Y-%m-%d')}.jsonl"
-        )
-        assert not log_file.exists(), (
+        log_file = _tmp_activity_log(tmp_path)
+        assert _records_in(log_file, ("write_gate_operator_bypass_consumed",)) == [], (
             "a deferring copy logged a consumption it never made"
+        )
+        assert len(_records_in(log_file, ("write_gate_operator_bypass_deferred",))) == 1, (
+            "the deferring copy granted the write and recorded nothing"
         )
 
     def test_claim_is_won_once_then_deferred(
@@ -747,6 +784,232 @@ class TestReclaimRaceAfterAStaleReceipt:
             f"not merely observe that a file exists"
         )
         assert not receipt.exists(), "a dead receipt must still be swept"
+
+
+class TestEveryGrantLeavesAReceipt:
+    """No path may GRANT the bypass and record nothing (PROJECT.md:25-26).
+
+    The Issue #1641 repair made consumption idempotent per logical tool call by
+    letting siblings honour the winner's receipt. That silenced the audit trail
+    for every copy but one: three separate paths in
+    ``_consume_write_gate_bypass`` return ``True`` — granting a write the gate
+    had already decided to refuse — without reaching
+    ``_log_write_gate_bypass_consumed``. A bypass that leaves no trace is the
+    cardinal defect here; the mission is a control that "left a receipt saying
+    so".
+
+    The three paths are covered individually below, because a repair that only
+    reached the one that is easiest to trigger would be scoped to that instance.
+    """
+
+    @staticmethod
+    def _plant_sibling_receipt(call_key: str, *, pid: int | None = None) -> Path:
+        receipt = upt._write_gate_bypass_receipt_path(call_key)
+        receipt.write_text(
+            json.dumps(
+                {"pid": os.getpid() + 1 if pid is None else pid, "consumed_at": time.time()}
+            )
+        )
+        return receipt
+
+    @staticmethod
+    def _receipt_false_once(monkeypatch: pytest.MonkeyPatch) -> None:
+        """Make the FIRST receipt read miss and every later one hit.
+
+        This is how the two harder-to-reach grant paths are driven: the early
+        check at the top of ``_consume_write_gate_bypass`` misses, and the
+        receipt is then found by the re-read (sentinel absent) or by the claim's
+        collision re-check (sentinel present). Both interleavings happen for
+        real in a fan-out; neither is reproducible by starting processes.
+        """
+        real = upt._read_write_gate_bypass_receipt
+        calls = {"n": 0}
+
+        def fake(call_key: str) -> bool:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return False
+            return real(call_key)
+
+        monkeypatch.setattr(upt, "_read_write_gate_bypass_receipt", fake)
+
+    def test_early_receipt_check_grant_is_recorded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PERMITTING arm, path 1: the sibling receipt found before the sentinel."""
+        monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
+        key = upt._write_gate_bypass_call_key("Write", "/x/early.py", "", "z")
+        self._plant_sibling_receipt(key)
+        monkeypatch.setattr(upt, "_HOOK_PROCESS_START_TIME", time.time() - 30.0)
+
+        assert upt._consume_write_gate_bypass("/x/early.py", call_key=key) is True
+
+        log_file = _tmp_activity_log(tmp_path)
+        deferred = _records_in(log_file, ("write_gate_operator_bypass_deferred",))
+        assert len(deferred) == 1, (
+            "a GRANTED bypass left no audit record: the early sibling-receipt "
+            "path returns True without logging anything. Records found: "
+            f"{_records_in(log_file, GRANT_EVENTS)}"
+        )
+        assert deferred[0]["file_path"] == "/x/early.py", deferred[0]
+        assert deferred[0]["call_key"] == key, deferred[0]
+        assert deferred[0]["winner_pid"] == os.getpid() + 1, deferred[0]
+        assert _records_in(log_file, ("write_gate_operator_bypass_consumed",)) == [], (
+            "a deferring copy must not claim it consumed the token"
+        )
+
+    def test_sentinel_absent_reread_grant_is_recorded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PERMITTING arm, path 2: receipt found only by the re-read after a miss."""
+        monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
+        key = upt._write_gate_bypass_call_key("Write", "/x/reread.py", "", "z")
+        self._plant_sibling_receipt(key)
+        monkeypatch.setattr(upt, "_HOOK_PROCESS_START_TIME", time.time() - 30.0)
+        self._receipt_false_once(monkeypatch)
+
+        assert not SENTINEL.exists(), "precondition: the sibling already unlinked it"
+        assert upt._consume_write_gate_bypass("/x/reread.py", call_key=key) is True
+
+        deferred = _records_in(
+            _tmp_activity_log(tmp_path), ("write_gate_operator_bypass_deferred",)
+        )
+        assert len(deferred) == 1, (
+            "the sentinel-absent re-read path granted a bypass and recorded nothing"
+        )
+        assert deferred[0]["call_key"] == key, deferred[0]
+
+    def test_claim_deferred_grant_is_recorded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PERMITTING arm, path 3: the claim collides and returns ``deferred``."""
+        monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
+        key = upt._write_gate_bypass_call_key("Write", "/x/claimed.py", "", "z")
+        self._plant_sibling_receipt(key)
+        monkeypatch.setattr(upt, "_HOOK_PROCESS_START_TIME", time.time() - 30.0)
+        self._receipt_false_once(monkeypatch)
+        SENTINEL.write_text("issue-1641 claim-deferred grant")
+
+        assert upt._consume_write_gate_bypass("/x/claimed.py", call_key=key) is True
+
+        log_file = _tmp_activity_log(tmp_path)
+        deferred = _records_in(log_file, ("write_gate_operator_bypass_deferred",))
+        assert len(deferred) == 1, (
+            "the claim-deferred path granted a bypass and recorded nothing"
+        )
+        assert deferred[0]["call_key"] == key, deferred[0]
+        assert _records_in(log_file, ("write_gate_operator_bypass_consumed",)) == [], (
+            "the deferring copy must not also log a consumption"
+        )
+        assert SENTINEL.exists(), (
+            "a copy that deferred to a sibling must not spend the token itself"
+        )
+
+    # -- NEGATIVE CONTROL -----------------------------------------------------
+    # Different shape from the bug: nothing is granted at all. A logger wired to
+    # fire unconditionally would satisfy every PERMITTING arm above and fail
+    # only here.
+
+    def test_a_refusal_records_no_grant_at_all(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """REFUSING arm: no sentinel, no receipt, no grant, therefore no record."""
+        monkeypatch.setattr("os.getcwd", lambda: str(tmp_path))
+        key = upt._write_gate_bypass_call_key("Write", "/x/refused.py", "", "z")
+
+        assert not SENTINEL.exists(), "precondition: nothing to consume"
+        assert not upt._write_gate_bypass_receipt_path(key).exists()
+        assert upt._consume_write_gate_bypass("/x/refused.py", call_key=key) is False
+
+        assert _records_in(_tmp_activity_log(tmp_path), GRANT_EVENTS) == [], (
+            "a REFUSED write produced a grant record. The audit trail now says "
+            "the operator was let through when they were not — a logger that "
+            "fires unconditionally is worse than one that never fires."
+        )
+
+    def test_a_refused_fanout_records_no_grant_at_all(self) -> None:
+        """REFUSING arm, second shape: the real gate, driven as N subprocesses."""
+        before = _activity_log_line_count()
+        results = _run_hook_fanout(_write_payload(GATED_CODE_PATH), copies=3)
+        assert [d for d, _r in results] == ["deny"] * 3, results
+        assert _grant_records_since(before) == [], (
+            "three copies all refused the write, yet a grant was recorded"
+        )
+
+
+class TestStagingFileIsCreatedExclusively:
+    """The claim's staging file must be created, never adopted (security audit).
+
+    ``_claim_write_gate_bypass_receipt`` stages the receipt at a DERIVABLE path
+    — the receipt name plus ``.staging.<pid>`` — and used to open it with
+    ``O_CREAT | O_TRUNC | O_WRONLY``. Without ``O_EXCL`` that open follows a
+    pre-planted symlink and truncates whatever it points at, with the hook's own
+    privileges. The failure semantics are unchanged: an open that cannot create
+    the file returns ``"unavailable"``, which only ever grants a bypass when the
+    real sentinel was already confirmed present.
+    """
+
+    @staticmethod
+    def _staging_path(call_key: str) -> Path:
+        receipt = upt._write_gate_bypass_receipt_path(call_key)
+        return receipt.with_name(f"{receipt.name}.staging.{os.getpid()}")
+
+    def test_positive_control_a_clean_staging_path_yields_a_won_claim(self) -> None:
+        """Without this, ``unavailable`` below is indistinguishable from always."""
+        key = upt._write_gate_bypass_call_key("Write", "/x/oexcl_clean.py", "", "z")
+        assert not self._staging_path(key).exists()
+        assert upt._claim_write_gate_bypass_receipt(key, "/x/oexcl_clean.py") == "won"
+        assert not self._staging_path(key).exists(), "staging must be cleaned up"
+
+    def test_a_pre_planted_regular_file_is_not_truncated(self) -> None:
+        """A file already at the staging path is left byte-for-byte intact."""
+        key = upt._write_gate_bypass_call_key("Write", "/x/oexcl_file.py", "", "z")
+        staging = self._staging_path(key)
+        canary = "issue-1641 O_EXCL canary — this content must survive\n" * 4
+        staging.write_text(canary)
+        try:
+            verdict = upt._claim_write_gate_bypass_receipt(key, "/x/oexcl_file.py")
+
+            assert verdict == "unavailable", (
+                f"claim returned {verdict!r}; an occupied staging path must not "
+                f"produce a claim"
+            )
+            assert staging.exists(), (
+                "the claim removed a file it did not create"
+            )
+            assert staging.read_text() == canary, (
+                "the staging open truncated a pre-existing file — O_EXCL is "
+                "missing from os.open in _claim_write_gate_bypass_receipt"
+            )
+            assert not upt._write_gate_bypass_receipt_path(key).exists(), (
+                "a receipt was published by a claim that never staged anything"
+            )
+        finally:
+            if staging.exists():
+                staging.unlink()
+
+    def test_a_pre_planted_symlink_does_not_reach_its_target(
+        self, tmp_path: Path
+    ) -> None:
+        """The attack itself: the symlink target must be untouched."""
+        key = upt._write_gate_bypass_call_key("Write", "/x/oexcl_link.py", "", "z")
+        staging = self._staging_path(key)
+        victim = tmp_path / "victim.txt"
+        victim_content = "operator data the hook has no business truncating\n"
+        victim.write_text(victim_content)
+        staging.symlink_to(victim)
+        try:
+            verdict = upt._claim_write_gate_bypass_receipt(key, "/x/oexcl_link.py")
+
+            assert verdict == "unavailable", verdict
+            assert victim.exists(), "the symlink target was removed"
+            assert victim.read_text() == victim_content, (
+                "the staging open followed a planted symlink and overwrote its "
+                "target — this is the TOCTOU the security audit flagged"
+            )
+        finally:
+            if os.path.islink(str(staging)):
+                os.unlink(str(staging))
 
 
 class TestCallKeyIdentity:

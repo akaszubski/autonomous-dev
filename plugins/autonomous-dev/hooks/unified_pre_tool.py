@@ -3017,6 +3017,10 @@ def _claim_write_gate_bypass_receipt(call_key: str, file_path: str) -> str:
     half-written receipt. (``O_CREAT | O_EXCL`` is atomic for the NAME only —
     the write that follows is not, which leaves exactly that window open.)
 
+    The staging file itself is opened ``O_CREAT | O_EXCL``: its path is
+    derivable, so it must be CREATED by this process, never adopted from
+    whatever already occupies the name.
+
     Args:
         call_key: Digest from :func:`_write_gate_bypass_call_key`.
         file_path: Target file, recorded in the receipt for forensics.
@@ -3038,9 +3042,24 @@ def _claim_write_gate_bypass_receipt(call_key: str, file_path: str) -> str:
         },
         separators=(",", ":"),
     )
+    # O_EXCL, not O_TRUNC: the staging path is DERIVABLE (receipt name +
+    # ".staging." + pid), so anything already sitting there was put there by
+    # someone else. Without O_EXCL this open follows a planted symlink and
+    # truncates its target with the hook's own privileges. With it, an occupied
+    # name simply fails to create and the claim reports "unavailable" — the
+    # pre-existing failure semantics, unchanged. Note that "unavailable" only
+    # ever grants a bypass when the real sentinel was already confirmed
+    # present, so this is not a fail-open on the decision.
+    try:
+        fd = os.open(str(staging), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except OSError:
+        # We did not create it, so we do not write it and we do not remove it.
+        # Unlinking here would delete an operator's file (or a symlink whose
+        # removal masks the attempt) on behalf of whoever planted it.
+        return "unavailable"
+
     try:
         try:
-            fd = os.open(str(staging), os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
             with os.fdopen(fd, "w") as handle:
                 handle.write(payload)
         except OSError:
@@ -3137,12 +3156,16 @@ def _consume_write_gate_bypass(file_path: str = "", *, call_key: str = "") -> bo
         the operation); False otherwise.
 
     Note:
-        Consumption is logged exactly once via
+        CONSUMPTION is logged exactly once via
         :func:`_log_write_gate_bypass_consumed` (Issue #1356), which records
         the scoped-escape reason and the sentinel's age. Siblings that defer to
-        a receipt consume nothing, so they log nothing. Removal of the sentinel
-        fails OPEN: a filesystem error unlinking it must not crash the hook,
-        and the bypass still counts as consumed.
+        a receipt consume nothing, so they never emit that event — but they do
+        GRANT the write, so they emit :func:`_log_write_gate_bypass_deferred`
+        instead. The two events are distinct on purpose: one token still
+        produces exactly one ``..._consumed`` record no matter how wide the
+        fan-out, while no path can grant a bypass and leave no trace at all.
+        Removal of the sentinel fails OPEN: a filesystem error unlinking it
+        must not crash the hook, and the bypass still counts as consumed.
     """
     skip_file = WRITE_GATE_BYPASS_SENTINEL
 
@@ -3150,6 +3173,7 @@ def _consume_write_gate_bypass(file_path: str = "", *, call_key: str = "") -> bo
     # spent the token. Honour its receipt so every copy of the hook returns the
     # same verdict for one PreToolUse event (Issue #1641).
     if call_key and _read_write_gate_bypass_receipt(call_key):
+        _log_write_gate_bypass_deferred(file_path, call_key)
         return True
 
     try:
@@ -3164,13 +3188,17 @@ def _consume_write_gate_bypass(file_path: str = "", *, call_key: str = "") -> bo
         # leaves a window in which this copy refuses a write already paid for.
         # The claim always publishes BEFORE unlinking, so an absent sentinel
         # caused by a sibling always has a receipt standing behind it.
-        return bool(call_key) and _read_write_gate_bypass_receipt(call_key)
+        if call_key and _read_write_gate_bypass_receipt(call_key):
+            _log_write_gate_bypass_deferred(file_path, call_key)
+            return True
+        return False
 
     if call_key:
         # Claim BEFORE logging and BEFORE unlinking: the receipt must be on disk
         # for the whole window in which the sentinel is gone, or a sibling would
         # find neither and refuse.
         if _claim_write_gate_bypass_receipt(call_key, file_path) == "deferred":
+            _log_write_gate_bypass_deferred(file_path, call_key)
             return True
 
     # Log BEFORE unlinking: the logger reads the sentinel's own contents as the
@@ -6575,6 +6603,74 @@ def _log_write_gate_bypass_consumed(file_path: str, skip_file: Path) -> None:
             f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
     except Exception:
         pass  # Fail silently to not disrupt the bypass flow
+
+
+def _log_write_gate_bypass_deferred(file_path: str, call_key: str) -> None:
+    """Log a write-gate bypass GRANTED by deferring to a sibling's receipt.
+
+    Companion to :func:`_log_write_gate_bypass_consumed`, deliberately under a
+    DISTINCT event name. Issue #1641 made consumption idempotent per logical
+    tool call: one copy of the fan-out spends the token and logs
+    ``write_gate_operator_bypass_consumed``, and every other copy grants the
+    same write by honouring that copy's receipt. Those deferred grants were
+    recorded nowhere — three paths in :func:`_consume_write_gate_bypass`
+    returned True without reaching any logger — so a permitted write left no
+    trace, which is the one thing this project's controls exist to prevent.
+
+    Folding deferrals into the consumed event instead would have been wrong: a
+    single token must still produce exactly one ``..._consumed`` record however
+    many copies Claude Code launches.
+
+    Args:
+        file_path: The target file being written/edited. Empty string when no
+            specific path applies.
+        call_key: Digest identifying the logical tool call, from
+            :func:`_write_gate_bypass_call_key`. Recorded so a deferral can be
+            tied back to the consumption it honoured.
+    """
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+
+        agent_name = _get_active_agent_name() or "main"
+
+        # Identify the copy whose consumption we are honouring. Both fields are
+        # best-effort: the winner may sweep its own receipt between our grant
+        # and this write. A grant with an unknown winner is still recorded —
+        # an incomplete record beats a missing one.
+        winner_pid = -1
+        receipt_age_seconds = -1.0
+        try:
+            receipt = _write_gate_bypass_receipt_path(call_key)
+            receipt_age_seconds = time.time() - receipt.stat().st_mtime
+            record = _json.loads(receipt.read_text())
+            if isinstance(record, dict) and isinstance(record.get("pid"), int):
+                winner_pid = int(record["pid"])
+        except Exception:
+            pass
+
+        log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        date_str = _dt.now().strftime("%Y-%m-%d")
+
+        entry = {
+            "timestamp": _dt.now(_tz.utc).isoformat(),
+            "event": "write_gate_operator_bypass_deferred",
+            "agent": agent_name,
+            "file_path": file_path or "(bash context)",
+            "call_key": call_key,
+            "winner_pid": winner_pid,
+            "pid": os.getpid(),
+            "receipt_age_seconds": (
+                round(receipt_age_seconds, 2) if receipt_age_seconds >= 0 else -1
+            ),
+            "session_id": _resolve_session_id_safe(_session_id) or "unknown",
+        }
+
+        with open(log_dir / f"{date_str}.jsonl", "a") as f:
+            f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
+    except Exception:
+        pass  # Fail silently — auditing must never disrupt the grant it records
 
 
 def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
