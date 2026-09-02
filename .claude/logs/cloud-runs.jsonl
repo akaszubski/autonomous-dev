@@ -1095,3 +1095,4 @@
 {"fire_id": "20260902T123847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "root_cause": "github_token_403_and_divergent_master", "rescue_branch": "cloud-rescue-force-push-victims-20260902T123847Z"}
 {"fire_id": "20260902T143749Z", "fired_at": "2026-09-02T14:38:11Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260902T143749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T183804Z", "fired_at": "2026-09-02T18:38:14Z", "selected_cluster": "none", "phase": "FIRE_START"}
