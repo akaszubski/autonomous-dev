@@ -68,6 +68,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import os
 from pathlib import Path
 from typing import Any, Dict, Tuple, List, Optional
@@ -2869,8 +2870,219 @@ def _has_significant_additions(old_string: str, new_string: str, file_path: str 
 #: advertises it cannot drift apart.
 WRITE_GATE_BYPASS_SENTINEL = Path("/tmp/skip_write_pipeline_gate")
 
+#: Wall-clock time at which THIS hook process began. Module import is the first
+#: thing a hook process does, so this is a faithful proxy for process start.
+#:
+#: It is the discriminator that tells a CONCURRENT sibling invocation of the
+#: same tool call apart from a LATER, separate tool call (Issue #1641). Claude
+#: Code merges hook registrations across settings surfaces and runs every match
+#: in parallel, so one PreToolUse event can spawn N copies of this hook. Sibling
+#: invocations all start BEFORE any of them consumes the token, so comparing
+#: start time to the receipt's mtime admits them; a tool call issued after the
+#: previous call's hooks returned starts after the mtime, so it is refused.
+#:
+#: What that is NOT: a proof that no later call can ever be admitted. The
+#: comparison is only ever reached for a receipt under the SAME ``call_key``,
+#: which requires byte-identical ``(tool_name, file_path, old_string,
+#: new_string)``. A separate, later call that replays an identical payload — an
+#: agent-side retry of the very same Write after a timeout, say — and whose
+#: hook process happens to start before the winning sibling's receipt mtime
+#: would be admitted as a sibling. The window is bounded by one hook's runtime
+#: (~1.7 s) and requires a full content collision, which is why this is judged
+#: an acceptable residual rather than a hole; it is a narrow precondition, not
+#: an impossibility. There is deliberately no arbitrary time window on top.
+_HOOK_PROCESS_START_TIME: float = time.time()
 
-def _consume_write_gate_bypass(file_path: str = "") -> bool:
+#: Upper bound on how long a consumption receipt is honoured. Receipts only
+#: ever need to outlive the slowest sibling in the same PreToolUse fan-out
+#: (the hook's own configured timeout is 20 s), so this is garbage-collection
+#: hygiene rather than the security boundary — the boundary is the process
+#: start-time comparison above, which no amount of elapsed time can satisfy
+#: for a later tool call.
+WRITE_GATE_BYPASS_RECEIPT_TTL_SECONDS = 60.0
+
+
+def _write_gate_bypass_call_key(
+    tool_name: str, file_path: str, old_string: str, new_string: str
+) -> str:
+    """Derive a stable identity for one logical Write/Edit tool call.
+
+    Every sibling invocation spawned for the same PreToolUse event receives a
+    byte-identical ``tool_input``, so hashing it yields the same key in each
+    copy of the hook without needing an event id the payload does not carry.
+
+    Args:
+        tool_name: The tool name ("Write" or "Edit").
+        file_path: The target file path.
+        old_string: The pre-edit content (empty for a new-file Write).
+        new_string: The post-edit content.
+
+    Returns:
+        A 32-character hex digest identifying this logical tool call.
+    """
+    import hashlib
+
+    digest = hashlib.sha256()
+    for part in (tool_name, file_path, old_string, new_string):
+        digest.update(str(part).encode("utf-8", "replace"))
+        digest.update(b"\x00")
+    return digest.hexdigest()[:32]
+
+
+def _write_gate_bypass_receipt_path(call_key: str) -> Path:
+    """Path of the consumption receipt for ``call_key``.
+
+    Derived from :data:`WRITE_GATE_BYPASS_SENTINEL` (never re-constructed from
+    a literal) and namespaced by uid so receipts cannot collide between users
+    on a shared ``/tmp``.
+
+    Args:
+        call_key: Digest from :func:`_write_gate_bypass_call_key`.
+
+    Returns:
+        The receipt file path.
+    """
+    try:
+        uid = os.getuid()  # type: ignore[attr-defined]
+    except AttributeError:  # pragma: no cover - non-POSIX
+        uid = 0
+    return WRITE_GATE_BYPASS_SENTINEL.with_name(
+        f".{WRITE_GATE_BYPASS_SENTINEL.name}.receipt.{uid}.{call_key}"
+    )
+
+
+def _read_write_gate_bypass_receipt(call_key: str) -> bool:
+    """Is there a receipt proving a CONCURRENT sibling already spent the token?
+
+    Four conditions must all hold. Any one of them failing means this is not a
+    sibling of the current tool call, and the receipt grants nothing:
+
+    1. The receipt exists, is owned by us, and parses.
+    2. It was written by a DIFFERENT process — a receipt never grants its own
+       author a second shot, which is what keeps the token one-shot for
+       repeated in-process calls.
+    3. This process started BEFORE the receipt was written. A sibling of the
+       same fan-out passes this; a later tool call issued after the previous
+       call's hooks returned fails it. See
+       :data:`_HOOK_PROCESS_START_TIME` for the residual this does NOT cover.
+    4. The receipt is within :data:`WRITE_GATE_BYPASS_RECEIPT_TTL_SECONDS`.
+
+    Args:
+        call_key: Digest from :func:`_write_gate_bypass_call_key`.
+
+    Returns:
+        True when the current invocation may honour the sibling's consumption.
+    """
+    receipt = _write_gate_bypass_receipt_path(call_key)
+    try:
+        stat_result = receipt.stat()
+    except OSError:
+        return False
+
+    age = time.time() - stat_result.st_mtime
+    if age > WRITE_GATE_BYPASS_RECEIPT_TTL_SECONDS or age < -WRITE_GATE_BYPASS_RECEIPT_TTL_SECONDS:
+        try:
+            receipt.unlink()  # stale garbage; never a valid grant
+        except OSError:
+            pass
+        return False
+
+    try:
+        if hasattr(os, "getuid") and stat_result.st_uid != os.getuid():
+            return False  # planted by someone else -> not auditable, not honoured
+    except OSError:
+        return False
+
+    try:
+        record = json.loads(receipt.read_text())
+    except (OSError, ValueError):
+        return False
+    if not isinstance(record, dict) or record.get("pid") == os.getpid():
+        return False
+
+    return _HOOK_PROCESS_START_TIME < stat_result.st_mtime
+
+
+def _claim_write_gate_bypass_receipt(call_key: str, file_path: str) -> str:
+    """Atomically claim the right to spend the one-shot token for this call.
+
+    Exactly one invocation in a fan-out can win, which is what keeps
+    consumption logged exactly once no matter how many copies of the hook
+    Claude Code launches.
+
+    The receipt is published by writing a private temp file and then
+    ``os.link``-ing it into place. ``link`` fails with ``FileExistsError`` when
+    the target exists, so it is the mutual exclusion; and because the content is
+    already complete before the name appears, a sibling can never observe a
+    half-written receipt. (``O_CREAT | O_EXCL`` is atomic for the NAME only —
+    the write that follows is not, which leaves exactly that window open.)
+
+    Args:
+        call_key: Digest from :func:`_write_gate_bypass_call_key`.
+        file_path: Target file, recorded in the receipt for forensics.
+
+    Returns:
+        ``"won"`` - this invocation holds the claim and MUST log and unlink.
+        ``"deferred"`` - a concurrent sibling holds it; grant without logging.
+        ``"unavailable"`` - no receipt could be published; the caller proceeds
+        as the sole consumer (fail-open: a receipt is coordination, not a gate).
+    """
+    receipt = _write_gate_bypass_receipt_path(call_key)
+    staging = receipt.with_name(f"{receipt.name}.staging.{os.getpid()}")
+    payload = json.dumps(
+        {
+            "pid": os.getpid(),
+            "consumed_at": time.time(),
+            "process_start": _HOOK_PROCESS_START_TIME,
+            "file_path": file_path,
+        },
+        separators=(",", ":"),
+    )
+    try:
+        try:
+            fd = os.open(str(staging), os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, "w") as handle:
+                handle.write(payload)
+        except OSError:
+            return "unavailable"
+
+        for _attempt in (0, 1):
+            try:
+                os.link(str(staging), str(receipt))
+                return "won"
+            except FileExistsError:
+                # Re-read on EVERY collision, never only the first. Two racers
+                # can both find the same STALE receipt, both sweep it, and one
+                # of them then win the re-link — so the second attempt can
+                # collide with a receipt that is now a legitimate sibling's.
+                # Checking only the first attempt would unlink that live receipt
+                # and return "unavailable", and this copy would go on to log a
+                # second consumption for a single token, breaking the
+                # log-exactly-once invariant this whole mechanism exists for.
+                if _read_write_gate_bypass_receipt(call_key):
+                    return "deferred"
+                # A receipt that fails the sibling test while the sentinel is
+                # still on disk is left over from an EARLIER consumption. Clear
+                # it and retry once, so a stale file cannot hand out a free
+                # bypass — nor block the fan-out that follows it.
+                try:
+                    receipt.unlink()
+                except FileNotFoundError:
+                    pass  # already swept by the staleness check — retry anyway
+                except OSError:
+                    return "unavailable"
+                continue
+            except OSError:
+                return "unavailable"
+        return "unavailable"
+    finally:
+        try:
+            staging.unlink()
+        except OSError:
+            pass
+
+
+def _consume_write_gate_bypass(file_path: str = "", *, call_key: str = "") -> bool:
     """Consume the one-shot operator bypass sentinel, if it is present.
 
     This is the SINGLE sanctioned consumption point for
@@ -2894,27 +3106,72 @@ def _consume_write_gate_bypass(file_path: str = "") -> bool:
     NOT consume it — there is nothing there to bypass. The Write/Edit gate is
     the sole consumer.
 
+    Issue #1641 — the second half of the defect, which the fix above did not
+    reach. ONE PreToolUse event does not mean ONE invocation of this hook.
+    Claude Code merges hook registrations across settings surfaces, and
+    ``unified_pre_tool.py`` is registered with matcher ``*`` in BOTH the
+    project ``.claude/settings.json`` and the user's ``~/.claude/settings.json``
+    — so a single Write spawned two concurrent copies. The production activity
+    log shows it plainly: at ``23:00:28.181`` copy A logged
+    ``write_pipeline_gate: operator_bypass`` and allowed; at ``23:00:28.548``
+    copy B, 367 ms behind and now looking at a ``/tmp`` with no sentinel in it,
+    logged ``BLOCKED ... Tier: full``. Claude Code takes the deny. The operator
+    watched the token vanish and the write refused anyway.
+
+    Consumption is therefore made idempotent PER LOGICAL TOOL CALL rather than
+    per process: the winner of an atomic claim spends and logs the token, and
+    every concurrent sibling of the SAME call honours its receipt. See
+    :func:`_read_write_gate_bypass_receipt` for why this cannot extend the
+    one-shot to a later tool call.
+
     Args:
         file_path: The target file being written/edited, recorded in the audit
             log. Empty string when no specific path applies.
+        call_key: Identity of the logical tool call, from
+            :func:`_write_gate_bypass_call_key`. Empty string disables sibling
+            coordination and restores strict per-process consumption — correct
+            for any caller that cannot identify its tool call.
 
     Returns:
-        True when the sentinel existed and has been consumed (the caller MUST
-        then allow the operation); False otherwise.
+        True when the bypass applies to this call (the caller MUST then allow
+        the operation); False otherwise.
 
     Note:
         Consumption is logged exactly once via
         :func:`_log_write_gate_bypass_consumed` (Issue #1356), which records
-        the scoped-escape reason and the sentinel's age. Removal of the
-        sentinel fails OPEN: a filesystem error unlinking it must not crash
-        the hook, and the bypass still counts as consumed.
+        the scoped-escape reason and the sentinel's age. Siblings that defer to
+        a receipt consume nothing, so they log nothing. Removal of the sentinel
+        fails OPEN: a filesystem error unlinking it must not crash the hook,
+        and the bypass still counts as consumed.
     """
     skip_file = WRITE_GATE_BYPASS_SENTINEL
+
+    # A concurrent sibling invocation of this same tool call may already have
+    # spent the token. Honour its receipt so every copy of the hook returns the
+    # same verdict for one PreToolUse event (Issue #1641).
+    if call_key and _read_write_gate_bypass_receipt(call_key):
+        return True
+
     try:
-        if not skip_file.exists():
-            return False
+        sentinel_present = skip_file.exists()
     except OSError:
-        return False  # cannot tell -> do not grant a bypass we cannot audit
+        sentinel_present = False  # cannot tell -> no bypass we cannot audit
+
+    if not sentinel_present:
+        # Re-read the receipt before refusing. A sibling may have published its
+        # receipt and unlinked the sentinel in the interval between our two
+        # reads — that interleaving is the whole bug, and checking only once
+        # leaves a window in which this copy refuses a write already paid for.
+        # The claim always publishes BEFORE unlinking, so an absent sentinel
+        # caused by a sibling always has a receipt standing behind it.
+        return bool(call_key) and _read_write_gate_bypass_receipt(call_key)
+
+    if call_key:
+        # Claim BEFORE logging and BEFORE unlinking: the receipt must be on disk
+        # for the whole window in which the sentinel is gone, or a sibling would
+        # find neither and refuse.
+        if _claim_write_gate_bypass_receipt(call_key, file_path) == "deferred":
+            return True
 
     # Log BEFORE unlinking: the logger reads the sentinel's own contents as the
     # scoped-escape reason (Issue #1408), so it must still be on disk.
@@ -3039,7 +3296,18 @@ def _check_write_pipeline_required(
     #
     # It also precedes the sliding-window bookkeeping so a bypassed edit does
     # not pollute the per-(session, file) ring buffer.
-    if _consume_write_gate_bypass(file_path):
+    #
+    # The call key (Issue #1641) makes the consumption idempotent across the
+    # several concurrent copies of this hook that one PreToolUse event spawns
+    # when the hook is registered on more than one settings surface. It is
+    # derived from the tool payload alone — deliberately NOT from session_id,
+    # which is not guaranteed identical between copies.
+    if _consume_write_gate_bypass(
+        file_path,
+        call_key=_write_gate_bypass_call_key(
+            tool_name, file_path, old_string or "", new_string or ""
+        ),
+    ):
         return (False, "operator_bypass", "")
 
     # Tier classification via AST-based classifier (Phase 1, #1142+).
