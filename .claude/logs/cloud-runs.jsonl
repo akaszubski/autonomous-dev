@@ -1087,3 +1087,4 @@
 {"fire_id": "20260902T023754Z", "phase": "FIRE_END", "exit_reason": "skipped_too_complex", "commit_sha": "", "cluster": "1651,1660", "skip_comments_posted": ["#1651", "#1660"]}
 {"fire_id": "20260902T043808Z", "fired_at": "2026-09-02T04:38:51Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260902T043808Z", "phase": "FIRE_END", "exit_reason": "skipped_duplicate_would_spam_1651_1660_have_8plus_identical_skips", "commit_sha": "", "note": "cluster #1651,#1660 always oldest; both have 8+ identical skip comments; selector needs blocked label or ordering fix"}
+{"fire_id": "20260902T063812Z", "fired_at": "2026-09-02T06:38:31Z", "selected_cluster": "none", "phase": "FIRE_START"}
