@@ -311,6 +311,22 @@ locked by `TestDeliberatelyNotShipped` and `TestHonestlyUnwired`, which go red
 the day a producer or a registration lands. Registration instructions are in the
 driver's module docstring.
 
+#### Not a hook: the append-writer ratchet (Issue #1718)
+
+`tests/unit/lib/test_append_writer_ratchet.py` is a shrink-only ratchet pinning
+the count of modules under `plugins/autonomous-dev/{lib,hooks}` that open a log
+file in append mode — not itself a hook, and not shipped in
+`install_manifest.json`. It is enforced as a step in the `smoke` job of
+`.github/workflows/ci.yml`, not on any lifecycle event: `tests/unit/` currently
+carries standing failures (#1719) that would make a refusal placed there
+unobservable, while `summary` gates merge on the smoke job's result
+independently. The pinned count and the AST detector that produces it are
+defined in the test module itself, not restated here — see the module docstring
+for the current figure and the sixth-in-a-family ceiling/high-water-mark design
+it shares with `test_vacuous_test_ratchet.py`, `test_anthropic_client_ratchet.py`,
+`test_hook_reachability_ratchet.py`, `test_refusal_sink_ratchet.py`, and
+`test_context_file_guard_ratchet.py`.
+
 ### PostToolUse
 
 | Hook | Purpose | Key Env Vars |

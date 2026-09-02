@@ -52,6 +52,20 @@ jobs:
           echo "Validating test categorization..."
           python scripts/validate_test_categorization.py --report
 
+      # Issue #1718. In the smoke job, NOT the unit tier: the unit tier's
+      # conclusion is `failure` today (78 standing failures, #1719), so a
+      # refusal landing there is unobservable. Same reasoning as the
+      # proof-of-block step below, without a script: this ratchet's pytest exit
+      # code IS the signal.
+      # No continue-on-error - an unpinned append writer must block merge.
+      # Quoted: an unquoted `(Issue #1718)` makes YAML read ` #1718)` as a
+      # comment and the step name silently truncates.
+      - name: "Append-mode writer ratchet (Issue #1718)"
+        run: |
+          echo "Checking the append-mode writer pin..."
+          python -m pytest tests/unit/lib/test_append_writer_ratchet.py \
+            -v --tb=short -o "addopts=" --timeout=30 --timeout-method=signal
+
       - name: Validate hook sidecar consistency
         run: |
           echo "Validating hook registration consistency..."
