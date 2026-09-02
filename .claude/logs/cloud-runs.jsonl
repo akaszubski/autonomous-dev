@@ -1085,3 +1085,4 @@
 {"fire_id": "20260902T003758Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260902T023754Z", "fired_at": "2026-09-02T02:38:37Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260902T023754Z", "phase": "FIRE_END", "exit_reason": "skipped_too_complex", "commit_sha": "", "cluster": "1651,1660", "skip_comments_posted": ["#1651", "#1660"]}
+{"fire_id": "20260902T043808Z", "fired_at": "2026-09-02T04:38:51Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
