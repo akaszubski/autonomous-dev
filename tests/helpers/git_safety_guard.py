@@ -58,6 +58,49 @@ _GIT_GLOBAL_OPTS_WITH_VALUE = frozenset(
 #: Git global options that name a working directory.
 _GIT_DIR_OPTS = frozenset({"-C", "--git-dir", "--work-tree"})
 
+#: Subcommands whose target directory is a POSITIONAL operand rather than a
+#: ``-C``/``--git-dir``/``--work-tree`` flag. ``git init /abs/path`` initialises
+#: that path regardless of where the interpreter is chdir'd, so it is not
+#: chdir-dependent and refusing it is a false positive -- one that cost 64
+#: failures in ``tests/regression/test_protect_sensitive_regression.py``, which
+#: passes 76/76 alone and fails only when this tier's session-scoped guard is
+#: already installed.
+#:
+#: A table, not an ``if``: the value is the 0-based index of the target among the
+#: non-flag operands, so adding a subcommand is a one-line edit here rather than a
+#: condition buried in the classifier.
+#:
+#: This does NOT weaken the guard. The value found here is fed back through the
+#: SAME absolute-path and real-repo checks as an explicit ``-C``: a relative
+#: positional target is still refused (it remains chdir-dependent), and
+#: ``git init <REAL_REPO_ROOT>`` is still refused.
+_POSITIONAL_TARGET_SUBCOMMANDS: Mapping[str, int] = {
+    "init": 0,  # git init [<directory>]
+    "clone": 1,  # git clone <repository> [<directory>]
+}
+
+
+def _positional_target_dir(subcommand: str, args: Sequence[str]) -> Optional[str]:
+    """Return the positional target directory named by ``subcommand``, if any.
+
+    Args:
+        subcommand: The git subcommand, e.g. ``"init"``.
+        args: The arguments following the subcommand.
+
+    Returns:
+        The operand naming the target directory, or None when this subcommand
+        takes no positional target or the operand is absent. The result is NOT
+        asserted to be safe -- the caller re-checks it exactly as it checks an
+        explicit ``-C`` directory.
+    """
+    index = _POSITIONAL_TARGET_SUBCOMMANDS.get(subcommand)
+    if index is None:
+        return None
+    operands = [token for token in args if not token.startswith("-")]
+    if index >= len(operands):
+        return None
+    return operands[index]
+
 #: Git subcommands that cannot mutate repository state. Everything else is
 #: treated as mutating (default-deny). See ``_READ_ONLY_WHEN`` for verbs that are
 #: read-only only in a particular form (``stash list``, ``config --get``, ...).
@@ -275,6 +318,11 @@ def assess_git_invocation(
             return None
 
     subcommand, args, explicit_dir = parsed
+    if explicit_dir is None:
+        # ``git init <dir>`` / ``git clone <repo> <dir>`` name their target
+        # positionally. Treated identically to ``-C`` from here on, including the
+        # relative-path and real-repo refusals below.
+        explicit_dir = _positional_target_dir(subcommand, args)
     if not _is_mutating(subcommand, args):
         return None
 

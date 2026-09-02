@@ -278,3 +278,81 @@ class TestClassificationControls:
         assert (REAL_REPO_ROOT / ".git").exists()
         assert (REAL_REPO_ROOT / "CLAUDE.md").exists()
         assert REAL_REPO_ROOT == Path(__file__).resolve().parents[2]
+
+
+class TestPositionalTargetIsAnExplicitDirectory:
+    """A positional target directory is as explicit as ``-C`` (2026-09-02).
+
+    ``git init <dir>`` and ``git clone <repo> <dir>`` name their target as a
+    POSITIONAL operand, not via ``-C``/``--git-dir``/``--work-tree``. The parser
+    read only the flag forms, so ``git init --quiet /abs/tmp/repo`` -- a call that
+    cannot resolve against the process CWD -- was refused.
+
+    Measured cost of that false positive: ``tests/regression/
+    test_protect_sensitive_regression.py`` passes 76/76 on its own and produced
+    **64 failures** whenever it ran after ``tests/integration/``, because this
+    tier's guard fixture is ``scope="session"`` and stays installed for every
+    later directory. That single false positive was ~6% of the whole suite's
+    failure count, and it was indistinguishable from 64 real defects.
+
+    The refusals below are the point: the fix routes the positional target
+    through the SAME checks as ``-C``, so nothing the guard existed to catch has
+    become permitted.
+    """
+
+    # --- the fix: CWD-independent calls are permitted -----------------------
+
+    def test_git_init_with_absolute_positional_target_is_permitted(self) -> None:
+        """``git init /abs/path`` initialises that path from any CWD."""
+        assert assess_git_invocation(["git", "init", "--quiet", "/tmp/gsg_repo"], {}) is None
+
+    def test_git_clone_with_absolute_destination_is_permitted(self) -> None:
+        """``git clone <repo> /abs/dest`` writes to dest from any CWD."""
+        reason = assess_git_invocation(
+            ["git", "clone", "https://example.com/r.git", "/tmp/gsg_clone"], {}
+        )
+        assert reason is None
+
+    def test_the_real_call_site_that_regressed_is_permitted(self) -> None:
+        """The exact argv from ``test_protect_sensitive_regression._init_repo``."""
+        argv = ["git", "init", "--quiet", "/tmp/pytest-of-x/test_x0/repo"]
+        assert assess_git_invocation(argv, {}) is None
+
+    # --- controls: the hazard is still refused ------------------------------
+
+    def test_control_absolute_positional_inside_real_repo_is_still_refused(self) -> None:
+        """The #1638 hazard itself. An absolute path is not automatically safe."""
+        reason = assess_git_invocation(["git", "init", str(REAL_REPO_ROOT)], {})
+        assert reason is not None
+
+    def test_control_relative_positional_target_is_still_refused(self) -> None:
+        """``git init subdir`` remains chdir-dependent, so it stays refused."""
+        reason = assess_git_invocation(["git", "init", "--quiet", "subdir"], {})
+        assert reason is not None
+
+    def test_control_git_init_naming_no_directory_is_still_refused(self) -> None:
+        """No operand means the CWD is the target -- the original hazard."""
+        assert assess_git_invocation(["git", "init", "--quiet"], {}) is not None
+
+    def test_control_git_clone_without_destination_is_still_refused(self) -> None:
+        """One operand is the source; the destination is CWD-derived."""
+        reason = assess_git_invocation(["git", "clone", "https://example.com/r.git"], {})
+        assert reason is not None
+
+    # --- control of a DIFFERENT shape than the bug --------------------------
+
+    def test_control_subcommand_with_no_positional_target_is_unaffected(self) -> None:
+        """``git commit`` takes no target dir; its operands must not be read as one.
+
+        Different shape from the bug on purpose: a fix that treated ANY absolute
+        operand as a directory would wrongly clear this, since ``-m`` messages and
+        pathspecs are operands too.
+        """
+        reason = assess_git_invocation(["git", "commit", "-m", "/tmp/looks_like_a_path"], {})
+        assert reason is not None
+
+    def test_control_the_table_is_the_only_source_of_truth(self) -> None:
+        """A tenth subcommand cannot hide in an ``if``; it must be in the table."""
+        from tests.helpers.git_safety_guard import _POSITIONAL_TARGET_SUBCOMMANDS
+
+        assert set(_POSITIONAL_TARGET_SUBCOMMANDS) == {"init", "clone"}
