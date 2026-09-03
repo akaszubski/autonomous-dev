@@ -32,28 +32,70 @@ echo "🔍 Checking for accidentally staged .claude/ files..."
 # to commit clean: a symlink to anywhere on the filesystem, landing under a
 # name Claude Code loads as live configuration (hooks, permissions.allow, MCP
 # allow/deny) and that CI parses as JSON. `--raw` carries the NEW mode as its
-# second field (`120000` symlink, `100644` regular file); awk pairs it with
-# the path so the exact match below is over `<path> <mode>`.
+# second field (`120000` symlink, `100644` regular file); claude_gate_scan
+# pairs it with the path so the exact match below is over `<path> <mode>`.
 #
 # A blanket symlink refusal would be WRONG here: .claude/PROJECT.md is itself
 # a symlink by design, and is the allowlist's own first entry. Each path is
 # therefore pinned to the one mode it is legitimately tracked at.
 #
-# Deletions (new mode `000000`) are dropped by awk and never reach the
+# Deletions (new mode `000000`) are dropped by the scan and never reach the
 # allowlist. A deletion stages no object, so it cannot carry the smuggled
 # content this gate exists to refuse; and removing a .claude/ path from
 # tracking is the remedy this gate asks for, not something it should refuse.
 #
-# Matching is exact whole-line via `grep -vxF`: -x anchors the pattern to the
-# entire line, -F takes it literally (so `.` is a dot, not any-char). The prior
-# form `grep -v "^\.claude/PROJECT.md"` was a PREFIX match with no end anchor, so
-# `.claude/PROJECT.md.bak` slipped through, and an entry for settings.json written
-# the same way would have permitted `.claude/settings.json.bak-20260903-081206`.
-# Exact match closes that class: non-matching paths fall through (fail-closed).
+# Matching is exact whole-line against three literal `<path> <mode>` strings.
+# The prior form `grep -v "^\.claude/PROJECT.md"` was a PREFIX match with no
+# end anchor, so `.claude/PROJECT.md.bak` slipped through, and an entry for
+# settings.json written the same way would have permitted
+# `.claude/settings.json.bak-20260903-081206`. Exact match closes that class:
+# non-matching paths fall through (fail-closed).
 #
-# The first `grep "^\.claude/"` deliberately STAYS a prefix match: it is the
-# SELECTOR deciding which staged paths are in this gate's domain, not the
-# allowlist. Two of the three entries have `!` negations at .gitignore:147-148
+# THREE GAPS CLOSED 2026-09-04. The form replaced here was, on one line:
+#   git diff --cached --raw | awk -F'\t' '...' | grep "^\.claude/" \
+#     | grep -vxF -e ... -e ... -e ...  || true
+#
+# GAP 1 — WHY `-z`. Without it git applies core.quotePath, which is ON by
+# default: any path holding a non-ASCII byte, a backslash, a double quote or a
+# control character is wrapped in double quotes and C-style-escaped, so it
+# arrives with a leading `"` and no longer matches a `^\.claude/` selector.
+# `.claude/café-évil.json` therefore left this gate's DOMAIN entirely and
+# committed clean with rc=0 — the gate never saw it, so it had nothing to
+# refuse. `-z` emits the raw undecoded bytes, NUL-terminated, and never quotes.
+# The same trap, with the same reasoning, is written up at
+# plugins/autonomous-dev/lib/git_operations.py:466-475.
+#
+# GAP 2 — WHY THE SELECTOR FOLDS CASE BUT THE ALLOWLIST DOES NOT. The old
+# selector was byte-exact while APFS folds case, so `.Claude/settings.json`
+# was not selected and committed clean with rc=0. The SELECTOR now folds —
+# `.[Cc][Ll][Aa][Uu][Dd][Ee]/*` — which WIDENS the gate's domain. The
+# ALLOWLIST stays byte-exact, so `.claude/SETTINGS.JSON` is now selected and
+# then REFUSED rather than permitted. That asymmetry is the whole fix: folding
+# the allowlist too would reopen the hole from the other side.
+#
+# GAP 3 — WHY THE RC IS CAPTURED WITH if/else. `set -e` is on at line 17 but
+# `pipefail` was not, and the pipeline ended in `|| true`. A git failure — a
+# corrupt index, a killed process — produced an empty capture indistinguishable
+# from "nothing staged", and the gate PERMITTED. `|| true` also clobbers
+# PIPESTATUS to `(0)`, and PIPESTATUS does not survive `$( )` anyway, so it
+# could not have been recovered. `set -o pipefail` DOES propagate into `$( )`,
+# so the status is now captured with the same if/else shape used at the pytest
+# gate below, and any non-zero status REFUSES. The scope is the five lines
+# around the capture, turned straight back off so the pipeline further down
+# this file is untouched.
+#
+# WHY R/C RECORDS CONSUME A SECOND PATH. `--raw -z` emits ONE NUL-terminated
+# metadata field followed by the path, and a SECOND path ONLY for rename/copy
+# statuses. There is no disambiguating NUL before path1, so the second path
+# must be consumed BEFORE any `continue`: a skip that left path2 in the stream
+# would have it misread as the NEXT record's metadata, silently dropping a
+# genuinely staged path. That exact desync already bit this repo once and is
+# written up at plugins/autonomous-dev/lib/git_operations.py:532-541. The path
+# this gate checks for a rename is the DESTINATION.
+#
+# The selector deliberately stays a PREFIX match (case-folded): it decides
+# which staged paths are in this gate's domain, not which are allowed. Two of
+# the three allowlist entries have `!` negations at .gitignore:147-148
 # excepting them from the `.claude/*` blanket at :146, and must agree with it;
 # cloud-runs.jsonl has NO negation and needs none — it is already tracked, and
 # gitignore does not apply to tracked files. Its absence is not a disagreement.
@@ -70,11 +112,89 @@ echo "🔍 Checking for accidentally staged .claude/ files..."
 #                                 with --no-verify was the prior workaround.
 # The two `100644` entries are tracked ONLY as regular files: either of them
 # staged as a symlink is refused, which is the exploit this pairing closes.
-STAGED_CLAUDE_FILES=$(git diff --cached --raw | awk -F'\t' '{split($1,m," "); if (m[2]=="000000") next; print ($3==""?$2:$3) " " m[2]}' | grep "^\.claude/" | grep -vxF -e ".claude/PROJECT.md 120000" -e ".claude/settings.json 100644" -e ".claude/logs/cloud-runs.jsonl 100644" || true)
-if [ -n "$STAGED_CLAUDE_FILES" ]; then
+#
+# Reads `git diff --cached --raw -z` on stdin and prints one `<path> <mode>`
+# line per offending staged path. Returns 3, never a partial answer, on any
+# stream it cannot account for.
+claude_gate_scan() {
+    local IFS=' '
+    local meta path dest newmode status entry
+    local -a fields
+    while true; do
+        meta=''
+        if ! IFS= read -r -d '' meta; then
+            if [ -n "$meta" ]; then
+                return 3
+            fi
+            return 0
+        fi
+        if ! IFS= read -r -d '' path; then
+            return 3
+        fi
+        fields=( $meta )
+        newmode=${fields[1]}
+        status=${fields[4]}
+        case "$newmode" in
+            [0-7][0-7][0-7][0-7][0-7][0-7]) ;;
+            *) return 3 ;;
+        esac
+        if [ -z "$status" ]; then
+            return 3
+        fi
+        case "$status" in
+            R*|C*)
+                if ! IFS= read -r -d '' dest; then
+                    return 3
+                fi
+                path="$dest"
+                ;;
+        esac
+        if [ "$newmode" = "000000" ]; then
+            continue
+        fi
+        case "$path" in
+            .[Cc][Ll][Aa][Uu][Dd][Ee]/*) ;;
+            *) continue ;;
+        esac
+        entry="$path $newmode"
+        case "$entry" in
+            ".claude/PROJECT.md 120000") continue ;;
+            ".claude/settings.json 100644") continue ;;
+            ".claude/logs/cloud-runs.jsonl 100644") continue ;;
+        esac
+        printf '%s %s\n' "$path" "$newmode"
+    done
+}
+
+set -o pipefail
+if CLAUDE_STAGED_FILES=$(git diff --cached --raw -z | claude_gate_scan); then
+    CLAUDE_SCAN_RC=0
+else
+    CLAUDE_SCAN_RC=$?
+fi
+set +o pipefail
+
+if [ "$CLAUDE_SCAN_RC" -ne 0 ]; then
+    echo ""
+    echo "❌ ERROR: the .claude/ staging gate could not read the index."
+    echo ""
+    echo "The scan exited $CLAUDE_SCAN_RC. This gate fails CLOSED: it refuses a"
+    echo "commit it was unable to inspect rather than permitting one it never"
+    echo "actually checked. Exit 3 means the --raw -z record stream was"
+    echo "malformed; any other status came from git itself (a corrupt index, a"
+    echo "killed process, a repository it could not open)."
+    echo ""
+    echo "REQUIRED NEXT ACTION — reproduce and read the raw stream:"
+    echo "  git diff --cached --raw -z | od -c | head"
+    echo ""
+    echo "Then repair the index (git reset, git fsck) and commit again."
+    exit 1
+fi
+
+if [ -n "$CLAUDE_STAGED_FILES" ]; then
     echo ""
     echo "❌ ERROR: Attempting to commit .claude/ files (should be gitignored):"
-    echo "$STAGED_CLAUDE_FILES"
+    echo "$CLAUDE_STAGED_FILES"
     echo ""
     echo "Listed above as '<path> <staged git mode>'. Everything else under"
     echo ".claude/ is generated/installed. Exactly three (path, mode) pairs are"
@@ -84,6 +204,7 @@ if [ -n "$STAGED_CLAUDE_FILES" ]; then
     echo "  .claude/logs/cloud-runs.jsonl 100644 (regular file)"
     echo "The match is exact (whole-line), so .claude/settings.json.bak is NOT"
     echo "allowed, and neither is .claude/settings.json staged as a symlink."
+    echo "The .claude/ prefix is matched case-insensitively; the allowlist is not."
     echo ""
     echo "To fix:"
     echo "  git reset HEAD .claude/  # Unstage these files"
