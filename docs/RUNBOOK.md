@@ -312,7 +312,7 @@ guards fail open silently:
 python3 plugins/autonomous-dev/scripts/proof_of_block.py --record --artifacts tests/proofs
 ```
 Commit the result at `tests/proofs/proof-of-block.json` — deliberately **not** under
-`.claude/proofs/` (the harness's own default `--record` target), which `.gitignore:147` ignores;
+`.claude/proofs/` (the harness's own default `--record` target), which `.gitignore:146` (`.claude/*`) ignores;
 a baseline recorded there could never be re-committed and the pin would go silently stale.
 
 **CI**: the `smoke` job in `.github/workflows/ci.yml` runs it with `continue-on-error: true`
