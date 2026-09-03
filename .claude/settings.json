@@ -1,0 +1,45 @@
+{
+  "description": "autonomous-dev project settings. Hooks and the deny list live in ~/.claude/settings.json \u2014 duplicating them here made every hook run twice (measured 2026-09-03). This file carries only what is specific to THIS repo. Committed via a .gitignore negation.",
+  "generated_by": "autonomous-dev",
+  "version": "2.0.0",
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_LOGS_EXPORTER": "console"
+  },
+  "disableClaudeAiConnectors": true,
+  "disableWorkflows": true,
+  "enabledMcpjsonServers": [
+    "serena"
+  ],
+  "deniedMcpServers": [
+    {
+      "serverName": "home-assistant"
+    },
+    {
+      "serverName": "hardened-workspace"
+    },
+    {
+      "serverName": "playwright"
+    },
+    {
+      "serverName": "unifi-network"
+    },
+    {
+      "serverName": "obsidian-mcp-tools"
+    },
+    {
+      "serverName": "obsidian-nbn"
+    },
+    {
+      "serverName": "semantica"
+    }
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/deploy-all.sh *)",
+      "Bash(pytest *)",
+      "Edit(.claude/plans/**)",
+      "Edit(.claude/decisions/**)"
+    ]
+  }
+}
