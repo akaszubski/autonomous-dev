@@ -1109,3 +1109,4 @@
 {"fire_id": "20260903T043912Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260903T083757Z", "fired_at": "2026-09-03T08:38:57Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "note": "urllib+REST 403 (GitHub app not connected here); using MCP tools for API calls"}
 {"fire_id": "20260903T103741Z", "fired_at": "2026-09-03T10:38:40Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "GITHUB_TOKEN len=14 placeholder; REST returned 403"}
+{"fire_id": "20260903T103741Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "GITHUB_TOKEN placeholder; REST 403"}
