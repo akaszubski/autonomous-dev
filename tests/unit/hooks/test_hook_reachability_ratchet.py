@@ -343,6 +343,30 @@ INVOCATION_CALLEES = frozenset(
     }
 )
 
+# Callees that LOAD a module out of a file path — the ``importlib`` route. The
+# whole set is one verb because it is the only one this repo uses; the count
+# was MEASURED, not assumed (``grep -c spec_from_file_location`` over
+# ``hooks/`` and ``lib/``).
+#
+# THE NAME ARGUMENT IS THE EDGE, NOT THE PATH ARGUMENT. By the ``importlib``
+# contract the FIRST POSITIONAL argument is the module name, and in every live
+# shape in this repo it is a string LITERAL. The path argument is not usable:
+# the three shapes in ``hooks/unified_pre_tool.py`` DIFFER, and only one of
+# them carries a ``.py`` literal at all —
+#
+#   :9249  spec_from_file_location("baseline_guardrail",
+#                                  str(_bg_lib_dir / "baseline_guardrail.py"))
+#   :8817  spec_from_file_location("prompt_quality_rules", str(_pq_mod_path))
+#   :93    spec_from_file_location("python_write_detector", str(_detector_path))
+#
+# — and even that one nests its literal inside a ``str()`` Call, which
+# ``_argument_constants`` deliberately STOPS at (see its docstring: that
+# stop-at-nested-call rule is #1612's BLOCKING-2 protection and must not be
+# widened, or a ``.py`` filename inside ``print()`` or ``raise`` grounds a
+# module again). The other two carry no literal path whatsoever. What all
+# three share is the name.
+MODULE_LOADER_CALLEES = frozenset({"spec_from_file_location"})
+
 # Every hook below fails BOTH available routes: no lifecycle registration, and a
 # ``utility`` declaration with no importer or invoker anywhere in the corpus.
 _UNREGISTERED_UTILITY = frozenset(
@@ -1148,12 +1172,25 @@ LIBRARY_CONSUMER_GLOBS = (
 #: ``docs/**/*.md`` is DELIBERATELY absent. Eleven modules are "invoked"
 #: only inside documentation prose; crediting that would make a tutorial
 #: a reachability route. Those are #1690's subject, not this one's.
+#:
+#: ``scripts/*.py`` is NON-RECURSIVE, deliberately. A repo-root script is
+#: operator-invoked on exactly the same authority as the ``scripts/**/*.sh``
+#: two lines above it — ``scripts/improve_reviewer.py`` and
+#: ``scripts/run_reviewer_benchmark.py`` are run by hand, and their plain
+#: ``from X import`` lines are the ONLY consumers three library modules
+#: have. Widening to ``scripts/**/*.py`` would additionally ground
+#: ``scripts/verification/verify_issue94_tdd_red.py``, which is already
+#: stale (it references ``tests/unit/hooks/test_git_hooks_issue94.py``, a
+#: file that does not exist) — a stale verifier must not vouch for
+#: anything. Do NOT confuse this tuple with ``INVOKER_CORPUS_GLOBS``: that
+#: one serves the HOOK rule and its scripts globs are unrelated to this.
 LIBRARY_ENTRY_SURFACE_GLOBS = (
     "plugins/autonomous-dev/commands/*.md",
     "plugins/autonomous-dev/agents/*.md",
     "plugins/autonomous-dev/hooks/**/*.sh",
     "scripts/**/*.sh",
     "scripts/hooks/*",
+    "scripts/*.py",
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
 )
@@ -1227,7 +1264,8 @@ _SHELL_INVOCATION_ANY = re.compile(
 #:
 #: MEASURED 2026-08-28 — THIS ARM IS FORWARD HEADROOM, NOT LOAD-BEARING.
 #: Replacing this pattern with a never-matching one and re-walking the live
-#: tree changes the answer by **0 modules** (132 UNKNOWN either way, empty
+#: tree changes the answer by **0 modules** (re-measured 2026-09-04 after
+#: the #1723 repairs: 121 UNKNOWN either way, empty
 #: delta). It does credit 7 modules — ``genai_validate.py``, ``goa_cli.py``,
 #: ``hook_path_validator.py``, ``retrofit_executor.py``,
 #: ``sync_dispatcher.py``, ``validator_diversity.py``,
@@ -1478,10 +1516,12 @@ def _python_referenced_stems(source: str) -> "set[str]":
         source: Python source text.
 
     Returns:
-        Stems named by an import, or by a ``.py`` filename passed to an
-        INVOCATION-shaped call (``INVOCATION_CALLEES``). A syntax error
-        yields the empty set: an unreadable file vouches for nothing,
-        and never counts as proof that anything is dead.
+        Stems named by an import, by a ``.py`` filename passed to an
+        INVOCATION-shaped call (``INVOCATION_CALLEES``), or by the FIRST
+        POSITIONAL name argument of a MODULE-LOADER call
+        (``MODULE_LOADER_CALLEES`` — the ``importlib`` route). A syntax
+        error yields the empty set: an unreadable file vouches for
+        nothing, and never counts as proof that anything is dead.
     """
     try:
         with warnings.catch_warnings():
@@ -1501,7 +1541,23 @@ def _python_referenced_stems(source: str) -> "set[str]":
             if node.module:
                 found.add(node.module.rsplit(".", 1)[-1])
         elif isinstance(node, ast.Call):
-            if _callee_name(node) not in INVOCATION_CALLEES:
+            callee = _callee_name(node)
+            if callee in MODULE_LOADER_CALLEES:
+                # The importlib route. Read the FIRST POSITIONAL argument
+                # only, and only when it is a string literal: by the
+                # ``importlib`` contract that argument IS the module name.
+                # See MODULE_LOADER_CALLEES for why the path argument cannot
+                # be used and why ``_argument_constants`` must NOT be widened
+                # to reach it.
+                if node.args and isinstance(node.args[0], ast.Constant):
+                    name = node.args[0].value
+                    if isinstance(name, str) and name:
+                        stem = name.rsplit("/", 1)[-1]
+                        if stem.endswith(".py"):
+                            stem = stem[: -len(".py")]
+                        found.add(stem.rsplit(".", 1)[-1])
+                continue
+            if callee not in INVOCATION_CALLEES:
                 continue
             for constant in _argument_constants(node):
                 for token in re.findall(r"([\w.\-]+)\.py\b", constant):
@@ -1813,7 +1869,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "auto_implement_pipeline.py",
     "auto_inject_memory.py",
     "auto_install_deps.py",
-    "baseline_guardrail.py",
     "batch_agent_verifier.py",
     "batch_git_finalize.py",
     "batch_mode_detector.py",
@@ -1831,7 +1886,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "complexity_assessor.py",
     "comprehensive_doc_validator.py",
     "context_budget_monitor.py",
-    "context_skill_injector.py",
     "coordinator_log.py",
     "copy_system.py",
     "daily_aggregate_manager.py",
@@ -1847,7 +1901,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "feature_dependency_analyzer.py",
     "file_discovery.py",
     "flaky_tests.py",
-    "git_hooks.py",
     "github_issue_fetcher.py",
     "hardware_calibrator.py",
     "headless_mode.py",
@@ -1873,11 +1926,9 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "math_utils.py",
     "mcp_permission_validator.py",
     "mcp_profile_manager.py",
-    "mcp_server_detector.py",
     "memory_formatter.py",
     "memory_layer.py",
     "memory_relevance.py",
-    "native_tools.py",
     "orchestrator.py",
     "parallel_validation.py",
     "performance_profiler.py",
@@ -1885,15 +1936,11 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "plugin_updater.py",
     "pool_config.py",
     "project_md_parser.py",
-    "prompt_quality_rules.py",
-    "python_write_detector.py",
     "qa_self_healer.py",
     "ralph_loop_manager.py",
     "realign_orchestrator.py",
     "retrofit_verifier.py",
     "retrospective_analyzer.py",
-    "reviewer_benchmark.py",
-    "reviewer_weakness_analyzer.py",
     "runtime_verification_classifier.py",
     "scope_detector.py",
     "search_utils.py",
@@ -1901,7 +1948,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "session_resource_manager.py",
     "session_state_manager.py",
     "session_telemetry_reader.py",
-    "skill_evaluator.py",
     "skill_loader.py",
     "staging_manager.py",
     "status_tracker.py",
@@ -1925,7 +1971,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "version_detector.py",
     "worker_consistency_validator.py",
     "workflow_coordinator.py",
-    "workflow_tracker.py",
     "workflow_violation_logger.py",
 })
 
@@ -1985,7 +2030,27 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        It is nonetheless kept for ``.sh``/``.yml``/settings commands,
 #        where line-start genuinely IS command position and #1612's shell
 #        arms prove it must resolve.
-LIBRARY_REACHABILITY_CEILING = 132
+#   121  Issue #1723. A LOWER, and the first time this ratchet has moved
+#        DOWN since it was pinned. Two repairs plus five deletions, all
+#        attributed BY SET:
+#          -6 REACHED, because the walk gained two carriers it never had.
+#            ``MODULE_LOADER_CALLEES`` (the ``importlib`` route):
+#            baseline_guardrail.py and prompt_quality_rules.py, each
+#            ``referenced by unified_pre_tool.py``; python_write_detector
+#            .py, ``referenced by tool_intent.py``. ``scripts/*.py`` as
+#            an entry surface: reviewer_benchmark.py and skill_evaluator
+#            .py, ``referenced by run_reviewer_benchmark.py``;
+#            reviewer_weakness_analyzer.py, ``referenced by
+#            improve_reviewer.py``. Every route is the string the walk
+#            itself printed, not a predicted one.
+#          -5 DELETED, having no consumer in ANY of the now-five styles:
+#            workflow_tracker.py, mcp_server_detector.py,
+#            context_skill_injector.py, git_hooks.py, native_tools.py
+#            (1,646 lines).
+#        NOTHING moved UNKNOWN -> pinned in the other direction: the
+#        measured ``live - pin`` difference set is EMPTY, so the two
+#        repairs credited exactly six modules and over-credited none.
+LIBRARY_REACHABILITY_CEILING = 121
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -1994,7 +2059,7 @@ LIBRARY_REACHABILITY_CEILING = 132
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 132
+LIBRARY_CEILING_HIGH_WATER_MARK = 121
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.
@@ -5203,6 +5268,108 @@ class TestLibraryBothArmsOnSyntheticCorpora:
             "a docs/ code block grounded a module. That is #1690's "
             "finding, and crediting it here would clear eleven orphans "
             "with nothing running them."
+        )
+
+    # -----------------------------------------------------------------
+    # The importlib carrier (MODULE_LOADER_CALLEES) and the repo-root
+    # script entry surface (``scripts/*.py``). Both arms of each, and
+    # every one drives ``unreached_library_modules`` — the LIVE entry
+    # point — never ``_python_referenced_stems`` directly.
+    # -----------------------------------------------------------------
+
+    def test_permitting_arm_importlib_spec_from_file_location(self, tmp_path):
+        """PERMITTING. ``spec_from_file_location`` IS an invocation route.
+
+        The shape ``hooks/unified_pre_tool.py`` uses in three places. The
+        walk read imports and subprocess verbs only, so three modules
+        loaded exclusively this way were pinned as unreached while
+        running on every PreToolUse event.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "target.py")
+        self._module(
+            lib,
+            "loader.py",
+            "import importlib.util\n"
+            "from pathlib import Path\n"
+            "d = Path(__file__).parent\n"
+            "spec = importlib.util.spec_from_file_location("
+            '"target", str(d / "target.py"))\n',
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "```bash\npython3 plugins/autonomous-dev/lib/loader.py\n```\n",
+        )
+        assert self._unknown(root) == [], (
+            "a module loaded through importlib from a grounded consumer "
+            "was classified UNKNOWN. That is the blind spot this carrier "
+            "exists to close."
+        )
+
+    def test_refusing_arm_a_py_filename_in_a_print_grounds_nothing(self, tmp_path):
+        """REFUSING, and it guards #1612's BLOCKING-2 directly.
+
+        The IDENTICAL tree, with the loader call replaced by a ``print``
+        naming the same ``.py`` file. If widening the loader route also
+        widened ``_argument_constants``, one line of prose would ground
+        a module again and this arm goes green when it must not.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "target.py")
+        self._module(
+            lib,
+            "loader.py",
+            'print("target.py is deprecated")\n',
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "```bash\npython3 plugins/autonomous-dev/lib/loader.py\n```\n",
+        )
+        assert self._unknown(root) == ["target.py"], (
+            "a `.py` filename inside print() grounded the module. "
+            "_argument_constants' stop-at-nested-call rule has regressed "
+            "and prose confers reachability again (#1612 BLOCKING-2)."
+        )
+
+    def test_permitting_arm_a_repo_root_script_is_an_entry_surface(self, tmp_path):
+        """PERMITTING. ``scripts/*.py`` runs on operator authority.
+
+        Same authority as the ``scripts/**/*.sh`` already in the tuple.
+        Three modules were pinned unreached whose only consumers are
+        plain ``from X import`` lines in repo-root scripts.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "target.py")
+        scripts = root / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "tool.py").write_text(
+            "from target import run\n\nprint(run())\n", encoding="utf-8"
+        )
+        assert self._unknown(root) == [], (
+            "a module imported by a repo-root script was classified "
+            "UNKNOWN. scripts/*.py is not being read as an entry surface."
+        )
+
+    def test_refusing_arm_a_nested_script_is_not_an_entry_surface(self, tmp_path):
+        """REFUSING. The glob is NON-RECURSIVE on purpose.
+
+        The identical import, one directory deeper. ``scripts/**/*.py``
+        would ground ``scripts/verification/verify_issue94_tdd_red.py``,
+        which is itself stale — a stale verifier must vouch for nothing.
+        """
+        root, lib = self._repo(tmp_path)
+        self._module(lib, "target.py")
+        nested = root / "scripts" / "verification"
+        nested.mkdir(parents=True)
+        (nested / "tool.py").write_text(
+            "from target import run\n\nprint(run())\n", encoding="utf-8"
+        )
+        assert self._unknown(root) == ["target.py"], (
+            "a nested script grounded a module. The entry-surface glob "
+            "has been widened to scripts/**/*.py, which credits stale "
+            "verifiers as invocation routes."
         )
 
 

@@ -255,7 +255,13 @@ Three pre-configured security profiles:
 
 **Lifecycle**: `PreToolUse` (intercepts all MCP tool calls BEFORE execution)
 
-**Logic**:
+**Logic** (illustrative of the original design intent — **not** a transcript of
+the live function; `detect_mcp_server()` and the `.mcp/security_policy.json`
++ `load_policy()` / `validate_*_operation()` flow shown here were never
+implemented in `unified_pre_tool.py`. The actual live function is
+`validate_mcp_security(tool_name, tool_input)`, which dispatches on the
+literal `mcp__<server>__<tool>` name prefix against hardcoded registries —
+see the "Directory Structure" note above):
 ```python
 def on_pre_tool_use(tool: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -307,11 +313,14 @@ def on_pre_tool_use(tool: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
 
 plugins/autonomous-dev/
 ├── lib/
-│   ├── mcp_permission_validator.py    # Core validation logic
-│   ├── mcp_profile_manager.py         # Profile initialization
-│   └── mcp_server_detector.py         # Server type detection (NEW)
+│   ├── mcp_permission_validator.py    # Policy-driven validation logic (not
+│   │                                   # currently imported by unified_pre_tool.py
+│   │                                   # — see "Hook Integration" note below)
+│   └── mcp_profile_manager.py         # Profile initialization
 ├── hooks/
-│   └── mcp_security_enforcer.py       # PreToolUse hook
+│   └── unified_pre_tool.py            # Live PreToolUse gate (tool-name-prefix
+│                                       # dispatch, see validate_mcp_security())
+│   └── archived/mcp_security_enforcer.py  # Archived 2026-01-09, Issue #211
 └── config/
     └── mcp_default_policy.json        # Factory default policy
 

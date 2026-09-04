@@ -1,7 +1,7 @@
 """Regression tests for enforcement skills rebuild (Issue #361).
 
 Validates that 4 rebuilt skills have enforcement content, agents reference them,
-all active skills have enforcement language, and context_skill_injector is updated.
+and all active skills have enforcement language.
 """
 
 import re
@@ -148,32 +148,13 @@ class TestAllActiveSkillsHaveEnforcement:
         )
 
 
-class TestContextSkillInjectorPatterns:
-    """context_skill_injector.py must map keywords to new skills."""
-
-    EXPECTED_MAPPINGS = [
-        ("review", "code-review"),
-        ("doc", "documentation-guide"),
-        ("research", "research-patterns"),
-        ("architecture", "architecture-patterns"),
-    ]
-
-    def test_injector_file_exists(self) -> None:
-        """context_skill_injector.py must exist."""
-        injector = LIB_DIR / "context_skill_injector.py"
-        assert injector.exists(), f"Not found: {injector}"
-
-    @pytest.mark.parametrize("trigger,skill_name", EXPECTED_MAPPINGS)
-    def test_injector_has_mapping(self, trigger: str, skill_name: str) -> None:
-        """Injector must map '{trigger}' to '{skill_name}'."""
-        injector = LIB_DIR / "context_skill_injector.py"
-        if not injector.exists():
-            pytest.skip("context_skill_injector.py not found")
-        content = injector.read_text()
-        assert skill_name in content, (
-            f"context_skill_injector.py does not contain '{skill_name}' mapping"
-        )
-
+# REMOVED: TestContextSkillInjectorPatterns (4 mapping cases + an
+# existence check). It asserted that lib/context_skill_injector.py maps
+# keyword triggers to the four skills rebuilt for #361. That module was
+# deleted as unreached — no consumer in any invocation style — so the
+# class was asserting over a file that no longer ships. The #361
+# incident value lives in the enforcement-language class above and in
+# TestSkillCountAccuracy below; neither depends on the injector.
 
 class TestSkillCountAccuracy:
     """CLAUDE.md component counts must match actual skill count."""

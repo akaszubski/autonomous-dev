@@ -225,26 +225,31 @@ BRAVE_API_KEY=your_api_key_here
 
 ### Server Type Detection
 
-The system automatically detects which MCP server is being called based on tool names and parameters.
+**Correction (2026-09-04)**: An earlier revision of this section documented
+`plugins/autonomous-dev/lib/mcp_server_detector.py` as a live "Detection
+Library" that classified MCP calls by server type before validation. That
+module was deleted in the September 2026 dead-code sweep (reachability
+ratchet #1704/#1660): a repo-wide audit found it was never imported by
+`unified_pre_tool.py` or any other executing path — it had no route from any
+entry point. No server-type-detection control has ever gated MCP calls.
 
-**Detection Library**: `plugins/autonomous-dev/lib/mcp_server_detector.py`
+**What actually gates MCP tool calls today**: `unified_pre_tool.py` matches
+the literal `mcp__<server>__<tool>` name against hardcoded registries —
+`NATIVE_TOOLS` (skips non-MCP tools), the MCP-read allowlist sourced from
+`tool_intent.MCP_READ_TOOLS`, and the `_MCP_SIDE_EFFECT_TOOLS` denylist for
+tools that act without a path/content shape (e.g.
+`mcp__playwright__browser_evaluate`, `mcp__claude_ai_Gmail__send_message`) —
+plus `validate_mcp_security()`, which dispatches to an optional
+`mcp_security_validator` module if present. There is no runtime server-type
+classifier in the live path; dispatch is on the tool name prefix itself.
 
-**Example**:
-```python
-from autonomous_dev.lib.mcp_server_detector import detect_mcp_server
-
-# Filesystem detection
-result = detect_mcp_server("read_file", {"path": "src/main.py"})
-# Returns: MCPServerType.FILESYSTEM
-
-# Bash detection
-result = detect_mcp_server("run_command", {"command": "git status"})
-# Returns: MCPServerType.BASH
-
-# GitHub detection
-result = detect_mcp_server("create_issue", {"owner": "user", "repo": "proj", "title": "Bug"})
-# Returns: MCPServerType.GITHUB
-```
+**Note for auditors**: `plugins/autonomous-dev/lib/mcp_permission_validator.py`
+and `mcp_profile_manager.py` still exist and implement policy-driven
+filesystem/shell/network validation, but as of this correction neither is
+imported by `unified_pre_tool.py`'s live dispatch — they are reachable only
+via the archived `mcp_security_enforcer.py` and test suites. Treat the
+policy-file examples below (`.mcp/security_policy.json`) as the *intended*
+schema for that validator, not confirmation it is invoked on every MCP call.
 
 ---
 
