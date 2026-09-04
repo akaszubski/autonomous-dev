@@ -22,6 +22,13 @@ Deploys the plugin to all configured targets: local machine + all dogfooding rep
 
 **Default behavior (Issue #995)**: Hook FILES are cached to `~/.claude/hooks/` (library cache for future foreign-repo opt-in), but hooks are **NOT** registered in `~/.claude/settings.json` by default. Per-repo `<repo>/.claude/settings.json` registration is unchanged — autonomous-dev itself continues to work. To also register hooks globally, pass `--global-settings`.
 
+**Global sync (`~/.claude/{hooks,lib,config}`) now DELETES on prune, not just copies (Issue #1610 follow-up)**: `rsync -a --delete --max-delete=50 --exclude=extensions/ --exclude='.claude/'` runs the global sync for each of `hooks`, `lib`, `config`. Before this change the global sync was copy-only — a module removed from source stayed on disk and importable via the `sys.path` fallback, forever, with the script still printing `ALL VALIDATIONS PASSED`. Three operator-visible consequences:
+- **Not transactional.** If pruning a subdir would exceed `--max-delete=50`, the script REFUSES (treats it as an accidental wipe — largest legitimate deletion evidenced so far is 5 files) and exits 1, but rsync does not roll back: files already deleted before the cap was hit stay deleted. A refusal does not mean "nothing happened."
+- **A source subdir with zero regular files is refused outright** before rsync runs at all (a pre-flight `find`-based check), even though rsync itself would have handled an empty directory safely — this fails closed on the theory that an empty `hooks/`/`lib`/`config` almost always means an incomplete checkout, not an intentional empty component.
+- **`--exclude='.claude/'` protects runtime state by directory match only** — it is not a general "anything named .claude is safe" rule. A plain file or symlink literally named `.claude` inside a deployed subdir would not be protected; the real telemetry directories hooks write under their own cwd (e.g. `~/.claude/hooks/.claude/logs/`) are.
+
+**This delete behavior is LOCAL-ONLY, and deliberately asymmetric with remote.** The per-repo local sync already had `--delete` before this change; the global sync above gained it here. The Mac Studio remote sync (`deploy-all.sh --remote`) still does not use `--delete` — a module deleted from source still survives in the remote `~/.claude` and in each remote repo's `.claude/` today. This is a known, explicit gap (not an oversight): adding `--delete` to the remote path would newly remove consumer-local files across five remote repos, which the fix that added remote parity checking did not ask for.
+
 **Flags:**
 - `--global-settings` — opt-in: register hooks in `~/.claude/settings.json` (Issue #995)
 - `--no-global` — skip global `~/.claude/` sync entirely (takes precedence over `--global-settings`)
@@ -29,6 +36,7 @@ Deploys the plugin to all configured targets: local machine + all dogfooding rep
 - `--remote` — Mac Studio only
 - `--dry-run` — preview without writing
 - `--skip-validate` — skip post-deploy validation
+- `--dirty` — ship uncommitted work (Issue #1610); without it, a dirty deployed subdir is refused since this script copies the working tree, so uncommitted code would reach the executing hook stack unreviewed
 
 **Environment:**
 - `REMOTE_HOST` — override remote target (default: auto-detect)

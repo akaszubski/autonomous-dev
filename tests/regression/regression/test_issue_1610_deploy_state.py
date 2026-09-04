@@ -2183,3 +2183,412 @@ def test_a_remote_failure_still_lets_local_validation_run(source_repo: Path):
     assert "$REMOTE_FAILED; then" in text and "exit 1" in text[validation:], (
         "a remote failure must still fail the command at the end"
     )
+
+
+# --------------------------------------------------------------------------
+# 24. The global target is the one LOCAL transport that never deleted
+#
+# ``7c3a527e`` deleted five lib modules. ``bash scripts/deploy-all.sh`` printed
+# ALL VALIDATIONS PASSED and all five survived in ``~/.claude/lib/``: the
+# per-repo transport (:281) carries ``--delete``, ``deploy_global`` (:241) did
+# not. ``sys.path`` falls back to ``~/.claude/lib``, so
+# ``import workflow_tracker`` still resolved a module present in no source tree
+# and in no consumer repo. ``deploy_state.py:608-609`` already recorded the
+# cause in prose; #1610 built the detector and chose to REPORT. This closes the
+# refusing half, for the LOCAL global target only. The remote global target
+# (:490) keeps the identical defect deliberately (:391-394) and is a follow-up.
+#
+# NOVELTY, stated rather than assumed. The tests below are the first in this
+# suite that run the real ``deploy-all.sh`` all the way into ``deploy_global()``
+# and let it WRITE to a filesystem. (Two earlier invocations here are already
+# non-dry-run --- ``_capture_remote_script`` and
+# ``test_remote_deploy_script_gates_and_stamps`` --- but they pass ``--remote``,
+# which sets ``DO_GLOBAL=false`` and ``DO_LOCAL=false``, and their ``ssh`` is
+# shimmed, so nothing is ever written locally. Every OTHER invocation of the
+# script in the suite passes ``--dry-run``.) What bounds the risk here:
+#
+#   * ``HOME`` is overridden to a pytest ``tmp_path`` subdirectory, and
+#     ``_assert_sandboxed_home`` refuses to run if it resolves to the real one.
+#   * ``deploy_global`` writes only under ``$GLOBAL_DEST/$subdir/`` where
+#     ``GLOBAL_DEST="$HOME/.claude"``.
+#   * ``LOCAL_REPOS`` names a repo that does not exist, so ``deploy_repo``
+#     prints SKIP and touches nothing; ``--local`` disables the remote path.
+#
+# Every assertion below is on a FILESYSTEM EFFECT. The one structural test is
+# marked as such and says why it could not have caught this bug.
+# --------------------------------------------------------------------------
+
+
+def _assert_sandboxed_home(home: Path) -> None:
+    """Refuse to run a destructive deploy against anything but a sandbox.
+
+    A test that escapes into the real ``$HOME`` is worse than the bug it is
+    chasing, so this is checked before every invocation rather than trusted.
+    """
+    real_home = Path(os.path.expanduser("~")).resolve()
+    resolved = home.resolve()
+    assert resolved != real_home, f"refusing to deploy into the real HOME: {resolved}"
+    assert real_home not in resolved.parents, (
+        f"sandbox HOME must not live under the real HOME: {resolved}"
+    )
+
+
+def _run_global_deploy(
+    source_repo: Path, home: Path, *flags: str
+) -> subprocess.CompletedProcess:
+    """Run the REAL deploy-all.sh so that only ``deploy_global()`` does work."""
+    _assert_sandboxed_home(home)
+    home.mkdir(parents=True, exist_ok=True)
+    return subprocess.run(
+        [
+            "bash",
+            str(source_repo / "scripts" / "deploy-all.sh"),
+            "--local",
+            "--skip-validate",
+            *flags,
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(home),
+            # A repo name that cannot exist, so deploy_repo() SKIPs instead of
+            # writing. Empty would NOT work: the script uses
+            # ``${LOCAL_REPOS:-...}`` and an empty value falls back to the five
+            # real repo names under $HOME/Dev.
+            "LOCAL_REPOS": "no-such-repo-for-this-test",
+            "REMOTE_REPOS": "no-such-repo-for-this-test",
+            # Set so the top-of-script auto-detection never shells out to ssh.
+            "REMOTE_HOST": "unused.invalid",
+        },
+        timeout=180,
+    )
+
+
+TELEMETRY_REL = "hooks/.claude/logs/activity/2026-06-06.jsonl"
+TELEMETRY_BYTES = b'{"event":"held in no commit","bytes":"load-bearing"}\n'
+
+
+def _plant_global_target(home: Path) -> None:
+    """Populate the sandbox ~/.claude with the four shapes that matter."""
+    claude = home / ".claude"
+
+    # (a) The defect: a module deleted from source that survived in the target.
+    orphan = claude / "lib" / "workflow_tracker.py"
+    orphan.parent.mkdir(parents=True, exist_ok=True)
+    orphan.write_text("# deleted from source by 7c3a527e, still importable\n")
+
+    # (b) Issue #560 consumer-local state.
+    ext = claude / "hooks" / "extensions" / "consumer_local.py"
+    ext.parent.mkdir(parents=True, exist_ok=True)
+    ext.write_text("# consumer-local extension\n")
+
+    # (c) Runtime state a hook wrote relative to its own cwd. 52,502 bytes of
+    #     exactly this shape exists on this machine now, in no commit.
+    telemetry = claude / TELEMETRY_REL
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_bytes(TELEMETRY_BYTES)
+
+    # (d) The same class, nested DEEPER than the shape that prompted the
+    #     exclusion --- the pattern must cover the class, not the instance.
+    deep = claude / "lib" / "nested" / ".claude" / "logs" / "deep.jsonl"
+    deep.parent.mkdir(parents=True, exist_ok=True)
+    deep.write_bytes(b'{"depth":"two levels down"}\n')
+
+
+def test_global_deploy_prunes_a_module_deleted_from_source(source_repo: Path, tmp_path: Path):
+    """REFUSING arm. This is the assertion that would have caught the bug.
+
+    Fails against 12b47f3b: without ``--delete`` the orphan survives, exactly as
+    ``workflow_tracker.py`` did in ``~/.claude/lib`` after ``7c3a527e``.
+    """
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+    orphan = home / ".claude" / "lib" / "workflow_tracker.py"
+    assert orphan.is_file(), "fixture did not plant the orphan"
+
+    result = _run_global_deploy(source_repo, home)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert not orphan.exists(), (
+        "a module absent from the source still executes from the global target; "
+        "sys.path falls back to ~/.claude/lib, so `import workflow_tracker` "
+        f"resolves a file no commit contains.\n{result.stdout}{result.stderr}"
+    )
+
+
+def test_global_deploy_still_delivers_real_source_files(source_repo: Path, tmp_path: Path):
+    """PERMITTING arm. Without it, the test above is satisfied by deleting all.
+
+    Compares BYTES, not existence: a truncated or stale copy is a deploy that
+    reports success and ships nothing.
+    """
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+
+    result = _run_global_deploy(source_repo, home)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    plugin = source_repo / "plugins" / "autonomous-dev"
+    for rel in ("lib/hook_safety.py", "hooks/unified_pre_tool.py"):
+        deployed = home / ".claude" / rel
+        assert deployed.is_file(), f"{rel} was not delivered:\n{result.stdout}"
+        assert deployed.read_bytes() == (plugin / rel).read_bytes(), (
+            f"{rel} in the global target does not match source bytes"
+        )
+
+
+def test_global_deploy_preserves_consumer_local_extensions(source_repo: Path, tmp_path: Path):
+    """Issue #560 control: ``--delete`` must not take extensions/ with it."""
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+    ext = home / ".claude" / "hooks" / "extensions" / "consumer_local.py"
+
+    result = _run_global_deploy(source_repo, home)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert ext.is_file(), (
+        "adding --delete to the global transport re-opened Issue #560: "
+        f"consumer-local extensions/ was pruned.\n{result.stdout}{result.stderr}"
+    )
+
+
+def test_global_deploy_preserves_nested_dot_claude_runtime_state(
+    source_repo: Path, tmp_path: Path
+):
+    """Protection control, in a DIFFERENT shape from the bug that prompted it.
+
+    The bug was a stale *source-shaped* file (``lib/workflow_tracker.py``). This
+    is the opposite shape: runtime state a hook wrote into a ``.claude/``
+    directory relative to its own cwd, which no source tree will ever account
+    for. ``--exclude='.claude/'`` covers the CLASS --- the pattern has no
+    internal slash, so rsync matches it against the final path component at ANY
+    depth --- which is why the deeper plant is asserted too.
+
+    ANTI-VACUOUS INSTRUMENT, two arms:
+      1. the orphan planted in the SAME run must be gone, so survival here is
+         protection rather than ``--delete`` simply not being active;
+      2. the telemetry path must NOT match ``$DEPLOY_EXCLUDES``, so a future
+         exclusion that hides it from ``target_only`` fails loudly instead of
+         making this test pass by accident. That is the invariant this change
+         preserves: deletion scope stays a strict subset of measurement scope.
+    """
+    assert not deploy_state.is_excluded(Path(TELEMETRY_REL)), (
+        "this test is vacuous: the telemetry path now matches a DEPLOY_EXCLUDES "
+        "pattern, so the provenance gate can no longer see it either"
+    )
+
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+    telemetry = home / ".claude" / TELEMETRY_REL
+    deep = home / ".claude" / "lib" / "nested" / ".claude" / "logs" / "deep.jsonl"
+
+    result = _run_global_deploy(source_repo, home)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert not (home / ".claude" / "lib" / "workflow_tracker.py").exists(), (
+        "instrument check failed: --delete did not run in this invocation, so "
+        "the survival assertions below would prove nothing"
+    )
+    assert telemetry.is_file(), (
+        "--delete destroyed hook-written telemetry held in no commit:\n"
+        f"{result.stdout}{result.stderr}"
+    )
+    assert telemetry.read_bytes() == TELEMETRY_BYTES, "telemetry was rewritten, not preserved"
+    assert deep.is_file(), (
+        "the exclusion covers only the depth that prompted it, not the class"
+    )
+
+
+def test_global_deploy_refuses_an_empty_source_subdir(source_repo: Path, tmp_path: Path):
+    """Pre-flight REFUSING arm --- the PRIMARY guard, ahead of ``--max-delete``.
+
+    A misresolved or partially-checked-out source subdir plus ``--delete``
+    empties the corresponding subtree inside ``$HOME``. ``--max-delete=50``
+    does not cover this case: the real ``config/`` holds 16 regular files
+    (measured 2026-09-05), well below the cap, so the breaker would let a full
+    wipe of it through. That is why the pre-flight is primary and the breaker
+    is second.
+    """
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+
+    # A source subdir that EXISTS but holds no regular files. git does not
+    # track empty directories, so the working tree stays clean and the
+    # provenance gate still permits the run.
+    empty_src = source_repo / "plugins" / "autonomous-dev" / "config" / "nested"
+    empty_src.mkdir(parents=True)
+
+    victim = home / ".claude" / "config" / "auto_approve_policy.json"
+    victim.parent.mkdir(parents=True, exist_ok=True)
+    victim.write_text('{"tools": {}}\n')
+
+    result = _run_global_deploy(source_repo, home)
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, f"an empty source subdir must REFUSE:\n{combined}"
+    assert "REFUSED" in combined, f"the refusal must announce itself:\n{combined}"
+    assert "config" in combined, f"the refusal must name the subdir:\n{combined}"
+    assert victim.is_file(), (
+        f"the refusal fired but the target was emptied anyway:\n{combined}"
+    )
+
+
+def test_global_rsync_line_carries_the_delete_flags_and_trailing_slashes():
+    """Structural, IN ADDITION to the effect tests above and never instead.
+
+    This check alone would have PASSED against the original bug: three of the
+    four copy call sites already existed and merely lacked ``--delete``, and
+    nothing here inspects a filesystem. Its one unique job is the trailing-slash
+    convention on both operands --- load-bearing under ``--delete``, and a
+    property the effect tests pass through silently because the fixture happens
+    to have it right.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    body = re.search(r"^deploy_global\(\) \{.*?^\}", text, re.M | re.S)
+    assert body, "deploy_global() not found in deploy-all.sh"
+
+    lines = [
+        ln.strip()
+        for ln in body.group(0).splitlines()
+        if ln.strip().startswith("rsync ") and "$GLOBAL_DEST" in ln
+    ]
+    assert len(lines) == 1, f"expected exactly one global rsync call site; got {lines}"
+    line = lines[0]
+
+    for token in (
+        "--delete",
+        "--max-delete=",
+        "--exclude=extensions/",
+        "--exclude='.claude/'",
+        '"${DEPLOY_EXCLUDES[@]}"',
+    ):
+        assert token in line, f"the global rsync is missing {token}:\n  {line}"
+
+    operands = re.findall(r'"(\$PLUGIN_SRC/\$subdir/|\$GLOBAL_DEST/\$subdir/)"', line)
+    assert len(operands) == 2, f"expected two path operands; got {operands} in:\n  {line}"
+    for operand in operands:
+        assert operand.endswith("/"), (
+            "both operands must keep their trailing slash: without it on the "
+            f"source, --delete syncs a nested copy and prunes everything else: {operand}"
+        )
+
+
+def _global_max_delete_cap() -> int:
+    """Read ``--max-delete=N`` off the global rsync line, so the test can't drift.
+
+    The number is read from ``deploy-all.sh`` rather than restated here: a test
+    holding its own copy of the cap keeps passing after someone raises the flag
+    and forgets the refusal message, which is the exact drift this pins.
+
+    Returns:
+        The cap in effect. Falls back to ``50`` when the flag is absent, which
+        is the pre-fix state (``12b47f3b`` runs a bare ``rsync -a``). The test
+        then plants 60 orphans against a script that deletes nothing, and the
+        effect assertions carry the RED rather than this parse.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    body = re.search(r"^deploy_global\(\) \{.*?^\}", text, re.M | re.S)
+    assert body, "deploy_global() not found in deploy-all.sh"
+    found = re.search(r"--max-delete=(\d+)", body.group(0))
+    return int(found.group(1)) if found else 50
+
+
+def test_global_deploy_refuses_a_wholesale_prune_without_rolling_back(
+    source_repo: Path, tmp_path: Path
+):
+    """The ``--max-delete`` breaker, which until now had only ever run by hand.
+
+    The pre-flight (above) covers an EMPTY source subdir. This covers the other
+    direction: a source subdir that is populated and passes the pre-flight, but
+    whose global target holds so much that no source accounts for that pruning
+    it is a wipe rather than a deletion. Largest legitimate deletion evidenced
+    in this repo is 5 files (``7c3a527e``); this plants twelve times that.
+
+    THE PROPERTY THIS PINS, and the reason the test exists at all: **rsync does
+    NOT roll back.** The breaker is not transactional. It stops the pruning and
+    fails the run, but every file deleted before the cap was reached stays
+    deleted. That is written in a comment at ``deploy-all.sh:307-308`` and
+    nowhere executable, so a reader who assumes the refusal restored the target
+    would be wrong and nothing would tell them. The assertions below say it:
+    after the refusal, some orphans are GONE and some REMAIN, in the same
+    subdir, from the same run.
+
+    ANTI-VACUOUS INSTRUMENT, two arms --- same shape as the runtime-state test
+    above, because "some orphans remain" is otherwise satisfied by a deploy
+    that deleted nothing at all:
+      1. an orphan planted in ``hooks/``, which ``$GLOBAL_SUBDIRS`` processes
+         BEFORE ``lib/``, must be GONE. That subdir is 1 deletion, far under the
+         cap, so it proves ``--delete`` engaged and completed in this same run;
+      2. the planted names must NOT match ``$DEPLOY_EXCLUDES``, so a future
+         exclusion cannot make them survive by protection and quietly convert
+         the partial-deletion assertion into a tautology.
+    """
+    cap = _global_max_delete_cap()
+    planted = cap + 10
+
+    home = tmp_path / "sandbox-home"
+    _plant_global_target(home)
+
+    lib_target = home / ".claude" / "lib"
+    lib_target.mkdir(parents=True, exist_ok=True)
+    orphans = [lib_target / f"orphan_{i:03d}.py" for i in range(planted)]
+    for orphan in orphans:
+        orphan.write_text("# in the global target, in no source tree\n")
+
+    # Instrument arm 2: prove the plants are visible to deletion, not protected.
+    for rel in ("lib/orphan_000.py", "hooks/orphan_hook_deleted_from_source.py"):
+        assert not deploy_state.is_excluded(Path(rel)), (
+            f"this test is vacuous: {rel} now matches a DEPLOY_EXCLUDES pattern, "
+            "so it would survive by protection rather than by the cap"
+        )
+
+    # Instrument arm 1: a witness in the subdir processed BEFORE the one that
+    # refuses. hooks/ has exactly this one orphan, so it is nowhere near the cap.
+    witness = home / ".claude" / "hooks" / "orphan_hook_deleted_from_source.py"
+    witness.parent.mkdir(parents=True, exist_ok=True)
+    witness.write_text("# deleted from source, still in the global hooks target\n")
+
+    result = _run_global_deploy(source_repo, home)
+    combined = result.stdout + result.stderr
+
+    assert result.returncode != 0, (
+        f"{planted} files in the global target that no source accounts for is a "
+        f"wipe, not a deletion, and it was allowed through:\n{combined}"
+    )
+    assert "REFUSED" in combined, f"the refusal must announce itself:\n{combined}"
+
+    # Scoped to the refusal LINE, not the whole stream. Measured 2026-09-05:
+    # against 12b47f3b both "lib" and "50" appear in `combined` anyway, carried
+    # by the DEPLOY-STATE report ("'lib/orphan_050.py' was ALREADY in the
+    # target ..."). Asserted against the stream, these two would be true on a
+    # run that refused nothing.
+    refusal = next((ln for ln in combined.splitlines() if "REFUSED: pruning" in ln), "")
+    assert refusal, f"the refusal must be a single legible line:\n{combined}"
+    assert "lib" in refusal, f"the refusal must name the subdir it stopped:\n{refusal}"
+    assert str(cap) in refusal, (
+        f"the refusal must name the cap it hit ({cap}), or the reader cannot tell "
+        f"how far over the line they were:\n{refusal}"
+    )
+
+    assert not witness.exists(), (
+        "instrument check failed: --delete did not engage in this invocation, so "
+        f"the survival counts below would prove nothing:\n{combined}"
+    )
+
+    survivors = [o for o in orphans if o.exists()]
+    removed = planted - len(survivors)
+    assert removed > 0, (
+        f"the breaker looks transactional: all {planted} orphans survived. If "
+        "rsync ever gains rollback this assertion is the place to record it "
+        f"--- do not just delete it:\n{combined}"
+    )
+    assert survivors, (
+        f"all {planted} orphans were pruned despite the cap of {cap}; the breaker "
+        f"reported REFUSED but did not actually stop the deletion:\n{combined}"
+    )
+    assert removed <= cap, (
+        f"the cap is {cap} but {removed} orphans were deleted; --max-delete is "
+        f"not bounding the prune:\n{combined}"
+    )

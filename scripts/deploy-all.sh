@@ -235,10 +235,86 @@ deploy_global() {
         return
     fi
 
+    # DELETION PROPAGATES HERE TOO (follow-up to Issue #1610).
+    #
+    # `7c3a527e` deleted five lib modules from source. This script printed ALL
+    # VALIDATIONS PASSED and all five survived in ~/.claude/lib, because this
+    # was the only LOCAL transport without `--delete` (:281 has always had it,
+    # and purged 5 of 5 across five repos). `sys.path` falls back to
+    # ~/.claude/lib, so `import workflow_tracker` still resolved a module that
+    # exists in no source tree and in no consumer repo. deploy_state.py:608-609
+    # had already named this transport by hand; #1610 built the detector and
+    # chose to REPORT. This makes it refuse. The REMOTE global target (:490)
+    # keeps the identical defect on purpose — see :391-394 — and is a follow-up.
+    #
+    # THE INVARIANT: deletion scope ⊂ measurement scope. $DEPLOY_EXCLUDES is
+    # deliberately NOT touched: it is set-equality-pinned to deploy_state.py's
+    # rsync_exclude_patterns() and it defines what the provenance gate MEASURES
+    # for every target. The two exclusions below are local to this one call, so
+    # they narrow what `--delete` may REMOVE without narrowing what `target_only`
+    # can SEE. Runtime state protected here stays listed as target-only.
+    #
+    #   --exclude='.claude/'   A CLASS, not an enumeration. rsync matches a
+    #                          pattern with no internal slash against the final
+    #                          path component at ANY depth, and an exclude
+    #                          PROTECTS a receiver-side file from --delete (man
+    #                          rsync, FILTER RULES WHEN DELETING). Any .claude/
+    #                          nested inside a deployed subdir is runtime state
+    #                          a hook wrote relative to its own cwd: on this
+    #                          machine ~/.claude/hooks/.claude/logs/activity/
+    #                          holds 52,502 bytes of telemetry in no commit,
+    #                          plus the live session's heartbeat. The source
+    #                          carries no such directory under hooks/lib/config,
+    #                          so the pattern is a no-op on the send side and
+    #                          pure protection on the receive side.
+    #   --exclude=extensions/  Issue #560 consumer-local state; same shape :281
+    #                          already uses.
+    #
+    # --max-delete=50 is the SECOND line of defence, not the first. Largest
+    # legitimate deletion evidenced in this repo: 5 files (7c3a527e). Measured
+    # 2026-09-05, regular files excluding __pycache__: hooks 176, lib 314,
+    # config 16. A wholesale wipe of hooks or lib trips the cap; a misresolved
+    # `config` would delete only 16 and slip UNDER it — which is exactly why the
+    # pre-flight below is the primary guard.
     for subdir in $GLOBAL_SUBDIRS; do
         if [ -d "$PLUGIN_SRC/$subdir" ]; then
+            # PRE-FLIGHT (primary guard). An empty or misresolved source subdir
+            # plus --delete empties the matching subtree inside $HOME. `|| true`
+            # absorbs the SIGPIPE `head -1` sends to `find`, which would
+            # otherwise fail the pipeline under `set -o pipefail` (:31).
+            local src_probe
+            src_probe=$(find "$PLUGIN_SRC/$subdir" -type f 2>/dev/null | head -1 || true)
+            if [ -z "$src_probe" ]; then
+                echo "  ✗ REFUSED: source subdir '$subdir' holds no regular files"
+                echo "    source: $PLUGIN_SRC/$subdir"
+                echo "    Syncing it with --delete would empty $GLOBAL_DEST/$subdir/."
+                echo "    Nothing was deleted for '$subdir'."
+                echo "    REQUIRED NEXT ACTION: verify the checkout is complete —"
+                echo "      git status && git checkout -- plugins/autonomous-dev/$subdir"
+                echo "    then re-run this script."
+                exit 1
+            fi
             mkdir -p "$GLOBAL_DEST/$subdir"
-            rsync -a "${DEPLOY_EXCLUDES[@]}" "$PLUGIN_SRC/$subdir/" "$GLOBAL_DEST/$subdir/"
+            local rc=0
+            rsync -a --delete --max-delete=50 --exclude=extensions/ --exclude='.claude/' "${DEPLOY_EXCLUDES[@]}" "$PLUGIN_SRC/$subdir/" "$GLOBAL_DEST/$subdir/" || rc=$?
+            if [ "$rc" -eq 25 ]; then
+                # A bare exit 25 with no explanation is the shape that trains
+                # bypass. Name the subdir, the cap, and the next action.
+                echo "  ✗ REFUSED: pruning '$subdir' hit --max-delete=50"
+                echo "    target: $GLOBAL_DEST/$subdir/"
+                echo "    More than 50 files in the global target are unaccounted for by"
+                echo "    $PLUGIN_SRC/$subdir. That is far beyond any legitimate deletion"
+                echo "    (largest evidenced: 5 files), so this is treated as a wipe."
+                echo "    WARNING: rsync does NOT roll back — files deleted before the cap"
+                echo "    was reached stay deleted."
+                echo "    REQUIRED NEXT ACTION: inspect what the target holds that no source"
+                echo "    accounts for —"
+                echo "      python3 plugins/autonomous-dev/scripts/deploy_state.py check --repo ~"
+                exit 1
+            elif [ "$rc" -ne 0 ]; then
+                echo "  ✗ rsync failed for '$subdir' (exit $rc) — global target may be partial"
+                exit "$rc"
+            fi
         fi
     done
     purge_bytecode "$GLOBAL_DEST"
