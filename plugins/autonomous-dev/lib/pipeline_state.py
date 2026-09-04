@@ -1149,6 +1149,11 @@ def record_baseline_scope(
             as a list of strings (e.g., ``["pytest", "tests/unit", "-q",
             "--tb=no"]``).
         baseline_count: The total number of tests found by the baseline run.
+            As of the regression-gate scope fix this records the count over
+            ``bugfix_detector.CANONICAL_TEST_COUNT_DIRS``, which is a
+            *superset* of ``baseline_cmd``'s scope (it adds
+            ``tests/regression``) — the two fields deliberately describe
+            different scopes and must not be compared to each other.
 
     Returns:
         True on success, False on any IO or JSON error. NEVER raises.

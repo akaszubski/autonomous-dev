@@ -611,22 +611,55 @@ Do NOT proceed to STEP 2 until the staging area is clean.
 **Baseline Test Count Capture** (for regression test gate in STEP 8):
 
 ```bash
+# BEGIN BASELINE-TEST-COUNT
 BASELINE_TEST_COUNT=$(python3 -c "
-import sys, os as _os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
-    if _os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from bugfix_detector import get_test_count_for_dirs
-from pathlib import Path
-print(get_test_count_for_dirs(['tests/unit', 'tests/integration'], Path('.')))
+import sys, os as _os, traceback
+try:
+    for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
+        if _os.path.isdir(_p):
+            sys.path.insert(0, _p)
+            break
+    from bugfix_detector import get_test_count_for_dirs, CANONICAL_TEST_COUNT_DIRS
+    from pathlib import Path
+    print(get_test_count_for_dirs(CANONICAL_TEST_COUNT_DIRS, Path('.')))
+except BaseException as _exc:
+    # Never let a failed command substitution look like a captured baseline.
+    # Diagnostics go to stderr so stdout stays empty and the guard below sees
+    # the emptiness.
+    # Truncate the message to its FIRST line. An exception whose __str__
+    # embeds a newline followed by 'BASELINE_TEST_COUNT: <anything>' would
+    # otherwise forge a second, fake status line in this block's output. The
+    # full text is still available in the traceback printed below.
+    _msg = str(_exc).splitlines()[0] if str(_exc) else ''
+    print(f'BASELINE_TEST_COUNT: ERROR — {type(_exc).__name__}: {_msg}', file=sys.stderr)
+    traceback.print_exc()
+    sys.exit(1)
 ")
-echo "Baseline test count: $BASELINE_TEST_COUNT"
+if [ -z "$BASELINE_TEST_COUNT" ]; then
+  # Leave the variable UNSET rather than exported-but-empty. STEP 8's
+  # baseline=None path (UNMEASURED) is then reached honestly, not by
+  # accident of an empty string. Do not coerce to 0.
+  unset BASELINE_TEST_COUNT
+  echo "BASELINE_TEST_COUNT: UNSET — the baseline test count could not be computed (traceback above). STEP 8 will report UNMEASURED, not PASS." >&2
+else
+  export BASELINE_TEST_COUNT
+  echo "Baseline test count: $BASELINE_TEST_COUNT"
+fi
+# END BASELINE-TEST-COUNT
 
+# BEGIN BASELINE-SCOPE-RECORD
 # BASELINE SCOPE RECORD (Issue #990). Record the exact pytest invocation used
 # for baseline capture into the pipeline sentinel so the implementer (STEP 8)
 # uses the SAME scope — not a broader one — eliminating false "new-failure"
 # reports caused by directories outside the baseline set.
+if [ -z "${BASELINE_TEST_COUNT+set}" ]; then
+  # Do NOT record a baseline of 0 from an uncaptured count. `int('' or 0)`
+  # used to write baseline_count=0 into the sentinel; STEP 8's fallback then
+  # read 0, and any non-empty repo satisfied `current > 0` — a silent PASS on
+  # an unmeasured baseline. With nothing recorded, get_baseline_scope()
+  # returns None and STEP 8 reports UNMEASURED, which is the truth.
+  echo "Baseline scope NOT recorded: no baseline test count was captured. STEP 8 will report UNMEASURED." >&2
+else
 python3 -c "
 import sys, os as _os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
@@ -636,9 +669,17 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.
 from pipeline_state import record_baseline_scope, CANONICAL_BASELINE_CMD
 from pipeline_state import get_legacy_sentinel_path
 state_path = _os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-ok = record_baseline_scope(state_path, CANONICAL_BASELINE_CMD, int('$BASELINE_TEST_COUNT' or 0))
+# Read the count from the ENVIRONMENT, never by interpolating the shell
+# variable into this source. STEP 1 export()s BASELINE_TEST_COUNT, so this is
+# the same value; the difference is that a producer which one day prints
+# something other than a bare integer can no longer splice text into this
+# Python program. int() then rejects it loudly instead of executing it.
+_count = _os.environ['BASELINE_TEST_COUNT']
+ok = record_baseline_scope(state_path, CANONICAL_BASELINE_CMD, int(_count))
 print(f'Baseline scope recorded: {CANONICAL_BASELINE_CMD!r} (ok={ok})')
 "
+fi
+# END BASELINE-SCOPE-RECORD
 ```
 
 **Baseline Failing Tests Capture** (for fix-forward classification in STEP 8 — Issue #860; timeout handling — Issue #1094; capture-failure handling — Issue #1533):
@@ -1448,7 +1489,7 @@ PASS: 45 passed | Coverage: 87% (baseline: 85%) | Skip count OK: 2 | Test count 
 
 ### HARD GATE: Regression Test Requirement (Bug Fixes)
 
-If the feature being implemented is a bug fix, at least one NEW test must be added. This gate applies the same enforcement as `implement-fix.md` (lines 166-177) to the full pipeline.
+If the feature being implemented is a bug fix, at least one NEW test must be added. The fix-mode counterpart lives at `implement-fix.md:319` (`### HARD GATE: Regression Test Requirement`), but that one is **prose only** — it instructs the coordinator to "compare test count from STEP F2 vs after STEP F3" and names no directory scope and no counting function (`grep -c get_test_count implement-fix.md` returns 0). This gate is the **mechanical** instance: it counts with `bugfix_detector.get_test_count_for_dirs()` over `CANONICAL_TEST_COUNT_DIRS` and decides with `bugfix_detector.evaluate_regression_test_gate()`. The two are not the same enforcement, and the scope used here does not describe the fix-mode gate.
 
 **Bug-fix detection** (inline — coordinator checks):
 ```bash
@@ -1467,26 +1508,77 @@ print('true' if is_bugfix_feature(desc, labels) else 'false')
 
 If `IS_BUGFIX` is `true`:
 
+The count MUST use the same directory scope as the STEP 1 baseline capture (`CANONICAL_TEST_COUNT_DIRS`). A scope mismatch between the two — the STEP 1 block counting two directories while this one counted the whole tree — made this gate structurally unable to refuse. The baseline is read from the exported `BASELINE_TEST_COUNT` when it is non-empty, and otherwise from the pipeline sentinel recorded at STEP 1, because a shell variable does not survive between coordinator Bash calls (each is a fresh process). When neither source yields a baseline the verdict is `UNMEASURED`, never a silent pass.
+
 ```bash
-CURRENT_TEST_COUNT=$(python3 -c "
-import sys, os as _os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
-    if _os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from bugfix_detector import get_test_count
-from pathlib import Path
-print(get_test_count(Path('.')))
-")
+# BEGIN REGRESSION-TEST-COUNT-GATE
+python3 -c "
+import sys, os as _os, traceback
+try:
+    for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
+        if _os.path.isdir(_p):
+            sys.path.insert(0, _p)
+            break
+    from pathlib import Path
+    from bugfix_detector import (
+        get_test_count_for_dirs,
+        evaluate_regression_test_gate,
+        CANONICAL_TEST_COUNT_DIRS,
+    )
+
+    current = get_test_count_for_dirs(CANONICAL_TEST_COUNT_DIRS, Path('.'))
+
+    baseline = None
+    _env = _os.environ.get('BASELINE_TEST_COUNT', '').strip()
+    if _env:
+        try:
+            baseline = int(_env)
+        except ValueError:
+            baseline = None
+    if baseline is None:
+        try:
+            from pipeline_state import get_baseline_scope, get_legacy_sentinel_path
+            _state = _os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
+            _scope = get_baseline_scope(_state)
+            if _scope is not None:
+                baseline = _scope['baseline_count']
+        except ImportError:
+            baseline = None
+
+    verdict, reason = evaluate_regression_test_gate(baseline, current, Path('.'))
+    print(f'CURRENT_TEST_COUNT: {current}')
+    print(f'REGRESSION_GATE: {verdict} — {reason}')
+except BaseException as _exc:
+    # FOURTH STATE — ERROR. Invariant: this block prints EXACTLY ONE
+    # 'REGRESSION_GATE:' line on every path, so 'no line was printed' is
+    # impossible rather than merely undocumented. A stale deployed
+    # .claude/lib, a missing symbol, an unreadable state file — any of them
+    # used to print nothing at all and sail through. ERROR fails CLOSED
+    # (exit 1); that is the opposite of UNMEASURED, which fails open by
+    # design because it means 'this repo has no measurable test layout',
+    # not 'the instrument broke'.
+    # Truncate the message to its FIRST line. 'exactly one REGRESSION_GATE:
+    # line' is only an invariant if the message cannot contain one: an
+    # exception whose __str__ embeds a newline followed by
+    # 'REGRESSION_GATE: PASS' would otherwise print a second, FAKE verdict
+    # after the real ERROR one, and a reader taking the last line would
+    # proceed. The full text still reaches the traceback on stderr.
+    _msg = str(_exc).splitlines()[0] if str(_exc) else ''
+    print(f'REGRESSION_GATE: ERROR — {type(_exc).__name__}: {_msg}')
+    sys.stdout.flush()
+    traceback.print_exc()
+    sys.exit(1)
+"
+# END REGRESSION-TEST-COUNT-GATE
 ```
 
-If `CURRENT_TEST_COUNT <= BASELINE_TEST_COUNT`: **BLOCK** with message:
+If `REGRESSION_GATE` is `BLOCK`: **BLOCK** with message:
 ```
 BLOCKED — Bug fix detected but no new regression tests added.
 
 Feature: FEATURE_DESCRIPTION
 Test count before: $BASELINE_TEST_COUNT
-Test count after: $CURRENT_TEST_COUNT
+Test count after: the CURRENT_TEST_COUNT value printed by the block above
 
 REQUIRED NEXT ACTION:
 Add at least one test that reproduces the bug and fails without the fix.
@@ -1494,6 +1586,14 @@ Add at least one test that reproduces the bug and fails without the fix.
 Exception: If an existing failing test IS the regression test, document
 which test covers it and the gate passes automatically.
 ```
+
+If `REGRESSION_GATE` is `PASS`: proceed.
+
+If `REGRESSION_GATE` is `UNMEASURED`: **report the reason verbatim and proceed — never block**. `UNMEASURED` means the gate had no basis to form an opinion (the baseline was never captured, or this repo has none of the canonical test directories), not that the change is approved. Emit the reason so the absence of measurement is visible rather than silent.
+
+If `REGRESSION_GATE` is `ERROR`: **BLOCK the pipeline.** Print the traceback verbatim and state the REQUIRED NEXT ACTION (usually: run `bash scripts/deploy-all.sh` to refresh a stale `.claude/lib`, then retry this step). `ERROR` means the *instrument* broke — a stale deployed library, a missing symbol, an unreadable state file — so the gate could not measure and cannot be trusted. It fails **CLOSED**, the opposite of `UNMEASURED`, which fails open by design because it means "this repo has no measurable test layout".
+
+The block prints **exactly one** `REGRESSION_GATE:` line on every path, including crashes. So if you see **no** `REGRESSION_GATE:` line at all, or the block exits non-zero without one, treat that as a loud failure requiring investigation — never a silent proceed.
 
 **Exception**: If the bug was caught BY an existing failing test (the test that originally failed IS the regression test), this gate passes. Document which existing test covers the regression.
 
