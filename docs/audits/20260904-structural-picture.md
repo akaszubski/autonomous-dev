@@ -40,7 +40,7 @@ CLAUDE.md's "don't collapse the specialist agents" rule was narrowed on 2026-08-
 
 **Nothing in the repo currently refuses growth in this file.**
 
-## 2. Duplicate manifests — one is seven months stale and nothing reads it
+## 2. Duplicate manifests — one is seven months stale
 
 ```
 find . -name install_manifest.json -not -path './.git/*'
@@ -51,7 +51,9 @@ find . -name install_manifest.json -not -path './.git/*'
 
 The authoritative one is read by `plugins/autonomous-dev/scripts/install.py:83`, `scripts/validate_manifest.py:9`, `scripts/generate_hook_config.py:50` and `scripts/pre-commit-hook-check.sh:11`.
 
-The orphan at `plugins/autonomous-dev/install_manifest.json` declares **version 3.50.0, dated 2026-02-14**. The live one is **3.51.0, 2026-05-27**. The orphan is missing `plan-critic`, `spec-validator`, `alignment-classifier`, `ui-tester`, `mobile-tester` and `retrospective-analyst` agents, and the `autoresearch`, `goa`, `drain-queue`, `plan` and `plan-to-issues` commands. **No script in the repo reads it.** It is a seven-month-old decoy sitting one directory above the real one, with the same filename.
+The orphan at `plugins/autonomous-dev/install_manifest.json` declares **version 3.50.0, dated 2026-02-14**. The live one is **3.51.0, 2026-05-27**. The orphan is missing `plan-critic`, `spec-validator`, `alignment-classifier`, `ui-tester`, `mobile-tester` and `retrospective-analyst` agents, and the `autoresearch`, `goa`, `drain-queue`, `plan` and `plan-to-issues` commands.
+
+**CORRECTION (2026-09-04, doc-master / Issue #1747)**: "No script in the repo reads it" was FALSE and is withdrawn. The orphan has **six live readers**, all in `tests/`: `tests/unit/hooks/test_validate_paid_dependency.py:272` (repointed to the authoritative manifest by #1747), `tests/unit/hooks/test_mutation_witness_gate.py:378` and `:461`, `tests/unit/lib/test_mutation_witness.py:747`, `tests/unit/commands/test_implement_fix_mode.py:18`, and `tests/regression/progression/test_issue_358_plan_mode_routing.py:60`. One of these is a deliberate positive control — `test_mutation_witness_gate.py:393` asserts `path.is_file(), "POSITIVE CONTROL: {surface} does not exist"` against this exact path. It is a seven-month-old decoy sitting one directory above the real one, with the same filename — but it is not orphaned in the sense of "unreachable"; it is a live test fixture with a control depending on its continued existence.
 
 ## 3. The manifest ships zero tests — so no detector reaches a consumer repo
 
@@ -119,7 +121,7 @@ The `docs/experiments/GOAL_2026-08-24` v5 §2.0 mechanism already names the two 
 
 1. **Make silence fail closed.** The tri-state landed today (`BLOCK` / `PASS` / `UNMEASURED` / `ERROR`, `bugfix_detector.py`) is the shape. Until a timed-out hook produces `ERROR` rather than nothing, splitting the 9,810-line file just multiplies the number of things that can go quiet.
 2. **Give the manifest a `tests/` channel.** Cheapest change with the largest reach: it converts every existing regression test into a consumer-repo proof, which is the goal's stated baseline gap.
-3. **Delete the orphan manifest.** Nothing reads it; it exists only to be grepped by mistake.
+3. **~~Delete the orphan manifest. Nothing reads it; it exists only to be grepped by mistake.~~ CORRECTED (2026-09-04): the orphan has six live test readers, including a deliberate positive control asserting its existence (§2). Deleting it outright would trip that control. Deferred to its own issue: repoint the five non-control readers to the authoritative manifest first (one, `test_validate_paid_dependency.py`, was repointed by #1747), retire or relocate the positive control, and only then remove the file.**
 4. **Re-subject the hard floor** from verbs to write-effects, with a negative control of a *different shape* than `git stash` — per `feedback_guard_scoped_to_instance`, the fourth recurrence of exactly this error.
 5. **Then, and only then, split the hook.**
 

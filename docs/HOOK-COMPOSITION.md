@@ -153,7 +153,7 @@ Copy this checklist into the PR description for any new hook PR.
 - [ ] **Telemetry on every block** — every deny path calls `log_block_event(...)` before returning
 - [ ] **Regression test for deny + recover** — at least one test in `tests/integration/` invokes the deny branch end-to-end and verifies a JSONL row appears
 - [ ] **Hook registered in settings templates** — added to ALL `plugins/autonomous-dev/templates/settings.*.json` files
-- [ ] **Hook listed in install manifest** — added to `plugins/autonomous-dev/install_manifest.json` AND `plugins/autonomous-dev/config/install_manifest.json`
+- [ ] **Hook listed in install manifest** — added to `plugins/autonomous-dev/config/install_manifest.json` (the authoritative deployment manifest, read by `install.py`, `validate_manifest.py` and the deploy pipeline). **Correction (2026-09-04, Issue #1747)**: this checklist previously said "AND `plugins/autonomous-dev/install_manifest.json`" — that second file is a seven-month-stale orphan that no deployment code reads; it is kept only because several tests reference it directly (see `docs/audits/20260904-structural-picture.md` §2). Do not add new hooks to it — updating it would just deepen the drift the audit measured. Its removal is tracked separately, pending repointing those test readers.
 - [ ] **Documentation entry** — `docs/HOOK-REGISTRY.md` row added; `docs/HOOKS.md` description updated
 
 ---

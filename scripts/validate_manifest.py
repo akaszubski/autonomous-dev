@@ -25,7 +25,8 @@ def main():
     manifest_hooks = {Path(p).name for p in manifest["components"]["hooks"]["files"]}
 
     # Check critical hooks
-    critical = ["unified_pre_tool.py", "unified_prompt_validator.py", "pre_tool_use.py"]
+    # pre_tool_use.py removed (Issue #1747): archived hook, no longer shipped.
+    critical = ["unified_pre_tool.py", "unified_prompt_validator.py"]
     missing_critical = [h for h in critical if h not in manifest_hooks]
     if missing_critical:
         errors.append(f"Critical hooks missing from manifest: {missing_critical}")

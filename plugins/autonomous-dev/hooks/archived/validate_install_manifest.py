@@ -60,20 +60,30 @@ def get_project_root() -> Path:
     return Path.cwd()
 
 
-def scan_source_files(plugin_dir: Path) -> dict:
+def scan_source_files(plugin_dir: Path, excludes: dict | None = None) -> dict:
     """Scan source directories and return files by component.
+
+    Args:
+        plugin_dir: Path to plugins/autonomous-dev.
+        excludes: Optional mapping of component name to source-relative path
+            prefixes to skip (read from each component's ``exclude`` array in
+            install_manifest.json). Files whose path relative to the scanned
+            source directory starts with a listed prefix are not shipped.
 
     Returns:
         Dict mapping component name to list of file paths
     """
     components = {}
+    excludes = excludes or {}
 
     # Define what to scan: (directory, pattern, component_name, recursive)
     scans = [
         ("hooks", "*.py", "hooks", False),
         ("hooks", "*.sh", "hooks", False),
         ("hooks", "*.hook.json", "hooks", False),
-        ("lib", "*.py", "lib", False),
+        # Recursive (Issue #1747): lib/ has 4 subpackages (agent_tracker, ideators,
+        # implement_dispatcher, sync_dispatcher) whose 25 files never shipped.
+        ("lib", "*.py", "lib", True),
         ("agents", "*.md", "agents", False),
         ("commands", "*.md", "commands", False),  # Top level only
         ("commands/archived", "*.md", "commands", False),  # Archived command shims (Issue #203)
@@ -82,6 +92,8 @@ def scan_source_files(plugin_dir: Path) -> dict:
         ("templates", "*.json", "templates", False),
         ("templates", "*.template", "templates", False),  # .env template
         ("skills", "*.md", "skills", True),  # Recursive - includes docs/, examples/, templates/
+        # Skill templates/examples are executable helpers and must ship too (Issue #1747)
+        ("skills", "*.py", "skills", True),
     ]
 
     for dir_name, pattern, component_name, recursive in scans:
@@ -91,12 +103,13 @@ def scan_source_files(plugin_dir: Path) -> dict:
 
         files = []
         glob_method = source_dir.rglob if recursive else source_dir.glob
+        component_excludes = tuple(excludes.get(component_name, ()))
 
         for f in glob_method(pattern):
             if not f.is_file():
                 continue
-            # Skip pycache, test files (but not in lib/ - those are production)
-            if "__pycache__" in str(f):
+            # Skip pycache/pytest cache, test files (but not in lib/ - those are production)
+            if "__pycache__" in str(f) or ".pytest_cache" in str(f):
                 continue
             # Only skip test_ files outside lib/ (lib/ may have test_*.py utilities)
             if f.name.startswith("test_") and dir_name != "lib":
@@ -104,6 +117,13 @@ def scan_source_files(plugin_dir: Path) -> dict:
 
             # Build manifest path (supports recursive subdirectories)
             relative_to_source = f.relative_to(source_dir)
+
+            # Honour the component's declared exclude prefixes (Issue #1747)
+            if any(
+                relative_to_source.as_posix().startswith(prefix)
+                for prefix in component_excludes
+            ):
+                continue
             relative = f"plugins/autonomous-dev/{dir_name}/{relative_to_source}"
             files.append(relative)
 
@@ -173,14 +193,19 @@ def validate_manifest(check_only: bool = False) -> tuple[bool, list[str], list[s
     if not manifest_path.exists():
         return False, ["install_manifest.json not found"], []
 
-    # Scan source files
-    scanned = scan_source_files(plugin_dir)
-
-    # Load manifest and compare
+    # Load manifest FIRST so its per-component `exclude` arrays steer the scan
     try:
         manifest = json.loads(manifest_path.read_text())
     except json.JSONDecodeError as e:
         return False, [f"Invalid JSON in manifest: {e}"], []
+
+    excludes = {
+        name: component.get("exclude", [])
+        for name, component in manifest.get("components", {}).items()
+    }
+
+    # Scan source files
+    scanned = scan_source_files(plugin_dir, excludes)
 
     # Find differences
     missing = []  # In source but not in manifest

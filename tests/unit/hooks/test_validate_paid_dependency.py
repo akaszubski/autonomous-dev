@@ -269,7 +269,9 @@ def test_hook_manifest_declares_a_lifecycle_registration() -> None:
 def test_hook_is_listed_in_the_install_manifest() -> None:
     """An unshipped hook cannot reach a consumer repo."""
     manifest = json.loads(
-        (REPO_ROOT / "plugins/autonomous-dev/install_manifest.json").read_text(encoding="utf-8")
+        (REPO_ROOT / "plugins/autonomous-dev/config/install_manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
     files = manifest["components"]["hooks"]["files"]
     assert any(f.endswith("validate_paid_dependency.py") for f in files)

@@ -240,6 +240,42 @@ if git diff --name-only | grep -q "install_manifest.json"; then
     git add plugins/autonomous-dev/config/install_manifest.json
 fi
 
+echo "🔍 Validating install manifest completeness..."
+
+# Validate the POST-SYNC manifest. Runs AFTER the sync+stage above so it checks
+# what is actually being committed. Issue #1747: this validator had no caller at
+# all -- a gate nobody invokes is the exact defect class it exists to catch.
+if [ -f "scripts/validate_manifest.py" ]; then
+    python3 scripts/validate_manifest.py
+    MANIFEST_VALIDATE_EXIT=$?
+    if [ $MANIFEST_VALIDATE_EXIT -ne 0 ]; then
+        echo ""
+        echo "⚠️  Manifest validation failed. Fix before committing."
+        exit $MANIFEST_VALIDATE_EXIT
+    fi
+elif [ -f "plugins/autonomous-dev/config/install_manifest.json" ]; then
+    # Fail CLOSED. A gate that silently no-ops when its script is deleted or
+    # renamed is indistinguishable from a passing gate -- that is exactly the
+    # defect Issue #1747 exists to remove (the validator shipped with no caller
+    # at all, and nothing noticed for months).
+    #
+    # The condition is the SUBJECT, not the tool: refuse when there is a manifest
+    # to validate but no validator to validate it with. A repo with no manifest
+    # has nothing for this gate to say, and the sandbox in
+    # tests/regression/test_precommit_fail_open_guard.py relies on exactly that
+    # to keep the other seven checks inert while it exercises the doc gate.
+    echo ""
+    echo "❌ install_manifest.json is present but scripts/validate_manifest.py is MISSING."
+    echo ""
+    echo "This gate fails closed on purpose: a missing validator is not a pass."
+    echo ""
+    echo "To fix:"
+    echo "  git checkout scripts/validate_manifest.py   # restore it"
+    echo ""
+    echo "To bypass (NOT recommended): git commit --no-verify"
+    exit 1
+fi
+
 echo "🔍 Validating settings template hooks exist..."
 
 # Ensure hooks referenced in settings template actually exist

@@ -21,6 +21,70 @@ from pathlib import Path
 import pytest
 
 
+def _component_excludes(data: dict, component: str) -> tuple:
+    """Read a component's ``exclude`` path prefixes from the manifest.
+
+    Args:
+        data: Parsed install_manifest.json.
+        component: Component name (e.g. ``"lib"``).
+
+    Returns:
+        Tuple of source-relative path prefixes to skip. Empty if unset.
+    """
+    return tuple(data.get("components", {}).get(component, {}).get("exclude", []))
+
+
+def _disk_relpaths(
+    source_dir: Path,
+    project_root: Path,
+    pattern: str,
+    excludes: tuple,
+    *,
+    recursive: bool = True,
+) -> set:
+    """Enumerate shipping files under a source dir as repo-relative POSIX paths.
+
+    Basenames collide across subpackages (``cli.py`` x3, ``__init__.py`` x5 under
+    lib/), so this returns full repo-relative paths -- never ``Path.name``.
+
+    Args:
+        source_dir: Directory to scan (e.g. ``plugins/autonomous-dev/lib``).
+        project_root: Repo root, used to make paths repo-relative.
+        pattern: Glob pattern (e.g. ``"*.py"``).
+        excludes: Source-relative prefixes to skip (from the manifest).
+        recursive: Descend into subdirectories (default: True).
+
+    Returns:
+        Set of repo-relative POSIX path strings.
+    """
+    glob_method = source_dir.rglob if recursive else source_dir.glob
+    found = set()
+    for f in glob_method(pattern):
+        if not f.is_file():
+            continue
+        if "__pycache__" in f.parts or ".pytest_cache" in f.parts:
+            continue
+        rel_to_source = f.relative_to(source_dir).as_posix()
+        if any(rel_to_source.startswith(prefix) for prefix in excludes):
+            continue
+        found.add(f.relative_to(project_root).as_posix())
+    return found
+
+
+def _manifest_relpaths(data: dict, component: str) -> set:
+    """Return a component's manifest entries as repo-relative POSIX paths.
+
+    Args:
+        data: Parsed install_manifest.json.
+        component: Component name (e.g. ``"lib"``).
+
+    Returns:
+        Set of repo-relative POSIX path strings.
+    """
+    files = data.get("components", {}).get(component, {}).get("files", [])
+    return {Path(entry).as_posix() for entry in files}
+
+
 @pytest.mark.smoke
 class TestInstallShCritical:
     """Critical tests for install.sh - prevents installation breakage."""
@@ -107,27 +171,37 @@ class TestInstallShCritical:
             data = json.loads(manifest.read_text())
 
             # Get actual hooks (excluding backward compatibility shims)
+            project_root = plugins_dir.parent.parent
             hooks_dir = plugins_dir / "hooks"
             # Shims redirect to unified hooks - they're intentionally not in manifest
             BACKWARD_COMPAT_SHIMS = {
                 "auto_git_workflow.py",  # Shim → unified_git_automation.py (Issue #144)
             }
+            # Compare REPO-RELATIVE PATHS, not basenames: hooks/enforce_file_organization.py
+            # and hooks/extensions/enforce_file_organization.py share a basename, so a
+            # basename set let one manifest entry vouch for both files.
+            # Scope stays top-level (recursive=False) because the generator's hooks scan is
+            # deliberately non-recursive and is co-written by scripts/generate_hook_config.py.
             actual_hooks = {
-                f.name for f in hooks_dir.glob("*.py")
-                if not f.name.startswith("__") and f.name not in BACKWARD_COMPAT_SHIMS
+                path
+                for path in _disk_relpaths(
+                    hooks_dir,
+                    project_root,
+                    "*.py",
+                    _component_excludes(data, "hooks"),
+                    recursive=False,
+                )
+                if Path(path).name not in BACKWARD_COMPAT_SHIMS
             }
 
             # Get hooks in manifest (new structure: components.hooks.files)
-            manifest_hooks = set()
-            hooks_component = data.get("components", {}).get("hooks", {})
-            for file_path in hooks_component.get("files", []):
-                manifest_hooks.add(Path(file_path).name)
+            manifest_hooks = _manifest_relpaths(data, "hooks")
 
             # All actual hooks should be in manifest
             missing = actual_hooks - manifest_hooks
-            assert len(missing) == 0, f"Hooks missing from manifest: {missing}"
+            assert len(missing) == 0, f"Hooks missing from manifest: {sorted(missing)}"
 
-        assert timer.elapsed < 2.0
+        assert timer.elapsed < 5.0
 
     def test_install_manifest_files_exist(self, plugins_dir, timing_validator):
         """Test that all files referenced in manifest actually exist.
@@ -308,21 +382,25 @@ class TestInstallSyncIntegrity:
             manifest = plugins_dir / "config" / "install_manifest.json"
             data = json.loads(manifest.read_text())
 
-            # Get actual libs
+            # Get actual libs -- RECURSIVE, keeping __init__.py, comparing full paths.
+            # The previous form (glob("*.py") + startswith("__") filter + basename sets)
+            # was blind three ways and never saw the 4 lib subpackages (Issue #1747).
+            project_root = plugins_dir.parent.parent
             lib_dir = plugins_dir / "lib"
-            actual_libs = {f.name for f in lib_dir.glob("*.py") if not f.name.startswith("__")}
+            actual_libs = _disk_relpaths(
+                lib_dir, project_root, "*.py", _component_excludes(data, "lib")
+            )
 
             # Get libs in manifest (new structure: components.lib.files)
-            manifest_libs = set()
-            lib_component = data.get("components", {}).get("lib", {})
-            for file_path in lib_component.get("files", []):
-                manifest_libs.add(Path(file_path).name)
+            manifest_libs = _manifest_relpaths(data, "lib")
 
             # All actual libs should be in manifest
             missing = actual_libs - manifest_libs
-            assert len(missing) == 0, f"Libs missing from manifest: {missing}"
+            assert len(missing) == 0, (
+                f"Libs missing from manifest ({len(missing)}): {sorted(missing)}"
+            )
 
-        assert timer.elapsed < 2.0
+        assert timer.elapsed < 5.0
 
     def test_all_commands_in_manifest(self, plugins_dir, timing_validator):
         """Test that all ACTIVE command files are in install manifest.
@@ -338,35 +416,71 @@ class TestInstallSyncIntegrity:
             manifest = plugins_dir / "config" / "install_manifest.json"
             data = json.loads(manifest.read_text())
 
-            # Get actual commands
+            # Get actual commands -- RECURSIVE, repo-relative paths on both sides.
+            project_root = plugins_dir.parent.parent
             commands_dir = plugins_dir / "commands"
-            actual_commands = {f.name for f in commands_dir.glob("*.md")}
+            actual_commands = _disk_relpaths(
+                commands_dir, project_root, "*.md", _component_excludes(data, "commands")
+            )
 
-            # Archived/deprecated commands NOT included in manifest (Issue #121)
+            # Archived/deprecated commands NOT included in manifest (Issue #121).
+            # Repo-relative so the allowlist cannot silently pardon a same-named file
+            # living in a subdirectory.
+            _PREFIX = "plugins/autonomous-dev/commands/"
             archived_commands = {
-                # Individual agent commands (consolidated into /auto-implement)
-                "research.md", "plan.md", "test-feature.md", "implement.md",
-                "review.md", "security-scan.md", "update-docs.md", "test.md",
-                # Old align commands (unified into /align with flags)
-                "align-project.md", "align-claude.md", "align-project-retrofit.md",
-                # Deprecated commands (superseded)
-                "update-plugin.md", "status.md", "pipeline-status.md",
+                _PREFIX + name
+                for name in (
+                    # Individual agent commands (consolidated into /auto-implement)
+                    "research.md", "plan.md", "test-feature.md", "implement.md",
+                    "review.md", "security-scan.md", "update-docs.md", "test.md",
+                    # Old align commands (unified into /align with flags)
+                    "align-project.md", "align-claude.md", "align-project-retrofit.md",
+                    # Deprecated commands (superseded)
+                    "update-plugin.md", "status.md", "pipeline-status.md",
+                )
             }
 
             # Filter to active commands only
             active_commands = actual_commands - archived_commands
 
             # Get commands in manifest (new structure: components.commands.files)
-            manifest_commands = set()
-            commands_component = data.get("components", {}).get("commands", {})
-            for file_path in commands_component.get("files", []):
-                manifest_commands.add(Path(file_path).name)
+            manifest_commands = _manifest_relpaths(data, "commands")
 
             # All active commands should be in manifest
             missing = active_commands - manifest_commands
-            assert len(missing) == 0, f"Active commands missing from manifest: {missing}"
+            assert len(missing) == 0, (
+                f"Active commands missing from manifest: {sorted(missing)}"
+            )
 
-        assert timer.elapsed < 2.0
+        assert timer.elapsed < 5.0
+
+    def test_all_skills_in_manifest(self, plugins_dir, timing_validator):
+        """Test that all shipping skill files are in install manifest.
+
+        Protects: Skills install completely (smoke test).
+        Issue #1747: the skills scan covered only ``*.md`` and included
+        ``skills/archived/``, so 21 skill ``*.py`` helpers never shipped.
+        """
+        with timing_validator.measure() as timer:
+            manifest = plugins_dir / "config" / "install_manifest.json"
+            data = json.loads(manifest.read_text())
+
+            project_root = plugins_dir.parent.parent
+            skills_dir = plugins_dir / "skills"
+            excludes = _component_excludes(data, "skills")
+
+            actual_skills = _disk_relpaths(
+                skills_dir, project_root, "*.md", excludes
+            ) | _disk_relpaths(skills_dir, project_root, "*.py", excludes)
+
+            manifest_skills = _manifest_relpaths(data, "skills")
+
+            missing = actual_skills - manifest_skills
+            assert len(missing) == 0, (
+                f"Skills missing from manifest ({len(missing)}): {sorted(missing)}"
+            )
+
+        assert timer.elapsed < 5.0
 
     def test_all_agents_in_manifest(self, plugins_dir, timing_validator):
         """Test that all agent files are in install manifest.

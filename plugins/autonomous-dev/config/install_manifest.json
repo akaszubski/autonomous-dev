@@ -42,7 +42,8 @@
         "plugins/autonomous-dev/agents/test-master.md",
         "plugins/autonomous-dev/agents/ui-tester.md"
       ],
-      "target": ".claude/agents"
+      "target": ".claude/agents",
+      "exclude": []
     },
     "commands": {
       "files": [
@@ -73,7 +74,8 @@
         "plugins/autonomous-dev/commands/triage.md",
         "plugins/autonomous-dev/commands/worktree.md"
       ],
-      "target": ".claude/commands"
+      "target": ".claude/commands",
+      "exclude": []
     },
     "config": {
       "files": [
@@ -166,7 +168,8 @@
         "plugins/autonomous-dev/hooks/validate_session_quality.hook.json",
         "plugins/autonomous-dev/hooks/validate_session_quality.py"
       ],
-      "target": ".claude/hooks"
+      "target": ".claude/hooks",
+      "exclude": []
     },
     "lib": {
       "files": [
@@ -182,6 +185,14 @@
         "plugins/autonomous-dev/lib/agent_output_health.py",
         "plugins/autonomous-dev/lib/agent_pool.py",
         "plugins/autonomous-dev/lib/agent_tracker.py",
+        "plugins/autonomous-dev/lib/agent_tracker/__init__.py",
+        "plugins/autonomous-dev/lib/agent_tracker/cli.py",
+        "plugins/autonomous-dev/lib/agent_tracker/display.py",
+        "plugins/autonomous-dev/lib/agent_tracker/metrics.py",
+        "plugins/autonomous-dev/lib/agent_tracker/models.py",
+        "plugins/autonomous-dev/lib/agent_tracker/state.py",
+        "plugins/autonomous-dev/lib/agent_tracker/tracker.py",
+        "plugins/autonomous-dev/lib/agent_tracker/verification.py",
         "plugins/autonomous-dev/lib/alignment_assessor.py",
         "plugins/autonomous-dev/lib/alignment_classifier.py",
         "plugins/autonomous-dev/lib/alignment_fixer.py",
@@ -285,6 +296,18 @@
         "plugins/autonomous-dev/lib/hybrid_validator.py",
         "plugins/autonomous-dev/lib/ideation_engine.py",
         "plugins/autonomous-dev/lib/ideation_report_generator.py",
+        "plugins/autonomous-dev/lib/ideators/__init__.py",
+        "plugins/autonomous-dev/lib/ideators/accessibility_ideator.py",
+        "plugins/autonomous-dev/lib/ideators/performance_ideator.py",
+        "plugins/autonomous-dev/lib/ideators/quality_ideator.py",
+        "plugins/autonomous-dev/lib/ideators/security_ideator.py",
+        "plugins/autonomous-dev/lib/ideators/tech_debt_ideator.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/__init__.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/cli.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/dispatcher.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/models.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/modes.py",
+        "plugins/autonomous-dev/lib/implement_dispatcher/validators.py",
         "plugins/autonomous-dev/lib/install_audit.py",
         "plugins/autonomous-dev/lib/install_orchestrator.py",
         "plugins/autonomous-dev/lib/installation_analyzer.py",
@@ -368,6 +391,11 @@
         "plugins/autonomous-dev/lib/success_criteria_validator.py",
         "plugins/autonomous-dev/lib/sweep_analyzer.py",
         "plugins/autonomous-dev/lib/sync_dispatcher.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher/__init__.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher/cli.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher/dispatcher.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher/models.py",
+        "plugins/autonomous-dev/lib/sync_dispatcher/modes.py",
         "plugins/autonomous-dev/lib/sync_mode_detector.py",
         "plugins/autonomous-dev/lib/sync_validator.py",
         "plugins/autonomous-dev/lib/tech_debt_detector.py",
@@ -400,7 +428,8 @@
         "plugins/autonomous-dev/lib/worktree_conflict_integration.py",
         "plugins/autonomous-dev/lib/worktree_manager.py"
       ],
-      "target": ".claude/lib"
+      "target": ".claude/lib",
+      "exclude": []
     },
     "scripts": {
       "files": [
@@ -435,16 +464,13 @@
         "plugins/autonomous-dev/skills/DESCRIPTION_PATTERN.md",
         "plugins/autonomous-dev/skills/api-design/SKILL.md",
         "plugins/autonomous-dev/skills/api-integration-patterns/SKILL.md",
+        "plugins/autonomous-dev/skills/api-integration-patterns/examples/github-issue-example.py",
+        "plugins/autonomous-dev/skills/api-integration-patterns/examples/github-pr-example.py",
+        "plugins/autonomous-dev/skills/api-integration-patterns/examples/safe-subprocess-example.py",
+        "plugins/autonomous-dev/skills/api-integration-patterns/templates/github-api-template.py",
+        "plugins/autonomous-dev/skills/api-integration-patterns/templates/retry-decorator-template.py",
+        "plugins/autonomous-dev/skills/api-integration-patterns/templates/subprocess-executor-template.py",
         "plugins/autonomous-dev/skills/architecture-patterns/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/advisor-triggers/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/agent-output-formats/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/consistency-enforcement/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/project-alignment-validation/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/project-alignment/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/quality-scoring/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/realign-meta-framework/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/semantic-validation/SKILL.md",
-        "plugins/autonomous-dev/skills/archived/skill-integration/SKILL.md",
         "plugins/autonomous-dev/skills/code-review/SKILL.md",
         "plugins/autonomous-dev/skills/content-allocation/SKILL.md",
         "plugins/autonomous-dev/skills/debugging-workflow/SKILL.md",
@@ -452,6 +478,12 @@
         "plugins/autonomous-dev/skills/error-handling/SKILL.md",
         "plugins/autonomous-dev/skills/git-github/SKILL.md",
         "plugins/autonomous-dev/skills/library-design-patterns/SKILL.md",
+        "plugins/autonomous-dev/skills/library-design-patterns/examples/progressive-enhancement-example.py",
+        "plugins/autonomous-dev/skills/library-design-patterns/examples/security-validation-example.py",
+        "plugins/autonomous-dev/skills/library-design-patterns/examples/two-tier-example.py",
+        "plugins/autonomous-dev/skills/library-design-patterns/templates/cli-template.py",
+        "plugins/autonomous-dev/skills/library-design-patterns/templates/docstring-template.py",
+        "plugins/autonomous-dev/skills/library-design-patterns/templates/library-template.py",
         "plugins/autonomous-dev/skills/observability/SKILL.md",
         "plugins/autonomous-dev/skills/planning-workflow/SKILL.md",
         "plugins/autonomous-dev/skills/prompt-engineering/SKILL.md",
@@ -461,9 +493,21 @@
         "plugins/autonomous-dev/skills/scientific-validation/SKILL.md",
         "plugins/autonomous-dev/skills/security-patterns/SKILL.md",
         "plugins/autonomous-dev/skills/state-management-patterns/SKILL.md",
-        "plugins/autonomous-dev/skills/testing-guide/SKILL.md"
+        "plugins/autonomous-dev/skills/state-management-patterns/examples/batch-state-example.py",
+        "plugins/autonomous-dev/skills/state-management-patterns/examples/crash-recovery-example.py",
+        "plugins/autonomous-dev/skills/state-management-patterns/examples/user-state-example.py",
+        "plugins/autonomous-dev/skills/state-management-patterns/templates/atomic-write-template.py",
+        "plugins/autonomous-dev/skills/state-management-patterns/templates/file-lock-template.py",
+        "plugins/autonomous-dev/skills/state-management-patterns/templates/state-manager-template.py",
+        "plugins/autonomous-dev/skills/testing-guide/SKILL.md",
+        "plugins/autonomous-dev/skills/testing-guide/test-templates/fixture-examples.py",
+        "plugins/autonomous-dev/skills/testing-guide/test-templates/integration-test-template.py",
+        "plugins/autonomous-dev/skills/testing-guide/test-templates/unit-test-template.py"
       ],
-      "target": ".claude/skills"
+      "target": ".claude/skills",
+      "exclude": [
+        "archived/"
+      ]
     },
     "templates": {
       "files": [

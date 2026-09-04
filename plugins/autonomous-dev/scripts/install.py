@@ -133,6 +133,136 @@ def is_transient_error(error: Exception) -> bool:
     return any(indicator in error_str for indicator in transient_indicators)
 
 
+# Every component destination must normalize to this root or a subdirectory of it.
+INSTALL_ROOT = ".claude"
+
+# Encoded traversal markers. NOT exploitable today: no code path URL-decodes a
+# manifest path before using it -- the local destination is built from the literal
+# string via Path(...).parts, so "%2e%2e" is an ordinary directory name, and the
+# download URL is handed to urllib verbatim. Rejected anyway so that adding a
+# decode step later cannot silently open a traversal (defense in depth).
+ENCODED_TRAVERSAL_MARKERS = ("%2e", "%2f", "%5c", "%252e", "%252f")
+
+
+def validate_manifest_target(component: str, target: str) -> None:
+    """Refuse a component ``target`` that escapes the ``.claude/`` install root.
+
+    The manifest is fetched over the network at install time with no signature or
+    hash check, so every field it contributes to a filesystem path is untrusted
+    input. ``target`` reaches ``Path(target) / relative_structure``; pathlib
+    DISCARDS the left operand when the right side is absolute, and
+    ``temp_dir / local_path`` discards the staging dir the same way, so an
+    absolute ``target`` writes anywhere on disk (CWE-22).
+
+    This is the arm ``lib/uninstall_orchestrator.py:456-464`` already implements
+    (raw-string ``..``/``/./`` refusal plus ``_validate_file_path`` containment);
+    install.py previously implemented only the per-file arm.
+
+    Args:
+        component: Component name, used only for the error message.
+        target: The ``components.<name>.target`` value from the manifest.
+
+    Raises:
+        ValueError: If the target is empty, absolute, home-relative, traversing,
+            or does not normalize to a location under ``.claude/``.
+    """
+    def _refuse(reason: str) -> None:
+        raise ValueError(
+            f"Unsafe install target for component {component!r}: {target!r} ({reason})\n"
+            f"Expected: a repo-relative path equal to {INSTALL_ROOT!r} or under "
+            f"{INSTALL_ROOT}/\n"
+            f"See: plugins/autonomous-dev/config/install_manifest.json"
+        )
+
+    if not target or not target.strip():
+        _refuse("empty target")
+    if "\x00" in target:
+        _refuse("NUL byte in target")
+    if "\\" in target:
+        _refuse("backslash separator (targets are POSIX-relative)")
+    # Check the RAW string. pathlib silently drops "." segments, so
+    # Path(".claude/./x").parts is ('.claude', 'x') and a parts-based check for
+    # "." can never fire. Issue #1747 remediation.
+    if ".." in target or "/./" in target or target.startswith("./"):
+        _refuse("path traversal marker")
+    lowered = target.lower()
+    for marker in ENCODED_TRAVERSAL_MARKERS:
+        if marker in lowered:
+            _refuse(f"encoded traversal marker {marker!r}")
+    if target.startswith("~"):
+        _refuse("home-relative target")
+    if Path(target).is_absolute():
+        _refuse("absolute target")
+    if ".." in Path(target).parts:
+        _refuse("parent-directory segment")
+
+    normalized = os.path.normpath(target).replace(os.sep, "/")
+    if normalized != INSTALL_ROOT and not normalized.startswith(f"{INSTALL_ROOT}/"):
+        _refuse(f"normalizes to {normalized!r}, outside {INSTALL_ROOT}/")
+
+
+def validate_manifest_file_path(github_path: str) -> None:
+    """Refuse a manifest file entry that would escape its component directory.
+
+    Args:
+        github_path: A ``components.<name>.files[]`` value from the manifest.
+
+    Raises:
+        ValueError: If the entry traverses, is absolute, or carries an encoded
+            traversal marker.
+    """
+    def _refuse(reason: str) -> None:
+        raise ValueError(
+            f"Path traversal detected in manifest entry: {github_path!r} ({reason})\n"
+            f"Expected: a repo-relative path under plugins/autonomous-dev/\n"
+            f"See: plugins/autonomous-dev/config/install_manifest.json"
+        )
+
+    if not github_path or not github_path.strip():
+        _refuse("empty entry")
+    if "\x00" in github_path:
+        _refuse("NUL byte in entry")
+    if ".." in github_path or "/./" in github_path:
+        _refuse("path traversal marker")
+    lowered = github_path.lower()
+    for marker in ENCODED_TRAVERSAL_MARKERS:
+        if marker in lowered:
+            _refuse(f"encoded traversal marker {marker!r}")
+    if github_path.startswith("~") or Path(github_path).is_absolute():
+        _refuse("absolute or home-relative entry")
+
+
+def assert_contained(root: Path, candidate: Path, *, what: str) -> Path:
+    """Assert ``candidate`` resolves inside ``root``, returning the resolved path.
+
+    Defense in depth for the staging write in :meth:`PluginInstaller.download_to_temp`
+    -- that is where a hostile destination actually lands on disk, BEFORE
+    ``FileManager.validate_path`` (the only pre-existing containment gate) ever runs.
+
+    Args:
+        root: Directory the candidate must live under.
+        candidate: Path to check (need not exist).
+        what: Short label for the error message.
+
+    Returns:
+        The resolved candidate path.
+
+    Raises:
+        ValueError: If the resolved candidate is not under the resolved root.
+    """
+    root_resolved = root.resolve()
+    candidate_resolved = candidate.resolve()
+    try:
+        candidate_resolved.relative_to(root_resolved)
+    except ValueError:
+        raise ValueError(
+            f"Refusing to write {what} outside its root.\n"
+            f"Expected: a path under {root_resolved}\n"
+            f"Got: {candidate_resolved}"
+        ) from None
+    return candidate_resolved
+
+
 class GitHubDownloader:
     """Download files from GitHub with TLS enforcement and retry logic."""
 
@@ -394,7 +524,21 @@ class PluginInstaller:
         return False
 
     def get_all_files_from_manifest(self, manifest: Dict[str, Any]) -> Dict[str, str]:
-        """Get all files to install from static manifest (no API calls)."""
+        """Get all files to install from static manifest (no API calls).
+
+        The manifest is fetched over the network with no signature check, so BOTH
+        fields it contributes to a destination path are validated here: the
+        component ``target`` and each ``files[]`` entry.
+
+        Args:
+            manifest: Parsed install_manifest.json.
+
+        Returns:
+            Dict of ``github_path -> local destination path``.
+
+        Raises:
+            ValueError: If any component target or file entry escapes ``.claude/``.
+        """
         all_files = {}
 
         components = manifest.get("components", {})
@@ -402,16 +546,41 @@ class PluginInstaller:
             target = config.get("target", f".claude/{component}")
             files = config.get("files", [])
 
+            # Security: refuse a target that escapes .claude/ (CWE-22). This is the
+            # arm the uninstaller has at lib/uninstall_orchestrator.py:456-464 and
+            # that install.py was missing: `Path(target) / relative_structure`
+            # discards the left operand when target is absolute, and so does
+            # `temp_dir / local_path` in download_to_temp -- the staging write then
+            # lands anywhere on disk, before FileManager.validate_path ever runs.
+            validate_manifest_target(component, target)
+
             log_step(f"Processing {component} ({len(files)} files)...")
 
             for github_path in files:
                 if self.should_skip_file(github_path):
                     continue
 
-                # Map GitHub path to local path using target from manifest
-                # plugins/autonomous-dev/hooks/pre_tool_use.py -> .claude/hooks/pre_tool_use.py
-                filename = Path(github_path).name
-                local_path = str(Path(target) / filename)
+                # Security: refuse a poisoned manifest entry that would escape the
+                # target directory (CWE-22). Mirrors the uninstaller's per-file
+                # refusal at lib/uninstall_orchestrator.py:476-477, plus encoded
+                # traversal markers.
+                validate_manifest_file_path(github_path)
+
+                # Map GitHub path to local path, PRESERVING subdirectory nesting.
+                # plugins/autonomous-dev/hooks/pre_tool_use.py
+                #   -> .claude/hooks/pre_tool_use.py
+                # plugins/autonomous-dev/lib/agent_tracker/cli.py
+                #   -> .claude/lib/agent_tracker/cli.py
+                # Flattening to Path(github_path).name collapsed all 30 skills onto
+                # one destination and would have collided 3 distinct cli.py files
+                # (Issue #1747). This is the rule the uninstaller already applies at
+                # lib/uninstall_orchestrator.py:487-493, so install/uninstall agree.
+                parts = Path(github_path).parts
+                if len(parts) > 3:
+                    relative_structure = Path(*parts[3:])
+                else:
+                    relative_structure = Path(Path(github_path).name)
+                local_path = str(Path(target) / relative_structure)
                 all_files[github_path] = local_path
 
         return all_files
@@ -470,8 +639,15 @@ class PluginInstaller:
                 failed_files.append(github_path)
                 continue
 
-            # Write to temp directory
-            temp_path = self.temp_dir / local_path
+            # Write to temp directory.
+            # Security: assert containment BEFORE mkdir. `self.temp_dir / local_path`
+            # yields local_path unchanged when local_path is absolute, so without
+            # this the staging phase writes outside the staging dir -- and staging
+            # runs before FileManager.validate_path, the only other containment
+            # gate. Defense in depth behind validate_manifest_target().
+            temp_path = assert_contained(
+                self.temp_dir, self.temp_dir / local_path, what=f"staged file {github_path!r}"
+            )
             temp_path.parent.mkdir(parents=True, exist_ok=True)
 
             try:

@@ -193,7 +193,9 @@ class TestNoOrphanHooks:
     CRITICAL_HOOKS = [
         "unified_pre_tool.py",
         "unified_prompt_validator.py",
-        "pre_tool_use.py",  # For backwards compatibility
+        # pre_tool_use.py removed (Issue #1747): the hook is archived and no longer
+        # ships. It was green only via the `if (HOOKS_DIR / hook).exists()` guard,
+        # i.e. the datum was inert, not satisfied.
     ]
 
     def test_critical_hooks_in_manifest(self, manifest):
