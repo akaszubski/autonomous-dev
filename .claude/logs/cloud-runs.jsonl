@@ -1114,3 +1114,4 @@
 {"fire_id": "20260903T143751Z", "fired_at": "2026-09-03T14:38:11Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260903T143751Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260903T163752Z", "fired_at": "2026-09-03T16:38:36Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260904T023808Z", "fired_at": "2026-09-04T02:39:45Z", "selected_cluster": "pending_mcp_fallback", "phase": "FIRE_START"}
