@@ -1122,3 +1122,4 @@
 {"fire_id": "20260904T063801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260904T083744Z", "fired_at": "2026-09-04T08:38:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260904T083744Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_api_403_forbidden_token_invalid"}
+{"fire_id": "20260904T143814Z", "fired_at": "2026-09-04T14:38:35Z", "selected_cluster": "none", "phase": "FIRE_START"}
