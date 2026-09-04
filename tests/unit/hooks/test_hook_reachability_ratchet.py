@@ -1376,8 +1376,15 @@ def _library_corpus(project_root: Path = PROJECT_ROOT) -> "dict[str, Path]":
     Returns:
         Mapping of ``lib/``-relative posix path to absolute path.
         ``__init__.py`` is excluded: a package initialiser is reached
-        through its package, and classifying twenty of them by the same
-        stem would collide.
+        through its package, and classifying FIVE of them by the same
+        stem would collide. Five is the measured count on the CORPUS
+        BASIS — ``find plugins/autonomous-dev/lib -name __init__.py``,
+        i.e. initialisers inside ``lib/`` itself, which is the tree this
+        function is relative to. Counting the wider consumer globs would
+        give a different, irrelevant number. Since #1725 those five ARE
+        walkable: ``_consumer_nodes`` keys them by package directory
+        name. They remain outside the CORPUS, so an initialiser can
+        never be pinned nor counted against the ceiling.
     """
     lib_dir = project_root / "plugins" / "autonomous-dev" / "lib"
     return {
@@ -1396,15 +1403,36 @@ def _consumer_nodes(project_root: Path = PROJECT_ROOT) -> "dict[str, list[Path]]
     are indistinguishable to the resolver. A collision credits BOTH,
     which is the REACHED-or-UNKNOWN direction.
 
+    ``__init__.py`` is the ONE stem that cannot be addressed this way,
+    because EVERY package carries it: keying five initialisers under
+    ``__init__`` makes the package directory unreachable by name and the
+    stem itself meaningless. So an initialiser is keyed by its PACKAGE
+    DIRECTORY name instead, which is how Python addresses it and how
+    every consumer writes it (``from agent_tracker import AgentTracker``).
+
+    This is a change to ADDRESSABILITY ONLY. Nothing is grounded here;
+    the walk still has to arrive. And note that corpus membership is not
+    node membership: ``_library_corpus`` continues to EXCLUDE
+    ``__init__.py`` (:func:`_library_corpus`), so an initialiser is
+    walkable but can never be pinned or counted against the ceiling.
+
+    The re-key also un-shadows a real collision. ``lib/agent_tracker.py``
+    is a 49-line SHIM that re-exports the package of the same name; under
+    stem keying it OWNED the name ``agent_tracker`` and the package
+    directory beside it was never entered, so seven live modules read
+    UNKNOWN while ten grounded surfaces named the package.
+
     Args:
         project_root: Repository root.
 
     Returns:
-        Mapping of module stem to every file carrying that stem.
+        Mapping of module stem to every file carrying that stem, with
+        ``__init__.py`` keyed by ``path.parent.name``.
     """
     nodes: "dict[str, list[Path]]" = {}
     for path in _library_paths(project_root, LIBRARY_CONSUMER_GLOBS):
-        nodes.setdefault(path.stem, []).append(path)
+        key = path.parent.name if path.name == "__init__.py" else path.stem
+        nodes.setdefault(key, []).append(path)
     return nodes
 
 
@@ -1504,7 +1532,9 @@ def _embedded_python_sources(text: str) -> "list[str]":
     return sources
 
 
-def _python_referenced_stems(source: str) -> "set[str]":
+def _python_referenced_stems(
+    source: str, *, origin: "Path | None" = None
+) -> "set[str]":
     """Module stems a Python source IMPORTS or INVOKES.
 
     AST, never regex — for the reason ``test_anthropic_client_ratchet``
@@ -1514,6 +1544,13 @@ def _python_referenced_stems(source: str) -> "set[str]":
 
     Args:
         source: Python source text.
+        origin: The file ``source`` was read from, when there is one.
+            Supplies the PACKAGE CONTEXT a relative import needs. When
+            ``None`` — a fenced block in a markdown file, a ``python3 -c``
+            payload — there is no package to be relative to, so the bare
+            stem is emitted exactly as before. That is the
+            over-approximating direction and it is the correct default
+            for a snippet with no home.
 
     Returns:
         Stems named by an import, by a ``.py`` filename passed to an
@@ -1538,6 +1575,23 @@ def _python_referenced_stems(source: str) -> "set[str]":
             for alias in node.names:
                 found.add(alias.name.rsplit(".", 1)[-1])
         elif isinstance(node, ast.ImportFrom):
+            if node.level and origin is not None:
+                if _relative_import_targets(node, origin):
+                    # RESOLVED RELATIVELY, so the bare stem is a FALSE
+                    # address and must not be emitted. ``agent_tracker/
+                    # tracker.py`` says ``from .models import ...``; the
+                    # stem ``models`` maps to THREE files —
+                    # ``agent_tracker/``, ``implement_dispatcher/`` and
+                    # ``sync_dispatcher/models.py`` — and emitting it
+                    # would credit two packages this file cannot reach.
+                    # The resolved path went to the frontier instead.
+                    #
+                    # THIS IS THE ONLY LINE THAT CAN MOVE A MODULE
+                    # REACHED -> UNKNOWN. It is gated on the import
+                    # ACTUALLY RESOLVING on disk: when it does not, the
+                    # stem is emitted unchanged, because an unrecognised
+                    # edge form defaults to REACHABLE and never to dead.
+                    continue
             if node.module:
                 found.add(node.module.rsplit(".", 1)[-1])
         elif isinstance(node, ast.Call):
@@ -1563,6 +1617,106 @@ def _python_referenced_stems(source: str) -> "set[str]":
                 for token in re.findall(r"([\w.\-]+)\.py\b", constant):
                     found.add(token.rsplit("/", 1)[-1])
     return found
+
+
+
+def _relative_import_targets(node: "ast.ImportFrom", anchor: Path) -> "set[Path]":
+    """Files ONE relative ``from`` statement resolves to on disk.
+
+    THE THIRD EDGE, at statement granularity. Split from
+    :func:`_relative_package_targets` so that both consumers ask the
+    IDENTICAL question of the IDENTICAL resolver: the walk needs the
+    file-level union, and the stem suppression in
+    :func:`_python_referenced_stems` needs to know whether THIS node
+    resolved. Two resolvers would be two answers, and the suppression is
+    the one direction that can move a module REACHED -> UNKNOWN.
+
+    DIVERGENCE FROM THE TWO EXISTING RESOLVERS IN ``lib/``, argued here
+    rather than silently re-derived. ``lib/hook_budgets.py:610`` and
+    ``lib/tech_debt_detector.py:362`` both already resolve
+    ``node.level``, and ``hook_budgets`` records this exact defect class
+    in its own docstring ("The previous version filtered these out via
+    ``node.level == 0`` and under-credited every relative import"). Both
+    answer in NAMES — a stem set, a dotted module string — because their
+    consumers are name-keyed. This walk's worklist is keyed by ``Path``,
+    and the whole point of this edge is that the NAME is the thing that
+    collapses: every package initialiser is named ``__init__``, and
+    ``models`` names three different files. So resolution here is to
+    FILE PATHS ON DISK, which is the one form a name-keyed answer cannot
+    carry. The ``from . import cli`` case IS mirrored from
+    ``hook_budgets.py:610`` — when ``node.module`` is falsy the module is
+    the package itself, so the edge is each imported NAME.
+
+    Resolution is by DIRECTORY existence, never by ``__init__.py``
+    existence. Under PEP 420 a package directory need not contain an
+    initialiser, and keying on one would make this edge silently vanish
+    for a namespace package. No namespace package exists in this corpus
+    today — every directory under ``lib/`` carries an ``__init__.py`` —
+    so the rule costs nothing and a control defending a shape that is
+    not present would.
+
+    Args:
+        node: The ``from ... import ...`` statement.
+        anchor: The file the statement was parsed from. Levels are
+            counted UP from its directory.
+
+    Returns:
+        Absolute paths that EXIST on disk. Empty when the import is
+        absolute, when the level walks past the filesystem root, or when
+        nothing resolves — and an empty answer means the caller falls
+        back to today's bare-stem behaviour, never to "dead".
+    """
+    if not node.level:
+        return set()
+    base = anchor.parent
+    for _ in range(node.level - 1):
+        if base.parent == base:
+            # Walked off the top of the filesystem. Nothing above the
+            # root can be a package, so this addresses nothing.
+            return set()
+        base = base.parent
+    candidates: "set[Path]" = set()
+    if node.module:
+        base = base.joinpath(*node.module.split("."))
+        candidates.add(base.with_suffix(".py"))
+        candidates.add(base / "__init__.py")
+    for alias in node.names:
+        candidates.add(base / f"{alias.name}.py")
+        candidates.add(base / alias.name / "__init__.py")
+    return {candidate for candidate in candidates if candidate.is_file()}
+
+
+def _relative_package_targets(path: Path) -> "set[Path]":
+    """Every file ``path`` reaches by relative import.
+
+    The file-level union of :func:`_relative_import_targets`, and the
+    channel the walk consults. Without it a package's own modules are
+    unreachable: ``from agent_tracker import AgentTracker`` resolves
+    through :func:`_consumer_nodes` to the package INITIALISER, and the
+    initialiser's ``from .tracker import AgentTracker`` then has to be
+    followed as a PATH, because its stem ``tracker`` is not the address
+    Python used.
+
+    Args:
+        path: A Python source file.
+
+    Returns:
+        Absolute existing paths. An unreadable or unparseable file
+        yields nothing — #1389's contract, restated: a file this
+        instrument cannot read vouches for nothing, and never counts as
+        proof that anything is dead.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError, ValueError):
+        return set()
+    targets: "set[Path]" = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            targets |= _relative_import_targets(node, path)
+    return targets
 
 
 def _references_in(path: Path) -> "set[str]":
@@ -1602,7 +1756,7 @@ def _references_in(path: Path) -> "set[str]":
     except OSError:
         return set()
     if path.suffix == ".py":
-        return _python_referenced_stems(text)
+        return _python_referenced_stems(text, origin=path)
     if path.suffix.lower() in NARRATIVE_SUFFIXES:
         found = _shell_invoked_stems(text, _SHELL_INVOCATION_INTERPRETED)
         for _language, contents in _fenced_code_blocks(text):
@@ -1758,6 +1912,30 @@ def library_reachability(
                 if path not in grounded:
                     grounded[path] = f"referenced by {source_file.name}"
                     frontier.append(path)
+        if source_file.suffix == ".py":
+            # THE RELATIVE CHANNEL, consulted at WALK TIME and nowhere
+            # else. Nothing is credited while the graph is built; a
+            # target is grounded only once its importer has been
+            # DEQUEUED, which is what makes the credit conditional on the
+            # package being reached, at a cost of zero extra lines.
+            # ``implement_dispatcher/validators.py`` says ``import
+            # implement_dispatcher`` and now resolves to that package's
+            # initialiser — but ``validators.py`` is never dequeued, so
+            # the edge is never traversed and the package stays UNKNOWN.
+            # An ``if parent_is_reached`` guard here would move the
+            # credit back to build time and destroy that property.
+            for target in _relative_package_targets(source_file):
+                if target in grounded:
+                    continue
+                if project_root not in target.parents:
+                    # A level count that climbs out of the tree under
+                    # analysis must not drag an outside file onto the
+                    # frontier, where it would be parsed and its own
+                    # imports credited.
+                    continue
+                origin = f"{source_file.parent.name}/{source_file.name}"
+                grounded[target] = f"package re-export from {origin}"
+                frontier.append(target)
 
     reached = {k: grounded[p] for k, p in corpus.items() if p in grounded}
     unknown = sorted(k for k, p in corpus.items() if p not in grounded)
@@ -1855,13 +2033,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "active_security_scanner.py",
     "agent_feedback.py",
     "agent_pool.py",
-    "agent_tracker/cli.py",
-    "agent_tracker/display.py",
-    "agent_tracker/metrics.py",
-    "agent_tracker/models.py",
-    "agent_tracker/state.py",
-    "agent_tracker/tracker.py",
-    "agent_tracker/verification.py",
     "alignment_fixer.py",
     "alignment_gate.py",
     "auto_approval_consent.py",
@@ -1899,13 +2070,11 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "failure_analyzer.py",
     "feature_completion_detector.py",
     "feature_dependency_analyzer.py",
-    "file_discovery.py",
     "flaky_tests.py",
     "github_issue_fetcher.py",
     "hardware_calibrator.py",
     "headless_mode.py",
     "health_check.py",
-    "hook_activator.py",
     "ideation_engine.py",
     "ideation_report_generator.py",
     "ideators/accessibility_ideator.py",
@@ -1954,21 +2123,14 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "step5_quality_gate.py",
     "stuck_detector.py",
     "success_criteria_validator.py",
-    "sync_dispatcher/cli.py",
-    "sync_dispatcher/dispatcher.py",
-    "sync_dispatcher/models.py",
-    "sync_dispatcher/modes.py",
-    "sync_mode_detector.py",
     "test_routing.py",
     "test_runner.py",
     "token_tracker.py",
     "tool_approval_audit.py",
     "tool_validator.py",
     "training_metrics.py",
-    "uninstall_orchestrator.py",
     "update_plugin.py",
     "validate_marketplace_version.py",
-    "version_detector.py",
     "worker_consistency_validator.py",
     "workflow_coordinator.py",
     "workflow_violation_logger.py",
@@ -2050,7 +2212,71 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        NOTHING moved UNKNOWN -> pinned in the other direction: the
 #        measured ``live - pin`` difference set is EMPTY, so the two
 #        repairs credited exactly six modules and over-credited none.
-LIBRARY_REACHABILITY_CEILING = 121
+#   105  Issue #1725. A LOWER, and the largest single move so far: -16,
+#        all REPAIR, nothing deleted. The walk gained its THIRD edge —
+#        the relative import — after the instrument reported seven live
+#        ``agent_tracker/*`` modules dead while TEN grounded surfaces
+#        named the package. Two barriers stacked: ``lib/agent_tracker
+#        .py`` is a 49-line SHIM whose STEM shadowed the package
+#        directory beside it, and a package initialiser collapsed to the
+#        stem ``__init__``, which every package shares. Attributed BY
+#        SET, each route being the string the walk itself PRINTED:
+#          -7 agent_tracker/: tracker.py, models.py and cli.py ``package
+#            re-export from agent_tracker/__init__.py``; display.py,
+#            metrics.py, state.py and verification.py ``package
+#            re-export from agent_tracker/tracker.py``.
+#          -4 sync_dispatcher/: dispatcher.py, models.py and cli.py
+#            ``package re-export from sync_dispatcher/__init__.py``;
+#            modes.py ``package re-export from sync_dispatcher/
+#            dispatcher.py``. This one was PREDICTED UNCERTAIN — its
+#            importers are themselves pinned, so the answer depended on
+#            transitive closure. The closure resolved.
+#          -5 TRANSITIVE TAIL, credited by the pre-existing STEM channel
+#            once the four ``sync_dispatcher`` modules were dequeued:
+#            file_discovery.py, hook_activator.py, uninstall_orchestrator
+#            .py ``referenced by dispatcher.py``; sync_mode_detector.py
+#            ``referenced by __init__.py``; version_detector.py, whose
+#            printed route ALTERNATES across runs between ``referenced
+#            by dispatcher.py`` and ``referenced by models.py`` — both
+#            ``sync_dispatcher/`` files, both real. Route strings are a
+#            WITNESS, not a contract: ``_references_in`` returns a set,
+#            so which of several true importers gets recorded follows
+#            frontier order. Recorded as observed rather than as one
+#            run's string presented as THE route.
+#        NOT moved, and this is the DISCRIMINATOR rather than an
+#        omission: ``implement_dispatcher/*`` (5) and ``ideators/*`` (5)
+#        stay UNKNOWN, all ten. ``implement_dispatcher/validators.py``
+#        says ``import implement_dispatcher`` and NOW resolves to that
+#        package's initialiser under the new keying — but ``validators
+#        .py`` is never dequeued, so the edge is never traversed. The
+#        credit is conditional because it happens at WALK time, and the
+#        conditionality falls out of the WORKLIST at a cost of zero
+#        lines; no ``if parent_is_reached`` guard exists, and adding one
+#        would move the credit back to build time.
+#        MEASURED, not asserted. The build-time variant was actually
+#        run: grounding every relative target of every consumer before
+#        the walk begins credits 15 MODULES MORE and lands the ceiling
+#        at 90 — all five ``implement_dispatcher/*`` plus a ten-module
+#        tail (agent_pool, batch_retry_consent, code_patcher,
+#        copy_system, failure_analyzer, hardware_calibrator,
+#        installation_validator, pool_config, stuck_detector,
+#        token_tracker). ``ideators/*`` does NOT move even then, and an
+#        earlier draft of this comment claiming it would was WRONG:
+#        ``ideators/__init__.py`` imports absolutely, so the relative
+#        resolver finds nothing there and the package still needs a
+#        route through the stem channel. Corrected against the
+#        measurement rather than left as the plausible number.
+#        NOTHING moved REACHED -> UNKNOWN: the measured ``live - pin``
+#        difference set is EMPTY. That direction was the real risk here,
+#        because suppressing the bare stem of a resolved relative import
+#        is the one change in #1725 that CAN take credit away.
+#        PREDICTION vs MEASUREMENT, recorded because a wrong prediction
+#        reported as wrong is worth more than one quietly adjusted: the
+#        plan predicted 110 (band 105-112). Measured 105 — inside the
+#        band, 5 below the point estimate. The whole miss is the
+#        transitive tail: the plan counted the packages and not what
+#        their modules would then reach.
+LIBRARY_REACHABILITY_CEILING = 105
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -2059,7 +2285,7 @@ LIBRARY_REACHABILITY_CEILING = 121
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 121
+LIBRARY_CEILING_HIGH_WATER_MARK = 105
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.
@@ -5370,6 +5596,238 @@ class TestLibraryBothArmsOnSyntheticCorpora:
             "a nested script grounded a module. The entry-surface glob "
             "has been widened to scripts/**/*.py, which credits stale "
             "verifiers as invocation routes."
+        )
+
+    # ---- #1725: the relative-import edge, both arms ---------------------
+    #
+    # Six controls, and the two that matter most are 3 and 6. Control 3
+    # is the DISCRIMINATOR: it is the only arm that goes red if the stem
+    # suppression in ``_python_referenced_stems`` is dropped, and stem
+    # suppression is the one part of #1725 that can move a module
+    # REACHED -> UNKNOWN. Control 6 proves the edge was ADDED rather
+    # than the target marked, which is the failure this repo keeps
+    # finding: a check whose subject is the description rather than the
+    # behaviour.
+    #
+    # A seventh control was proposed and CUT: a PEP 420 namespace-package
+    # negative shape. Measured before cutting — every package directory
+    # under ``lib/`` (agent_tracker, ideators, implement_dispatcher,
+    # sync_dispatcher, and lib/ itself) carries an ``__init__.py``, so
+    # zero namespace packages exist in the corpus this instrument walks.
+    # The RESOLUTION RULE it was defending is kept and stated in
+    # ``_relative_import_targets``; the control defending a shape that is
+    # not present is speculative hardening and was not kept.
+
+    @staticmethod
+    def _package(lib: Path, name: str, init_body: str, modules: "dict[str, str]"):
+        """Write a package directory with an initialiser and modules."""
+        pkg = lib / name
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text(init_body, encoding="utf-8")
+        for module_name, body in modules.items():
+            (pkg / module_name).write_text(body, encoding="utf-8")
+        return pkg
+
+    def test_permitting_arm_relative_re_export_reaches_a_package_module(
+        self, tmp_path
+    ):
+        """PERMITTING. The live ``agent_tracker`` shape, minimised.
+
+        A command file names the PACKAGE; the package initialiser reaches
+        its own module by relative import. Before #1725 this was UNKNOWN
+        twice over: the initialiser collapsed to the stem ``__init__``,
+        so the package directory had no address at all, and ``from .sub
+        import X`` emitted the stem ``sub`` rather than a path.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "pkg",
+            "from .sub import X\n\n__all__ = ['X']\n",
+            {"sub.py": "X = 1\n"},
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```python\nfrom pkg import X\n```\n",
+        )
+        assert self._unknown(root) == [], (
+            "a package module re-exported by its own initialiser, with "
+            "the package named by a grounded command file, was "
+            "classified UNKNOWN. That is the live agent_tracker defect: "
+            "seven modules called dead while ten surfaces named them."
+        )
+
+    def test_refusing_arm_the_same_package_with_no_carrier_stays_unknown(
+        self, tmp_path
+    ):
+        """REFUSING. Identical tree, minus the one line that grounds it.
+
+        Paired with the arm above: same package, same relative import,
+        the command file simply removed. If this went green the new edge
+        would be grounding packages on its own authority, which would
+        make the permitting arm meaningless.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "pkg",
+            "from .sub import X\n\n__all__ = ['X']\n",
+            {"sub.py": "X = 1\n"},
+        )
+        assert self._unknown(root) == ["pkg/sub.py"], (
+            "removing the ONLY carrier that names the package left its "
+            "module reached. The relative edge is grounding on its own "
+            "authority instead of extending a route that already exists."
+        )
+
+    def test_refusing_arm_a_relative_import_does_not_credit_a_namesake(
+        self, tmp_path
+    ):
+        """THE DISCRIMINATOR. Two packages, one ``models.py`` each.
+
+        The synthetic form of the live case: ``agent_tracker/tracker.py``
+        says ``from .models import M``, and the bare stem ``models``
+        addresses THREE files — ``agent_tracker/``,
+        ``implement_dispatcher/`` and ``sync_dispatcher/models.py``.
+        Only one of them is the file Python would load.
+
+        This arm is the reason ``_python_referenced_stems`` SUPPRESSES
+        the bare stem of a relative import that resolves. Delete that
+        suppression and ``orphan_pkg/models.py`` is credited by a
+        namesake it has no relationship to, and this test goes red — it
+        is the only one in the file that does.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "reached_pkg",
+            "from .models import M\n\n__all__ = ['M']\n",
+            {"models.py": "M = 1\n"},
+        )
+        self._package(
+            lib,
+            "orphan_pkg",
+            "from .models import M\n\n__all__ = ['M']\n",
+            {"models.py": "M = 2\n"},
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```python\nfrom reached_pkg import M\n```\n",
+        )
+        assert self._unknown(root) == ["orphan_pkg/models.py"], (
+            "a relative import credited a SAME-NAMED module in an "
+            "unrelated package. The bare stem is being emitted alongside "
+            "the resolved path, so `from .models import M` reaches every "
+            "models.py in the tree instead of its own."
+        )
+
+    def test_a_package_initialiser_is_walkable_but_never_pinnable(
+        self, tmp_path
+    ):
+        """REFUSING, on the CORPUS rather than the walk.
+
+        ``_consumer_nodes`` gained the initialiser as a NODE; the corpus
+        must not gain it as a MEMBER. If it did, five identically-named
+        ``__init__.py`` entries would appear in the pin and against the
+        ceiling, and ``test_library_corpus_keys_round_trip`` would be
+        asserting something this change had quietly broken.
+
+        Corpus membership and node membership are different questions,
+        and this is the arm that keeps them different.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "pkg",
+            "from .sub import X\n\n__all__ = ['X']\n",
+            {"sub.py": "X = 1\n"},
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```python\nfrom pkg import X\n```\n",
+        )
+        _clear_library_reachability_cache()
+        result = library_reachability(root, use_cache=False)
+        assert not [k for k in result.corpus if k.endswith("__init__.py")], (
+            f"a package initialiser entered the CORPUS, where it becomes "
+            f"pinnable and counts against the ceiling: "
+            f"{sorted(result.corpus)}"
+        )
+        assert (lib / "pkg" / "__init__.py") in result.grounded, (
+            "the initialiser is not in `grounded`, so the package was "
+            "never entered and the permitting arm above is passing for "
+            "some other reason than the one it claims."
+        )
+
+    def test_permitting_arm_an_absolute_import_package_needs_no_new_edge(
+        self, tmp_path
+    ):
+        """PERMITTING, and the new channel contributes NOTHING here.
+
+        The live ``ideators`` shape: ``ideators/__init__.py:16-20`` uses
+        ``from autonomous_dev.lib.ideators.security_ideator import ...``
+        — fully absolute. The answer is decided entirely by the
+        pre-existing STEM channel, and this arm exists so that a future
+        change to the relative resolver cannot quietly take credit for
+        an absolute-import package.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "pkg",
+            "from top.pkg.sub import X\n\n__all__ = ['X']\n",
+            {"sub.py": "X = 1\n"},
+        )
+        self._command(
+            root,
+            "synthetic.md",
+            "# Synthetic\n\n```python\nfrom pkg import X\n```\n",
+        )
+        assert self._unknown(root) == [], (
+            "an absolutely-imported package module was classified "
+            "UNKNOWN. This shape worked before #1725 through the stem "
+            "channel; if it is failing now, the relative edge has "
+            "displaced the stem channel rather than adding to it."
+        )
+
+    def test_the_relative_edge_does_not_credit_at_build_time(self, tmp_path):
+        """NEGATIVE CONTROL. Proof the EDGE was added, not the TARGET.
+
+        A package that re-exports its own module, with NOTHING naming
+        the package anywhere. The re-export exists, the relative import
+        resolves on disk, and the initialiser is addressable by its
+        directory name — every ingredient of the new channel is present.
+        The one missing thing is a route to the package, and that must
+        be enough to keep the module UNKNOWN.
+
+        This is the live ``implement_dispatcher`` case: ``validators.py``
+        says ``import implement_dispatcher``, which NOW resolves to that
+        package's initialiser — but ``validators.py`` is never dequeued,
+        so the edge is never traversed. The conditionality falls out of
+        the worklist and costs zero lines. Had the credit been applied
+        while BUILDING the graph, this test would be red and ten live
+        modules would have been marked reached on no evidence.
+        """
+        root, lib = self._repo(tmp_path)
+        self._package(
+            lib,
+            "pkg",
+            "from .sub import X\n\n__all__ = ['X']\n",
+            {"sub.py": "X = 1\n"},
+        )
+        # Present, resolving, and unreachable: nothing dequeues it.
+        self._module(lib, "orphan_importer.py", "import pkg\n")
+        assert self._unknown(root) == [
+            "orphan_importer.py",
+            "pkg/sub.py",
+        ], (
+            "a package module was credited without any route to its "
+            "package. The relative edge is being applied while the graph "
+            "is BUILT rather than while it is WALKED, which marks the "
+            "target instead of adding the edge."
         )
 
 
