@@ -1117,3 +1117,4 @@
 {"fire_id": "20260904T023808Z", "fired_at": "2026-09-04T02:39:45Z", "selected_cluster": "pending_mcp_fallback", "phase": "FIRE_START"}
 {"fire_id": "20260904T023808Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "cluster": "1651,1660", "outcome": "both_skipped_too_complex", "notes": "both touch hooks/lib protected by hard floor; skip comments posted via MCP"}
 {"fire_id": "20260904T043756Z", "fired_at": "2026-09-04T04:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T043756Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "GITHUB_TOKEN present but rejected (403); auto-improvement listing failed; treated as no cluster"}
