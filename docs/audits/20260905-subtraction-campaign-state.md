@@ -1,7 +1,9 @@
 # Subtraction campaign — state, plan, and what was learned
 
-**Date**: 2026-09-05 · **Branch**: `fix/searxng-migration-inv8` · **HEAD**: `64e6db90`
-**Status**: 4 commits landed, NOT deployed. Layer 2 work not started.
+**Date**: 2026-09-05 · **Branch**: `fix/searxng-migration-inv8` (**unpushed, no upstream**) · **HEAD**: `71d6646b`
+**Status**: 4 commits landed. **Deployed and verified on this machine only** (§2). The Mac
+Studio is on its own `master` at `73b90cf8` and still loads all 3,223 deleted lines — that
+is a push/merge gap, not a deploy gap. Layer 2 work not started.
 
 This is a handoff document. It exists because the session that produced these commits
 was long, and the useful part is not the diffs — it is the measurements, the corrections,
@@ -64,16 +66,48 @@ LAYER 3  the approval subsystem  0 refusals, ever             DELETED in 64e6db9
 Layer 2 is 9,811 lines / 139 functions / 51 checks behind **one 5-second timeout**, with
 **33 `fail_open` events** against those 167 refusals in the same window.
 
-### NOT DEPLOYED
+### DEPLOYED LOCALLY 2026-09-05 — and the remote prediction below was WRONG
 
-`.claude/lib/` and `~/.claude/lib/` still contain the six modules deleted in `64e6db90`.
-All four commits are real in git and not on disk. Requires `bash scripts/deploy-all.sh`,
-which reaches the Mac Studio. Verification sequence: `docs/RUNBOOK.md:327`.
+**Local: done and verified by re-derivation, not by the banner.** `bash scripts/deploy-all.sh`
+ran at HEAD `71d6646b`. Probe run before and after, same script, `PYTHONPATH=~/.claude/lib`:
 
-**The remote never deletes.** `deploy-all.sh:518` and `:566` deliberately carry no
-`--delete`, per the decision recorded at `:467-470` — adding it would newly remove
-consumer-local files across five remote repos. So the six modules will ORPHAN on the Mac
-Studio and be reported via `deploy_state.py:598 target_only_files` / `:679 dirty`.
+```
+BEFORE  auto_approval_engine  IMPORTABLE  /Users/akaszubski/.claude/lib/auto_approval_engine.py   (x6)
+        workflow_tracker      ModuleNotFoundError                    <- negative control, already dead
+AFTER   all six               ModuleNotFoundError
+```
+
+Both arms moved as designed; the negative control stayed put. Files gone from `.claude/lib/`
+and `~/.claude/lib/`. This check matters because `413a383a` records the same banner —
+`=== ALL VALIDATIONS PASSED ===` — printing while five deleted modules were still importable.
+
+**CORRECTION — the paragraph that stood here predicted the wrong thing, twice.** It said the
+six modules would ORPHAN on the Mac Studio and be reported under `deploy_state.py`
+`target_only_files` / `dirty`. Neither half happened. They are on the Mac Studio (12 files,
+6 modules x `~/.claude/lib` + `~/Dev/autonomous-dev/.claude/lib`) and `target_only` reports
+**zero** `lib/` entries for any of the five remote repos, four of which stamped **clean**.
+
+The first reading of that — *the instrument is blind to `lib/`* — is also wrong, and is the
+more dangerous of the two because it indicts a working guard. The actual cause:
+
+> **`deploy-all.sh` never ships local source to the remote.** The remote phase ssh's in and
+> rsyncs from the *remote's own* `~/Dev/autonomous-dev` checkout (`:518`, `:566` are relative
+> to `$PWD` **on the Mac Studio**). That checkout sits on `master` at `73b90cf8` — a commit
+> that does not exist in this local repo at all (the Studio carries its own autonomous
+> cloud-drain commits). Its source tree still contains all six modules, verified present.
+
+So they are not orphans; they are correctly-deployed live files whose source still declares
+them, and `deploy_state` reporting no `target_only` for `lib/` is **the correct answer**.
+`--delete` on the remote would have changed nothing here.
+
+The real gap is one level up and is not a deploy defect: branch `fix/searxng-migration-inv8`
+has **no upstream and has never been pushed**. Layer 3 is deleted on this machine only. The
+Mac Studio still loads all 3,223 lines. Closing that is a push-and-merge decision, not a
+deploy re-run — and `deploy-all.sh` will not surface it, because every machine validates
+against its own source and both are internally consistent.
+
+**Same defect class as §4**, at deploy scope: *ALL VALIDATIONS PASSED* is a true statement
+about what it measured. Nothing in the deploy compares the two machines' source revisions.
 
 ---
 
