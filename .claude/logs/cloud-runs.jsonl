@@ -1133,3 +1133,4 @@
 {"fire_id": "20260905T023749Z", "fired_at": "2026-09-05T02:38:56Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260905T023749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260905T043730Z", "fired_at": "2026-09-05T04:38:32Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260905T043730Z", "phase": "FIRE_END", "exit_reason": "skipped_both_too_complex_no_implementer_subagent", "commit_sha": "", "notes": "implementer subagent unavailable; both issues touch protected infra (hooks/, lib/) \u2014 commented skip on 1651 and 1660"}
