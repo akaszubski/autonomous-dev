@@ -488,15 +488,30 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
    ```bash
    # CRITICAL: Only clean up AFTER STEP B3.5 CIA is confirmed launched
    # The CIA reads pipeline state — cleaning up before launch loses context
+   # Issue #1376: resolve the per-repo sentinel via get_legacy_sentinel_path()
+   # rather than the legacy machine-global /tmp path. This file never exports
+   # PIPELINE_STATE_FILE, so the `:-` default IS the path used on every batch
+   # run — a /tmp literal here deleted a file that does not exist while the
+   # real sentinel accumulated under <repo>/.claude/local/. Run this AFTER the
+   # `cd $PARENT_REPO` above so the marker walk lands on the main repo, not the
+   # deleted worktree.
+   CLEANUP_STATE_FILE="${PIPELINE_STATE_FILE:-$(python3 -c "
+   import sys, os
+   for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+       if os.path.isdir(_p):
+           sys.path.insert(0, _p); break
+   from pipeline_state import get_legacy_sentinel_path
+   print(get_legacy_sentinel_path())
+   ")}"
    # Issue #1411: plain `rm` (no force flag) — the shipped deny rules
    # hard-block the force-delete flags. `--` guards dash-prefixed names,
    # `|| true` preserves force-remove semantics (no error if already gone).
-   rm -- "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}" 2>/dev/null || true
+   rm -- "$CLEANUP_STATE_FILE" 2>/dev/null || true
    ```
 
    **FORBIDDEN** (Issue #559):
    - ❌ Cleaning up pipeline state before confirming STEP B3.5 CIA agent launch succeeded
-   - ❌ Removing ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json} before STEP B3.5 CIA has a valid task ID
+   - ❌ Removing $CLEANUP_STATE_FILE (i.e. `$PIPELINE_STATE_FILE`, else `get_legacy_sentinel_path()`) before STEP B3.5 CIA has a valid task ID
 
 **On merge conflict**: DO NOT force-merge. Report conflicting files and leave worktree intact for manual resolution. Provide manual merge instructions.
 
@@ -719,24 +734,15 @@ Same as BATCH FILE MODE:
    state = create_pipeline('$ISSUE_RUN_ID', 'Issue #$ISSUE_NUMBER: $ISSUE_TITLE', mode='batch')
    save_pipeline(state)
 
-   # Same session-ID fallback chain as Pre-Dispatch / Post-Dispatch (Issue #904).
-   def _resolve_session_id():
-       sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-       if sid and sid != 'unknown':
-           return sid
-       sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
-       try:
-           if os.path.exists(sentinel):
-               mtime = os.path.getmtime(sentinel)
-               if time.time() - mtime < 3600:
-                   with open(sentinel) as _f:
-                       _state = json.load(_f)
-                   _recovered = str(_state.get('session_id', '')).strip()
-                   if _recovered and _recovered != 'unknown':
-                       return _recovered
-       except (OSError, ValueError, json.JSONDecodeError):
-           pass
-       return 'unknown'
+   # Same canonical session-ID resolver as Pre-Dispatch / Post-Dispatch and
+   # implement.md STEP 0 (Issues #904, #1093): env → sentinel (mtime < 3600s)
+   # → activity log → 'unknown'. sentinel_path= is REQUIRED — the helper
+   # defaults to get_legacy_sentinel_path() and does not read
+   # PIPELINE_STATE_FILE itself. The deleted inline copy defaulted to the
+   # legacy machine-global /tmp sentinel literal, a DIFFERENT file from the
+   # <repo>/.claude/local/ path the hook reads.
+   from pipeline_completion_state import resolve_session_id
+   _sid = resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None)
 
    # Issue #1045 — REQUIRED, and load-bearing here specifically. Batch mode
    # creates ONE RUN PER ISSUE inside a SINGLE session, so it is the highest-
@@ -759,12 +765,12 @@ Same as BATCH FILE MODE:
        print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID] record_run_start absent from the deployed pipeline_completion_state on sys.path. Run: bash scripts/deploy-all.sh', file=sys.stderr)
        sys.exit(1)
    try:
-       _ok = record_run_start(_resolve_session_id(), '$ISSUE_RUN_ID', issue_number=int('$ISSUE_NUMBER'))
+       _ok = record_run_start(_sid, '$ISSUE_RUN_ID', issue_number=int('$ISSUE_NUMBER'))
    except TypeError:
        # Deployed copy predates the issue_number keyword. Fall back rather than
        # abort — the batch aggregate gates degrade to pre-#1045 permissive.
        print('[RUN-START-DEGRADED run_id=$ISSUE_RUN_ID] deployed pipeline_completion_state.record_run_start has no issue_number keyword; batch CIA/doc-master gates stay session-scoped. Run: bash scripts/deploy-all.sh', file=sys.stderr)
-       _ok = record_run_start(_resolve_session_id(), '$ISSUE_RUN_ID')
+       _ok = record_run_start(_sid, '$ISSUE_RUN_ID')
    if not _ok:
        print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID]', file=sys.stderr)
        sys.exit(1)
@@ -830,35 +836,17 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         sys.path.insert(0, _p)
         break
 
-# Reuse the same session-ID fallback chain as Pre-Dispatch (Issue #904):
-#   1. CLAUDE_SESSION_ID env var
-#   2. ${PIPELINE_STATE_FILE}['session_id'] sentinel (mtime < 3600s)
-#   3. 'unknown'
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json')
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
-
-from pipeline_completion_state import record_agent_completion
+# Same canonical resolver as Pre-Dispatch (Issues #904, #1093):
+# env → sentinel (mtime < 3600s) → activity log → 'unknown'.
+# sentinel_path= is REQUIRED — resolve_session_id() does not read
+# PIPELINE_STATE_FILE itself.
+from pipeline_completion_state import record_agent_completion, resolve_session_id
 # Issue #1174: synchronously record completion of the agent that just returned
 # so the next Pre-Dispatch Ordering check (within this per-issue pipeline) sees
 # fresh state. Safe to call when SubagentStop also fires —
 # record_agent_completion is fcntl-locked, tri-scope, last-write-wins (#1046).
 record_agent_completion(
-    _resolve_session_id(),
+    resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None),
     '<AGENT_TYPE>',
     issue_number=ISSUE_NUMBER,
     success=True,

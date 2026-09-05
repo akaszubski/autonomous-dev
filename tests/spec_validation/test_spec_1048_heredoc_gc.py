@@ -36,30 +36,42 @@ HOOKS_DIR = PLUGIN_DIR / "hooks"
 ENV_VAR_FORM = re.compile(
     r"\$\{PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state\.json\}"
 )
+# Post-#1206/#1376 per-repo form: the shell fallback is a
+# get_legacy_sentinel_path() subshell resolving
+# <repo>/.claude/local/implement_pipeline_state.json — measured to be a
+# DIFFERENT file from the machine-global /tmp literal, and the one the hook
+# actually reads. AC1/AC2 asked for the env-var-HONOURING form; the /tmp
+# default was only the fallback it happened to ship with. implement-fix.md is
+# not migrated, so ENV_VAR_FORM above stays in use for it.
+ENV_VAR_FORM_PER_REPO = re.compile(r"\$\{PIPELINE_STATE_FILE:-(?!/tmp/)")
 LITERAL_PATH = "/tmp/implement_pipeline_state.json"
 
 
 # ---------------------------------------------------------------------------
 # AC1: implement.md heredoc sites migrated
 # ---------------------------------------------------------------------------
-def test_spec_1048_1_implement_md_uses_env_var_form() -> None:
-    """AC1: implement.md must reference ${PIPELINE_STATE_FILE:-...} form."""
-    content = (COMMANDS_DIR / "implement.md").read_text()
-    assert ENV_VAR_FORM.search(content), (
-        "implement.md should contain at least one "
-        "${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json} reference"
+@pytest.mark.parametrize("doc", ["implement.md", "implement-batch.md"])
+def test_spec_1048_1_implement_md_uses_env_var_form(doc: str) -> None:
+    """AC1/AC2 (post-#1206/#1376): the coordinator honours $PIPELINE_STATE_FILE,
+    defaulting to the per-repo get_legacy_sentinel_path() rather than /tmp."""
+    content = (COMMANDS_DIR / doc).read_text()
+    assert ENV_VAR_FORM_PER_REPO.search(content), (
+        f"{doc} should contain at least one ${{PIPELINE_STATE_FILE:-...}} "
+        "reference whose default is not the machine-global /tmp literal"
     )
+    assert LITERAL_PATH not in content, (
+        f"{LITERAL_PATH} must not appear in {doc} — get_legacy_sentinel_path() "
+        "is the only sanctioned resolution (#1206, #1376)"
+    )
+    # Positive control: the replacement IS present, so this does not pass
+    # merely because the sentinel machinery was deleted wholesale.
+    assert "get_legacy_sentinel_path()" in content
 
 
 # ---------------------------------------------------------------------------
 # AC2: implement-batch.md and implement-fix.md migrated
+# (implement-batch.md is covered by the parametrized AC1/AC2 test above)
 # ---------------------------------------------------------------------------
-def test_spec_1048_2a_implement_batch_md_uses_env_var_form() -> None:
-    """AC2: implement-batch.md must reference the env-var form."""
-    content = (COMMANDS_DIR / "implement-batch.md").read_text()
-    assert ENV_VAR_FORM.search(content), (
-        "implement-batch.md should contain ${PIPELINE_STATE_FILE:-...} form"
-    )
 
 
 def test_spec_1048_2b_implement_fix_md_uses_env_var_form() -> None:

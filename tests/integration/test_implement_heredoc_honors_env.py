@@ -36,6 +36,18 @@ ENV_VAR_PYTHON_RE = re.compile(
     r"""os\.environ\.get\(['"]PIPELINE_STATE_FILE['"],\s*['"]/tmp/implement_pipeline_state\.json['"]\)"""
 )
 
+# Post-#1206 per-repo forms. implement.md and implement-batch.md no longer carry
+# the machine-global /tmp literal ANYWHERE — get_legacy_sentinel_path() resolves
+# <repo>/.claude/local/implement_pipeline_state.json, which is the path the hook
+# reads. implement-fix.md still uses the older literal form, so the original
+# constants above stay in use for that file.
+ENV_VAR_PYTHON_PER_REPO_RE = re.compile(
+    r"""_?os\.environ\.get\(['"]PIPELINE_STATE_FILE['"],\s*str\(get_legacy_sentinel_path\(\)\)\)"""
+)
+ENV_VAR_SHELL_PER_REPO_RE = re.compile(
+    r'CLEANUP_STATE_FILE="\$\{PIPELINE_STATE_FILE:-'
+)
+
 # Literal that must NOT appear in functional (non-comment, non-exclusion) code.
 BARE_LITERAL = "/tmp/implement_pipeline_state.json"
 
@@ -77,18 +89,30 @@ class TestImplementMdHereDocMigration:
         assert IMPLEMENT_MD.exists(), f"Expected {IMPLEMENT_MD} to exist"
 
     def test_heredoc_uses_pipeline_state_file_when_set(self) -> None:
-        """Migrated write sites use os.environ.get('PIPELINE_STATE_FILE', ...)."""
+        """Migrated write sites use os.environ.get('PIPELINE_STATE_FILE', ...).
+
+        The DEFAULT moved from the machine-global ``/tmp`` literal to
+        ``get_legacy_sentinel_path()`` (per-repo, Issue #1206) — measured to be
+        a different file, and the one the hook actually reads (#1376). The
+        env-var-honouring property this test was written for (#1041/#1048) is
+        unchanged; only the fallback literal is gone.
+        """
         text = IMPLEMENT_MD.read_text()
-        assert ENV_VAR_PYTHON_RE.search(
-            text
-        ), "implement.md must contain os.environ.get('PIPELINE_STATE_FILE', ...) write form"
+        assert ENV_VAR_PYTHON_PER_REPO_RE.search(text), (
+            "implement.md must contain "
+            "os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))"
+        )
 
     def test_heredoc_shell_rm_uses_env_var(self) -> None:
-        """rm -f cleanup commands use ${PIPELINE_STATE_FILE:-...} form."""
+        """Shell cleanup sites still honour ${PIPELINE_STATE_FILE:-...}.
+
+        The shell default is now a ``get_legacy_sentinel_path()`` subshell
+        rather than the ``/tmp`` literal, for the same #1206 reason.
+        """
         text = IMPLEMENT_MD.read_text()
-        assert ENV_VAR_SHELL_RE.search(
-            text
-        ), "implement.md must contain ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json} rm-f form"
+        assert ENV_VAR_SHELL_PER_REPO_RE.search(text), (
+            'implement.md must contain CLEANUP_STATE_FILE="${PIPELINE_STATE_FILE:-...}"'
+        )
 
     def test_sentinel_read_in_resolve_session_id_uses_env_var(self) -> None:
         """All _resolve_session_id() sentinel reads use os.environ.get form."""
@@ -139,13 +163,23 @@ class TestImplementMdHereDocMigration:
             + "\n".join(f"  L{ln}: {l}" for ln, l in violations)
         )
 
-    def test_fallback_to_legacy_comment_preserved(self) -> None:
-        """The fallback comment referencing the legacy path is preserved (docs)."""
+    def test_legacy_tmp_literal_is_fully_retired(self) -> None:
+        """implement.md carries ZERO machine-global /tmp sentinel literals.
+
+        Inverted from the original assertion, deliberately. That assertion
+        required the legacy literal to survive "in comments/docs" — which is
+        exactly how a doc keeps instructing the wrong path. Every sentinel
+        reference now resolves through get_legacy_sentinel_path() (#1206,
+        #1376), so the literal has no remaining legitimate home here.
+        """
         text = IMPLEMENT_MD.read_text()
-        # The comment in the fallback chain doc should still reference the legacy path
-        assert BARE_LITERAL in text, (
-            "The legacy path should still appear in implement.md (in comments/docs)"
+        assert BARE_LITERAL not in text, (
+            f"{BARE_LITERAL} must not appear in implement.md — "
+            "get_legacy_sentinel_path() is the only sanctioned resolution"
         )
+        # Positive control: the replacement IS present, so this is not passing
+        # merely because the sentinel machinery was deleted wholesale.
+        assert "get_legacy_sentinel_path()" in text
 
 
 # ---------------------------------------------------------------------------
@@ -160,11 +194,26 @@ class TestImplementBatchMdMigration:
         assert IMPLEMENT_BATCH_MD.exists(), f"Expected {IMPLEMENT_BATCH_MD} to exist"
 
     def test_rm_cleanup_uses_env_var(self) -> None:
-        """The rm -f cleanup in batch mode uses ${PIPELINE_STATE_FILE:-...} form."""
+        """The batch cleanup honours ${PIPELINE_STATE_FILE:-...}.
+
+        Adjusted to the same post-#1206/#1376 form already asserted for
+        implement.md by ``test_heredoc_shell_rm_uses_env_var``: the
+        env-var-honouring property this test was written for (#1041/#1048) is
+        unchanged, but the DEFAULT is now a ``get_legacy_sentinel_path()``
+        subshell, not the machine-global /tmp literal. This file never exports
+        PIPELINE_STATE_FILE, so that default is the path used on every batch run.
+        """
         text = IMPLEMENT_BATCH_MD.read_text()
-        assert ENV_VAR_SHELL_RE.search(
-            text
-        ), "implement-batch.md must use ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}"
+        assert ENV_VAR_SHELL_PER_REPO_RE.search(text), (
+            'implement-batch.md must contain CLEANUP_STATE_FILE="${PIPELINE_STATE_FILE:-...}"'
+        )
+        assert BARE_LITERAL not in text, (
+            f"{BARE_LITERAL} must not appear in implement-batch.md — "
+            "get_legacy_sentinel_path() is the only sanctioned resolution"
+        )
+        # Positive control: the replacement IS present, so this does not pass
+        # merely because the cleanup was deleted wholesale.
+        assert "get_legacy_sentinel_path()" in text
 
     def test_no_bare_literal_in_functional_rm_calls(self) -> None:
         """No bare (unguarded) literal in rm -f calls inside implement-batch.md."""

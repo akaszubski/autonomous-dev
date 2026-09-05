@@ -129,35 +129,20 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         sys.path.insert(0, _p)
         break
 
-# Session-ID fallback chain (Issue #904):
-#   1. CLAUDE_SESSION_ID env var (primary — set in-process by Claude Code)
-#   2. ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}['session_id']
-#      (sentinel written at STEP 0) — only honored when mtime is within 3600s
-#      (avoids cross-pipeline bleed)
-#   3. 'unknown' (preserved legacy sentinel — first-boot/pre-STEP-0 case)
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    from pipeline_state import get_legacy_sentinel_path
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
+# Session-ID resolution (Issues #904, #1093) — ONE canonical implementation,
+# shared with the Post-Dispatch protocol, STEP 0 and implement-batch.md.
+# resolve_session_id() applies: CLAUDE_SESSION_ID env → sentinel['session_id']
+# (only when mtime is within 3600s, avoiding cross-pipeline bleed) →
+# today's activity log → 'unknown'. It NEVER raises.
+# sentinel_path= is REQUIRED: the helper defaults to get_legacy_sentinel_path()
+# and does NOT itself read PIPELINE_STATE_FILE, so omitting it silently drops
+# env honouring. `or None` keeps an empty env value on the default.
+from pipeline_completion_state import resolve_session_id
 
 from agent_ordering_gate import check_ordering_with_session_fallback
 result = check_ordering_with_session_fallback(
     'TARGET_AGENT',
-    _resolve_session_id(),
+    resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None),
     issue_number=ISSUE_NUMBER_OR_0,
     pipeline_mode='MODE'
 )
@@ -170,7 +155,7 @@ else:
 
 Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `implementer`). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket where completions are recorded (single-issue mode always records under bucket `0` because `PIPELINE_ISSUE_NUMBER` is unset; picking a real issue number here creates spurious ORDERING VIOLATION blocks — Issue #1460). Replace `MODE` with the pipeline mode (`full`, `light`, `fix`, or `tdd-first`).
 
-**Session-ID propagation contract** (Issue #904): The helper above implements the fallback chain `env → sentinel → 'unknown'`. Coordinator subshells inherit `CLAUDE_SESSION_ID` in-process, but some exec contexts (nested heredocs, pipe subshells) drop the env var — the sentinel written at STEP 0 provides a recovery path. See [docs/PIPELINE-MODES.md](../../../docs/PIPELINE-MODES.md#session-id-propagation-contract) for the full contract.
+**Session-ID propagation contract** (Issues #904, #1093): `resolve_session_id()` from `pipeline_completion_state` is the ONE canonical implementation of the fallback chain `env → sentinel → activity log → 'unknown'`. Coordinator subshells inherit `CLAUDE_SESSION_ID` in-process, but some exec contexts (nested heredocs, pipe subshells) drop the env var — the sentinel written at STEP 0 provides a recovery path, and the activity-log scan covers the case where the sentinel itself was written under `'unknown'`. **FORBIDDEN**: re-defining a local `_resolve_session_id()` in any snippet. **REQUIRED**: pass `sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None` on every call — the helper defaults to `get_legacy_sentinel_path()` and does not read the env var itself, so omitting the keyword silently drops env honouring. See [docs/PIPELINE-MODES.md](../../../docs/PIPELINE-MODES.md#session-id-propagation-contract) for the full contract.
 
 **HARD GATE**: If `result.passed` is False, you MUST NOT dispatch the agent. Resolve the missing prerequisite agents first.
 
@@ -188,36 +173,17 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         sys.path.insert(0, _p)
         break
 
-# Reuse the same session-ID fallback chain as Pre-Dispatch (Issue #904):
-#   1. CLAUDE_SESSION_ID env var
-#   2. ${PIPELINE_STATE_FILE}['session_id'] sentinel (mtime < 3600s)
-#   3. 'unknown'
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    from pipeline_state import get_legacy_sentinel_path
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
-
-from pipeline_completion_state import record_agent_completion
+# Same canonical resolver as Pre-Dispatch (Issues #904, #1093):
+# env → sentinel (mtime < 3600s) → activity log → 'unknown'.
+# sentinel_path= is REQUIRED — resolve_session_id() does not read
+# PIPELINE_STATE_FILE itself.
+from pipeline_completion_state import record_agent_completion, resolve_session_id
 # Issue #1174: synchronously record completion of the agent that just returned
 # so the next Pre-Dispatch Ordering check sees fresh state. Safe to call when
 # SubagentStop also fires — record_agent_completion is fcntl-locked, tri-scope,
 # last-write-wins (Issue #1046).
 record_agent_completion(
-    _resolve_session_id(),
+    resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None),
     '<AGENT_TYPE>',
     issue_number=ISSUE_NUMBER_OR_0,
     success=True,
@@ -226,7 +192,7 @@ print(f'POST-DISPATCH OK: recorded <AGENT_TYPE>')
 "
 ```
 
-Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket used in the corresponding Pre-Dispatch check (Issue #1460). The helper above implements the same `env → sentinel → 'unknown'` fallback as Pre-Dispatch — use the existing `resolve_session_id()` helper from `pipeline_completion_state` directly if you prefer (it implements the equivalent chain). Pipeline-mode is tracked separately via the state file and is not required on this call.
+Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket used in the corresponding Pre-Dispatch check (Issue #1460). The snippet calls the same canonical `resolve_session_id()` helper as Pre-Dispatch, with the same required `sentinel_path=` pass-through. Pipeline-mode is tracked separately via the state file and is not required on this call.
 
 **Idempotency note**: Safe to call when SubagentStop also fires asynchronously for the same agent — `record_agent_completion` is fcntl-locked, tri-scope, last-write-wins per Issue #1046. Both writes converge to the same final state.
 
@@ -397,29 +363,19 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
         break
 from pipeline_state import sign_state
 
-# Session-ID fallback chain (Issue #904): env → sentinel → 'unknown'.
-# Honor a prior-written sentinel when the env var was dropped by a
-# subshell, e.g. /implement --resume re-entering STEP 0.
-def _resolve_session_id():
-    sid = os.environ.get('CLAUDE_SESSION_ID', '').strip()
-    if sid and sid != 'unknown':
-        return sid
-    from pipeline_state import get_legacy_sentinel_path
-    sentinel = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-    try:
-        if os.path.exists(sentinel):
-            mtime = os.path.getmtime(sentinel)
-            if time.time() - mtime < 3600:
-                with open(sentinel) as _f:
-                    _state = json.load(_f)
-                _recovered = str(_state.get('session_id', '')).strip()
-                if _recovered and _recovered != 'unknown':
-                    return _recovered
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 'unknown'
+# Canonical session-ID resolution (Issues #904, #1093): env → sentinel
+# (mtime < 3600s) → activity log → 'unknown'. Honors a prior-written sentinel
+# when the env var was dropped by a subshell, e.g. /implement --resume
+# re-entering STEP 0. sentinel_path= is REQUIRED — the helper does not read
+# PIPELINE_STATE_FILE itself.
+#
+# NAMED BEHAVIOUR CHANGE vs the deleted inline copy: the #1093 activity-log
+# fallback can now return a REAL session id where the copy returned 'unknown'.
+# That is an improvement, not a regression — signing the sentinel HMAC with
+# 'unknown' mismatched the hook's own resolved sid either way.
+from pipeline_completion_state import resolve_session_id
 
-sid = _resolve_session_id()
+sid = resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None)
 
 # Issue #1045 — REQUIRED. Stamp this run's identity into the session
 # completion-state file BEFORE any agent runs. Without it the completeness
@@ -447,9 +403,26 @@ state = {
     'session_id': sid
 }
 state = sign_state(state, sid)
-from pipeline_state import get_legacy_sentinel_path
-with open(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())), 'w') as f:
-    json.dump(state, f)
+# ATOMIC. open(path,'w') truncates at OPEN time, so a kill between the open
+# and the json.dump left a 0-BYTE sentinel with the prior content already
+# gone; ensure_sentinel_heartbeat() then failed json.loads and recreated it as
+# a bare {session_id, recovered, recovered_at}, which _is_pipeline_active()
+# classifies NOT-active by design (#1384) — blocking STEP 11 issue filing
+# during a genuinely live pipeline. atomic_write_json mkstemps IN THE
+# DESTINATION DIRECTORY (same filesystem, or os.replace raises EXDEV), chmods
+# 0o600 before the rename, and os.replace is atomic per rename(2).
+# The mkdir -p above is REQUIRED: atomic_write_json needs the parent to exist.
+# Deliberately NO directory fsync — that buys OS-crash durability, not the
+# killed-process hazard actually observed, at syscall cost in a 5s-budget path.
+# Concurrent writers racing the same path remain unprotected (unchanged).
+# Errors PROPAGATE: a pipeline that cannot write its own sentinel must not
+# proceed silently.
+from pathlib import Path
+from pipeline_state import atomic_write_json, get_legacy_sentinel_path
+atomic_write_json(
+    Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))),
+    state,
+)
 "
 
 # PIPELINE_BASE_COMMIT capture (Issue #1069). REQUIRED: anchors all downstream
@@ -765,11 +738,12 @@ import sys, os, json
 for _p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p): sys.path.insert(0,_p); break
 from alignment_classifier import evaluate_and_record
+from pipeline_state import get_legacy_sentinel_path
 try:
     with open('/tmp/alignment_classifier_$RUN_ID.json') as f: cj = json.load(f)
 except Exception: cj = None
 out = evaluate_and_record(open('/tmp/implement_feature_$RUN_ID.txt').read(), cj,
-        state_path=os.environ.get('PIPELINE_STATE_FILE', '/tmp/implement_pipeline_state.json'),
+        state_path=os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())),
         session_id=os.environ.get('CLAUDE_SESSION_ID','unknown'),
         issue_number=os.environ.get('ISSUE_NUMBER',''),
         user_approved=os.environ.get('ALIGNMENT_USER_APPROVED','') == '1')
@@ -1468,7 +1442,7 @@ else:
 "
 ```
 
-Gate: `new_failures > 0` BLOCKS (unchanged). `new_failures == 0` with `pre_existing_remaining > 0` auto-files issues via `gh issue create` with label `pre-existing-failure`, then proceeds. `fixed > 0` notes in commit context. FORBIDDEN: classifying failures in implementer-modified files as "pre-existing", or silently dropping pre-existing failures without fixing or filing.
+Gate: `new_failures > 0` BLOCKS (unchanged). `new_failures == 0` with `pre_existing_remaining > 0` auto-files issues by dispatching the `issue-creator` agent with label `pre-existing-failure`, then proceeds. `fixed > 0` notes in commit context. FORBIDDEN: classifying failures in implementer-modified files as "pre-existing", or silently dropping pre-existing failures without fixing or filing.
 
 **Smart Test Routing** (unless `--full-tests` flag was passed): The quality gate uses `test_routing.route_tests()` to classify changed files and run only relevant test tiers. When routing is active, report which tiers ran and which were skipped:
 ```
@@ -2117,10 +2091,7 @@ For each cycle:
 6. **Check verdicts** — If all pass → proceed to STEP 12. If any fail → next cycle.
 
 **After 2 cycles still failing**:
-- File GitHub issues for each remaining BLOCKING finding:
-  ```bash
-  gh issue create --title "Remediation: {finding summary}" --body "BLOCKING finding from pipeline run $RUN_ID that could not be auto-resolved after 2 remediation cycles.\n\nFinding:\n{finding verbatim}\n\nValidator: {reviewer|security-auditor}" --label "remediation"
-  ```
+- File a GitHub issue for each remaining BLOCKING finding by dispatching **Agent**(subagent_type="issue-creator", model="haiku"), once per finding, passing title `Remediation: {finding summary}`, body `BLOCKING finding from pipeline run $RUN_ID that could not be auto-resolved after 2 remediation cycles.` plus `Finding:` + the finding VERBATIM plus `Validator: {reviewer|security-auditor}`, label `remediation`, and the instruction *Create this GitHub issue now with the `gh` CLI and report the issue number.* **REQUIRED — dispatch, never a direct coordinator Bash call.** `issue-creator` is the sole member of the hook's `GH_ISSUE_AGENTS` allow-list and that allow-through is keyed on the agent identity read from the subagent's own stdin, so it holds regardless of sentinel state. A direct call depends instead on `_is_pipeline_active()`, which returns False for the rest of the run once the sentinel has been recovered (#1384) — the exact path by which STEP 11 filing was blocked *during* a live pipeline.
 - **BLOCK** the pipeline. Do NOT proceed to STEP 12. Output:
   ```
     GATE: remediation-gate — BLOCKED (2 cycles exhausted, N issues filed)
@@ -2138,13 +2109,9 @@ For each cycle:
 
 **Reviewer Out-of-Scope Finding Tracking**
 
-When the reviewer returns `REQUEST_CHANGES` and any findings are marked as out-of-scope or deferred (e.g., "future work", "separate issue", "not in scope", "out of scope", "defer", "follow-up"), the coordinator MUST create a GitHub issue for EACH such finding:
+When the reviewer returns `REQUEST_CHANGES` and any findings are marked as out-of-scope or deferred (e.g., "future work", "separate issue", "not in scope", "out of scope", "defer", "follow-up"), the coordinator MUST create a GitHub issue for EACH such finding by dispatching **Agent**(subagent_type="issue-creator", model="haiku"), passing title `[Review] finding-summary`, body `Out-of-scope finding from reviewer in pipeline run $RUN_ID.` plus `Finding:` + the finding VERBATIM plus `Context: {brief description of what was being implemented}`, label `auto-improvement`, and the instruction *Create this GitHub issue now with the `gh` CLI and report the issue number.*
 
-```bash
-gh issue create --title "[Review] finding-summary" --body "Out-of-scope finding from reviewer in pipeline run $RUN_ID.\n\nFinding:\n{finding verbatim}\n\nContext: {brief description of what was being implemented}" --label "auto-improvement"
-```
-
-This ensures deferred findings are tracked as searchable artifacts, not lost in session logs.
+This ensures deferred findings are tracked as searchable artifacts, not lost in session logs. **FORBIDDEN**: filing via a direct coordinator Bash call — that route is gated on `_is_pipeline_active()`, which is False for the remainder of any run whose sentinel was recovered (#1384).
 
 **FORBIDDEN** — Out-of-scope finding violations:
 - ❌ Acknowledging an out-of-scope finding verbally without creating a tracking issue
@@ -2165,10 +2132,7 @@ After the STEP 11 gate completes (final security-auditor verdict reached, post-r
       gh issue list --label security --label auto-improvement --state open --search "<summary>" --json title,number
       ```
       Skip filing if a matching open issue exists. If the `gh issue list --search` query errors, log `[ADVISORY-DEDUP-FAILED] <summary>` and skip filing for this finding.
-   b. **File the issue**:
-      ```bash
-      gh issue create --title "[Security advisory] <summary>" --body "<verbatim finding line + RUN_ID context>" --label security --label auto-improvement
-      ```
+   b. **File the issue** — dispatch **Agent**(subagent_type="issue-creator", model="haiku"), passing title `[Security advisory] <summary>`, body `<verbatim finding line + RUN_ID context>`, labels `security` and `auto-improvement`, and the instruction *Create this GitHub issue now with the `gh` CLI and report the issue number.* Filing MUST go through this dispatch and never through a direct coordinator Bash call: the agent-identity allow-through is read from the subagent's own stdin and is independent of sentinel state, whereas a direct call is gated on `_is_pipeline_active()`, which returns False for the rest of any run whose sentinel was recovered (#1384).
       If `gh` auth fails or the call errors, capture stderr, log `[ADVISORY-FILE-FAILED] <summary>` per finding, and continue with the remaining findings — do NOT block the pipeline (degraded but functional).
 
 **FORBIDDEN** — Security-auditor advisory finding violations:

@@ -10,29 +10,44 @@ from pathlib import Path
 import pytest
 
 
-def test_check_plan_critic_revise_gate_basic():
-    """Basic test that the gate function exists and can be called."""
+def test_check_plan_critic_revise_gate_basic(monkeypatch, tmp_path):
+    """Basic test that the gate function exists and can be called.
+
+    The "no verdict file" arm is HERMETIC: it points the gate at a path that
+    provably does not exist. Before Issue #1417's path fix this assertion read
+    the repo's live ``.claude/plan_critic_verdict.json`` — which meant it was
+    ``allow`` only while no real verdict happened to be on disk, and it flipped
+    to ``deny`` the moment plan-critic actually ran. It was also DOUBLY
+    accidentally-true: ``allow`` is what the gate's fail-open ``except`` returns
+    as well, so the assertion could not distinguish "no file" from "crashed".
+    """
     # Add hook directory to path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins/autonomous-dev/hooks"))
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins/autonomous-dev/lib"))
-    
+
     # Import the function
+    import unified_pre_tool
     from unified_pre_tool import check_plan_critic_revise_gate, AGENT_TOOL_NAMES
-    
+
     # Test with non-agent tool (should allow)
     decision, reason = check_plan_critic_revise_gate("Write", {})
     assert decision == "allow"
     assert "Not an agent invocation" in reason
-    
+
     # Test with non-implementer agent (should allow)
     decision, reason = check_plan_critic_revise_gate("Agent", {"subagent_type": "reviewer"})
     assert decision == "allow"
     assert "Not implementer dispatch" in reason
-    
+
     # Test with implementer but no verdict file (should allow)
+    absent = tmp_path / "no_such_verdict.json"
+    assert not absent.exists()
+    monkeypatch.setattr(unified_pre_tool, "PLAN_CRITIC_VERDICT_PATH", str(absent))
     decision, reason = check_plan_critic_revise_gate("Agent", {"subagent_type": "implementer"})
     assert decision == "allow"
-    # Either "No plan-critic verdict file" or error message
+    # Pin the REASON, not just the decision — this is what separates the
+    # genuine no-file allow from the fail-open except's allow.
+    assert reason == "No plan-critic verdict file", reason
 
 
 def test_revise_gate_with_verdict_file():
@@ -153,3 +168,153 @@ def test_revise_gate_integration_mock():
         # Restore original function if it existed
         if original_func:
             pipeline_completion_state.get_planner_completion_count = original_func
+
+
+# ---------------------------------------------------------------------------
+# PLAN_CRITIC_VERDICT_PATH — sourced constant, both gate arms, bypass refusal
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+HOOK_SRC = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "unified_pre_tool.py"
+
+sys.path.insert(0, str(REPO_ROOT / "plugins/autonomous-dev/hooks"))
+sys.path.insert(0, str(REPO_ROOT / "plugins/autonomous-dev/lib"))
+
+
+def _write_verdict(path: Path, verdict: str, timestamp: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "verdict": verdict,
+                "timestamp": timestamp,
+                "composite_score": 2.5,
+                "reasoning": "x" * 120,
+                "axis_scores": {"a": 3, "b": 2, "c": 4},
+            }
+        )
+    )
+
+
+def test_verdict_path_is_sourced_from_the_writing_module():
+    """The reader's default IS the writer's constant — not a parallel literal."""
+    import unified_pre_tool
+    import plan_critic_verdict
+
+    assert unified_pre_tool._PC_DEFAULT is plan_critic_verdict.DEFAULT_VERDICT_PATH
+    # Production default unchanged by the refactor.
+    assert unified_pre_tool.PLAN_CRITIC_VERDICT_PATH == ".claude/plan_critic_verdict.json"
+
+
+def test_import_fallback_literal_has_not_drifted():
+    """Drift assert, aimed ONLY at the ``except ImportError`` fallback literal.
+
+    The fallback is unreachable while lib/ is importable, so nothing else can
+    notice it going stale.
+    """
+    import re
+
+    import plan_critic_verdict
+
+    src = HOOK_SRC.read_text()
+    m = re.search(r'_PC_DEFAULT = Path\("([^"]+)"\)', src)
+    assert m is not None, "the except-ImportError fallback literal is gone"
+    assert m.group(1) == str(plan_critic_verdict.DEFAULT_VERDICT_PATH)
+
+
+def test_env_override_is_honoured_at_module_import(tmp_path):
+    """PLAN_CRITIC_VERDICT_PATH is read from the environment.
+
+    Exercised in a subprocess because the constant is resolved at import time;
+    an in-process ``monkeypatch.setenv`` on an already-imported module would
+    assert nothing.
+    """
+    import subprocess
+
+    target = str(tmp_path / "isolated_verdict.json")
+    env = dict(os.environ, PLAN_CRITIC_VERDICT_PATH=target)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.path[:0] = ["
+            f"{str(REPO_ROOT / 'plugins/autonomous-dev/hooks')!r}, "
+            f"{str(REPO_ROOT / 'plugins/autonomous-dev/lib')!r}]\n"
+            "import unified_pre_tool as u; print(u.PLAN_CRITIC_VERDICT_PATH)",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(REPO_ROOT),
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == target
+
+
+def test_revise_gate_refuses_without_planner_reinvocation(monkeypatch, tmp_path):
+    """REFUSE arm, through the constant (no chdir, no relative-path accident)."""
+    import pipeline_completion_state
+    import unified_pre_tool
+    from unified_pre_tool import check_plan_critic_revise_gate
+
+    verdict = tmp_path / "verdict.json"
+    _write_verdict(verdict, "REVISE", "2026-09-05T08:58:56+00:00")
+    monkeypatch.setattr(unified_pre_tool, "PLAN_CRITIC_VERDICT_PATH", str(verdict))
+    monkeypatch.setattr(
+        pipeline_completion_state, "get_planner_completion_count", lambda *a, **k: 0
+    )
+
+    decision, reason = check_plan_critic_revise_gate(
+        "Agent", {"subagent_type": "implementer"}
+    )
+    assert decision == "deny", reason
+    assert "planner was not re-invoked" in reason
+
+
+def test_revise_gate_permits_after_planner_reinvocation(monkeypatch, tmp_path):
+    """PERMIT arm — same call, one planner completion after the timestamp."""
+    import pipeline_completion_state
+    import unified_pre_tool
+    from unified_pre_tool import check_plan_critic_revise_gate
+
+    verdict = tmp_path / "verdict.json"
+    _write_verdict(verdict, "REVISE", "2026-09-05T08:58:56+00:00")
+    monkeypatch.setattr(unified_pre_tool, "PLAN_CRITIC_VERDICT_PATH", str(verdict))
+    monkeypatch.setattr(
+        pipeline_completion_state, "get_planner_completion_count", lambda *a, **k: 1
+    )
+
+    decision, reason = check_plan_critic_revise_gate(
+        "Agent", {"subagent_type": "implementer"}
+    )
+    assert decision == "allow", reason
+    assert "Planner re-invoked 1 time(s)" in reason
+
+
+def test_verdict_path_env_var_cannot_be_spoofed_inline():
+    """Bypass-refusal arm, a DIFFERENT shape from the gate itself.
+
+    The cure introduced an env override; without protection,
+    ``PLAN_CRITIC_VERDICT_PATH=/dev/null <cmd>`` would disable the REVISE
+    refusal outright. This asserts the cure did not become the bypass.
+    """
+    import unified_pre_tool
+
+    assert "PLAN_CRITIC_VERDICT_PATH" in unified_pre_tool.PROTECTED_ENV_VARS
+    inline = unified_pre_tool._detect_env_spoofing(
+        "PLAN_CRITIC_VERDICT_PATH=/dev/null python3 -c 'print(1)'"
+    )
+    assert inline is not None, "inline PLAN_CRITIC_VERDICT_PATH override was allowed"
+    assert "PLAN_CRITIC_VERDICT_PATH" in inline
+    assert (
+        unified_pre_tool._detect_env_spoofing("export PLAN_CRITIC_VERDICT_PATH=/dev/null")
+        is not None
+    )
+    # Negative control: the spoofing detector is not blocking everything.
+    assert (
+        unified_pre_tool._detect_env_spoofing(
+            "PLAN_CRITIC_NOTES=/tmp/x python3 -c 'print(1)'"
+        )
+        is None
+    )

@@ -126,9 +126,18 @@ class TestIssue1174PostDispatchProtocol:
         # Slice from the header to the ARGUMENTS marker (the section ends there).
         section = content[idx : content.find("ARGUMENTS:", idx)]
 
-        assert "CLAUDE_SESSION_ID" in section, (
-            "Post-Dispatch section must reference CLAUDE_SESSION_ID "
-            "(Issue #904 fallback chain consistency)"
+        # The docstring's disjunction, enforced as a disjunction. The inline
+        # copy named CLAUDE_SESSION_ID directly; the canonical helper resolves
+        # it internally, so demanding the literal would have forced the
+        # duplicated resolver to stay. When the helper branch is taken,
+        # sentinel_path= MUST be passed — resolve_session_id() does not read
+        # PIPELINE_STATE_FILE itself, so omitting it silently drops env honouring.
+        inline_chain = "CLAUDE_SESSION_ID" in section
+        canonical_helper = "resolve_session_id(sentinel_path=" in section
+        assert inline_chain or canonical_helper, (
+            "Post-Dispatch section must either inline the Issue #904 fallback "
+            "chain (naming CLAUDE_SESSION_ID) or call "
+            "resolve_session_id(sentinel_path=...)"
         )
         assert (
             "resolve_session_id" in section or "_resolve_session_id" in section

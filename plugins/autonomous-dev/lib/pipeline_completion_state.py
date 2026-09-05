@@ -47,15 +47,41 @@ from pathlib import Path
 from typing import Callable, Optional
 
 try:
-    from .pipeline_state import get_legacy_sentinel_path  # type: ignore
+    from .pipeline_state import atomic_write_json, get_legacy_sentinel_path  # type: ignore
 except ImportError:  # pragma: no cover - script-style import fallback
     try:
-        from pipeline_state import get_legacy_sentinel_path  # type: ignore
+        from pipeline_state import atomic_write_json, get_legacy_sentinel_path  # type: ignore
     except ImportError:
         def get_legacy_sentinel_path(repo_root: Optional[Path] = None) -> Path:  # type: ignore
             # Last-resort: behave like the pre-#1206 hardcoded fallback so the
             # module still imports in environments without path_utils.
             return Path("/tmp/implement_pipeline_state.json")
+
+        def atomic_write_json(  # type: ignore
+            path: Path, data: dict, *, indent: Optional[int] = None
+        ) -> None:
+            # Last-resort mirror of pipeline_state.atomic_write_json so the
+            # sentinel repair path stays crash-safe even in degraded
+            # environments where lib/ is not importable. Same mechanism:
+            # mkstemp in the destination directory, chmod before rename,
+            # os.replace (atomic per rename(2)).
+            fd, tmp = tempfile.mkstemp(
+                dir=str(path.parent), suffix=".tmp", prefix=f".{path.name}_"
+            )
+            try:
+                with os.fdopen(fd, "w") as _f:
+                    json.dump(data, _f, indent=indent)
+                try:
+                    os.chmod(tmp, 0o600)
+                except OSError:
+                    pass
+                os.replace(tmp, str(path))
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
 
 # Regex for validating run_id values. Only alphanumerics, hyphens, and underscores
 # are permitted, with a maximum length of 64 characters. This prevents path
@@ -374,8 +400,22 @@ def resolve_session_id(
             try:
                 with open(sentinel_path) as f:
                     data = json.load(f)
-            except (OSError, json.JSONDecodeError, ValueError):
+            except (OSError, json.JSONDecodeError, ValueError) as _sentinel_err:
+                # This except sits inside the os.stat() SUCCESS branch, so the
+                # file provably EXISTS and is merely unreadable/unparseable
+                # (the 0-byte truncate shape). A merely-absent sentinel raises
+                # from os.stat() and lands in the outer handler, silently.
+                # This is the one place that can tell "absent" from "corrupt";
+                # saying so is what makes the two distinguishable in the log.
                 data = None
+                try:
+                    sys.stderr.write(
+                        f"[SENTINEL-UNREADABLE] path={sentinel_path}"
+                        f" err={type(_sentinel_err).__name__}: {_sentinel_err}\n"
+                    )
+                    sys.stderr.flush()
+                except Exception:
+                    pass
             if isinstance(data, dict):
                 candidate = data.get("session_id")
                 if isinstance(candidate, str) and candidate and candidate != "unknown":
@@ -3008,13 +3048,11 @@ def ensure_sentinel_heartbeat(
             "recovered": True,
             "recovered_at": datetime.now(timezone.utc).isoformat(),
         }
-        sentinel.write_text(
-            json.dumps(recovered_sentinel, indent=2), encoding="utf-8"
-        )
-        try:
-            os.chmod(sentinel, 0o600)
-        except OSError:
-            pass
+        # The repair path must not be able to corrupt the file it repairs:
+        # write_text() truncates at open time, so a kill mid-write leaves the
+        # 0-byte sentinel that sent us here. atomic_write_json chmods 0o600
+        # before the rename, so the separate os.chmod is redundant.
+        atomic_write_json(sentinel, recovered_sentinel, indent=2)
     except Exception:
         # NEVER raise — sentinel recreation is best-effort.
         pass

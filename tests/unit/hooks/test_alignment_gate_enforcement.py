@@ -107,7 +107,7 @@ class TestAlignmentGateBlocking:
         """Write to .py file blocked when alignment_passed=False."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         assert decision == "deny"
         assert "ALIGNMENT GATE" in reason
@@ -116,7 +116,7 @@ class TestAlignmentGateBlocking:
         """Edit to .py file blocked when alignment_passed=False."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Edit", {"file_path": "/tmp/app.py", "old_string": "a", "new_string": "b"}
+            "Edit", {"file_path": "/srv/project/app.py", "old_string": "a", "new_string": "b"}
         )
         assert decision == "deny"
         assert "ALIGNMENT GATE" in reason
@@ -125,7 +125,7 @@ class TestAlignmentGateBlocking:
         """Bash command writing to .py file blocked when alignment_passed=False."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Bash", {"command": "echo 'hello' > /tmp/app.py"}
+            "Bash", {"command": "echo 'hello' > /srv/project/app.py"}
         )
         assert decision == "deny"
         assert "ALIGNMENT GATE" in reason
@@ -142,7 +142,7 @@ class TestAlignmentGateAllowing:
         """Write to .py file NOT blocked by alignment gate when alignment_passed=True."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         # Should hit the coordinator block (Issue #528), NOT the alignment gate
         if decision == "deny":
@@ -161,7 +161,7 @@ class TestAlignmentGateNonCodeFiles:
         """Write to README.md not blocked by alignment gate."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/README.md", "content": "# Hello"}
+            "Write", {"file_path": "/srv/project/README.md", "content": "# Hello"}
         )
         # Non-code file should pass through alignment gate
         if decision == "deny":
@@ -171,7 +171,7 @@ class TestAlignmentGateNonCodeFiles:
         """Write to .json file not blocked by alignment gate."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/config.json", "content": "{}"}
+            "Write", {"file_path": "/srv/project/config.json", "content": "{}"}
         )
         if decision == "deny":
             assert "ALIGNMENT GATE" not in reason
@@ -188,7 +188,7 @@ class TestAlignmentGateReadTools:
         """Read tool not blocked regardless of alignment state."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Read", {"file_path": "/tmp/app.py"}
+            "Read", {"file_path": "/srv/project/app.py"}
         )
         assert decision == "allow"
 
@@ -204,7 +204,7 @@ class TestAlignmentGatePipelineAgents:
         """Pipeline agent (implementer) allowed even without alignment."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         assert decision == "allow"
         assert "implementer" in reason.lower()
@@ -222,7 +222,7 @@ class TestAlignmentGateNoPipeline:
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_state_585.json")
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         # Should not get alignment gate denial when no pipeline active
         if decision == "deny":

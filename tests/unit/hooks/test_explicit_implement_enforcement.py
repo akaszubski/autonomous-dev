@@ -172,7 +172,7 @@ class TestCoordinatorBlocking:
         """Coordinator Write to .py file is blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         assert decision == "deny"
         assert "delegate" in reason.lower()
@@ -181,7 +181,7 @@ class TestCoordinatorBlocking:
         """Coordinator Edit to .py file is blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Edit", {"file_path": "/tmp/app.py", "old_string": "a", "new_string": "b"}
+            "Edit", {"file_path": "/srv/project/app.py", "old_string": "a", "new_string": "b"}
         )
         assert decision == "deny"
         assert "pipeline agents" in reason.lower()
@@ -190,7 +190,7 @@ class TestCoordinatorBlocking:
         """Coordinator Bash redirect to .py file is blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Bash", {"command": "echo 'code' > /tmp/app.py"}
+            "Bash", {"command": "echo 'code' > /srv/project/app.py"}
         )
         assert decision == "deny"
         assert "WORKFLOW ENFORCEMENT" in reason
@@ -199,7 +199,7 @@ class TestCoordinatorBlocking:
         """Coordinator Write to .js file is blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.js", "content": "console.log('hi')"}
+            "Write", {"file_path": "/srv/project/app.js", "content": "console.log('hi')"}
         )
         assert decision == "deny"
 
@@ -207,7 +207,7 @@ class TestCoordinatorBlocking:
         """Coordinator Write to .ts file is blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.ts", "content": "const x = 1;"}
+            "Write", {"file_path": "/srv/project/app.ts", "content": "const x = 1;"}
         )
         assert decision == "deny"
 
@@ -224,7 +224,7 @@ class TestPipelineAgentBypass:
         """Pipeline agents bypass the explicit implement block."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", agent)
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "real impl"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "real impl"}
         )
         assert decision == "allow"
         assert agent in reason
@@ -242,7 +242,7 @@ class TestExemptions:
         """Non-code file extensions are not blocked."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": f"/tmp/config{ext}", "content": "data"}
+            "Write", {"file_path": f"/srv/project/config{ext}", "content": "data"}
         )
         # Should not be denied by the explicit implement check
         assert decision != "deny" or "WORKFLOW ENFORCEMENT" not in reason
@@ -260,7 +260,7 @@ class TestExemptions:
         """Read tool is not subject to blocking."""
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         decision, reason = hook.validate_agent_authorization(
-            "Read", {"file_path": "/tmp/app.py"}
+            "Read", {"file_path": "/srv/project/app.py"}
         )
         assert decision == "allow"
 
@@ -277,7 +277,7 @@ class TestEnforcementLevelOff:
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "off")
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "code"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "code"}
         )
         # With enforcement off, the explicit implement block should not fire
         # It returns allow from the "Active /implement pipeline" path
@@ -289,19 +289,27 @@ class TestEnforcementLevelOff:
 # ---------------------------------------------------------------------------
 
 class TestIsCodeFileTarget:
-    """Tests for the _is_code_file_target() helper."""
+    """Tests for the _is_code_file_target() helper.
+
+    Paths are ``/srv/project/...``, NOT ``/tmp/...``. ``_is_scratch_path`` is
+    consulted first (Issue #1408), so a ``/tmp`` path is exempt by definition
+    and an assertion using one would be testing the exemption rather than the
+    extension classification it names. Do not "simplify" these back to /tmp —
+    see tests/regression/test_scratch_exemption_code_target.py for the
+    exemption's own both-arms coverage.
+    """
 
     def test_write_py_is_code(self):
-        assert hook._is_code_file_target("Write", {"file_path": "/tmp/app.py"}) is True
+        assert hook._is_code_file_target("Write", {"file_path": "/srv/project/app.py"}) is True
 
     def test_write_json_is_not_code(self):
-        assert hook._is_code_file_target("Write", {"file_path": "/tmp/config.json"}) is False
+        assert hook._is_code_file_target("Write", {"file_path": "/srv/project/config.json"}) is False
 
     def test_write_md_is_not_code(self):
-        assert hook._is_code_file_target("Write", {"file_path": "/tmp/README.md"}) is False
+        assert hook._is_code_file_target("Write", {"file_path": "/srv/project/README.md"}) is False
 
     def test_edit_ts_is_code(self):
-        assert hook._is_code_file_target("Edit", {"file_path": "/tmp/app.ts"}) is True
+        assert hook._is_code_file_target("Edit", {"file_path": "/srv/project/app.ts"}) is True
 
     def test_bash_with_py_redirect_is_code(self):
         assert hook._is_code_file_target("Bash", {"command": "echo 'x' > app.py"}) is True
@@ -316,7 +324,7 @@ class TestIsCodeFileTarget:
         assert hook._is_code_file_target("Write", {"file_path": ""}) is False
 
     def test_read_tool_is_not_code(self):
-        assert hook._is_code_file_target("Read", {"file_path": "/tmp/app.py"}) is False
+        assert hook._is_code_file_target("Read", {"file_path": "/srv/project/app.py"}) is False
 
     # Issue #623: infrastructure .md files must be treated as code targets
 
@@ -401,7 +409,7 @@ class TestNativeToolsFastPath:
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "")
         # Simulate what the fast path checks
         tool_name = "Write"
-        tool_input = {"file_path": "/tmp/app.py", "content": "code"}
+        tool_input = {"file_path": "/srv/project/app.py", "content": "code"}
         agent_name = os.getenv("CLAUDE_AGENT_NAME", "").strip().lower()
         assert agent_name not in hook.PIPELINE_AGENTS
         assert hook._is_explicit_implement_active() is True
@@ -444,7 +452,7 @@ class TestDefaultEnforcementIsBlockDuringExplicitImplement:
         assert os.getenv("ENFORCEMENT_LEVEL") is None
 
         decision, reason = hook.validate_agent_authorization(
-            "Write", {"file_path": "/tmp/app.py", "content": "print('hello')"}
+            "Write", {"file_path": "/srv/project/app.py", "content": "print('hello')"}
         )
         assert decision == "deny", (
             "Expected 'deny' when ENFORCEMENT_LEVEL is unset and explicit /implement active, "
@@ -460,7 +468,7 @@ class TestDefaultEnforcementIsBlockDuringExplicitImplement:
         assert os.getenv("ENFORCEMENT_LEVEL") is None
 
         decision, reason = hook.validate_agent_authorization(
-            "Edit", {"file_path": "/tmp/module.py", "old_string": "x", "new_string": "y"}
+            "Edit", {"file_path": "/srv/project/module.py", "old_string": "x", "new_string": "y"}
         )
         assert decision == "deny"
 
@@ -514,7 +522,7 @@ class TestSingleCallOptimization:
             # Trigger the coordinator-blocking path (non-pipeline agent + code file)
             hook.validate_agent_authorization(
                 "Edit",
-                {"file_path": "/tmp/module.py", "old_string": "x", "new_string": "y"},
+                {"file_path": "/srv/project/module.py", "old_string": "x", "new_string": "y"},
             )
 
         assert call_count["n"] == 1, (
@@ -545,7 +553,7 @@ class TestSingleCallOptimization:
         with patch.object(hook, "_is_explicit_implement_active", side_effect=counting_wrapper):
             hook.validate_agent_authorization(
                 "Edit",
-                {"file_path": "/tmp/module.py", "old_string": "x", "new_string": "y"},
+                {"file_path": "/srv/project/module.py", "old_string": "x", "new_string": "y"},
             )
 
         assert call_count["n"] <= 1, (

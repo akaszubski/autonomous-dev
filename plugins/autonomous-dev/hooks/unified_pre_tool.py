@@ -788,6 +788,25 @@ GH_ISSUE_COMMAND_CONTEXT_PATH = os.getenv(
     "/tmp/autonomous_dev_cmd_context.json",
 )
 
+# Plan-critic REVISE gate artifact path (Issue #1417).
+#
+# Sourced from lib/plan_critic_verdict.DEFAULT_VERDICT_PATH — the module that
+# WRITES the file — so the reader and the writer cannot drift. The module-level
+# guarded-import idiom mirrors get_legacy_sentinel_path above: an ImportError in
+# a degraded environment falls back to the same literal, it does NOT fail the
+# gate open from inside the gate's own try block.
+#
+# The env override exists so subprocess/runtime tests can isolate the path.
+# PLAN_CRITIC_VERDICT_PATH is in PROTECTED_ENV_VARS below: unlike
+# GH_ISSUE_CMD_CONTEXT_PATH (which gates an ALLOW-through), this path gates a
+# REFUSAL, so an unprotected override would let
+# `PLAN_CRITIC_VERDICT_PATH=/dev/null <cmd>` disable the REVISE gate outright.
+try:
+    from plan_critic_verdict import DEFAULT_VERDICT_PATH as _PC_DEFAULT  # type: ignore
+except ImportError:
+    _PC_DEFAULT = Path(".claude/plan_critic_verdict.json")
+PLAN_CRITIC_VERDICT_PATH = os.getenv("PLAN_CRITIC_VERDICT_PATH", str(_PC_DEFAULT))
+
 # Commands that are authorized to create GitHub issues (Issue #630).
 # Issue #1203: 'plan' added — plan.md STEP 6 files issues by design per its own
 # HARD GATE (>=2 independent work items). Whitelisting here is the minimal fix
@@ -800,9 +819,16 @@ GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'r
 # upgrade in the alignment gate. Inline-spoofing it (ALIGNMENT_USER_APPROVED=1
 # python3 -c ...) would fake a human approval, so it is protected like the other
 # gate-controlling variables.
+# PLAN_CRITIC_VERDICT_PATH gates the REVISE refusal — pointing it at /dev/null
+# would disable that gate, so it is protected in the same change that
+# introduced it.
+# SCRATCHPAD is consulted by _is_scratch_path, which grants a write-gate
+# EXEMPTION. An inline `SCRATCHPAD=... <cmd>` would let a caller nominate any
+# subtree as scratch and skip the pipeline gate on it.
 PROTECTED_ENV_VARS = {
     'PIPELINE_STATE_FILE', 'ENFORCEMENT_LEVEL', 'AUTONOMOUS_DEV_COMMAND',
     'INTENT_CLASSIFIER_ENFORCE', 'ALIGNMENT_USER_APPROVED',
+    'PLAN_CRITIC_VERDICT_PATH', 'SCRATCHPAD',
 }
 
 # Prefix-based protection: any env var starting with these prefixes is protected (Issue #606)
@@ -893,7 +919,14 @@ def _is_scratch_path(path: str) -> bool:
             pass
 
         scratchpad = os.environ.get("SCRATCHPAD", "")
-        if scratchpad and expanded.startswith(scratchpad.rstrip("/") + "/"):
+        # Degenerate roots are REJECTED. ``SCRATCHPAD=/`` (or any all-slash
+        # value) reduces the prefix test to ``startswith("/")``, which is true
+        # for EVERY absolute path — including this hook and /etc/passwd — and
+        # so would exempt the entire filesystem from every _is_scratch_path
+        # caller. Measured both arms: unset -> no path matches;
+        # ``SCRATCHPAD=/`` -> every absolute path matched.
+        scratchpad_root = scratchpad.rstrip("/")
+        if scratchpad_root and expanded.startswith(scratchpad_root + "/"):
             return True
 
         # Per-session scratchpad roots: /private/tmp/claude-*/ and /tmp/claude-*/
@@ -2802,6 +2835,10 @@ def _is_code_file_target(tool_name: str, tool_input: Dict) -> bool:
         file_path = _ti_first_write_target(tool_name, tool_input)
         if not file_path:
             return False
+        # Issue #1408: scratch checked FIRST — a scratch path is never a gated
+        # code target. Mirrors _is_gated_repo_source's ordering exactly.
+        if _is_scratch_path(file_path):
+            return False
         # Issue #623: Protected infrastructure files (agents/*.md, commands/*.md,
         # skills/*.md) must be treated as code targets regardless of extension.
         if _is_protected_infrastructure(file_path):
@@ -2818,6 +2855,10 @@ def _is_code_file_target(tool_name: str, tool_input: Dict) -> bool:
             return False
         target_files = _extract_bash_file_writes(command)
         for fp in target_files:
+            # Issue #1408: scratch checked FIRST — a scratch redirect target is
+            # never a gated code target. Same ordering as the Write/Edit branch.
+            if _is_scratch_path(fp):
+                continue
             # Issue #623: Infrastructure .md files in Bash redirects are code targets
             if _is_protected_infrastructure(fp):
                 return True
@@ -6236,7 +6277,7 @@ def check_plan_critic_revise_gate(tool_name: str, tool_input: Dict) -> Tuple[str
     
     # Check for plan_critic_verdict.json
     try:
-        verdict_file = Path(".claude/plan_critic_verdict.json")
+        verdict_file = Path(PLAN_CRITIC_VERDICT_PATH)
         if not verdict_file.exists():
             return ("allow", "No plan-critic verdict file")
         

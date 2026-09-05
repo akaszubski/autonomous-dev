@@ -2096,7 +2096,11 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "orchestrator.py",
     "parallel_validation.py",
     "performance_profiler.py",
-    "plan_critic_verdict.py",
+    # plan_critic_verdict.py REMOVED from the pin: unified_pre_tool.py now
+    # imports DEFAULT_VERDICT_PATH from it at module level, so the reader of
+    # the plan-critic verdict file and its writer share ONE constant instead
+    # of two literals that could drift. That is a real route, not a prose
+    # citation — the ratchet advances and both ceilings drop 99 -> 98.
     "plugin_updater.py",
     "pool_config.py",
     "project_md_parser.py",
@@ -2295,7 +2299,7 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        NOTHING moved REACHED -> UNKNOWN and nothing moved the other
 #        way: both measured difference sets, ``live - pin`` and
 #        ``pin - live``, are EMPTY.
-LIBRARY_REACHABILITY_CEILING = 99
+LIBRARY_REACHABILITY_CEILING = 98
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -2304,7 +2308,7 @@ LIBRARY_REACHABILITY_CEILING = 99
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 99
+LIBRARY_CEILING_HIGH_WATER_MARK = 98
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.
