@@ -1,6 +1,6 @@
 # Subtraction campaign — state, plan, and what was learned
 
-**Date**: 2026-09-05 · **Branch**: `fix/searxng-migration-inv8` (**unpushed, no upstream**) · **HEAD**: `71d6646b`
+**Date**: 2026-09-05 · **Branch**: `fix/searxng-migration-inv8` · **HEAD**: `78cabafc` (pushed)
 **Status**: 4 commits landed. **Deployed and verified on this machine only** (§2). The Mac
 Studio is on its own `master` at `73b90cf8` and still loads all 3,223 deleted lines — that
 is a push/merge gap, not a deploy gap. Layer 2 work not started.
@@ -100,11 +100,18 @@ So they are not orphans; they are correctly-deployed live files whose source sti
 them, and `deploy_state` reporting no `target_only` for `lib/` is **the correct answer**.
 `--delete` on the remote would have changed nothing here.
 
-The real gap is one level up and is not a deploy defect: branch `fix/searxng-migration-inv8`
-has **no upstream and has never been pushed**. Layer 3 is deleted on this machine only. The
-Mac Studio still loads all 3,223 lines. Closing that is a push-and-merge decision, not a
-deploy re-run — and `deploy-all.sh` will not surface it, because every machine validates
-against its own source and both are internally consistent.
+The real gap is one level up and is not a deploy defect: the four subtraction commits were
+never on `origin`, so the Studio could not have had them. Layer 3 was deleted on this
+machine only. Closing that is a push-and-merge, not a deploy re-run — `deploy-all.sh` will
+never surface it, because each machine validates against its own source and both are
+internally consistent.
+
+*(A first draft of this paragraph said the branch had "no upstream and has never been
+pushed." Half wrong, and worth keeping as another instance of §4. `git status -sb` printed
+a bare `## fix/searxng-migration-inv8` with no `...origin/...`, which reads as never-pushed;
+it means only that no upstream was **configured**. The branch did exist on origin, at
+`6f84a2d3`, 20 commits stale. The status line describes local tracking configuration, not
+the remote — I read a property of the description as a property of the thing.)*
 
 **Same defect class as §4**, at deploy scope: *ALL VALIDATIONS PASSED* is a true statement
 about what it measured. Nothing in the deploy compares the two machines' source revisions.
