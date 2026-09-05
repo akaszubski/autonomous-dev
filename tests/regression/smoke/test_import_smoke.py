@@ -182,24 +182,12 @@ class TestUtilityModuleImports:
         assert ErrorAnalyzer is not None
         assert hasattr(ErrorAnalyzer, "analyze")
 
-    def test_batch_retry_manager_import(self):
-        """Test batch_retry_manager module imports successfully."""
-        from batch_retry_manager import should_retry_feature
-
-        assert should_retry_feature is not None
-
     def test_failure_classifier_import(self):
         """Test failure_classifier module imports successfully."""
         from failure_classifier import FailureType, classify_failure
 
         assert FailureType is not None
         assert classify_failure is not None
-
-    def test_auto_approval_engine_import(self):
-        """Test auto_approval_engine module imports successfully."""
-        from auto_approval_engine import should_auto_approve
-
-        assert should_auto_approve is not None
 
 
 class TestOptionalDependencyImports:

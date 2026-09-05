@@ -44,19 +44,6 @@ try:
 except ImportError:
     STATE_MANAGER_AVAILABLE = False
 
-# Import batch_retry_manager - skip if not available
-try:
-    from batch_retry_manager import (
-        BatchRetryManager, should_retry_feature, record_retry_attempt,
-        check_circuit_breaker, get_retry_count, reset_circuit_breaker,
-        MAX_RETRIES_PER_FEATURE, MAX_TOTAL_RETRIES, CIRCUIT_BREAKER_THRESHOLD,
-        RetryDecision, CircuitBreakerError,
-    )
-    from failure_classifier import FailureType
-    RETRY_MANAGER_AVAILABLE = True
-except ImportError:
-    RETRY_MANAGER_AVAILABLE = False
-
 
 # =============================================================================
 # Fixtures
@@ -276,88 +263,6 @@ class TestBatchStateSecurity:
 
         with pytest.raises(BatchStateError):
             save_batch_state(symlink_path, sample_batch_state)
-
-
-# =============================================================================
-# Retry Manager Tests
-# =============================================================================
-
-@pytest.mark.skipif(not RETRY_MANAGER_AVAILABLE, reason="batch_retry_manager not available")
-class TestRetryCountTracking:
-    """Test retry count tracking per feature."""
-
-    @pytest.fixture
-    def retry_manager(self, temp_state_dir):
-        return BatchRetryManager("batch-20251118-123456", state_dir=temp_state_dir)
-
-    def test_get_retry_count_returns_zero_initially(self, retry_manager):
-        """Test that retry count starts at 0 for new feature."""
-        assert retry_manager.get_retry_count(0) == 0
-
-    def test_record_retry_attempt_increments_count(self, retry_manager):
-        """Test that recording retry increments count."""
-        retry_manager.record_retry_attempt(0, "ConnectionError: Failed")
-        assert retry_manager.get_retry_count(0) == 1
-
-    def test_retry_count_tracked_independently_per_feature(self, retry_manager):
-        """Test that retry counts are tracked separately per feature."""
-        retry_manager.record_retry_attempt(0, "Error")
-        retry_manager.record_retry_attempt(0, "Error")
-        retry_manager.record_retry_attempt(1, "Error")
-        assert retry_manager.get_retry_count(0) == 2
-        assert retry_manager.get_retry_count(1) == 1
-
-
-@pytest.mark.skipif(not RETRY_MANAGER_AVAILABLE, reason="batch_retry_manager not available")
-class TestCircuitBreaker:
-    """Test circuit breaker after 5 consecutive failures."""
-
-    @pytest.fixture
-    def retry_manager(self, temp_state_dir):
-        return BatchRetryManager("batch-20251118-123456", state_dir=temp_state_dir)
-
-    def test_circuit_breaker_not_triggered_with_few_failures(self, retry_manager):
-        """Test that circuit breaker doesn't trigger with < 5 failures."""
-        for i in range(4):
-            retry_manager.record_retry_attempt(i, "Error")
-        assert retry_manager.check_circuit_breaker() is False
-
-    def test_circuit_breaker_triggers_after_five_consecutive_failures(self, retry_manager):
-        """Test that circuit breaker triggers after 5 consecutive failures."""
-        for i in range(5):
-            retry_manager.record_retry_attempt(i, "Error")
-        assert retry_manager.check_circuit_breaker() is True
-
-    def test_circuit_breaker_threshold_is_five(self):
-        """Test that CIRCUIT_BREAKER_THRESHOLD is set to 5."""
-        assert CIRCUIT_BREAKER_THRESHOLD == 5
-
-
-@pytest.mark.skipif(not RETRY_MANAGER_AVAILABLE, reason="batch_retry_manager not available")
-class TestMaxRetryLimit:
-    """Test max retry limit enforcement."""
-
-    @pytest.fixture
-    def retry_manager(self, temp_state_dir):
-        return BatchRetryManager("batch-20251118-123456", state_dir=temp_state_dir)
-
-    def test_should_retry_returns_true_under_limit(self, retry_manager):
-        """Test that retry is allowed when under max limit."""
-        retry_manager.record_retry_attempt(0, "Error 1")
-        retry_manager.record_retry_attempt(0, "Error 2")
-        decision = retry_manager.should_retry_feature(0, FailureType.TRANSIENT)
-        assert decision.should_retry is True
-
-    def test_should_retry_returns_false_at_limit(self, retry_manager):
-        """Test that retry is blocked when at max limit."""
-        for i in range(MAX_RETRIES_PER_FEATURE):
-            retry_manager.record_retry_attempt(0, f"Error {i}")
-        decision = retry_manager.should_retry_feature(0, FailureType.TRANSIENT)
-        assert decision.should_retry is False
-
-    def test_max_retries_per_feature_constant_is_three(self):
-        """Test that MAX_RETRIES_PER_FEATURE is set to 3."""
-        assert MAX_RETRIES_PER_FEATURE == 3
 
 
 # =============================================================================

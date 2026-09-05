@@ -44,12 +44,12 @@ The ``FileHandler`` family
 --------------------------
 ``logging.FileHandler`` and its ``logging.handlers`` subclasses default to
 ``mode="a"``. They open in append mode without the letter ``"a"`` appearing
-anywhere in the call, so *every* text instrument misses them. Three live
-instances, each verified by reading the line:
+anywhere in the call, so *every* text instrument misses them. The live
+instances, each verified by reading the line, are enumerated in
+``FILEHANDLER_FAMILY_SITES`` below:
 
 * ``lib/logging_utils.py:61``      -- ``logging.FileHandler(log_file)``
 * ``lib/security_utils.py:182``    -- ``RotatingFileHandler(audit_log, maxBytes=...)``
-* ``lib/tool_approval_audit.py:175`` -- ``RotatingFileHandler(self.log_path, maxBytes=...)``
 
 A call to one of these names counts as an append writer UNLESS an explicit
 non-append string-literal mode is present.
@@ -67,7 +67,7 @@ tree.
 
 Escape hatch
 ------------
-Adding writer 36 takes three edits in ONE diff: add the repo-relative path to
+Adding writer 34 takes three edits in ONE diff: add the repo-relative path to
 :data:`PINNED_APPEND_WRITERS`, raise :data:`APPEND_WRITER_CEILING`, raise
 :data:`CEILING_HIGH_WATER_MARK`. The equality assertion forces the second; the
 ceiling-may-never-exceed-the-mark assertion forces the third. Reduction is a
@@ -460,9 +460,8 @@ def _git_tracked_files() -> "set[str]":
 #:
 #: ``hooks/setup.py`` appends to ``.gitignore``, not to a log. It is pinned
 #: anyway -- see "The metric is a PROXY" above.
-#: ``lib/logging_utils.py``, ``lib/security_utils.py`` and
-#: ``lib/tool_approval_audit.py`` are here via the ``FileHandler`` family and
-#: contain no ``"a"`` literal at all.
+#: ``lib/logging_utils.py`` and ``lib/security_utils.py`` are here via the
+#: ``FileHandler`` family and contain no ``"a"`` literal at all.
 PINNED_APPEND_WRITERS: "frozenset[str]" = frozenset(
     {
         "plugins/autonomous-dev/hooks/cloud_drain_telemetry.py",
@@ -476,7 +475,6 @@ PINNED_APPEND_WRITERS: "frozenset[str]" = frozenset(
         "plugins/autonomous-dev/lib/alignment_classifier.py",
         "plugins/autonomous-dev/lib/alignment_gate.py",
         "plugins/autonomous-dev/lib/autoresearch_engine.py",
-        "plugins/autonomous-dev/lib/batch_retry_manager.py",
         "plugins/autonomous-dev/lib/benchmark_history.py",
         "plugins/autonomous-dev/lib/cia_finding_store.py",
         "plugins/autonomous-dev/lib/conflict_resolver.py",
@@ -498,7 +496,6 @@ PINNED_APPEND_WRITERS: "frozenset[str]" = frozenset(
         "plugins/autonomous-dev/lib/semantic_gate.py",
         "plugins/autonomous-dev/lib/session_tracker.py",
         "plugins/autonomous-dev/lib/subagent_invocation_cache.py",
-        "plugins/autonomous-dev/lib/tool_approval_audit.py",  # RotatingFileHandler:175
         "plugins/autonomous-dev/lib/workflow_violation_logger.py",
     }
 )
@@ -506,17 +503,23 @@ PINNED_APPEND_WRITERS: "frozenset[str]" = frozenset(
 #: Ceiling on the pin, asserted by EQUALITY (see the escape hatch above).
 #: History -- the ratchet may only count DOWN:
 #:   35  Issue #1718: landed at the live population, measured by AST.
-APPEND_WRITER_CEILING = 35
+#:   33  The approval-subsystem deletion. -2, both REMOVALS not repairs:
+#:        ``lib/batch_retry_manager.py`` and ``lib/tool_approval_audit.py``
+#:        were deleted with the never-executed approval cluster, so their
+#:        pin entries protected nothing. ``tool_approval_audit.py`` was
+#:        ALSO pinned in ``FILEHANDLER_FAMILY_SITES`` by file AND line
+#:        number -- a shape no import graph can see -- and that tuple
+#:        drops from 3 sites to 2 in the same diff.
+APPEND_WRITER_CEILING = 33
 
 #: Highest ceiling ever REVIEWED, so a raise costs a second visible edit.
-CEILING_HIGH_WATER_MARK = 35
+CEILING_HIGH_WATER_MARK = 33
 
 #: The ``FileHandler``-family sites, each verified by reading the line. These
 #: are the sites no text instrument can see, so they are controlled by hand.
 FILEHANDLER_FAMILY_SITES: Tuple[Tuple[str, int, str], ...] = (
     ("plugins/autonomous-dev/lib/logging_utils.py", 61, "logging.FileHandler("),
     ("plugins/autonomous-dev/lib/security_utils.py", 182, "RotatingFileHandler("),
-    ("plugins/autonomous-dev/lib/tool_approval_audit.py", 175, "RotatingFileHandler("),
 )
 
 
@@ -582,7 +585,7 @@ class TestInstrumentIntegrity:
             "A caller's mutation leaked into the memo. append_writer_sites() "
             "must return a fresh dict on every call."
         )
-        assert len(second) == 35, (
+        assert len(second) == 33, (
             f"the memo returned {len(second)} entries after a caller cleared "
             f"its copy; the population is not stable within a run."
         )
@@ -649,7 +652,7 @@ class TestPositiveControls:
     def test_filehandler_family_site_is_detected(
         self, rel_path: str, line: int, anchor: str
     ) -> None:
-        """The three handler sites that default to ``mode="a"``.
+        """Each handler site that defaults to ``mode="a"``.
 
         Every non-AST instrument misses these: the letter ``"a"`` appears
         nowhere in the call. The premise asserts the anchor is still on the
@@ -668,7 +671,7 @@ class TestPositiveControls:
         sites = append_writer_sites()
         assert rel_path in sites, (
             f"{rel_path} was not detected. The FileHandler family defaults to "
-            f"mode='a'; losing it drops three real append writers from the "
+            f"mode='a'; losing it drops a real append writer from the "
             f"population with no visible failure."
         )
         assert line in sites[rel_path], (
@@ -730,7 +733,7 @@ class TestNegativeControls:
     def test_filehandler_with_explicit_write_mode_is_not_detected(self, tmp_path: Path) -> None:
         """THE DISCRIMINATING CONTROL for the handler family.
 
-        Without this, the three positive handler arms pass just as well
+        Without this, the positive handler arms pass just as well
         against a detector that flags every ``FileHandler`` unconditionally --
         which would be a detector that cannot tell append from truncate.
         """
@@ -1029,9 +1032,9 @@ class TestRatchet:
 
     def test_pin_size_is_the_landing_measurement(self) -> None:
         """The literal, so a pin edit cannot pass by moving both constants."""
-        assert len(PINNED_APPEND_WRITERS) == APPEND_WRITER_CEILING == 35, (
+        assert len(PINNED_APPEND_WRITERS) == APPEND_WRITER_CEILING == 33, (
             f"pin={len(PINNED_APPEND_WRITERS)}, "
-            f"ceiling={APPEND_WRITER_CEILING}. The literal 35 here is the "
+            f"ceiling={APPEND_WRITER_CEILING}. The literal 33 here is the "
             f"landing measurement (Issue #1718); lowering it is the ratchet "
             f"advancing and requires editing this line too."
         )

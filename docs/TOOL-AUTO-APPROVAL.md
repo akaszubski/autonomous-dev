@@ -6,6 +6,15 @@ covers:
 
 # MCP Auto-Approval for Tool Calls
 
+> **Status: the approval/retry subsystem described below was deleted and never ran.**
+> The modules named in this document were built, tested, shipped to five consumer
+> repositories, and never once executed — measured UNREACHED by the reachability
+> ratchet, and zero executions across 541,492 activity-log lines. What enforces
+> tool permissions today is Claude Code's native rules (4 allow, 61 deny) plus
+> `hooks/unified_pre_tool.py` (167 refusals in two days). Retained as design
+> history; do not read it as a description of running code.
+
+
 **Version**: v3.40.0 (Permissive Mode with Blacklist-First Security)
 **Last Updated**: 2025-12-09
 **Status**: Opt-in feature (disabled by default, requires explicit enablement)
@@ -485,6 +494,17 @@ cp plugins/autonomous-dev/config/auto_approve_policy.json .claude/config/auto_ap
 ---
 
 ## Security Model
+
+> **REMOVED** — this section, the Policy File Reference, Troubleshooting, and
+> For Contributors sections below all describe the deleted subsystem
+> (`auto_approval_engine.py`, `auto_approval_consent.py`,
+> `tool_approval_audit.py`) as if it were live: code samples, `Location:`
+> paths, and `logs/tool_approval_audit.log` troubleshooting steps that write
+> to or read from nothing that runs today. `tool_validator.py` and
+> `plugins/autonomous-dev/config/auto_approve_policy.json` still exist on
+> disk but nothing in the live `unified_pre_tool.py` path invokes them for
+> this whitelist/blacklist logic. Read what follows as design history, not a
+> guide to running code — see the top-of-file status banner.
 
 ### 6 Layers of Defense-in-Depth
 
@@ -1232,6 +1252,12 @@ pytest tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py -v
 
 ### Component Diagram
 
+> **REMOVED** — this diagram describes the deleted `pre_tool_use.py` /
+> `auto_approval_engine.py` / `tool_approval_audit.py` pipeline, none of
+> which ever ran. It is retained as design history only; see the top-of-file
+> status banner and `docs/MCP-SECURITY.md` for what actually enforces tool
+> permissions today (`unified_pre_tool.py`).
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Claude Code 2.0                           │
@@ -1285,16 +1311,24 @@ pytest tests/unit/hooks/test_unified_pre_tool_use_custom_agent.py -v
 
 ### File Structure
 
+> **REMOVED** — `auto_approval_engine.py`, `tool_approval_audit.py`, and
+> `auto_approval_consent.py` (and their test files below) were deleted; none
+> ever executed. `tool_validator.py` and `security_utils.py` still exist on
+> disk but are not invoked from any live hook path. The actual enforcement
+> path today is `plugins/autonomous-dev/hooks/unified_pre_tool.py` — the
+> hook filenames `pre_tool_use.py` / `unified_pre_tool_use.py` shown below
+> do not exist in this repository.
+
 ```
 plugins/autonomous-dev/
 ├── hooks/
-│   ├── pre_tool_use.py              (PreToolUse hook script - ACTIVE)
-│   └── unified_pre_tool_use.py      (Legacy library code - DEPRECATED)
+│   ├── pre_tool_use.py              (PreToolUse hook script - historical, does not exist)
+│   └── unified_pre_tool_use.py      (Legacy library code - historical, does not exist)
 ├── lib/
-│   ├── auto_approval_engine.py      (Core auto-approval logic)
+│   ├── auto_approval_engine.py      (Core auto-approval logic) — REMOVED, never executed
 │   ├── tool_validator.py            (Whitelist/blacklist validation)
-│   ├── tool_approval_audit.py       (Audit logging system)
-│   ├── auto_approval_consent.py     (User consent management)
+│   ├── tool_approval_audit.py       (Audit logging system) — REMOVED, never executed
+│   ├── auto_approval_consent.py     (User consent management) — REMOVED, never executed
 │   └── security_utils.py            (Path validation, CWE-22 prevention)
 ├── config/
 │   └── auto_approve_policy.json     (Policy configuration)
@@ -1302,12 +1336,12 @@ plugins/autonomous-dev/
     ├── unit/
     │   ├── lib/
     │   │   ├── test_tool_validator.py
-    │   │   ├── test_tool_approval_audit.py
+    │   │   ├── test_tool_approval_audit.py     — REMOVED with the module it tested
     │   │   └── test_user_state_manager_auto_approval.py
     │   └── hooks/
     │       └── test_auto_approve_tool.py
     ├── integration/
-    │   └── test_tool_auto_approval_end_to_end.py
+    │   └── test_tool_auto_approval_end_to_end.py     — REMOVED with the module it tested
     └── security/
         └── test_tool_auto_approval_security.py
 ```
@@ -1396,9 +1430,14 @@ result = validator.validate_tool_call(
 )
 ```
 
-#### ToolApprovalAuditor
+#### ToolApprovalAuditor — REMOVED, never executed
 
-**Location**: `plugins/autonomous-dev/lib/tool_approval_audit.py`
+> `plugins/autonomous-dev/lib/tool_approval_audit.py` and its class below were
+> deleted; the API reference that follows describes a design, not code you can
+> import. `logs/tool_approval_audit.log` is not written by anything running
+> today.
+
+**Location** (historical, file no longer exists): `plugins/autonomous-dev/lib/tool_approval_audit.py`
 
 **Class**: `ToolApprovalAuditor`
 

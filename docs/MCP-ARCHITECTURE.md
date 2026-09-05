@@ -5,6 +5,14 @@ covers:
 
 # MCP Architecture - Autonomous Development
 
+> **Status: `lib/mcp_permission_validator.py` was deleted and never ran.** Every
+> reference to it below (the diagram at "Layer 2", the file tree, and the four
+> CLI examples) describes a design, not running code. MCP permissions are
+> enforced today by Claude Code's native rules (4 allow, 61 deny) and
+> `hooks/unified_pre_tool.py`. See `docs/MCP-SECURITY.md` for the layer table and
+> for the one known fail-open gap.
+
+
 **Version**: v3.37.0
 **Issue**: #95 (MCP Security Implementation)
 **Last Updated**: 2025-12-07

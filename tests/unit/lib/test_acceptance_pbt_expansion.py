@@ -43,8 +43,24 @@ class TestHypothesisConfiguration:
         assert "max_examples=50" in content, "Default profile should use max_examples=50"
 
 
+#: Property-test files added by Issue #769 that were later DELETED because the
+#: modules they tested were deleted -- the never-executed approval subsystem.
+#: Recorded by name rather than absorbed into a lowered threshold, so the
+#: acceptance floor below stays auditable: 10 was met, then its subject shrank.
+RETIRED_WITH_DELETED_SUBJECT = frozenset({
+    "test_auto_approval_engine_properties.py",
+    "test_tool_approval_audit_properties.py",
+})
+
+#: Issue #769's acceptance floor, minus the files whose subject no longer exists.
+#: DERIVED, not restated: re-deleting a module updates this by editing the set
+#: above, and a plain regression (a file deleted with its module still present)
+#: still trips the assertion.
+PBT_ACCEPTANCE_FLOOR = 10 - len(RETIRED_WITH_DELETED_SUBJECT)
+
+
 class TestNewPropertyTestFiles:
-    """Acceptance: at least 10 new property test files."""
+    """Acceptance: the Issue #769 property-test floor, net of retired subjects."""
 
     def test_at_least_10_new_files(self):
         existing = {
@@ -56,8 +72,11 @@ class TestNewPropertyTestFiles:
         }
         all_files = {f.name for f in PROPERTY_DIR.glob("test_*_properties.py")}
         new_files = all_files - existing
-        assert len(new_files) >= 10, (
-            f"Expected >= 10 new property test files, found {len(new_files)}: {sorted(new_files)}"
+        assert len(new_files) >= PBT_ACCEPTANCE_FLOOR, (
+            f"Expected >= {PBT_ACCEPTANCE_FLOOR} new property test files (Issue #769's "
+            f"floor of 10, less {len(RETIRED_WITH_DELETED_SUBJECT)} retired with their "
+            f"deleted subject: {sorted(RETIRED_WITH_DELETED_SUBJECT)}), "
+            f"found {len(new_files)}: {sorted(new_files)}"
         )
 
 
@@ -140,11 +159,37 @@ class TestCoverageCategories:
         validation_files = [f for f in files if "validation" in f or "prompt_integrity" in f or "sanitiz" in f]
         assert len(validation_files) >= 1, "Missing input validation property tests"
 
-    def test_set_operation_tests_exist(self):
-        """Set operation / approval engine tests."""
-        files = [f.name for f in PROPERTY_DIR.glob("test_*_properties.py")]
-        set_files = [f for f in files if "auto_approval" in f or "approval" in f]
-        assert len(set_files) >= 1, "Missing set operation property tests"
+    def test_approval_property_coverage_tracks_the_approval_modules(self):
+        """The approval property tests and the approval modules stand or fall together.
+
+        This criterion used to assert that a file matching ``approval`` exists,
+        as a proxy for set-operation coverage. Both matching files were deleted
+        with the never-executed approval subsystem, so the original form is now
+        unsatisfiable -- and lowering it to ``>= 0`` would be green over nothing.
+
+        Restated as the PAIRING invariant, which refuses in BOTH directions:
+        property coverage for the approval modules must exist exactly when those
+        modules do. It fails if someone restores ``lib/auto_approval_engine.py``
+        without restoring its property tests (silent coverage loss), and it fails
+        if the property tests come back without the module (a test over nothing).
+        """
+        lib_dir = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
+        modules = sorted(
+            p.name
+            for p in lib_dir.glob("*.py")
+            if "auto_approval" in p.name or "tool_approval" in p.name
+        )
+        property_tests = sorted(
+            f.name
+            for f in PROPERTY_DIR.glob("test_*_properties.py")
+            if "auto_approval" in f.name or "approval" in f.name
+        )
+        assert bool(modules) == bool(property_tests), (
+            f"approval modules {modules} and approval property tests "
+            f"{property_tests} disagree. Either the modules came back without "
+            f"property coverage, or the property tests came back without a "
+            f"subject. Both are defects; they must move together."
+        )
 
 
 class TestDocumentation:

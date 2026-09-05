@@ -34,8 +34,8 @@ The autonomous-dev plugin includes shared libraries organized into the following
 16. **path_utils.py** - Dynamic PROJECT_ROOT detection and path resolution (v3.28.0, Issue #79)
 17. **validation.py** - Tracking infrastructure security validation (v3.28.0, Issue #79)
 18. **failure_classifier.py** - Error classification (transient vs permanent) for /implement --batch (v3.33.0, Issue #89)
-19. **batch_retry_manager.py** - Retry orchestration with circuit breaker for /implement --batch (v3.33.0, Issue #89)
-20. **batch_retry_consent.py** - First-run consent handling for automatic retry (v3.33.0, Issue #89)
+19. **batch_retry_manager.py** - REMOVED (never executed; see section 22)
+20. **batch_retry_consent.py** - REMOVED (never executed; see section 23)
 21. **quality_persistence_enforcer.py** - Completion gate enforcement and honest summary for /implement --batch (v1.0.0, Issue #254)
 22. **session_tracker.py** - Session logging for agent actions with portable path detection (v3.28.0+, Issue #79)
 23. **settings_merger.py** - Merge settings.local.json with template configuration (v3.39.0, Issue #98)
@@ -200,7 +200,7 @@ The autonomous-dev plugin includes shared libraries organized into the following
 
 ### MCP Security Libraries (2) - NEW in v3.37.0
 
-39. **mcp_permission_validator.py** - Permission validation for MCP server operations (Issue #95)
+39. **mcp_permission_validator.py** - REMOVED (never executed; see section 35)
 40. **mcp_profile_manager.py** - Pre-configured security profiles for MCP (development, testing, production) (Issue #95)
 
 ### Script Utilities (2) - NEW in v3.42.0, ENHANCED in v3.44.0
@@ -2838,7 +2838,7 @@ except GitHubAPIError as e:
   - Validates JSON format
   - Handles permission errors gracefully
 - **Thread Safety**: Not thread-safe (uses module-level cache); wrap with threading.Lock for multi-threading
-- **Used By**: tool_validator.py, auto_approval_engine.py
+- **Used By**: tool_validator.py
 - **Use Cases**:
   - Customize policy per project (place policy in `.claude/config/auto_approve_policy.json`)
   - Inherit plugin defaults (omit custom policy)
@@ -3641,7 +3641,7 @@ validate_message("msg\x00with\x01control")  # Control chars
 
 ### Overview
 
-Analyzes error messages to determine if a failed feature attempt should be retried (transient errors like network issues) or marked failed (permanent errors like syntax errors). Used by batch_retry_manager.py to make retry decisions.
+Analyzes error messages to determine if a failed feature attempt should be retried (transient errors like network issues) or marked failed (permanent errors like syntax errors). Was used by the removed batch_retry_manager.py to make retry decisions; it has no caller today.
 
 ### Enums
 
@@ -3742,7 +3742,6 @@ Analyzes error messages to determine if a failed feature attempt should be retri
 - Edge cases: None, empty, unknown error types, long messages
 
 ### Used By
-- batch_retry_manager.py for retry decisions
 - /implement --batch command for retry logic
 
 ### Related
@@ -3751,308 +3750,37 @@ Analyzes error messages to determine if a failed feature attempt should be retri
 
 ---
 
-## 22. batch_retry_manager.py (544 lines, v3.33.0+)
+## 22. batch_retry_manager.py — REMOVED
 
-**Purpose**: Orchestrate retry logic with safety limits and circuit breaker for /implement --batch.
+Deleted with the never-executed approval subsystem. The module was built,
+tested, shipped to five consumer repositories, and never once executed: the
+reachability ratchet measured it UNREACHED, and a scan of 541,492 activity-log
+lines resolved every mention of it to a file-read operation rather than a call.
 
-### Overview
+The section number is retained so the numbering of every later entry, and the
+anchors that link to them, stay valid.
 
-Manages automatic retry of failed features with intelligent safeguards:
-- Per-feature retry tracking (max 3 per feature)
-- Circuit breaker (pause after 5 consecutive failures)
-- Global retry limit (max 50 total retries)
-- Persistent state (survive crashes)
-- Audit logging (all retries tracked)
-
-### Data Classes
-
-#### `RetryDecision`
-- **Purpose**: Decision about whether to retry a feature
-- **Attributes**:
-  - `should_retry` (bool): Whether to retry
-  - `reason` (str): Reason for decision (e.g., "under_retry_limit", "circuit_breaker_open")
-  - `retry_count` (int): Current retry count for feature
-
-#### `RetryState`
-- **Purpose**: Persistent retry state for a batch
-- **Attributes**:
-  - `batch_id` (str): Batch identifier
-  - `retry_counts` (Dict[int, int]): Per-feature retry counts
-  - `global_retry_count` (int): Total retries across all features
-  - `consecutive_failures` (int): Consecutive failures (for circuit breaker)
-  - `circuit_breaker_open` (bool): Whether circuit breaker is triggered
-  - `created_at` (str): ISO 8601 creation timestamp
-  - `updated_at` (str): ISO 8601 last update timestamp
-
-### Main Class
-
-#### `BatchRetryManager`
-- **Purpose**: Main class for retry orchestration
-
-##### Constructor
-```python
-BatchRetryManager(batch_id: str, state_dir: Optional[Path] = None)
-```
-
-##### Key Methods
-
-###### `should_retry_feature(feature_index, failure_type)`
-- **Purpose**: Decide if feature should be retried
-- **Parameters**:
-  - `feature_index` (int): Index of failed feature
-  - `failure_type` (FailureType): Classification of failure
-- **Returns**: `RetryDecision` with decision and reason
-- **Decision Logic** (in order):
-  1. Check global retry limit (max 50 total retries)
-  2. Check circuit breaker (5 consecutive failures)
-  3. Check failure type (permanent → no retry)
-  4. Check per-feature limit (max 3 retries)
-  5. If all pass → allow retry
-- **Examples**:
-  ```python
-  manager = BatchRetryManager("batch-123")
-  decision = manager.should_retry_feature(0, FailureType.TRANSIENT)
-  if decision.should_retry:
-      # Retry feature...
-  ```
-
-###### `record_retry_attempt(feature_index, error_message)`
-- **Purpose**: Record a retry attempt
-- **Parameters**:
-  - `feature_index` (int): Index of feature being retried
-  - `error_message` (str): Error from failed attempt
-- **Side Effects**:
-  - Increments per-feature retry count
-  - Increments global retry count
-  - Increments consecutive failure count
-  - Checks circuit breaker threshold
-  - Saves state atomically
-  - Logs to audit trail
-
-###### `record_success(feature_index)`
-- **Purpose**: Record successful feature completion
-- **Parameters**: `feature_index` (int): Index of successful feature
-- **Side Effects**:
-  - Resets consecutive failure count (circuit breaker reset)
-  - Saves state atomically
-
-###### `check_circuit_breaker()`
-- **Purpose**: Check if circuit breaker is open
-- **Returns**: `True` if open (retries blocked), `False` otherwise
-
-###### `reset_circuit_breaker()`
-- **Purpose**: Manually reset circuit breaker after investigation
-- **Use Case**: After investigating root cause of consecutive failures
-
-###### `get_retry_count(feature_index)`
-- **Purpose**: Get retry count for specific feature
-- **Parameters**: `feature_index` (int): Feature index
-- **Returns**: `int` (number of retries, 0 if never retried)
-
-###### `get_global_retry_count()`
-- **Purpose**: Get total retries across all features
-- **Returns**: `int` (total retries)
-
-### Constants
-
-- `MAX_RETRIES_PER_FEATURE = 3`: Max retries per feature
-- `CIRCUIT_BREAKER_THRESHOLD = 5`: Consecutive failures to open circuit
-- `MAX_TOTAL_RETRIES = 50`: Global retry limit across batch
-
-### Convenience Functions
-
-Module provides standalone functions for quick use without class:
-
-- `should_retry_feature(batch_id, feature_index, failure_type, state_dir)` - Check if retry allowed
-- `record_retry_attempt(batch_id, feature_index, error_message, state_dir)` - Record attempt
-- `check_circuit_breaker(batch_id, state_dir)` - Check breaker status
-- `get_retry_count(batch_id, feature_index, state_dir)` - Get retry count
-- `reset_circuit_breaker(batch_id, state_dir)` - Reset breaker
-
-### State Persistence
-
-Retry state saved to `.claude/batch_*_retry_state.json`:
-
-```json
-{
-  "batch_id": "batch-20251118-123456",
-  "retry_counts": { "0": 2, "5": 1 },
-  "global_retry_count": 5,
-  "consecutive_failures": 0,
-  "circuit_breaker_open": false,
-  "created_at": "2025-11-19T10:00:00Z",
-  "updated_at": "2025-11-19T10:15:00Z"
-}
-```
-
-State file uses atomic writes (tempfile + rename) for crash safety.
-
-### Audit Logging
-
-All retry attempts logged to `.claude/audit/batch_*_retry_audit.jsonl` with entries:
-
-```json
-{
-  "timestamp": "2025-11-19T10:00:00Z",
-  "event_type": "retry_attempt",
-  "batch_id": "batch-123",
-  "feature_index": 0,
-  "retry_count": 1,
-  "global_retry_count": 5,
-  "error_message": "ConnectionError: Failed"
-}
-```
-
-### Security
-- Atomic writes (temp file + rename)
-- Path validation for state directories
-- Error message sanitization (CWE-117)
-- Circuit breaker prevents resource exhaustion
-- Audit logging for all decisions
-
-### Test Coverage
-- 40+ unit tests covering:
-  - Retry decision logic (all 5 checks)
-  - State persistence (load/save)
-  - Circuit breaker (open/close/reset)
-  - Consecutive failure tracking
-  - Edge cases (corrupted state, missing files)
-
-### Used By
-- /implement --batch command for automatic retry
-- failure_classifier.py for error classification
-
-### Related
-- GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
-- state-management-patterns skill for persistence patterns
+**What enforces this area now**: Claude Code's native permission rules
+(4 allow, 61 deny in `.claude/settings.json`) and
+`plugins/autonomous-dev/hooks/unified_pre_tool.py`, which recorded 167 refusals
+in the two days before this deletion.
 
 ---
 
-## 23. batch_retry_consent.py (360 lines, v3.33.0+)
+## 23. batch_retry_consent.py — REMOVED
 
-**Purpose**: First-run consent prompt and persistent state for automatic retry feature.
+Deleted with the never-executed approval subsystem. The module was built,
+tested, shipped to five consumer repositories, and never once executed: the
+reachability ratchet measured it UNREACHED, and a scan of 541,492 activity-log
+lines resolved every mention of it to a file-read operation rather than a call.
 
-### Overview
+The section number is retained so the numbering of every later entry, and the
+anchors that link to them, stay valid.
 
-Interactive consent system for /implement --batch automatic retry:
-- First-run prompt (explains feature, safety limits)
-- Persistent state storage (`~/.autonomous-dev/user_state.json`)
-- Environment variable override (`BATCH_RETRY_ENABLED`)
-- Secure file permissions (0o600 user-only)
-- Path validation (prevent symlink attacks)
-
-### Constants
-
-- `DEFAULT_USER_STATE_FILE = ~/.autonomous-dev/user_state.json`: Default state location
-- `ENV_VAR_BATCH_RETRY = "BATCH_RETRY_ENABLED"`: Environment variable name
-
-### Main Functions
-
-#### `check_retry_consent()`
-- **Purpose**: Check if user has consented to automatic retry
-- **Workflow**:
-  1. Check if already set in state file
-  2. If not set, prompt user
-  3. Save response to state file
-  4. Return response
-- **Returns**: `True` if enabled, `False` if disabled
-- **First Run**: Displays consent prompt, saves choice to `~/.autonomous-dev/user_state.json`
-- **Subsequent Runs**: Reads from state file (no prompt)
-
-#### `is_retry_enabled()`
-- **Purpose**: Check if automatic retry is enabled
-- **Priority Order**:
-  1. Check environment variable `BATCH_RETRY_ENABLED` (highest priority)
-  2. Check user state file `~/.autonomous-dev/user_state.json`
-  3. Prompt user if not set (with check_retry_consent)
-- **Returns**: `True` if enabled, `False` if disabled
-- **Examples**:
-  ```python
-  # Environment variable overrides state file
-  os.environ["BATCH_RETRY_ENABLED"] = "false"
-  is_retry_enabled()  # False (env var checked first)
-
-  # Fall back to state file if env var not set
-  os.environ.pop("BATCH_RETRY_ENABLED", None)
-  is_retry_enabled()  # Reads from state file or prompts
-  ```
-
-#### `prompt_for_retry_consent()`
-- **Purpose**: Display first-run consent prompt and get user response
-- **Returns**: `True` if user consented (yes/y/Y/Enter), `False` otherwise
-- **Prompt Displays**:
-  - Automatic retry feature explanation
-  - Types of errors retried (network, timeout, rate limit)
-  - Max 3 retries per feature
-  - Circuit breaker after 5 consecutive failures
-  - How to disable via `.env` file
-- **Default Behavior**: Enter/no response → False (conservative default)
-
-### State File Management
-
-#### `save_consent_state(retry_enabled)`
-- **Purpose**: Save consent decision to state file
-- **Parameters**: `retry_enabled` (bool): Whether retry is enabled
-- **Features**:
-  - Creates directory if needed: `~/.autonomous-dev/`
-  - Sets file permissions to 0o600 (user-only read/write)
-  - Atomic write (tempfile + rename)
-  - Preserves existing state (merges with existing keys)
-
-#### `load_consent_state()`
-- **Purpose**: Load saved consent decision
-- **Returns**: `True` if enabled, `False` if disabled, `None` if not set
-- **Security**: Rejects symlinks (CWE-59 prevention)
-- **Graceful**: Returns `None` if file corrupted or missing
-
-#### `get_user_state_file()`
-- **Purpose**: Get path to user state file
-- **Returns**: `Path` object pointing to `~/.autonomous-dev/user_state.json`
-- **Note**: Can be overridden for testing
-
-### Exceptions
-
-#### `ConsentError`
-- **Purpose**: Exception for consent-related errors
-- **Raised When**:
-  - User state file is a symlink (CWE-59)
-  - Cannot write to user state directory
-  - File corruption prevents parsing
-
-### Security
-
-- **CWE-22**: Path validation (rejects traversal attempts)
-- **CWE-59**: Symlink rejection for user state file (prevents symlink attacks)
-- **CWE-732**: File permissions secured to 0o600 (user-only read/write)
-- **Atomic Writes**: Temp file + rename prevents partial writes
-
-### State File Format
-
-User state stored in `~/.autonomous-dev/user_state.json`:
-
-```json
-{
-  "batch_retry_enabled": true,
-  "other_keys": "..."
-}
-```
-
-### Test Coverage
-- 20+ unit tests covering:
-  - Consent prompt (yes/no/invalid responses)
-  - State file persistence (save/load)
-  - Environment variable override
-  - Symlink detection and rejection
-  - File permissions validation
-  - First-run vs subsequent-run behavior
-
-### Used By
-- /implement --batch command (check before retry)
-- batch_retry_manager.py (respects consent setting)
-
-### Related
-- GitHub Issue #89 (Automatic Failure Recovery for /implement --batch)
-- error-handling-patterns skill for exception hierarchy
+**What enforces this area now**: Claude Code's native permission rules
+(4 allow, 61 deny in `.claude/settings.json`) and
+`plugins/autonomous-dev/hooks/unified_pre_tool.py`, which recorded 167 refusals
+in the two days before this deletion.
 
 ---
 
@@ -4204,7 +3932,6 @@ Features are only marked as completed when they truly pass ALL quality gates:
 
 - `/implement --batch` command for quality gate checks
 - `batch_issue_closer.py` for issue close decisions
-- `batch_retry_manager.py` for retry strategy selection
 - `batch_state_manager.py` for quality metrics tracking
 
 ### Related
@@ -5029,144 +4756,20 @@ See [abstract_state_manager.py](../plugins/autonomous-dev/lib/abstract_state_man
 
 **Optional Features**: Feature automation and other enhancements are controlled by flags/hooks
 
-## 35. mcp_permission_validator.py (862 lines, v3.37.0)
+## 35. mcp_permission_validator.py — REMOVED
 
-**Purpose**: Security validation for MCP server operations with whitelist-based permission system
+Deleted with the never-executed approval subsystem. The module was built,
+tested, shipped to five consumer repositories, and never once executed: the
+reachability ratchet measured it UNREACHED, and a scan of 541,492 activity-log
+lines resolved every mention of it to a file-read operation rather than a call.
 
-**Issue**: #95 (MCP Server Security)
+The section number is retained so the numbering of every later entry, and the
+anchors that link to them, stay valid.
 
-### Classes
-
-#### `ValidationResult` (dataclass)
-
-Permission validation result.
-
-**Attributes**:
-- `approved: bool` - Whether operation is approved
-- `reason: Optional[str]` - Reason for denial (None if approved)
-
-**Methods**:
-- `to_dict() -> Dict[str, Any]` - Serialize to dictionary
-
-#### `MCPPermissionValidator` (862 lines)
-
-Main validation class for MCP operations.
-
-**Constructor**:
-```python
-validator = MCPPermissionValidator(policy_path: Optional[str] = None)
-```
-
-**Methods**:
-
-##### `validate_fs_read(path: str) -> ValidationResult`
-- Validates filesystem read operations
-- Checks glob patterns, sensitive files, path traversal
-- Returns approval/denial with reason
-- **Example**:
-  ```python
-  result = validator.validate_fs_read("src/main.py")
-  if result.approved:
-      with open("src/main.py") as f:
-          content = f.read()
-  ```
-
-##### `validate_fs_write(path: str) -> ValidationResult`
-- Validates filesystem write operations
-- Checks write patterns, prevents sensitive file overwrites
-- Returns approval/denial with reason
-
-##### `validate_shell_execute(command: str) -> ValidationResult`
-- Validates shell command execution
-- Checks allowed commands, detects injection patterns
-- Blocks semicolons, pipes, command substitution
-- Returns approval/denial with reason
-
-##### `validate_network_access(url: str) -> ValidationResult`
-- Validates network access requests
-- Blocks localhost, private IPs, metadata services
-- Checks domain allowlist
-- Returns approval/denial with reason
-
-##### `validate_env_access(var_name: str) -> ValidationResult`
-- Validates environment variable access
-- Blocks secret variables (API keys, tokens)
-- Checks variable allowlist
-- Returns approval/denial with reason
-
-##### `load_policy(policy: Dict[str, Any]) -> None`
-- Load security policy from dictionary
-- Validates policy structure
-- Updates validator state
-
-### Internal Methods
-
-**Glob Pattern Matching**:
-- `matches_glob_pattern(path: str, pattern: str) -> bool` - Glob matching with ** and * support
-
-**Threat Detection**:
-- `_is_path_traversal(path: str) -> bool` - Detects .. and absolute paths
-- `_is_dangerous_symlink(path: str) -> bool` - Blocks symlink attacks
-- `_has_command_injection(command: str) -> bool` - Detects shell metacharacters
-- `_is_private_ip(hostname: str) -> bool` - Blocks private IP ranges
-- `_is_sensitive_file(path: str) -> bool` - Hardcoded sensitive file detection
-
-**Pattern Matching**:
-- `_matches_any_pattern(path: str, patterns: List[str]) -> bool` - Check path against patterns
-- `_matches_any_domain(hostname: str, domains: List[str]) -> bool` - Check domain against patterns
-
-**Audit Logging**:
-- `_audit_log(operation: str, status: str, context: Dict[str, Any]) -> None` - Log all validation decisions
-
-### Module-level Functions
-
-Convenience functions for single-use validation:
-
-```python
-from autonomous_dev.lib.mcp_permission_validator import (
-    validate_fs_read,
-    validate_fs_write,
-    validate_shell_execute,
-    validate_network_access,
-    validate_env_access,
-    matches_glob_pattern
-)
-
-# Single operation validation
-result = validate_fs_read("src/main.py", policy_path=".mcp/security_policy.json")
-```
-
-### Default Security Policy
-
-If no policy file specified, uses safe development defaults:
-- Read: src/**, tests/**, docs/**, config files
-- Write: src/**, tests/**, docs/**
-- Shell: pytest, git, python, pip, npm, make
-- Network: All domains (except localhost/private)
-- Environment: Safe variables only
-
-### Security Coverage
-
-Prevents:
-- **CWE-22**: Path traversal (../../.env)
-- **CWE-59**: Symlink attacks
-- **CWE-78**: OS command injection
-- **SSRF**: Server-side request forgery
-- **Secret exposure**: API key/token access
-
-### Used By
-
-- `unified_pre_tool.py` hook - Layer 2 of unified PreToolUse hook for MCP tool validation (archived: `mcp_security_enforcer.py`)
-- Custom MCP server implementations
-- Permission validation workflows
-
-### Related
-
-- GitHub Issue #95 (MCP Server Security)
-- [MCP-SECURITY.md](MCP-SECURITY.md) - Comprehensive security guide
-- `plugins/autonomous-dev/hooks/unified_pre_tool.py` - Unified hook implementation (Layer 2)
-- `plugins/autonomous-dev/hooks/archived/README.md` - Archived hook documentation (Issue #211)
-- `.mcp/security_policy.json` - Policy configuration file
+**What enforces this area now**: Claude Code's native permission rules
+(4 allow, 61 deny in `.claude/settings.json`) and
+`plugins/autonomous-dev/hooks/unified_pre_tool.py`, which recorded 167 refusals
+in the two days before this deletion.
 
 ---
 
@@ -5345,7 +4948,6 @@ Export profile to string format.
 ### Used By
 
 - `unified_pre_tool.py` hook - Load profiles on startup (Layer 2: MCP Security Validator)
-- `mcp_permission_validator.py` - Fallback to development profile
 - Setup and initialization scripts
 
 ### Related
@@ -5360,72 +4962,20 @@ Export profile to string format.
 
 **For usage examples and integration patterns**: See CLAUDE.md Architecture section and individual command documentation
 
-## 38. auto_approval_engine.py (489 lines, v3.38.0)
+## 38. auto_approval_engine.py — REMOVED
 
-**Purpose**: Core engine for MCP tool auto-approval with 6-layer defense-in-depth validation
+Deleted with the never-executed approval subsystem. The module was built,
+tested, shipped to five consumer repositories, and never once executed: the
+reachability ratchet measured it UNREACHED, and a scan of 541,492 activity-log
+lines resolved every mention of it to a file-read operation rather than a call.
 
-**Issue**: #73 (MCP Auto-Approval), #98 (PreToolUse Consolidation)
+The section number is retained so the numbering of every later entry, and the
+anchors that link to them, stay valid.
 
-### Classes
-
-#### `AutoApprovalEngine`
-
-Main engine for tool approval decisions with comprehensive security validation.
-
-**Methods**:
-
-##### `evaluate_tool_call(tool_name: str, params: Dict[str, Any]) -> ApprovalDecision`
-
-Evaluate whether a tool call should be auto-approved.
-
-**Parameters**:
-- `tool_name` (str): Name of the MCP tool to evaluate
-- `params` (Dict[str, Any]): Tool parameters/arguments
-
-**Returns**: `ApprovalDecision` dataclass with fields:
-- `approved` (bool): Whether call is approved
-- `reason` (str): Explanation of decision
-- `layer_violations` (List[str]): Failed validation layers
-- `confidence_score` (float): 0.0-1.0 confidence in decision
-
-**Validation Layers** (defense-in-depth):
-1. **Subagent Context** - Only auto-approve if running as subagent (agent identity resolved via `agent_type` from stdin JSON, falling back to `CLAUDE_AGENT_NAME` env var — Issue #591)
-2. **User Consent** - Verify user has opted in via `MCP_AUTO_APPROVE` env var
-3. **Agent Whitelist** - Check if current agent is in allowed list
-4. **Tool Whitelist** - Validate tool name against approved tools list
-5. **Parameter Validation** - Check parameters for dangerous patterns
-6. **Circuit Breaker** - Auto-disable after repeated denials
-
-**Example**:
-```python
-from auto_approval_engine import AutoApprovalEngine
-
-engine = AutoApprovalEngine()
-
-# Approve safe tool call
-decision = engine.evaluate_tool_call(
-    "Read",
-    {"file_path": "src/main.py"}
-)
-assert decision.approved == True
-assert "parameter validation passed" in decision.reason
-
-# Deny dangerous tool call
-decision = engine.evaluate_tool_call(
-    "Bash",
-    {"command": "rm -rf /"}
-)
-assert decision.approved == False
-assert "parameter validation" in decision.layer_violations
-```
-
-### Related
-
-- GitHub Issue #73 (MCP Auto-Approval for Subagent Tool Calls)
-- GitHub Issue #98 (PreToolUse Hook Consolidation)
-- `plugins/autonomous-dev/hooks/pre_tool_use.py` - Standalone hook implementation
-- `plugins/autonomous-dev/hooks/unified_pre_tool_use.py` - Library-based hook
-- `docs/TOOL-AUTO-APPROVAL.md` - User-facing documentation
+**What enforces this area now**: Claude Code's native permission rules
+(4 allow, 61 deny in `.claude/settings.json`) and
+`plugins/autonomous-dev/hooks/unified_pre_tool.py`, which recorded 167 refusals
+in the two days before this deletion.
 
 ---
 
@@ -5654,7 +5204,6 @@ This ensures commands like rm ../../../etc/passwd are blocked before execution, 
 
 - GitHub Issue #73 (MCP Auto-Approval)
 - GitHub Issue #98 (PreToolUse Consolidation)
-- auto_approval_engine.py - Uses validator in approval decision
 - docs/TOOL-AUTO-APPROVAL.md - Security validation documentation
 - CWE-22: Improper Limitation of a Pathname to a Restricted Directory
 - CWE-59: Improper Link Resolution Before File Access
@@ -5722,7 +5271,6 @@ This library is used by both:
 
 - GitHub Issue #95 (MCP Server Security)
 - GitHub Issue #98 (PreToolUse Consolidation)
-- `auto_approval_engine.py` - Auto-approval logic
 - `tool_validator.py` - Security validation
 - `plugins/autonomous-dev/hooks/pre_tool_use.py` - Standalone wrapper
 - `docs/TOOL-AUTO-APPROVAL.md` - Usage guide

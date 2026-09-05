@@ -2035,8 +2035,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "agent_pool.py",
     "alignment_fixer.py",
     "alignment_gate.py",
-    "auto_approval_consent.py",
-    "auto_approval_engine.py",
     "auto_implement_pipeline.py",
     "auto_inject_memory.py",
     "auto_install_deps.py",
@@ -2044,8 +2042,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "batch_git_finalize.py",
     "batch_mode_detector.py",
     "batch_resume_helper.py",
-    "batch_retry_consent.py",
-    "batch_retry_manager.py",
     "blocking_signal_classifier.py",
     "brownfield_retrofit.py",
     "checkpoint.py",
@@ -2093,7 +2089,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "installation_validator.py",
     "macro_promotion.py",
     "math_utils.py",
-    "mcp_permission_validator.py",
     "mcp_profile_manager.py",
     "memory_formatter.py",
     "memory_layer.py",
@@ -2126,7 +2121,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "test_routing.py",
     "test_runner.py",
     "token_tracker.py",
-    "tool_approval_audit.py",
     "tool_validator.py",
     "training_metrics.py",
     "update_plugin.py",
@@ -2276,7 +2270,32 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        band, 5 below the point estimate. The whole miss is the
 #        transitive tail: the plan counted the packages and not what
 #        their modules would then reach.
-LIBRARY_REACHABILITY_CEILING = 105
+#    99  The approval-subsystem deletion. A LOWER of -6, and the first
+#        move on this ratchet made entirely of REMOVALS rather than
+#        repairs: nothing was re-credited, six modules stopped
+#        existing. The cluster was built, tested, shipped to five
+#        consumer repos and NEVER ONCE EXECUTED --
+#        auto_approval_engine.py, auto_approval_consent.py,
+#        mcp_permission_validator.py, tool_approval_audit.py,
+#        batch_retry_consent.py, batch_retry_manager.py (3,223 lines).
+#        Two INDEPENDENT signals agreed before a line was cut: this
+#        ratchet measured all six UNREACHED (static), and 541,492
+#        activity-log lines resolved every mention of them to a Read,
+#        Grep, Glob, Edit or Bash file operation -- agents looking AT
+#        the files while investigating the deletion -- with zero
+#        executions (runtime). Every external non-test importer was
+#        under hooks/archived/, which the reachability corpus excludes
+#        and no lifecycle event registers.
+#        PREDICTION vs MEASUREMENT: the plan predicted 99, on the
+#        reasoning that all six were already pinned so the unknown set
+#        should drop by exactly six with no cascade. MEASURED 99 --
+#        the prediction was exact. That is the expected shape for a
+#        pure removal: a cascade needs a re-credited edge, and
+#        deleting a node adds none.
+#        NOTHING moved REACHED -> UNKNOWN and nothing moved the other
+#        way: both measured difference sets, ``live - pin`` and
+#        ``pin - live``, are EMPTY.
+LIBRARY_REACHABILITY_CEILING = 99
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -2285,7 +2304,7 @@ LIBRARY_REACHABILITY_CEILING = 105
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 105
+LIBRARY_CEILING_HIGH_WATER_MARK = 99
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.

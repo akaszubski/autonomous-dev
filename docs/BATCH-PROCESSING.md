@@ -3,7 +3,6 @@ covers:
   - plugins/autonomous-dev/commands/implement.md
   - plugins/autonomous-dev/commands/implement-batch.md
   - plugins/autonomous-dev/lib/batch_state_manager.py
-  - plugins/autonomous-dev/lib/batch_retry_manager.py
   - plugins/autonomous-dev/lib/worktree_manager.py
 ---
 
@@ -1767,7 +1766,7 @@ When a batch experiences 5 consecutive failures:
 2. **Continue Processing**: Failed features are marked as failed (not skipped)
 3. **Manual Reset**: Use command to reset breaker after investigation:
    ```bash
-   python .claude/batch_retry_manager.py reset-breaker batch-20251118-123456
+   # (the retry manager was deleted -- it never ran; no equivalent command exists)
    ```
 
 ### State Persistence
@@ -1999,7 +1998,7 @@ Feature: Add authentication
 ### See Also
 
 - [docs/LIBRARIES.md](LIBRARIES.md#24-quality_persistence_enforcerpy) - quality_persistence_enforcer.py API reference
-- [docs/LIBRARIES.md](LIBRARIES.md#22-batch_retry_managerpy) - batch_retry_manager.py retry logic
+- [docs/LIBRARIES.md](LIBRARIES.md#22-batch_retry_managerpy--removed) - batch_retry_manager.py (REMOVED, never executed)
 - [docs/LIBRARIES.md](LIBRARIES.md#14-batch_issue_closerpy) - batch_issue_closer.py issue handling
 
 ---
@@ -2377,8 +2376,8 @@ Migration:
 - **State Manager**: `plugins/autonomous-dev/lib/batch_state_manager.py` (enhanced v3.33.0 with retry tracking, v3.36.0 with git operations, v3.45.0 with worktree isolation)
 - **GitHub Fetcher**: `plugins/autonomous-dev/lib/github_issue_fetcher.py` (v3.24.0)
 - **Failure Classifier**: `plugins/autonomous-dev/lib/failure_classifier.py` (v3.33.0 - Issue #89)
-- **Retry Manager**: `plugins/autonomous-dev/lib/batch_retry_manager.py` (v3.33.0 - Issue #89)
-- **Consent Handler**: `plugins/autonomous-dev/lib/batch_retry_consent.py` (v3.33.0 - Issue #89)
+- **Retry Manager**: REMOVED — `lib/batch_retry_manager.py` never executed
+- **Consent Handler**: REMOVED — `lib/batch_retry_consent.py` never executed
 - **Git Integration**: `plugins/autonomous-dev/lib/auto_implement_git_integration.py` (v3.36.0 with `execute_git_workflow()` batch mode support - Issue #93)
 - **Path Utilities**: `plugins/autonomous-dev/lib/path_utils.py` (enhanced v3.45.0 with worktree batch state isolation - Issue #226)
 - **State File**: `.claude/batch_state.json` (created automatically, includes git_operations field v3.36.0 - Issue #93, isolated per worktree v3.45.0 - Issue #226)
@@ -2396,6 +2395,4 @@ Migration:
 - [lib/github_issue_fetcher.py](/plugins/autonomous-dev/lib/github_issue_fetcher.py) - GitHub integration
 - [lib/feature_dependency_analyzer.py](/plugins/autonomous-dev/lib/feature_dependency_analyzer.py) - Dependency ordering (Issue #157)
 - [lib/failure_classifier.py](/plugins/autonomous-dev/lib/failure_classifier.py) - Error classification logic (Issue #89)
-- [lib/batch_retry_manager.py](../plugins/autonomous-dev/lib/batch_retry_manager.py) - Retry orchestration (Issue #89)
-- [lib/batch_retry_consent.py](../plugins/autonomous-dev/lib/batch_retry_consent.py) - User consent handling (Issue #89)
 - [docs/LIBRARIES.md](./LIBRARIES.md) - Complete library API reference

@@ -144,6 +144,13 @@ PLANNER_EXEMPT_MODES = {"--fix", "fix"}
 SECURITY_SENSITIVE_PATTERNS = (
     # Infrastructure: core pipeline enforcement
     "hooks/",
+    # Deliberate no-op: lib/auto_approval_engine.py was deleted with the
+    # never-executed approval subsystem and matches nothing today. Retained as a
+    # RE-INTRODUCTION pattern — if anyone recreates that path, the write lands
+    # back under security-auditor review instead of arriving unreviewed. Kept
+    # rather than dropped because false positives here are cheap by design (see
+    # the comment above); named rather than left silent because an unexplained
+    # dead entry in a live security list overstates the coverage it provides.
     "lib/auto_approval_engine",
     "lib/tool_validator",
     "config/auto_approve_policy",

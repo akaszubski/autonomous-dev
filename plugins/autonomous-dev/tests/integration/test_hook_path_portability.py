@@ -80,7 +80,6 @@ class TestFreshInstallHookPaths:
         lib_path = fresh_install_dir / ".claude" / "lib"
 
         required_libs = [
-            "mcp_permission_validator.py",
             "auto_approve_policy.py"
         ]
 

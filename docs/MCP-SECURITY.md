@@ -56,9 +56,33 @@ The MCP (Model Context Protocol) server security system provides permission whit
 - **Secret exposure**: Environment variable access to API keys, tokens
 - **Unauthorized operations**: Reading/writing files outside project scope
 
-**Security Model**: Whitelist-based (allowlist + denylist patterns with glob matching)
+> **Status: the subsystem described below was deleted and never ran.**
+> `lib/mcp_permission_validator.py` was built, tested, shipped to five consumer
+> repositories, and never once executed. It is gone. This document is retained
+> because the *threat model* above is still the right one — but read every
+> `MCPPermissionValidator` reference below as a description of a design, not of
+> running code.
 
-**Key Principle**: Always deny by default, allow only explicitly permitted operations
+**What enforces MCP security today** — stated affirmatively, so a reader can tell
+coverage from gap:
+
+| Layer | Mechanism | Evidence it runs |
+|---|---|---|
+| 1 | Claude Code native permission rules — **4 allow, 61 deny** in `.claude/settings.json` | Enforced by the client before a tool call reaches any hook |
+| 2 | `plugins/autonomous-dev/hooks/unified_pre_tool.py` | **167 refusals** recorded in the two days before this document was corrected |
+| 3 | ~~the approval subsystem~~ | **0 refusals, ever** — deleted |
+
+**Known gap, stated rather than papered over.** `unified_pre_tool.py`'s
+`validate_mcp_security()` tries to import `mcp_security_validator`, which exists
+nowhere in this repository. The `ImportError` branch returns `("allow", ...)`.
+So MCP-specific validation in Layer 2 is **fail-open**: it is the native deny
+rules in Layer 1, not this function, that carry default-deny for MCP tools
+today. That fail-open predates the deletion, is filed separately, and is
+deliberately not fixed here — deleting unreachable code does not touch it.
+
+**Key Principle (as designed, not as running)**: deny by default, allow only
+explicitly permitted operations. Layer 1 implements this. Layer 2's MCP arm does
+not, per the gap above.
 
 ---
 
@@ -244,12 +268,28 @@ plus `validate_mcp_security()`, which dispatches to an optional
 classifier in the live path; dispatch is on the tool name prefix itself.
 
 **Note for auditors**: `plugins/autonomous-dev/lib/mcp_permission_validator.py`
-and `mcp_profile_manager.py` still exist and implement policy-driven
-filesystem/shell/network validation, but as of this correction neither is
-imported by `unified_pre_tool.py`'s live dispatch — they are reachable only
-via the archived `mcp_security_enforcer.py` and test suites. Treat the
-policy-file examples below (`.mcp/security_policy.json`) as the *intended*
-schema for that validator, not confirmation it is invoked on every MCP call.
+**was deleted**. It is not on disk, not in either `install_manifest.json`, and
+ships to no repository — so every `MCPPermissionValidator` reference below
+describes a design, not code you can audit. Its only surviving importer is
+`plugins/autonomous-dev/hooks/archived/mcp_security_enforcer.py`, which is
+archived, registered on no lifecycle event in any tracked settings surface, and
+now carries a dangling import to a module that is gone — the same state other
+archived hooks are already in.
+
+`plugins/autonomous-dev/lib/mcp_profile_manager.py` **does still exist** and
+still ships in both manifests; its regression tests in
+`tests/regression/regression/test_mcp.py` pass. But nothing invokes it on an MCP
+call: no hook, command, agent or other `lib/` module imports it, and it is
+pinned UNKNOWN in `PINNED_UNREACHED_LIBRARY`
+(`tests/unit/hooks/test_hook_reachability_ratchet.py`), meaning no route this
+repository can mechanically check reaches it. It writes and validates policy
+files on demand; it gates nothing.
+
+**So, for an audit**: what enforces MCP decisions today is Layers 1 and 2 of the
+table above — native deny rules, then `unified_pre_tool.py` — and nothing else.
+Treat the policy-file examples below (`.mcp/security_policy.json`) as the
+*intended* schema for a validator that no longer exists, never as confirmation
+that a policy file is consulted on an MCP call.
 
 ---
 

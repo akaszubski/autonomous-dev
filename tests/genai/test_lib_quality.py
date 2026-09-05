@@ -143,7 +143,7 @@ class TestLibQuality:
     def test_high_impact_libs_have_error_handling(self, genai):
         """High-impact lib modules should have proper error handling."""
         high_impact = [
-            "agent_tracker", "session_state_manager", "auto_approval_engine",
+            "agent_tracker", "session_state_manager",
             "batch_orchestrator", "workflow_coordinator", "tool_validator",
             "orchestrator", "health_check",
         ]

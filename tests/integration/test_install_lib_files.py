@@ -7,19 +7,16 @@ installation workflow across install.sh and plugin_updater.py.
 
 Requirements:
 1. Fresh install must create ~/.claude/lib/ directory
-2. Fresh install must copy all 7 required lib files
+2. Fresh install must copy every required lib file
 3. Hooks can import from ~/.claude/lib/ after install
 4. Plugin update must sync new/updated lib files
 5. Installation handles missing lib files gracefully
 
-Required lib files (7 total):
-- auto_approval_engine.py
-- tool_validator.py
-- tool_approval_audit.py
-- auto_approval_consent.py
-- user_state_manager.py
-- security_utils.py
-- path_utils.py
+The required lib files are enumerated ONCE, in ``REQUIRED_LIB_FILES`` below.
+Every count in this module is DERIVED from that list rather than restated as a
+literal: a restated count silently invalidates itself the next time the list
+changes size, which is exactly what happened when the never-executed approval
+cluster was deleted.
 
 Test Coverage Target: 90%+ of end-to-end lib installation
 
@@ -51,14 +48,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Required lib files that must be installed globally
 REQUIRED_LIB_FILES = [
-    "auto_approval_engine.py",
     "tool_validator.py",
-    "tool_approval_audit.py",
-    "auto_approval_consent.py",
     "user_state_manager.py",
     "security_utils.py",
     "path_utils.py",
 ]
+
+#: The subset a *previous* install left on disk, used to simulate an outdated
+#: installation that a plugin update must top up. Derived as "everything except
+#: the last entry" so the simulation keeps at least one genuinely missing file
+#: no matter how ``REQUIRED_LIB_FILES`` changes size. A literal slice (the old
+#: ``[:5]``) silently simulates NOTHING once the list shrinks to that length.
+OLD_VERSION_LIB_FILES = REQUIRED_LIB_FILES[:-1]
+
+#: Source files deliberately removed to exercise graceful degradation. Drawn
+#: from ``REQUIRED_LIB_FILES`` itself so the "how many were copied" assertion
+#: below can subtract ``len(...)`` instead of a hand-written number.
+MISSING_SOURCE_LIB_FILES = REQUIRED_LIB_FILES[:2]
 
 
 class TestFreshInstallLibFiles:
@@ -147,7 +153,7 @@ exit 0
         """Test that fresh install copies all 7 required lib files.
 
         REQUIREMENT: Fresh install must copy all lib files to ~/.claude/lib/.
-        Expected: All 7 .py files exist in ~/.claude/lib/.
+        Expected: every required .py file exists in ~/.claude/lib/.
         Current: WILL FAIL - install.sh doesn't copy lib files.
         """
         # Arrange
@@ -208,10 +214,10 @@ exit 0
             spec.loader.exec_module(module)
             assert hasattr(module, "test_function")
 
-            # Test importing auto_approval_engine
+            # Test importing tool_validator
             spec = __import__("importlib.util").util.spec_from_file_location(
-                "auto_approval_engine",
-                lib_target / "auto_approval_engine.py"
+                "tool_validator",
+                lib_target / "tool_validator.py"
             )
             module = __import__("importlib.util").util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -236,8 +242,8 @@ exit 0
         lib_target = home_dir / ".claude" / "lib"
 
         # Remove some source files
-        (lib_source / "auto_approval_engine.py").unlink()
-        (lib_source / "tool_validator.py").unlink()
+        for filename in MISSING_SOURCE_LIB_FILES:
+            (lib_source / filename).unlink()
 
         # Act: Simulate install with error handling
         # THIS WILL FAIL - No error handling in install.sh
@@ -251,10 +257,11 @@ exit 0
 
         # Assert: Available files copied, missing ones skipped
         assert lib_target.exists()
-        assert copied_count == len(REQUIRED_LIB_FILES) - 2  # 5 out of 7
+        assert copied_count == len(REQUIRED_LIB_FILES) - len(MISSING_SOURCE_LIB_FILES)
         assert (lib_target / "security_utils.py").exists()
         assert (lib_target / "path_utils.py").exists()
-        assert not (lib_target / "auto_approval_engine.py").exists()
+        for filename in MISSING_SOURCE_LIB_FILES:
+            assert not (lib_target / filename).exists()
 
 
 class TestPluginUpdateLibFiles:
@@ -278,7 +285,7 @@ class TestPluginUpdateLibFiles:
         lib_target.mkdir(parents=True)
 
         # Create old versions of lib files
-        for filename in REQUIRED_LIB_FILES[:5]:  # Only 5 files (simulates old version)
+        for filename in OLD_VERSION_LIB_FILES:  # simulates an outdated install
             lib_file = lib_target / filename
             lib_file.write_text(f"# Old version of {filename}\nprint('v1')\n")
 
@@ -290,7 +297,7 @@ class TestPluginUpdateLibFiles:
         lib_source = plugin_dir / "lib"
         lib_source.mkdir(parents=True)
 
-        # Create all 7 lib files (new version)
+        # Create every lib file (new version)
         for filename in REQUIRED_LIB_FILES:
             lib_file = lib_source / filename
             lib_file.write_text(f"# New version of {filename}\nprint('v2')\n")
@@ -307,7 +314,8 @@ class TestPluginUpdateLibFiles:
         """Test that update syncs newly added lib files.
 
         REQUIREMENT: Update must copy new lib files added in newer version.
-        Expected: All 7 lib files exist after update (was 5 before).
+        Expected: every lib file exists after update (only the outdated
+        subset was present before).
         Current: WILL FAIL - plugin_updater doesn't sync lib files.
         """
         # Arrange
@@ -316,9 +324,9 @@ class TestPluginUpdateLibFiles:
         project_root = mock_update_environment["project_root"]
         lib_target = mock_update_environment["lib_target"]
 
-        # Verify only 5 files exist before update
+        # Verify only the outdated subset exists before update
         existing_before = list(lib_target.glob("*.py"))
-        assert len(existing_before) == 5
+        assert len(existing_before) == len(OLD_VERSION_LIB_FILES)
 
         # Act: Run plugin update
         # THIS WILL FAIL - _sync_lib_files() doesn't exist
@@ -336,7 +344,7 @@ class TestPluginUpdateLibFiles:
                     for filename in REQUIRED_LIB_FILES:
                         shutil.copy2(lib_source / filename, lib_target / filename)
 
-        # Assert: All 7 files now exist
+        # Assert: every file now exists
         existing_after = list(lib_target.glob("*.py"))
         assert len(existing_after) == len(REQUIRED_LIB_FILES)
 
@@ -373,7 +381,7 @@ class TestPluginUpdateLibFiles:
         """Test that update result reports number of lib files synced.
 
         REQUIREMENT: UpdateResult must include lib_files_synced count.
-        Expected: result.details["lib_files_synced"] == 7.
+        Expected: result.details["lib_files_synced"] == len(REQUIRED_LIB_FILES).
         Current: WILL FAIL - UpdateResult doesn't include this field.
         """
         # Arrange
@@ -400,6 +408,52 @@ class TestPluginUpdateLibFiles:
 
 class TestHookLibImportAfterInstall:
     """Test that hooks can import from ~/.claude/lib/ after installation."""
+
+    @pytest.fixture(autouse=True)
+    def _purge_fixture_modules_from_sys_modules(self):
+        """Drop fixture-written lib modules from ``sys.modules`` around each test.
+
+        These tests ``exec`` a generated hook that imports the fixture's stub
+        modules by bare name. Python caches those in ``sys.modules``, and the
+        cache outlives the ``tmp_path`` the stubs were written into. A later
+        test that deletes a stub from disk to assert ``ImportError`` then gets a
+        cache hit instead and silently DOES NOT RAISE -- green, and proving
+        nothing. Purging on both sides makes each test independent of the order
+        it runs in. Names are derived from ``REQUIRED_LIB_FILES`` so a change to
+        that list cannot leave a stale name uncleared.
+        """
+        stems = [f.removesuffix(".py") for f in REQUIRED_LIB_FILES]
+
+        def purge() -> None:
+            for stem in stems:
+                sys.modules.pop(stem, None)
+
+        # The REAL repo lib/ carries modules with these same bare names, and
+        # sibling test modules put it on sys.path at import time. Left there, a
+        # test that deletes a stub to assert ImportError instead resolves the
+        # real module and DOES NOT RAISE. Whether that happens depends on which
+        # other test modules share the process -- which is why this class passed
+        # under `-n auto` and failed serially. Shadowing is removed for the
+        # duration so the outcome no longer depends on run order.
+        repo_lib = (
+            Path(__file__).resolve().parents[2]
+            / "plugins"
+            / "autonomous-dev"
+            / "lib"
+        )
+        saved_path = list(sys.path)
+        sys.path[:] = [
+            entry
+            for entry in sys.path
+            if entry and Path(entry).resolve() != repo_lib
+        ]
+
+        purge()
+        try:
+            yield
+        finally:
+            sys.path[:] = saved_path
+            purge()
 
     @pytest.fixture
     def mock_hook_environment(self, tmp_path, monkeypatch):
@@ -449,13 +503,13 @@ if lib_dir.exists():
 
 # Import from global lib
 from security_utils import validate_operation
-from auto_approval_engine import Autoapprovalengine
+from tool_validator import ToolValidator
 
 def hook_function():
     # Use imported functions
     if validate_operation():
-        engine = Autoapprovalengine()
-        return engine.initialized
+        validator = ToolValidator()
+        return validator.initialized
     return False
 """)
 

@@ -1,15 +1,26 @@
 {
-  "_generated": "2026-04-07T22:45:49.792694+00:00",
-  "_doc_count": 23,
+  "_generated": "2026-09-05T01:22:54.795669+00:00",
+  "_doc_count": 30,
   ".claude/PROJECT.md": [
     "docs/MAINTAINING-PHILOSOPHY.md"
   ],
   ".github/workflows/": [
     "docs/GITHUB-ACTIONS.md"
   ],
+  ".github/workflows/drain-driver.yml": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
+  ".github/workflows/drain-watchdog.yml": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
   "plugins/autonomous-dev/agents/": [
     "docs/AGENTS.md",
-    "docs/ARCHITECTURE-OVERVIEW.md"
+    "docs/ARCHITECTURE-OVERVIEW.md",
+    "docs/PROMPT-ENGINEERING.md"
+  ],
+  "plugins/autonomous-dev/agents/continuous-improvement-analyst.md": [
+    "docs/EVALUATION.md",
+    "docs/WORKFLOW-DISCIPLINE.md"
   ],
   "plugins/autonomous-dev/agents/implementer.md": [
     "docs/PERFORMANCE.md",
@@ -25,15 +36,38 @@
     "docs/ARCHITECTURE-OVERVIEW.md",
     "docs/MAINTAINING-PHILOSOPHY.md"
   ],
+  "plugins/autonomous-dev/commands/autoresearch.md": [
+    "docs/EVALUATION.md"
+  ],
+  "plugins/autonomous-dev/commands/drain-queue.md": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
   "plugins/autonomous-dev/commands/implement-batch.md": [
-    "docs/BATCH-PROCESSING.md"
+    "docs/BATCH-PROCESSING.md",
+    "docs/PIPELINE-MODES.md"
+  ],
+  "plugins/autonomous-dev/commands/implement-fix.md": [
+    "docs/PIPELINE-MODES.md"
+  ],
+  "plugins/autonomous-dev/commands/implement-resume.md": [
+    "docs/PIPELINE-MODES.md"
   ],
   "plugins/autonomous-dev/commands/implement.md": [
     "docs/BATCH-PROCESSING.md",
+    "docs/PIPELINE-MODES.md",
     "docs/WORKFLOW-DISCIPLINE.md"
+  ],
+  "plugins/autonomous-dev/commands/improve.md": [
+    "docs/EVALUATION.md"
   ],
   "plugins/autonomous-dev/commands/mem-search.md": [
     "docs/CLAUDE-MEM-INTEGRATION.md"
+  ],
+  "plugins/autonomous-dev/commands/retrospective.md": [
+    "docs/EVALUATION.md"
+  ],
+  "plugins/autonomous-dev/commands/skill-eval.md": [
+    "docs/EVALUATION.md"
   ],
   "plugins/autonomous-dev/config/auto_approve_policy.json": [
     "docs/TOOL-AUTO-APPROVAL.md"
@@ -57,6 +91,9 @@
   "plugins/autonomous-dev/hooks/auto_format.py": [
     "docs/ACCOUNTABILITY-HOOKS.md"
   ],
+  "plugins/autonomous-dev/hooks/conversation_archiver.py": [
+    "docs/SESSION-ANALYTICS.md"
+  ],
   "plugins/autonomous-dev/hooks/security_scan.py": [
     "docs/ACCOUNTABILITY-HOOKS.md"
   ],
@@ -76,11 +113,20 @@
   "plugins/autonomous-dev/lib/auto_implement_git_integration.py": [
     "docs/GIT-AUTOMATION.md"
   ],
-  "plugins/autonomous-dev/lib/batch_retry_manager.py": [
-    "docs/BATCH-PROCESSING.md"
-  ],
   "plugins/autonomous-dev/lib/batch_state_manager.py": [
     "docs/BATCH-PROCESSING.md"
+  ],
+  "plugins/autonomous-dev/lib/drain_pending.py": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
+  "plugins/autonomous-dev/lib/drain_queue_state.py": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
+  "plugins/autonomous-dev/lib/drain_runner.py": [
+    "docs/ADR-002-drain-queue-redesign.md"
+  ],
+  "plugins/autonomous-dev/lib/git_operations.py": [
+    "docs/GIT-AUTOMATION.md"
   ],
   "plugins/autonomous-dev/lib/github_issue_closer.py": [
     "docs/GIT-AUTOMATION.md"
@@ -88,6 +134,9 @@
   "plugins/autonomous-dev/lib/hook_exit_codes.py": [
     "docs/ADR-001-agent-hooks.md",
     "docs/HOOKS.md"
+  ],
+  "plugins/autonomous-dev/lib/issue_triage_analyzer.py": [
+    "docs/ADR-002-drain-queue-redesign.md"
   ],
   "plugins/autonomous-dev/lib/sandbox_enforcer.py": [
     "docs/SANDBOXING.md"
@@ -111,12 +160,29 @@
     "docs/BATCH-PROCESSING.md"
   ],
   "plugins/autonomous-dev/skills/": [
-    "docs/ARCHITECTURE-OVERVIEW.md"
+    "docs/ARCHITECTURE-OVERVIEW.md",
+    "docs/PROMPT-ENGINEERING.md",
+    "docs/SKILLS.md"
   ],
   "plugins/autonomous-dev/skills/testing-guide/": [
     "docs/TESTING-STRATEGY.md"
   ],
+  "scripts/": [
+    "docs/SCRIPTS.md"
+  ],
   "scripts/generate_hook_config.py": [
     "docs/HOOK-SIDECAR-SCHEMA.md"
+  ],
+  "scripts/hooks/": [
+    "docs/HOOKS.md"
+  ],
+  "scripts/run_reviewer_benchmark.py": [
+    "docs/EVALUATION.md"
+  ],
+  "tests/benchmarks/reviewer/dataset.json": [
+    "docs/EVALUATION.md"
+  ],
+  "~/.claude/archive/": [
+    "docs/SESSION-ANALYTICS.md"
   ]
 }

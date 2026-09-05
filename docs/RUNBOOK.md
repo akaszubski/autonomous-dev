@@ -324,6 +324,50 @@ reason; see the workflow file for the closing condition.
 
 ---
 
+## Post-deletion consumer-repo sweep (one-time, manual)
+
+**Who runs this: a maintainer, by hand, once per deletion of a shipped module.**
+It is deliberately NOT an automated test and NOT a CI step — see "Why not a
+test" below. Naming the runner is the point: an assertion with no named
+execution path is half a control.
+
+When a module that was previously listed in `install_manifest.json` is deleted,
+consumer repos keep the already-installed copy under `~/.claude/lib/` until the
+next deploy removes it. Until then the deleted file is still importable there,
+which is how a module can be "deleted" locally and still execute remotely.
+
+**Sequence** — run after `bash scripts/deploy-all.sh`, once:
+
+```bash
+# 1. Local tree must be clean: nothing the source cannot account for.
+python3 plugins/autonomous-dev/scripts/deploy_state.py check --json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); \
+      print("target_only:", d.get("target_only")); \
+      print("dirty:", d.get("dirty")); \
+      sys.exit(0 if not d.get("target_only") and not d.get("dirty") else 1)'
+
+# 2. On each consumer Mac, the deleted files must be GONE, not merely stale.
+#    Any of them still present means the deploy did not delete, only overwrite.
+ssh andrewkaszubski@100.103.205.63 'ls ~/.claude/lib/ | grep -E \
+  "auto_approval_engine|auto_approval_consent|mcp_permission_validator|\
+tool_approval_audit|batch_retry_consent|batch_retry_manager" || echo "CLEAN"'
+```
+
+Expected: step 1 exits 0 with an empty `target_only` and `dirty: false`; step 2
+prints `CLEAN`. Anything else means the deletion has not reached the machines
+that run the code, and the local green is measuring the wrong copy.
+
+**Why not a test.** The interesting state — six named files sitting in a remote
+`target_only` — exists only in the window between the deletion commit and the
+next deploy. A committed test asserting those six names would pass in that
+window and then be permanently vacuous, green forever over a condition it can no
+longer observe, and would itself need deleting. `deploy_state.py`'s standing
+`target_only` / `dirty` checks already cover the durable form of this class for
+every file, not just these six; this sequence is the one-time, deletion-specific
+sweep layered on top.
+
+---
+
 ## Enforcement
 
 **PROJECT.md is the gatekeeper** — All work validates against this file before execution.
