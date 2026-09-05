@@ -1,9 +1,9 @@
 # Subtraction campaign — state, plan, and what was learned
 
 **Date**: 2026-09-05 · **Branch**: `fix/searxng-migration-inv8` · **HEAD**: `78cabafc` (pushed)
-**Status**: 4 commits landed. **Deployed and verified on this machine only** (§2). The Mac
-Studio is on its own `master` at `73b90cf8` and still loads all 3,223 deleted lines — that
-is a push/merge gap, not a deploy gap. Layer 2 work not started.
+**Status**: 4 commits landed, **deployed and verified on BOTH machines** (§2). `master` is
+at `b5d2f4c2`; the Studio pulled it and its 36 orphaned Layer-3 files were removed by name.
+Layer 3 no longer loads anywhere. Layer 2 work not started.
 
 This is a handoff document. It exists because the session that produced these commits
 was long, and the useful part is not the diffs — it is the measurements, the corrections,
@@ -115,6 +115,34 @@ the remote — I read a property of the description as a property of the thing.)
 
 **Same defect class as §4**, at deploy scope: *ALL VALIDATIONS PASSED* is a true statement
 about what it measured. Nothing in the deploy compares the two machines' source revisions.
+
+### Closed out 2026-09-05 — and the instrument was vindicated
+
+`master` fast-forwarded `73b90cf8 → b5d2f4c2` (master's 117-commit divergence was **one
+file**: 117 cloud-drain telemetry heartbeats appending 119 lines of `no_drainable_cluster`
+to `.claude/logs/cloud-runs.jsonl`, zero overlap with this branch's 130 files). The Studio
+pulled, and `deploy_state.py` then reported **36** `lib/` `target_only` entries with all six
+targets stamped DIRTY — having reported **zero** before the pull.
+
+That is the both-arms proof the earlier text lacked: the instrument said nothing when the
+source still declared the files, and named all 36 the moment it did not. It was never blind.
+The 36 were then removed by name (6 modules x `~/.claude/lib` + five consumer repos), with
+`import auto_approval_engine` → `ModuleNotFoundError` and a live-module negative control
+(`pipeline_state`) confirmed intact.
+
+**A third instance of §4, mine, in the removal itself.** The first delete script reported
+`TOTAL REMOVED: 0` while `ls` found all 36. Cause: the remote login shell is **zsh**, which
+does not word-split unquoted parameters, so `for d in $DIRS` iterated **once** over the
+entire string and `[ -f "$d/$m.py" ]` was false every time. The script's own count was
+honest; nothing in it could have detected that its list was one item. Caught only by
+re-probing the filesystem. **Any remote loop written here must use `bash -s` with real
+arrays**, never `for x in $VAR` — the two shells disagree and the failure is silent.
+
+**Still open — the class, not the instance.** The 36 were removed by hand over SSH. Nothing
+propagates a source deletion to installed copies: `deploy-all.sh:518`/`:566` carry no
+`--delete` by the decision at `:467-470`, and removing a manifest entry stops future
+installs without removing an installed file (§5). Detection already works and is already
+correct; only the action is missing.
 
 ---
 
