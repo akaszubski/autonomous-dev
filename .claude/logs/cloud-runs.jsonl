@@ -1013,3 +1013,122 @@
 {"fire_id": "20260828T143756Z", "phase": "FIRE_END", "exit_reason": "github_api_forbidden", "detail": "GITHUB_TOKEN in session returned 403 on issues list; cluster selection cannot run. Token length 14 (real ghp_ is 40, github_pat_ is 93+); likely placeholder or unscoped token. Routine is a no-op until token is refreshed."}
 {"fire_id": "20260828T203757Z", "fired_at": "2026-08-28T20:38:25Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260828T203757Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "commit_sha": ""}
+{"fire_id": "20260828T223749Z", "fired_at": "2026-08-28T22:38:05Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260828T223749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T003834Z", "fired_at": "", "selected_cluster": "1437,1651", "phase": "FIRE_START", "source": "cloud-drain-cron", "note": "REST blocked at proxy (GitHub App not connected for org) - cluster selected via MCP github"}
+{"fire_id": "20260829T003834Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex_dedup_no_recomment", "commit_sha": "", "cluster": "1437,1651", "note": "both issues are architectural (retro on cron itself + 3-finding hook security advisory); both already have dedup skip comments from previous fires (#1437: 1x on 2026-08-27, #1651: 3x through 2026-08-27); re-commenting would reproduce the noise #1437 documents"}
+{"fire_id": "20260829T023738Z", "fired_at": "2026-08-29T02:37:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T023738Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T043847Z", "fired_at": "2026-08-29T04:38:47Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T043847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T063923Z", "fired_at": "2026-08-29T06:39:23Z", "selected_cluster": "none", "phase": "FIRE_START", "notes": "github_token_403_invalid"}
+{"fire_id": "20260829T063923Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "notes": "github_token_403_invalid"}
+{"fire_id": "20260829T083811Z", "fired_at": "2026-08-29T08:38:29Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T083811Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T103806Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1437,1651", "note": "both #1437 and #1651 too complex; skip comments posted via MCP"}
+{"fire_id": "20260829T123927Z", "fired_at": "2026-08-29T12:39:27Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T123927Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T143809Z", "fired_at": "2026-08-29T14:38:52Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
+{"fire_id": "20260829T143809Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1437,1651", "action": "skip-comments-posted"}
+{"timestamp": "2026-08-29T15:19:11.117859+00:00", "fire_type": "FIRE_END", "cluster": "1661,1699,1702", "exit_reason": "cluster_too_complex_for_cloud_window", "suppressed_commit": true, "notes": "3 independent infra issues (hook + state carrier + cross-mode wiring); each needs own pipeline"}
+{"fire_id": "20260829T163752Z", "fired_at": "2026-08-29T16:38:08Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T163752Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T183801Z", "fired_at": "2026-08-29T18:38:21Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T183801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T203803Z", "fired_at": "2026-08-29T20:38:23Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260829T203803Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260829T223734Z", "fired_at": "2026-08-29T22:38:04Z", "selected_cluster": "pending_mcp_query", "phase": "FIRE_START", "note": "direct-urllib-403 in cloud env; using mcp__github__ tools for issue listing (prompt-stated urllib path unavailable here)"}
+{"fire_id": "20260829T223734Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "selected_cluster": "1437,1651", "skip_reasons": {"1437": "architectural-retrospective-multi-file", "1651": "security-batch-with-subprocess-budget-interaction"}}
+{"fire_id": "20260830T004006Z", "fired_at": "2026-08-30T00:40:06Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
+{"fire_id": "20260830T004006Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "notes": "both candidates too complex; GITHUB_TOKEN=14ch->403; implementer subagent not in roster; used MCP for context lookup"}
+{"fire_id": "20260830T043812Z", "fired_at": "2026-08-30T04:38:29Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T043812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260830T063814Z", "fired_at": "2026-08-30T06:39:14Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
+{"fire_id": "20260830T063814Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_too_complex_recent_dup_suppressed", "commit_sha": "", "note": "cluster 1437,1651 both already skipped <9h ago (last comments 2026-08-29T22:39Z); suppressed duplicate comment posting per #1437 retrospective; no implementer invoked"}
+{"fire_id": "20260830T083857Z", "fired_at": "2026-08-30T08:38:57Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T083857Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260830T103819Z", "fired_at": "2026-08-30T10:38:36Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T103819Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260830T123827Z", "fired_at": "2026-08-30T12:38:45Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T123827Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260830T143729Z", "fired_at": "2026-08-30T14:38:26Z", "selected_cluster": "1437,1651", "phase": "FIRE_START", "note": "REST API blocked by proxy (403); cluster selected via MCP github__list_issues"}
+{"fire_id": "20260830T143729Z", "phase": "FIRE_END", "ended_at": "2026-08-30T14:39:51Z", "exit_reason": "implementer_skipped_too_complex", "commit_sha": "", "cluster": "1437,1651", "skip_comments": ["https://github.com/akaszubski/autonomous-dev/issues/1437#issuecomment-5469323405", "https://github.com/akaszubski/autonomous-dev/issues/1651#issuecomment-5469323692"], "note": "cluster selected via MCP github tools (REST 403 in this session)"}
+{"fire_id": "20260830T163802Z", "fired_at": "2026-08-30T16:38:22Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260830T163802Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260830T183815Z", "fired_at": "2026-08-30T18:38:59Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "github_rest_403_token_stub"}
+{"fire_id": "20260830T183815Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_rest_403_token_stub_len14"}
+{"fire_id": "20260831T023741Z", "fired_at": "2026-08-31T02:37:57Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260831T023741Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260831T043745Z", "fired_at": "2026-08-31T04:38:02Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260831T043745Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260831T083738Z", "fired_at": "2026-08-31T08:38:43Z", "selected_cluster": "1437,1651", "phase": "FIRE_START"}
+{"fire_id": "20260831T103959Z", "fired_at": "2026-08-31T10:39:59Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260831T103959Z", "phase": "FIRE_END", "exit_reason": "github_token_403", "note": "GitHub REST 403 \u2014 access not enabled for this session; scheduled prompt requires GITHUB_TOKEN direct-REST path"}
+{"fire_id": "20260831T163826Z", "fired_at": "2026-08-31T16:38:42Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260831T163826Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260831T203849Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T043916Z", "fired_at": "2026-09-01T04:39:16Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T043916Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T083741Z", "fired_at": "2026-09-01T08:38:00Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T083741Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T125436Z", "fired_at": "2026-09-01T12:54:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T125436Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T163816Z", "fired_at": "2026-09-01T16:38:40Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T163816Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T183754Z", "fired_at": "2026-09-01T18:38:13Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T183754Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T203802Z", "fired_at": "2026-09-01T20:38:21Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T203802Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260901T223807Z", "fired_at": "2026-09-01T22:38:26Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260901T223807Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T003758Z", "fired_at": "2026-09-02T00:38:17Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T003758Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T023754Z", "fired_at": "2026-09-02T02:38:37Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260902T023754Z", "phase": "FIRE_END", "exit_reason": "skipped_too_complex", "commit_sha": "", "cluster": "1651,1660", "skip_comments_posted": ["#1651", "#1660"]}
+{"fire_id": "20260902T043808Z", "fired_at": "2026-09-02T04:38:51Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260902T043808Z", "phase": "FIRE_END", "exit_reason": "skipped_duplicate_would_spam_1651_1660_have_8plus_identical_skips", "commit_sha": "", "note": "cluster #1651,#1660 always oldest; both have 8+ identical skip comments; selector needs blocked label or ordering fix"}
+{"fire_id": "20260902T063812Z", "fired_at": "2026-09-02T06:38:31Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T063812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T083742Z", "fired_at": "2026-09-02T08:40:17Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "note": "urllib+GITHUB_TOKEN got 403; used mcp__github__list_issues to select oldest 2"}
+{"fire_id": "20260902T083742Z", "phase": "FIRE_END", "exit_reason": "skipped_duplicate_would_spam", "commit_sha": "", "note": "both #1651 and #1660 already have multiple identical skip comments (latest 2026-09-02T02:39Z); no new comment, no code changes"}
+{"fire_id": "20260902T123847Z", "fired_at": "2026-09-02T12:42:04Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "origin diverged from local by 50/50 with no common ancestor; local carried 5 code commits (#1698 #1669 #1639 tests) that origin lost; preserved to rescue branch cloud-rescue-force-push-victims-20260902T123847Z; GITHUB_TOKEN invalid (14-char, 403)"}
+{"fire_id": "20260902T123847Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "root_cause": "github_token_403_and_divergent_master", "rescue_branch": "cloud-rescue-force-push-victims-20260902T123847Z"}
+{"fire_id": "20260902T143749Z", "fired_at": "2026-09-02T14:38:11Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T143749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T183804Z", "fired_at": "2026-09-02T18:38:14Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T183804Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T203757Z", "fired_at": "2026-09-02T20:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T203757Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260902T223742Z", "fired_at": "2026-09-02T22:38:24Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260902T223742Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260903T003821Z", "fired_at": "2026-09-03T00:39:34Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260903T003821Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260903T023812Z", "fired_at": "2026-09-03T02:38:28Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260903T023812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260903T043912Z", "fired_at": "2026-09-03T04:39:12Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260903T043912Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260903T083757Z", "fired_at": "2026-09-03T08:38:57Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "note": "urllib+REST 403 (GitHub app not connected here); using MCP tools for API calls"}
+{"fire_id": "20260903T103741Z", "fired_at": "2026-09-03T10:38:40Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "GITHUB_TOKEN len=14 placeholder; REST returned 403"}
+{"fire_id": "20260903T103741Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "GITHUB_TOKEN placeholder; REST 403"}
+{"fire_id": "20260903T123755Z", "fired_at": "2026-09-03T12:38:53Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "transport": "mcp_github_fallback", "note": "urllib repo-scoped calls blocked (403 GitHub App not connected); used mcp__github__list_issues"}
+{"fire_id": "20260903T143751Z", "fired_at": "2026-09-03T14:38:11Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260903T143751Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260903T163752Z", "fired_at": "2026-09-03T16:38:36Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260904T023808Z", "fired_at": "2026-09-04T02:39:45Z", "selected_cluster": "pending_mcp_fallback", "phase": "FIRE_START"}
+{"fire_id": "20260904T023808Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "cluster": "1651,1660", "outcome": "both_skipped_too_complex", "notes": "both touch hooks/lib protected by hard floor; skip comments posted via MCP"}
+{"fire_id": "20260904T043756Z", "fired_at": "2026-09-04T04:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T043756Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "GITHUB_TOKEN present but rejected (403); auto-improvement listing failed; treated as no cluster"}
+{"fire_id": "20260904T063801Z", "fired_at": "2026-09-04T06:38:20Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T063801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260904T083744Z", "fired_at": "2026-09-04T08:38:01Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T083744Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_api_403_forbidden_token_invalid"}
+{"fire_id": "20260904T143814Z", "fired_at": "2026-09-04T14:38:35Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T143814Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260904T163756Z", "fired_at": "2026-09-04T16:38:20Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T163756Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260904T183801Z", "fired_at": "2026-09-04T18:38:19Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T183801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260904T203756Z", "fired_at": "2026-09-04T20:38:16Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260904T203756Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260905T023749Z", "fired_at": "2026-09-05T02:38:56Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260905T023749Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
