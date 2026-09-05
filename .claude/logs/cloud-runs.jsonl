@@ -1142,3 +1142,4 @@
 {"fire_id": "20260905T103801Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260905T123738Z", "fired_at": "2026-09-05T12:38:06Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "github_api_403_no_selection_possible"}
 {"fire_id": "20260905T123738Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_api_403_forbidden_on_issues_list"}
+{"fire_id": "20260905T143813Z", "fired_at": "2026-09-05T14:39:25Z", "selected_cluster": "none", "phase": "FIRE_START"}
