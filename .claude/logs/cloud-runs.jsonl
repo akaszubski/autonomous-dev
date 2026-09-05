@@ -1149,3 +1149,4 @@
 {"fire_id": "20260905T183759Z", "fired_at": "2026-09-05T18:38:53Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260905T183759Z", "phase": "FIRE_END", "exit_reason": "skipped_too_complex", "commit_sha": "", "skipped": ["1651", "1660"], "skip_reason": "both issues too complex for cron-light (security multi-arm + root-cause architectural)"}
 {"fire_id": "20260905T203744Z", "fired_at": "2026-09-05T20:38:05Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260905T203744Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
