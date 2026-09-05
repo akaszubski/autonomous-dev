@@ -11,6 +11,13 @@ from pathlib import Path
 
 WORKTREE = Path(__file__).parent.parent.parent.parent
 DEPLOY_SCRIPT = WORKTREE / "scripts" / "deploy-all.sh"
+# The two remote transports do not call rsync inline any more: they route
+# through prune_sync(), which deploy-all.sh inlines into its ssh heredoc via
+# command substitution. The destructive rsync therefore lives in this file, and
+# a scan of deploy-all.sh alone would sample 2 of the 4 sites — the same
+# undercount this test was fixed to remove.
+PRUNE_SYNC_LIB = WORKTREE / "scripts" / "lib" / "prune_sync.sh"
+DEPLOY_ALL_TRANSPORT = (DEPLOY_SCRIPT, PRUNE_SYNC_LIB)
 EXTENSIONS_DIR = WORKTREE / "plugins" / "autonomous-dev" / "hooks" / "extensions"
 
 
@@ -33,38 +40,52 @@ def test_extensions_gitkeep_exists():
 
 
 def test_rsync_commands_exclude_extensions():
-    """Regression: all rsync --delete commands in deploy-all.sh must exclude extensions/."""
+    """Regression: every rsync invocation on the deploy-all transport excludes extensions/.
+
+    The filter used to be ``line.strip().startswith("rsync ") and "--delete" in
+    line``. ``.strip()`` already handled indentation, so the ``and "--delete" in
+    line`` clause did nothing except narrow the sample to the two sites that
+    were ALREADY armed — the test could not fail for the reason it exists,
+    because a site with no ``--delete`` was not sampled and a site with
+    ``--delete`` had already been fixed. Dropped: every rsync invocation is now
+    sampled, armed or not.
+
+    Comments stay excluded deliberately (Issue #1610). An even earlier filter
+    was ``"rsync" in line and "--delete" in line``, which matched prose: a
+    comment explaining that ``rsync -a --delete`` does not clear excluded paths
+    was reported as a command missing its exclusion. A guard that fires on a
+    sentence is a guard people learn to route around by not writing the
+    sentence.
+    """
     assert DEPLOY_SCRIPT.exists(), f"deploy-all.sh not found: {DEPLOY_SCRIPT}"
 
-    content = DEPLOY_SCRIPT.read_text()
+    # An rsync captured into a variable is still an rsync invocation:
+    # prune_sync()'s deletion preview is written `preview=$(rsync ...)`, and it
+    # is the invocation that decides what gets deleted.
+    invocation = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]*=\$\()?rsync\s")
 
-    # Find all rsync INVOCATIONS that use --delete.
-    #
-    # Comments are excluded deliberately (Issue #1610). The previous filter was
-    # `"rsync" in line and "--delete" in line`, which matched prose: a comment
-    # explaining that `rsync -a --delete` does not clear excluded paths was
-    # reported as a command missing its exclusion. A guard that fires on a
-    # sentence is a guard people learn to route around by not writing the
-    # sentence, which is worse than the guard not existing.
-    rsync_delete_lines = [
-        line.strip()
-        for line in content.splitlines()
-        if line.strip().startswith("rsync ") and "--delete" in line
-    ]
+    rsync_lines: list[str] = []
+    for path in DEPLOY_ALL_TRANSPORT:
+        if not path.exists():
+            continue
+        for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+            line = raw.strip()
+            if invocation.match(line):
+                rsync_lines.append(f"{path.name}:{lineno}: {line}")
 
-    assert rsync_delete_lines, "No rsync --delete lines found in deploy-all.sh"
+    assert rsync_lines, "No rsync invocations found on the deploy-all transport"
 
     # Both quoting forms are the same argument to rsync.
     violations = [
         line
-        for line in rsync_delete_lines
+        for line in rsync_lines
         if "--exclude=extensions/" not in line and "--exclude='extensions/'" not in line
     ]
 
     assert not violations, (
-        f"rsync --delete lines missing --exclude=extensions/:\n"
+        "rsync invocations missing --exclude=extensions/:\n"
         + "\n".join(f"  {line}" for line in violations)
-        + "\n\nFix: add --exclude=extensions/ to each rsync --delete command"
+        + "\n\nFix: add --exclude=extensions/ to each rsync command"
     )
 
 

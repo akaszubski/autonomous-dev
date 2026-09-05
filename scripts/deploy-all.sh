@@ -61,9 +61,15 @@ GLOBAL_SUBDIRS="hooks lib config"
 #
 # NOTE: --delete does NOT remove already-deployed copies of excluded files
 # (rsync protects excluded paths on the receiver). Existing strays in consumer
-# repos need a one-time manual clean; --delete-excluded is deliberately NOT
-# used because it would also delete hooks/extensions/, which is consumer-local
-# state that Issue #560 exists to preserve.
+# repos need a one-time manual clean; the delete-excluded flag is deliberately
+# NOT used because it would also delete hooks/extensions/, which is
+# consumer-local state that Issue #560 exists to preserve.
+#
+# That flag is now BANNED by test, in all three deploy shell files, comments
+# included — which is why this comment names it without its leading dashes. It
+# strips exactly the receiver-side protection these patterns exist to confer,
+# so a future cleanup that reaches for it to "simplify" exclusion handling
+# would silently convert a narrowing change into a wipe.
 DEPLOY_EXCLUDES=(
     --exclude='__pycache__/'
     --exclude='extensions/'
@@ -185,7 +191,8 @@ checksum() {
 # `.pyc` under this repo's `.claude/{hooks,lib}`, 1,001 under `~/.claude`, and
 # `unified_pre_tool.py` inserts those directories at `sys.path[0]` at five sites.
 # `rsync -a --delete` does NOT clear them, because rsync protects excluded paths
-# on the receiver and `--delete-excluded` is deliberately not used (Issue #560).
+# on the receiver and the delete-excluded flag is deliberately not used, and is
+# now banned by test in all three deploy shell files (Issue #560).
 #
 # CHOSEN over the stronger alternative (have `check` recompile each recorded
 # `.py` and compare against any cache entry whose magic matches the running
@@ -244,8 +251,12 @@ deploy_global() {
     # ~/.claude/lib, so `import workflow_tracker` still resolved a module that
     # exists in no source tree and in no consumer repo. deploy_state.py:608-609
     # had already named this transport by hand; #1610 built the detector and
-    # chose to REPORT. This makes it refuse. The REMOTE global target (:490)
-    # keeps the identical defect on purpose — see :391-394 — and is a follow-up.
+    # chose to REPORT. This makes it refuse. The two REMOTE transports carried
+    # the identical defect and no longer do: both now route through prune_sync()
+    # (scripts/lib/prune_sync.sh), which previews the deletion set with
+    # identical flags and refuses before anything is removed. The stale
+    # forward-reference that used to sit here pointed at line numbers that had
+    # already moved, and told every reader the remote gap was permanent.
     #
     # THE INVARIANT: deletion scope ⊂ measurement scope. $DEPLOY_EXCLUDES is
     # deliberately NOT touched: it is set-equality-pinned to deploy_state.py's
@@ -429,9 +440,12 @@ fi
 
     # Issue #1610 (remediation of W-B): the remote is NOT immune to the defect
     # this gate exists for. `git pull --ff-only` succeeds with modified-tracked
-    # and untracked files present, and the `cp -rf` below then copies the
-    # REMOTE's working tree (with no --delete). So the remote needs the same
-    # gate and the same stamp — otherwise /health-check on the Mac Studio prints
+    # and untracked files present, and the sync below then copies the REMOTE's
+    # working tree (now via rsync/prune_sync, with --delete propagating — see
+    # "DELETION NOW PROPAGATES ON BOTH REMOTE TRANSPORTS" further down; this
+    # comment predates that fix and originally described a `cp -rf` with no
+    # --delete). So the remote needs the same gate and the same stamp —
+    # otherwise /health-check on the Mac Studio prints
     # UNKNOWN in every repo forever, with a REQUIRED NEXT ACTION that deploying
     # from the laptop can never satisfy. Both run from the remote's own checkout
     # so the recorded commit belongs to the bytes that were copied.
@@ -464,10 +478,30 @@ fi
     # shipping unmeasured content is precisely the defect, so it aborts and says
     # so rather than silently falling back to the copy that caused this.
     #
-    # `--delete` is deliberately NOT added: `cp -rf` never deleted, and adding it
-    # would newly remove consumer-local files across five remote repos. That is a
-    # destructive change this finding did not ask for. Strays that accumulate are
-    # now REPORTED instead, via the target_only arm added in the same pass.
+    # DELETION NOW PROPAGATES ON BOTH REMOTE TRANSPORTS.
+    #
+    # SUPERSEDED RATIONALE, kept so nobody re-derives it: this block used to say
+    # that `--delete` was deliberately withheld because it "would newly remove
+    # consumer-local files across five remote repos", and that strays would be
+    # REPORTED via the target_only arm instead. Two things retired that.
+    #
+    # (1) It was measured and false. A `--delete --dry-run --itemize-changes`
+    #     pass on the Mac Studio against all six targets, with the real 18
+    #     $DEPLOY_EXCLUDES plus extensions/ and .claude/, produced exactly 30
+    #     deletion candidates: 5 per target, and all five were the modules
+    #     deleted in 7c3a527e. ZERO consumer-local files.
+    # (2) Reporting is not a mechanism. Those five modules stayed alive on all
+    #     six targets and stayed importable through the sys.path fallback to
+    #     ~/.claude/lib while the deploy printed ALL VALIDATIONS PASSED.
+    #
+    # target_only cannot be the pre-deletion gate, which is why the guard is a
+    # preview instead: target_only is BY DESIGN a strict superset of the
+    # deletion set. An unqualified --exclude PROTECTS a receiver-side file from
+    # --delete, so rsync will never remove it, while target_only lists it
+    # forever — ~/.claude/hooks/.claude/logs/activity/2026-06-06.jsonl, 52,502
+    # bytes, in no commit, matching none of the 18 patterns, is the live
+    # instance. A gate refusing on `target_only != empty` would refuse every
+    # deploy permanently.
     #
     # Built as literal text locally, like $remote_dirty and $SUBDIRS above: the
     # remote runs a LOGIN shell (zsh), so no array or IFS behaviour is relied on.
@@ -476,6 +510,20 @@ fi
     for pat in "${DEPLOY_EXCLUDES[@]}"; do
         remote_excludes="$remote_excludes --exclude='${pat#--exclude=}'"
     done
+
+    # The deletion guard is a separate file so its 45 lines are inlined as
+    # command-substitution output, which the local bash never scans for quotes
+    # and never re-expands. See the header of prune_sync.sh for why that matters
+    # here specifically. Fail closed if it is missing: without it the generated
+    # remote script would silently lose every guard AND every call site.
+    local prune_sync_lib="$SCRIPT_DIR/lib/prune_sync.sh"
+    if [ ! -f "$prune_sync_lib" ]; then
+        echo "  REMOTE ABORT: deletion guard not found at $prune_sync_lib"
+        echo "  The remote transports delete on the target; without the guard they"
+        echo "  would do so unpreviewed. Nothing was sent."
+        echo "  REQUIRED NEXT ACTION: restore it — git checkout -- scripts/lib/prune_sync.sh"
+        exit 1
+    fi
 
     ssh "$REMOTE_HOST" "$(cat <<REMOTE_EOF
 set -euo pipefail
@@ -505,6 +553,22 @@ else
     echo '  ⚠ deploy_state.py missing on remote — remote provenance will NOT be recorded'
 fi
 
+# Parsed into words HERE, at remote parse time, from literal text: \$remote_excludes
+# is interpolated locally before this heredoc is sent, so what the remote reads is
+# 18 literal --exclude=... words inside the parentheses. That is deliberate. The
+# remote runs a LOGIN zsh, which does NOT word-split an unquoted parameter, so
+# building this array from a variable on the remote side would yield ONE element
+# containing the whole string and rsync would reject it.
+remote_excludes_arr=( $remote_excludes )
+
+# No "local" anywhere at this level: outside a function it is a runtime error in
+# both bash and zsh, and bash -n never evaluates a heredoc body, so it would
+# surface only here on the remote, mid-loop, after repos had already been pruned.
+deploy_failed=""
+failed_repos=""
+
+$(cat "$prune_sync_lib")
+
 echo "  Deploying to repos..."
 for repo in $REMOTE_REPOS; do
     target="\$HOME/Dev/\$repo/.claude"
@@ -512,12 +576,25 @@ for repo in $REMOTE_REPOS; do
         echo "  SKIP \$repo (no .claude/)"
         continue
     fi
+    # The "if !" form is REQUIRED: set -e is active above, so a bare call to a
+    # function that returns non-zero would abort the whole remote block instead
+    # of letting the refusal be handled here.
+    repo_failed=""
     for subdir in $SUBDIRS; do
         if [ -d "plugins/autonomous-dev/\$subdir" ]; then
             mkdir -p "\$target/\$subdir"
-            rsync -a --exclude='extensions/' $remote_excludes "plugins/autonomous-dev/\$subdir/" "\$target/\$subdir/"
+            if ! prune_sync "plugins/autonomous-dev/\$subdir/" "\$target/\$subdir/" "\$repo/\$subdir"; then
+                repo_failed=1
+                deploy_failed=1
+                failed_repos="\$failed_repos \$repo"
+                break
+            fi
         fi
     done
+    # A refusal skips the post-sync steps for THIS target only, because they all
+    # assume a completed sync: purging bytecode and rewriting permissions across
+    # a half-synced tree makes the partial state harder to read, not safer.
+    if [ -z "\$repo_failed" ]; then
     # Issue #1610 BLOCKING C: bytecode caches execute with no registration step
     # and survive an excluded-pattern sync. Bound their life to one deploy cycle.
     for subdir in $SUBDIRS; do
@@ -535,6 +612,13 @@ for repo in $REMOTE_REPOS; do
     echo "  Deployed: \$repo"
     # Sync settings.json hook registrations
     python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --repo "\$HOME/Dev/\$repo" 2>/dev/null && echo "  Synced \$repo settings.json hooks" || echo "  ⚠ \$repo settings hook sync failed"
+    else
+        echo "  ✗ \$repo: sync REFUSED — skipped bytecode purge, permissions and settings sync"
+    fi
+    # STAMPED EVEN ON REFUSAL, deliberately. The target holds whatever the loop
+    # managed before it stopped; an unrecorded partial state is the one outcome
+    # worse than a recorded one, because /health-check then prints UNKNOWN and
+    # nothing names what is actually executing there.
     # Issue #1610: stamp from the checkout on the REMOTE, one invocation per
     # target (no arrays — see the login-shell note above). NOTE: no apostrophes
     # anywhere inside this heredoc — bash 3.2 scans \$( ... ) without honouring
@@ -560,12 +644,23 @@ done
 #   AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT=1 (opt-in: re-enable in foreign projects)
 # Also deploy global hooks/lib/config
 echo "  Deploying global (~/.claude)..."
+# This block runs regardless of a per-repo refusal above: the global target is
+# an independent target, and the module that stays importable through the
+# sys.path fallback lives HERE, so skipping it on an unrelated repo failure
+# would leave the widest hole open.
+global_failed=""
 for subdir in hooks lib config; do
     if [ -d "plugins/autonomous-dev/\$subdir" ]; then
         mkdir -p "\$HOME/.claude/\$subdir"
-        rsync -a --exclude='extensions/' $remote_excludes "plugins/autonomous-dev/\$subdir/" "\$HOME/.claude/\$subdir/"
+        if ! prune_sync "plugins/autonomous-dev/\$subdir/" "\$HOME/.claude/\$subdir/" "global/\$subdir"; then
+            global_failed=1
+            deploy_failed=1
+            failed_repos="\$failed_repos global"
+            break
+        fi
     fi
 done
+if [ -z "\$global_failed" ]; then
 for subdir in hooks lib config; do
     [ -d "\$HOME/.claude/\$subdir" ] || continue
     find "\$HOME/.claude/\$subdir" -name extensions -type d -prune -o \
@@ -576,6 +671,10 @@ find "\$HOME/.claude/hooks" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || tr
 find "\$HOME/.claude/hooks" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
 find "\$HOME/.claude/lib" -name "*.py" -exec chmod 644 {} \; 2>/dev/null || true
 echo "  Synced global: hooks lib config"
+else
+    echo "  ✗ global: sync REFUSED — skipped bytecode purge and permissions"
+fi
+# Stamped even on refusal, for the same reason as the per-repo targets above.
 if [ -f "\$REMOTE_DEPLOY_STATE" ]; then
     python3 "\$REMOTE_DEPLOY_STATE" stamp --source "\$PWD" \
         --plugin-src "\$PWD/plugins/autonomous-dev" --target "\$HOME/.claude" --log-activity $remote_dirty \
@@ -588,6 +687,18 @@ if [ "$DO_GLOBAL_SETTINGS" = "true" ]; then
     python3 "plugins/autonomous-dev/scripts/sync_settings_hooks.py" --global 2>/dev/null && echo "  Synced global settings.json hooks" || echo "  ⚠ global settings hook sync failed"
 else
     echo "  Skipped global settings.json hooks (use --global-settings to opt in)"
+fi
+
+# Validation must never print PASSED over partial state. Every target reached
+# above has been stamped with what it actually holds, so the record is honest;
+# this makes the EXIT honest too, by name, before validation is allowed to run.
+if [ -n "\$deploy_failed" ]; then
+    echo "  ✗ REMOTE DEPLOY INCOMPLETE — the deletion guard refused for:\$failed_repos"
+    echo "  Those targets were stamped with the partial state they hold, so"
+    echo "  deploy_state.py check reports what is executing there."
+    echo "  REQUIRED NEXT ACTION: read the refusal above, resolve the named files,"
+    echo "  then re-run scripts/deploy-all.sh --remote"
+    exit 1
 fi
 $validate_script
 REMOTE_EOF

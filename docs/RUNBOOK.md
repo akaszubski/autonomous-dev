@@ -326,15 +326,30 @@ reason; see the workflow file for the closing condition.
 
 ## Post-deletion consumer-repo sweep (one-time, manual)
 
+**Superseded for the remote transports.** This sequence was written for a defect
+where three of six rsync deploy transports shipped without `--delete` — a module
+removed from source stayed live and importable via the `sys.path` fallback on
+every remote target indefinitely, since `bash scripts/deploy-all.sh` never
+deleted it there. Both remote transports (Mac Studio home directory, and each of
+the five remote repos) now delete automatically on every `deploy-all.sh` run,
+behind a preview guard (`scripts/lib/prune_sync.sh`) that refuses BEFORE
+deleting anything if the candidate set looks wrong — see
+[`docs/SCRIPTS.md`](SCRIPTS.md#deploy--sync). The manual SSH check below is no
+longer required to make deletion happen; it remains useful only as an
+independent audit of a deploy that already ran, or for repos this deploy does
+not reach.
+
 **Who runs this: a maintainer, by hand, once per deletion of a shipped module.**
 It is deliberately NOT an automated test and NOT a CI step — see "Why not a
 test" below. Naming the runner is the point: an assertion with no named
 execution path is half a control.
 
 When a module that was previously listed in `install_manifest.json` is deleted,
-consumer repos keep the already-installed copy under `~/.claude/lib/` until the
-next deploy removes it. Until then the deleted file is still importable there,
-which is how a module can be "deleted" locally and still execute remotely.
+a deploy now removes the stale copy from `~/.claude/lib/` on every configured
+target, local and remote, in the same `deploy-all.sh` run. Before the
+`prune_sync` guard existed, remote consumer repos kept the already-installed
+copy until someone deleted it by hand over SSH — that is the scenario this
+sequence audits.
 
 **Sequence** — run after `bash scripts/deploy-all.sh`, once:
 

@@ -56,6 +56,19 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PLUGIN_SRC = REPO_ROOT / "plugins" / "autonomous-dev"
 DEPLOY_STATE_SRC = PLUGIN_SRC / "scripts" / "deploy_state.py"
 DEPLOY_ALL_SH = REPO_ROOT / "scripts" / "deploy-all.sh"
+DEPLOY_LOCAL_SH = REPO_ROOT / "scripts" / "deploy_local.sh"
+PRUNE_SYNC_SH = REPO_ROOT / "scripts" / "lib" / "prune_sync.sh"
+# deploy-all.sh inlines prune_sync.sh into its ssh heredoc via command
+# substitution, so the two files are ONE transport: the destructive rsync for
+# the remote sites is textually in the library, not in deploy-all.sh.
+DEPLOY_ALL_TRANSPORT = (DEPLOY_ALL_SH, PRUNE_SYNC_SH)
+SHELL_FILES = (DEPLOY_ALL_SH, DEPLOY_LOCAL_SH, PRUNE_SYNC_SH)
+# An rsync whose output is captured into a variable is still an rsync
+# invocation. prune_sync()'s deletion PREVIEW is written `preview=$(rsync ...)`,
+# and a matcher anchored on a bare `rsync ` walks straight past it — which
+# would leave the one invocation that decides whether anything gets deleted
+# outside every enumeration in this file.
+COPY_INVOCATION_RE = r"^(?:[A-Za-z_][A-Za-z0-9_]*=\$\()?(?:rsync|cp)\s"
 HEALTH_CHECK_MD = PLUGIN_SRC / "commands" / "health-check.md"
 INSTALL_PY = PLUGIN_SRC / "scripts" / "install.py"
 INSTALL_SH = REPO_ROOT / "install.sh"
@@ -94,6 +107,13 @@ def _make_source_repo(tmp_path: Path, name: str = "src") -> Path:
     (plugin / "lib" / "hook_safety.py").write_text("# committed: 347-line shape\n")
     shutil.copy2(DEPLOY_STATE_SRC, plugin / "scripts" / "deploy_state.py")
     shutil.copy2(DEPLOY_ALL_SH, src / "scripts" / "deploy-all.sh")
+    shutil.copy2(DEPLOY_LOCAL_SH, src / "scripts" / "deploy_local.sh")
+    # deploy-all.sh inlines this into its ssh heredoc via
+    # $(cat "$SCRIPT_DIR/lib/prune_sync.sh"), so the fixture is not a faithful
+    # copy of the transport without it: the generated remote script would
+    # silently lose prune_sync() and every remote assertion would go vacuous.
+    (src / "scripts" / "lib").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(PRUNE_SYNC_SH, src / "scripts" / "lib" / "prune_sync.sh")
     # The same ignore classes the real repo carries, so "gitignored but shipped"
     # is reproducible rather than hypothetical.
     (src / ".gitignore").write_text("*.junkext\n*,cover\n.DS_Store\n__pycache__/\n")
@@ -1253,21 +1273,38 @@ def test_rsync_exclude_patterns_match_deploy_all_sh():
     )
 
 
-def _plugin_copy_invocations() -> list[str]:
-    """Every line in deploy-all.sh that copies plugin source into a deploy target.
+def _plugin_copy_invocations(paths: tuple[Path, ...] = DEPLOY_ALL_TRANSPORT) -> list[str]:
+    """Every line in the given shell files that copies plugin source to a target.
 
     Deliberately tool-agnostic. The previous version of this helper's caller
     inspected only lines starting with ``rsync ``, which is why the remote
     ``cp -rf`` path went both unfixed AND untested: a probe scoped to one tool
     cannot see a defect in the other.
+
+    ``paths`` defaults to the deploy-all TRANSPORT — deploy-all.sh plus the
+    prune_sync library it inlines into its ssh heredoc — not to deploy-all.sh
+    alone. Scoping to the one file would let the enumerator go blind the moment
+    a copy site moves into the library: the count would drop from 4 to 2 and
+    every per-invocation assertion would pass vacuously over the survivors.
+    ``test_plugin_copy_invocation_count_is_pinned`` is the control that catches
+    exactly that.
+
+    Returns:
+        ``"<filename>:<lineno>: <stripped line>"`` for each invocation, so a
+        failure names the site rather than only quoting an anonymous command.
     """
     found: list[str] = []
-    for raw in DEPLOY_ALL_SH.read_text().splitlines():
-        line = raw.strip()
-        if not re.match(r"^(rsync|cp)\s", line):
-            continue  # comments and everything else
-        if "$PLUGIN_SRC/" in line or "plugins/autonomous-dev" in line:
-            found.append(line)
+    for path in paths:
+        if not path.exists():
+            continue
+        for lineno, raw in enumerate(path.read_text().splitlines(), 1):
+            line = raw.strip()
+            if not re.match(COPY_INVOCATION_RE, line):
+                continue  # comments and everything else
+            # ``$src_dir`` is prune_sync()'s plugin-source parameter; the other
+            # two forms are the literal source paths used at the inline sites.
+            if '"$src_dir"' in line or "$PLUGIN_SRC/" in line or "plugins/autonomous-dev" in line:
+                found.append(f"{path.name}:{lineno}: {line}")
     return found
 
 
@@ -1293,7 +1330,10 @@ def test_every_copy_invocation_applies_the_shared_exclusions():
     for line in invocations:
         applies_array = '"${DEPLOY_EXCLUDES[@]}"' in line
         applies_literal = "$remote_excludes" in line
-        assert applies_array or applies_literal, (
+        # prune_sync() receives the same 18 patterns as an array built at the
+        # heredoc top level from $remote_excludes.
+        applies_remote_array = '"${remote_excludes_arr[@]}"' in line
+        assert applies_array or applies_literal or applies_remote_array, (
             "a copy invocation ships content the provenance gate does not "
             f"measure: {line}"
         )
@@ -1313,6 +1353,212 @@ def test_no_copy_invocation_uses_bare_cp_for_plugin_subdirs():
     assert offenders == [], (
         "cp cannot apply the deploy exclusions, so anything it copies is shipped "
         f"but unmeasured. Use rsync with the shared patterns:\n{offenders}"
+    )
+
+
+# --------------------------------------------------------------------------
+# 15b. Deletion propagates on EVERY transport, and the instrument that says so
+#      is itself controlled.
+#
+# The defect: three of six rsync sites shipped without ``--delete``, so a module
+# deleted from source survived on the target forever and stayed importable
+# through the ``sys.path`` fallback to ``~/.claude/lib``. Measured: the five
+# modules removed in 7c3a527e were alive on all six targets.
+#
+# Every control below is a DIFFERENT SHAPE from that defect (a missing flag):
+# a count, a forbidden token, a set cardinality, a parse. None of them can be
+# satisfied by adding a flag, so none can be gamed by the fix.
+# --------------------------------------------------------------------------
+
+
+def _top_level_local_offenders(text: str, *, label: str = "line") -> list[str]:
+    """``local`` statements outside any function definition in ``text``.
+
+    ``local`` INSIDE a function is legal and expected — prune_sync() uses it —
+    so this tracks function-definition depth rather than banning the keyword.
+
+    A function opener is ``name() {`` at any indentation; a function CLOSER is
+    ``}`` at COLUMN ZERO only. That asymmetry is load-bearing: prune_sync uses
+    ``cmd || { ...; return 1; }`` blocks whose closing brace is indented, and
+    counting those as function closers drops the depth to 0 partway through the
+    body and reports every subsequent ``local`` as a top-level offender.
+    """
+    depth = 0
+    offenders: list[str] = []
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*\(\)\s*\{", line):
+            depth += 1
+            continue
+        if raw == "}" and depth > 0:
+            depth -= 1
+            continue
+        if depth == 0 and re.match(r"^local\s", line):
+            offenders.append(f"{label} {lineno}: {line}")
+    return offenders
+
+
+def test_every_copy_invocation_propagates_deletions():
+    """T1 — a transport that never deletes cannot un-ship a deleted module.
+
+    ``deploy-all.sh`` had FOUR rsync sites and only two carried ``--delete``.
+    The two that did not were the remote per-repo sync and the remote global
+    sync — the pair that reaches five repos plus a home directory on another
+    machine, i.e. the widest blast radius had the weakest transport.
+
+    Flag-agnostic on purpose: it asserts a property of every enumerated
+    invocation rather than grepping for a known-good line, so a fifth site
+    added tomorrow is covered on the day it is added.
+    """
+    invocations = _plugin_copy_invocations()
+    assert invocations, "the enumerator found no copy invocations at all"
+
+    missing = [line for line in invocations if "--delete" not in line]
+    assert not missing, (
+        "copy invocations that do NOT propagate deletions — a module deleted "
+        "from source survives on these targets forever and stays importable "
+        "via the sys.path fallback:\n"
+        + "\n".join(f"  {line}" for line in missing)
+        + "\n\nFix: route the site through prune_sync(), which previews the "
+        "deletion set and refuses before anything is removed."
+    )
+
+
+def test_plugin_copy_invocation_count_is_pinned():
+    """T2 — the enumerator's own control: a count, not a per-line property.
+
+    T1 asserts a property of each invocation it finds. That is vacuously true
+    over an empty list, and — the live risk here — it stays true if a site
+    STOPS being enumerated because it moved into a file the enumerator does not
+    read. Pinning the counts means a site that disappears from the scan fails
+    loudly instead of passing quietly.
+
+    4 for the deploy-all transport: global rsync, per-repo rsync, and
+    prune_sync()'s preview + live pair. 2 for deploy_local.sh: per-repo and
+    global. If ``deploy_local.sh:167`` ever gains ``--delete`` or a caller, this
+    count is where the question re-opens (Residual Risk 4).
+    """
+    deploy_all = _plugin_copy_invocations()
+    assert len(deploy_all) == 4, (
+        "expected exactly 4 copy invocations on the deploy-all transport "
+        f"(deploy-all.sh + prune_sync.sh); found {len(deploy_all)}:\n"
+        + "\n".join(f"  {line}" for line in deploy_all)
+    )
+
+    deploy_local = _plugin_copy_invocations((DEPLOY_LOCAL_SH,))
+    assert len(deploy_local) == 2, (
+        f"expected exactly 2 copy invocations in deploy_local.sh; found "
+        f"{len(deploy_local)}:\n" + "\n".join(f"  {line}" for line in deploy_local)
+    )
+
+
+def test_delete_excluded_appears_in_no_deploy_script():
+    """T3 — forbidden-token control, comments included.
+
+    An unqualified ``--exclude`` PROTECTS a receiver-side file from ``--delete``
+    (man rsync, FILTER RULES WHEN DELETING). The delete-excluded flag removes
+    exactly that protection, and that protection is the only thing keeping
+    ``hooks/extensions/`` (Issue #560) and runtime ``.claude/`` state alive on
+    every target. Adding it would turn a narrowing change into a wipe.
+
+    Comments are scanned too, so a commented-out invocation cannot sit in the
+    file waiting to be uncommented. The consequence is a writing convention:
+    prose in these three files names the flag WITHOUT its leading dashes. That
+    is not evasion — the forbidden thing is the argument, which does not exist
+    without them, and the convention keeps the warning readable while leaving
+    the token itself absent from the file.
+    """
+    forbidden = "--delete-" + "excluded"  # assembled so this test file is not itself a hit
+    offenders: list[str] = []
+    for path in SHELL_FILES:
+        if not path.exists():
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), 1):
+            if forbidden in line:
+                offenders.append(f"{path.name}:{lineno}: {line.strip()}")
+
+    assert offenders == [], (
+        f"{forbidden} strips the receiver-side protection that --exclude "
+        "confers, which is what keeps hooks/extensions/ (Issue #560) and "
+        "runtime .claude/ state alive on every deploy target:\n"
+        + "\n".join(f"  {line}" for line in offenders)
+        + "\n\nIn prose, write the flag name without its leading dashes."
+    )
+
+
+def test_deploy_excludes_was_not_narrowed():
+    """T4 — set-cardinality control.
+
+    The cheapest way to make a ``--delete`` sync stop refusing is to delete
+    exclusion patterns, which is the opposite of the intended change: every
+    pattern removed here ENLARGES what ``--delete`` may remove. Its companion,
+    ``test_rsync_exclude_patterns_match_deploy_all_sh``, asserts set EQUALITY
+    with ``deploy_state.rsync_exclude_patterns()`` — but equality is preserved
+    if somebody narrows both sides together, so the floor is asserted here as
+    well.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    block = re.search(r"^DEPLOY_EXCLUDES=\((.*?)^\)", text, re.M | re.S)
+    assert block, "could not find the DEPLOY_EXCLUDES array in deploy-all.sh"
+    shell_patterns = set(re.findall(r"--exclude='([^']*)'", block.group(1)))
+
+    assert len(shell_patterns) >= 18, (
+        f"$DEPLOY_EXCLUDES narrowed to {len(shell_patterns)} patterns (floor is "
+        f"18). Each removed pattern widens what --delete may remove:\n"
+        f"  {sorted(shell_patterns)}"
+    )
+    for required in ("extensions/", "__pycache__/", "docs/sessions/"):
+        assert required in shell_patterns, (
+            f"$DEPLOY_EXCLUDES lost {required!r} — a consumer-local or runtime "
+            "class is now inside the deletion scope"
+        )
+
+
+def test_all_deploy_shell_files_parse():
+    """T5 — SECONDARY parse check, explicitly not the primary guard.
+
+    ``bash -n`` proves the file parses; it proves nothing about behaviour, and
+    it never evaluates a heredoc body, which is precisely where the dangerous
+    edits are. It earns its place for one narrow reason: ``local`` outside a
+    function is a RUNTIME error in both bash and zsh, so a stray ``local`` at
+    heredoc top level would surface only on the remote machine, mid-loop, after
+    repos had already been pruned. Both interpreters, because the remote may be
+    running Apple bash 3.2.
+    """
+    for path in SHELL_FILES:
+        assert path.exists(), f"deploy shell file missing: {path}"
+        for interpreter in ("bash", "/bin/bash"):
+            syntax = subprocess.run(
+                [interpreter, "-n", str(path)], capture_output=True, text=True
+            )
+            assert syntax.returncode == 0, (
+                f"{path.name} does not parse under {interpreter}:\n{syntax.stderr}"
+            )
+
+
+def test_no_local_at_heredoc_top_level_in_deploy_all():
+    """T5b — the failure ``bash -n`` structurally cannot see.
+
+    The remote script is generated by a heredoc. ``bash -n`` parses the heredoc
+    as opaque text and never evaluates it, so a ``local`` written at heredoc top
+    level passes every static check here and then aborts the remote shell
+    mid-deploy. Scan the heredoc body directly.
+
+    ``local`` INSIDE a function defined in the heredoc is legal and expected —
+    prune_sync() uses it — so the scan tracks brace depth rather than banning
+    the keyword.
+    """
+    text = DEPLOY_ALL_SH.read_text()
+    body = re.search(r"^\s*ssh .*<<REMOTE_EOF\n(.*?)^REMOTE_EOF$", text, re.M | re.S)
+    assert body, "could not locate the REMOTE_EOF heredoc body in deploy-all.sh"
+
+    offenders = _top_level_local_offenders(body.group(1), label="heredoc line")
+
+    assert offenders == [], (
+        "`local` at heredoc top level is a runtime error in bash AND zsh, and "
+        "`bash -n` never evaluates a heredoc body — so this would surface only "
+        "on the remote, mid-loop, after repos had already been pruned:\n"
+        + "\n".join(f"  {line}" for line in offenders)
     )
 
 
@@ -1681,30 +1927,68 @@ def _capture_remote_script(source_repo: Path, tmp_path: Path, *flags: str) -> st
     return capture.read_text()
 
 
+def _extract_prune_sync_preamble(remote_script: str) -> str:
+    """The exclusion array and prune_sync() AS GENERATED, ready to source.
+
+    Deliberately taken from the CAPTURED remote script rather than from
+    ``scripts/lib/prune_sync.sh``: the file is what was written, the captured
+    text is what will execute. Between them sit heredoc expansion, backslash
+    escaping and command substitution — a dropped backslash on ``\\$target``
+    expands LOCALLY to empty and hands rsync an empty destination under
+    ``--delete``, and no test that reads the source file can see it.
+    """
+    array = re.search(r"^remote_excludes_arr=\(.*?\)$", remote_script, re.M)
+    assert array, (
+        "the generated remote script has no remote_excludes_arr assignment, so "
+        "prune_sync would run with no exclusions:\n" + remote_script[:2000]
+    )
+    func = re.search(r"^prune_sync\(\) \{.*?^\}$", remote_script, re.M | re.S)
+    assert func, (
+        "prune_sync() is not defined in the generated remote script:\n"
+        + remote_script[:2000]
+    )
+    return array.group(0) + "\n" + func.group(0) + "\n"
+
+
 def test_remote_copy_carries_the_same_exclusions_the_remote_gate_measures(
     source_repo: Path, tmp_path: Path
 ):
-    """BLOCKING B, on the generated remote script itself."""
+    """BLOCKING B, on the generated remote script itself.
+
+    The remote copies now route through prune_sync(), which takes the shared
+    patterns as an ARRAY rather than repeating them on each rsync line. The
+    property is unchanged and asserted in two halves: every pattern the gate
+    measures reaches the array, and every rsync invocation passes the array on.
+    Checking only the array would leave an rsync that quietly stopped using it.
+    """
     remote_script = _capture_remote_script(source_repo, tmp_path)
 
     assert "cp -rf plugins/autonomous-dev" not in remote_script, (
         "the remote still copies with a tool that cannot exclude anything:\n"
         + remote_script
     )
+
+    array_line = re.search(r"^remote_excludes_arr=\(.*?\)$", remote_script, re.M)
+    assert array_line, "the generated remote script builds no exclusion array"
+    for pattern in deploy_state.rsync_exclude_patterns():
+        assert f"--exclude='{pattern}'" in array_line.group(0), (
+            f"the remote exclusion array omits {pattern!r}, so the remote ships "
+            f"what the remote gate does not measure:\n{array_line.group(0)}"
+        )
+
     copy_lines = [
         ln.strip()
         for ln in remote_script.splitlines()
-        if ln.strip().startswith("rsync ") and "plugins/autonomous-dev" in ln
+        if re.match(COPY_INVOCATION_RE, ln.strip())
     ]
     assert len(copy_lines) >= 2, (
-        f"expected per-repo + global remote copies; got {copy_lines}"
+        f"expected the preview + live rsync pair inside prune_sync; got {copy_lines}"
     )
-    for pattern in deploy_state.rsync_exclude_patterns():
-        for line in copy_lines:
-            assert f"--exclude='{pattern}'" in line, (
-                f"remote copy omits exclusion {pattern!r}, so it ships what the "
-                f"remote gate does not measure:\n{line}"
-            )
+    for line in copy_lines:
+        assert '"${remote_excludes_arr[@]}"' in line, (
+            "a remote rsync invocation does not apply the shared exclusion "
+            f"array:\n{line}"
+        )
 
 
 def test_remote_copy_delivers_exactly_the_measured_set(source_repo: Path, tmp_path: Path):
@@ -1716,11 +2000,7 @@ def test_remote_copy_delivers_exactly_the_measured_set(source_repo: Path, tmp_pa
     remote must still actually deploy the real files.
     """
     remote_script = _capture_remote_script(source_repo, tmp_path)
-    copy_line = next(
-        ln.strip()
-        for ln in remote_script.splitlines()
-        if ln.strip().startswith("rsync ") and 'target/$subdir/"' in ln
-    )
+    preamble = _extract_prune_sync_preamble(remote_script)
 
     src = tmp_path / "plugins" / "autonomous-dev" / "templates"
     (src / "sub").mkdir(parents=True)
@@ -1740,7 +2020,9 @@ def test_remote_copy_delivers_exactly_the_measured_set(source_repo: Path, tmp_pa
 
     runner = tmp_path / "run_copy.sh"
     runner.write_text(
-        "set -euo pipefail\nsubdir=templates\ntarget='" + str(target) + "'\n" + copy_line + "\n"
+        "set -euo pipefail\n"
+        + preamble
+        + f'prune_sync "plugins/autonomous-dev/templates/" "{target}/templates/" "probe/templates"\n'
     )
     result = subprocess.run(
         ["bash", str(runner)], capture_output=True, text=True, cwd=str(tmp_path), timeout=120
@@ -2592,3 +2874,479 @@ def test_global_deploy_refuses_a_wholesale_prune_without_rolling_back(
         f"the cap is {cap} but {removed} orphans were deleted; --max-delete is "
         f"not bounding the prune:\n{combined}"
     )
+
+
+# --------------------------------------------------------------------------
+# 19. The newly-armed transports: the guard, and the text that actually runs.
+#
+# Layering, deliberate and stated so a future reader does not collapse it:
+#   STATIC (T2-T5, T6a)  deterministic assertions over script text. Cheap,
+#                        but blind to everything heredoc expansion does.
+#   PARSE  (T5)          `bash -n`. Secondary. Never the primary guard.
+#   BEHAVIOURAL (T7, T8) the only checks that see POST-ESCAPE text: T7 asserts
+#                        against the string the ssh shim captured, T8 executes
+#                        the guard extracted from that same string.
+# --------------------------------------------------------------------------
+
+
+def test_deploy_local_applies_the_canonical_exclusions():
+    """T6a — the live destructive defect in deploy_local.sh, closed.
+
+    ``deploy_to()`` carried ``rsync -a --delete`` with ZERO exclusions across
+    three consumer repos and eight subdirs: strictly the most destructive
+    transport in the repo, deleting hooks/extensions/ (Issue #560) and the
+    runtime .claude/ trees on every run. Adding the exclusions NARROWS what
+    --delete may remove; it arms nothing.
+
+    ``deploy_local.sh:167`` (the global sync) stays WITHOUT ``--delete``
+    deliberately — it has no caller anywhere in the repo, so arming it would be
+    a destructive change with no evidence behind it. That is Residual Risk 4,
+    and ``test_plugin_copy_invocation_count_is_pinned`` is where the question
+    re-opens if a caller appears.
+    """
+    text = DEPLOY_LOCAL_SH.read_text()
+
+    assert 'deploy_state.py" excludes' in text, (
+        "deploy_local.sh must source its exclusions from the single source of "
+        "truth, not re-type them"
+    )
+    assert "REFUSED: could not build the deploy exclusion set" in text, (
+        "an empty exclude array is indistinguishable at the rsync call site "
+        "from the unguarded state this change removes; it must refuse"
+    )
+
+    invocations = _plugin_copy_invocations((DEPLOY_LOCAL_SH,))
+    armed = [ln for ln in invocations if "--delete" in ln]
+    assert len(armed) == 1, (
+        f"expected exactly one armed rsync in deploy_local.sh; found:\n"
+        + "\n".join(f"  {ln}" for ln in invocations)
+    )
+    line = armed[0]
+    assert "--delete-after" in line, (
+        f"deletion must be deferred until the transfer completes:\n{line}"
+    )
+    assert '"${DEPLOY_EXCLUDES[@]}"' in line, (
+        f"the canonical exclusions do not reach the destructive rsync:\n{line}"
+    )
+    assert '--exclude=".claude/"' in line, (
+        f"runtime .claude/ state under a deployed subdir is unprotected:\n{line}"
+    )
+
+
+def test_deploy_local_narrows_what_delete_removes(source_repo: Path, tmp_path: Path):
+    """T6b — BEHAVIOURAL, both arms, against the real script.
+
+    The static assertions above cannot tell whether the array reaches rsync
+    non-empty. Run deploy_local.sh with $HOME pointed at a fixture and read the
+    filesystem.
+    """
+    home = tmp_path / "home"
+    dest = home / "Dev" / "realign" / ".claude"
+    (dest / "lib" / "extensions").mkdir(parents=True)
+    (dest / "lib" / ".claude").mkdir(parents=True)
+    (dest / "lib" / "extensions" / "consumer_local.py").write_text("# consumer-local\n")
+    (dest / "lib" / ".claude" / "runtime.log").write_text("telemetry\n")
+    (dest / "lib" / "stale_module.py").write_text("# deleted from source long ago\n")
+    (dest / "lib" / "hook_safety.py").write_text("# stale copy\n")
+
+    result = subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy_local.sh"), "--skip-validate"],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(home),
+        },
+        timeout=120,
+    )
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+
+    # PERMITTING ARM: deletion still propagates, which is the whole point.
+    assert not (dest / "lib" / "stale_module.py").exists(), (
+        f"a stale module survived the local deploy:\n{combined}"
+    )
+    assert (dest / "lib" / "hook_safety.py").read_text() == "# committed: 347-line shape\n", (
+        f"the local deploy stopped delivering source:\n{combined}"
+    )
+
+    # REFUSING ARM: the classes the exclusions protect are still there.
+    assert (dest / "lib" / "extensions" / "consumer_local.py").exists(), (
+        f"hooks/extensions/ consumer-local state was deleted (Issue #560):\n{combined}"
+    )
+    assert (dest / "lib" / ".claude" / "runtime.log").exists(), (
+        f"runtime .claude/ state under a deployed subdir was deleted:\n{combined}"
+    )
+
+
+def test_deploy_local_refuses_when_the_exclusion_set_is_empty(
+    source_repo: Path, tmp_path: Path
+):
+    """T6c — the instrument's negative control.
+
+    T6b proves the exclusions arrived. This proves the script can tell when
+    they did NOT: with the subcommand stubbed to print nothing, deploy_local.sh
+    must refuse rather than fall through to `rsync -a --delete` with an empty
+    array, which is byte-for-byte the defect being removed.
+    """
+    (source_repo / "plugins" / "autonomous-dev" / "scripts" / "deploy_state.py").write_text(
+        "import sys\nsys.exit(0)\n"
+    )
+    home = tmp_path / "home"
+    dest = home / "Dev" / "realign" / ".claude" / "lib"
+    dest.mkdir(parents=True)
+    (dest / "stale_module.py").write_text("# would be deleted by an unguarded run\n")
+
+    result = subprocess.run(
+        ["bash", str(source_repo / "scripts" / "deploy_local.sh"), "--skip-validate"],
+        capture_output=True,
+        text=True,
+        cwd=str(source_repo),
+        env={
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+            "HOME": str(home),
+        },
+        timeout=120,
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 1, f"an empty exclusion set must refuse:\n{combined}"
+    assert "REFUSED" in combined, combined
+    assert "REQUIRED NEXT ACTION" in combined, (
+        f"a refusal without a next action trains bypass:\n{combined}"
+    )
+    assert (dest / "stale_module.py").exists(), (
+        f"the refusal happened AFTER deleting; it must happen before:\n{combined}"
+    )
+
+
+def test_remote_script_routes_both_transports_through_the_guard(
+    source_repo: Path, tmp_path: Path
+):
+    """T7 — PRIMARY operational guard, asserted on POST-ESCAPE text.
+
+    Everything else in this file reads a file on disk. This reads the string
+    the ssh shim captured: the bytes that would be handed to the remote shell,
+    after heredoc expansion, backslash escaping and command substitution.
+
+    The catastrophic failure mode lives exactly in that gap. Inside the
+    heredoc, ``\\$target`` defers to the remote while bare ``$target`` expands
+    LOCALLY — where it is unset — so a single dropped backslash silently hands
+    rsync an EMPTY destination under ``--delete``. Nothing on disk shows it and
+    ``bash -n`` cannot see it, so the destination arguments are matched as
+    EXACT literals rather than by pattern.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+
+    # INSTRUMENT CONTROL, first: this text must exhibit BOTH expansion regimes,
+    # or a comparison against deferred literals proves nothing. `somerepo` is
+    # $REMOTE_REPOS expanded locally; `$target` survived to the remote.
+    assert "somerepo" in remote_script, (
+        "no locally-expanded value in the captured script — the capture is not "
+        "the generated text"
+    )
+    assert "$target" in remote_script, (
+        "no remotely-deferred parameter in the captured script — everything "
+        "expanded locally, so the exact-literal assertions below are vacuous"
+    )
+
+    assert remote_script.count("prune_sync() {") == 1, (
+        "prune_sync() must be defined exactly once in the generated remote "
+        f"script; found {remote_script.count('prune_sync() {')}"
+    )
+    # Matched by the ARGUMENT, not by line start: every call site is wrapped in
+    # `if ! ... ; then`, which is required — `set -e` is active on the remote, so
+    # a bare call would abort the whole block instead of handling the refusal.
+    calls = [
+        ln.strip() for ln in remote_script.splitlines() if re.search(r'\bprune_sync "', ln)
+    ]
+    assert len(calls) == 2, (
+        f"expected the per-repo and global transports to both route through the "
+        f"guard; found {len(calls)}:\n" + "\n".join(f"  {c}" for c in calls)
+    )
+    for call in calls:
+        assert call.startswith("if ! prune_sync "), (
+            "`set -e` is active on the remote, so a bare prune_sync call aborts "
+            "the whole block on refusal instead of stamping the target and "
+            f"moving on:\n{call}"
+        )
+
+    per_repo = [c for c in calls if '"$target/$subdir/"' in c]
+    glob = [c for c in calls if '"$HOME/.claude/$subdir/"' in c]
+    assert len(per_repo) == 1, (
+        "the per-repo destination is not the exact literal \"$target/$subdir/\" "
+        "— a dropped backslash expands it locally to an EMPTY destination and "
+        f"--delete would then be pointed at nothing:\n" + "\n".join(calls)
+    )
+    assert len(glob) == 1, (
+        "the global destination is not the exact literal "
+        '"$HOME/.claude/$subdir/":\n' + "\n".join(calls)
+    )
+    for call in calls:
+        assert '"plugins/autonomous-dev/$subdir/"' in call, (
+            f"the source argument did not survive escaping intact:\n{call}"
+        )
+
+    assert "--delete-after" in remote_script, (
+        "deletions must be deferred until the transfer completes, so a "
+        "mid-transfer failure leaves nothing deleted"
+    )
+    # Scanned on INVOCATION lines, not on the whole text: prune_sync.sh carries
+    # a header paragraph explaining why the cap was rejected, and that
+    # paragraph is inlined verbatim. The banned thing is the ARGUMENT.
+    # (Unlike the delete-excluded flag, which is banned outright by T3,
+    # --max-delete remains legitimate at deploy-all.sh:299 — Residual Risk 3 —
+    # so a whole-file ban would be wrong as well as unenforceable.)
+    remote_invocations = [
+        ln.strip() for ln in remote_script.splitlines() if re.match(COPY_INVOCATION_RE, ln.strip())
+    ]
+    assert remote_invocations, "no rsync invocation survived into the remote script"
+    for line in remote_invocations:
+        assert "--max-delete" not in line, (
+            "--max-delete is non-transactional: it deletes up to the cap and "
+            "does not roll back, and config/ holds 16 files so a misresolved "
+            "path wipes it entirely and still slips under a cap of 50. The "
+            f"preview replaces it; it must not be re-added:\n{line}"
+        )
+        assert "--delete " in line or "--delete\t" in line or line.rstrip().endswith("--delete"), (
+            f"a remote rsync invocation does not propagate deletions:\n{line}"
+        )
+    assert "REQUIRED NEXT ACTION" in remote_script, (
+        "a refusal with no next action is the shape that trains bypass"
+    )
+    assert "REMOTE DEPLOY INCOMPLETE" in remote_script, (
+        "a refusal mid-loop must make the remote block exit non-zero before "
+        "validation, or validation prints PASSED over partial state"
+    )
+
+    # `local` outside a function is a RUNTIME error in bash and zsh, and the
+    # `bash -n` run in test_remote_deploy_script_gates_and_stamps cannot see it.
+    offenders = _top_level_local_offenders(remote_script)
+    assert offenders == [], (
+        "`local` at top level of the GENERATED remote script would abort the "
+        "remote shell mid-loop, after repos had already been pruned:\n"
+        + "\n".join(f"  {o}" for o in offenders)
+    )
+
+
+def _prune_sync_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    """A source checkout where b.py was deleted in a commit, plus a stale target.
+
+    Returns:
+        ``(repo, dest)`` — the checkout to run from, and the target directory.
+    """
+    repo = tmp_path / "checkout"
+    (repo / "plugins" / "autonomous-dev" / "lib").mkdir(parents=True)
+    (repo / "plugins" / "autonomous-dev" / "empty").mkdir(parents=True)
+    (repo / "plugins" / "autonomous-dev" / "lib" / "a.py").write_text("# kept\n")
+    (repo / "plugins" / "autonomous-dev" / "lib" / "b.py").write_text("# to be deleted\n")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "initial")
+    # b.py is now plugin-OWNED history but absent from the working tree — the
+    # exact shape of the five modules deleted in 7c3a527e.
+    _git(repo, "rm", "-q", "plugins/autonomous-dev/lib/b.py")
+    _git(repo, "commit", "-q", "-m", "delete b.py")
+
+    dest = tmp_path / "target" / "lib"
+    (dest / "extensions").mkdir(parents=True)
+    (dest / ".claude").mkdir(parents=True)
+    (dest / "a.py").write_text("# kept\n")
+    (dest / "b.py").write_text("# to be deleted\n")
+    (dest / "extensions" / "consumer_local.py").write_text("# consumer-local\n")
+    (dest / ".claude" / "runtime.log").write_text("telemetry\n")
+    return repo, dest
+
+
+def _run_prune_sync(
+    preamble: str, repo: Path, tmp_path: Path, src_rel: str, dest: Path, name: str
+) -> subprocess.CompletedProcess:
+    runner = tmp_path / f"drive_{name}.sh"
+    runner.write_text(
+        "set -euo pipefail\n"
+        + preamble
+        + f'prune_sync "{src_rel}" "{dest}/" "probe/{name}"\n'
+    )
+    return subprocess.run(
+        ["bash", str(runner)],
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+        timeout=120,
+    )
+
+
+def test_prune_sync_refuses_a_candidate_the_plugin_never_owned(
+    source_repo: Path, tmp_path: Path
+):
+    """T8a — REFUSING arm, ownership (R3), driven from the captured remote text.
+
+    The remote per-repo sync covers all eight subdirs, including agents/,
+    commands/ and skills/ — behaviour carriers a human may legitimately have
+    authored locally. A file that has never existed under the plugin source
+    path has no git history, and the sync must stop rather than delete it.
+
+    This is a DIFFERENT SHAPE from the defect being fixed (a missing flag): it
+    cannot be satisfied by adding a flag, so the fix cannot game it.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    preamble = _extract_prune_sync_preamble(remote_script)
+    repo, dest = _prune_sync_fixture(tmp_path)
+    probe = dest / "zz-human-probe.md"
+    probe.write_text("# authored by a human, never plugin-owned\n")
+
+    result = _run_prune_sync(
+        preamble, repo, tmp_path, "plugins/autonomous-dev/lib/", dest, "unowned"
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 1, f"an unowned candidate must refuse:\n{combined}"
+    assert "REFUSED" in combined and "zz-human-probe.md" in combined, (
+        f"the refusal must name the file it stopped for:\n{combined}"
+    )
+    assert "REQUIRED NEXT ACTION" in combined, combined
+    assert probe.exists(), f"the unowned file was deleted anyway:\n{combined}"
+    assert (dest / "b.py").exists(), (
+        "the refusal must precede ALL deletion, not just the one candidate it "
+        f"objected to:\n{combined}"
+    )
+
+
+def test_prune_sync_deletes_only_what_the_plugin_owned(source_repo: Path, tmp_path: Path):
+    """T8b — PERMITTING arm, driven from the captured remote text.
+
+    A guard watched only refusing is indistinguishable from a guard that cannot
+    permit. The stale module MUST actually go, or the whole change is inert and
+    the five modules from 7c3a527e stay importable on every target.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    preamble = _extract_prune_sync_preamble(remote_script)
+    repo, dest = _prune_sync_fixture(tmp_path)
+
+    result = _run_prune_sync(
+        preamble, repo, tmp_path, "plugins/autonomous-dev/lib/", dest, "owned"
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, f"a clean prune must be permitted:\n{combined}"
+    assert not (dest / "b.py").exists(), (
+        f"the stale plugin-owned module survived the prune:\n{combined}"
+    )
+    assert (dest / "a.py").exists(), f"a live module was deleted:\n{combined}"
+    assert (dest / "extensions" / "consumer_local.py").exists(), (
+        f"hooks/extensions/ consumer-local state was deleted (Issue #560):\n{combined}"
+    )
+    assert (dest / ".claude" / "runtime.log").exists(), (
+        f"runtime .claude/ state was deleted:\n{combined}"
+    )
+
+
+def test_prune_sync_refuses_an_empty_source(source_repo: Path, tmp_path: Path):
+    """T8c — REFUSING arm, pre-flight, driven from the captured remote text.
+
+    An empty or misresolved source directory plus --delete empties the matching
+    subtree on the target. This is the failure --max-delete could NOT catch:
+    config/ holds 16 files, so a misresolved config would wipe it entirely and
+    still slip under a cap of 50.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    preamble = _extract_prune_sync_preamble(remote_script)
+    repo, dest = _prune_sync_fixture(tmp_path)
+
+    result = _run_prune_sync(
+        preamble, repo, tmp_path, "plugins/autonomous-dev/empty/", dest, "empty"
+    )
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 1, f"an empty source must refuse:\n{combined}"
+    assert "REFUSED" in combined and "no regular files" in combined, combined
+    assert "REQUIRED NEXT ACTION" in combined, combined
+    assert (dest / "a.py").exists() and (dest / "b.py").exists(), (
+        f"the target was pruned despite the refusal:\n{combined}"
+    )
+
+
+def test_top_level_local_detector_has_both_arms():
+    """The instrument behind T5b and T7, controlled.
+
+    ``_top_level_local_offenders`` returned an empty list against both the
+    heredoc body and the generated remote script. An empty result from an
+    unvalidated probe is not evidence of zero — the first version of this
+    detector returned FIVE false positives because it treated the indented
+    closing brace of a ``|| { ...; }`` block as a function closer. So it is
+    driven here against text it must flag and text it must pass.
+    """
+    guarded = "prune_sync() {\n    local ok=1\n    x || {\n        return 1\n    }\n    local also_ok=2\n}\n"
+    assert _top_level_local_offenders(guarded) == [], (
+        "NEGATIVE CONTROL failed: `local` inside a function is legal, and a "
+        "detector that flags it makes prune_sync unwritable"
+    )
+
+    offending = guarded + "local at_top_level=3\n"
+    flagged = _top_level_local_offenders(offending)
+    assert len(flagged) == 1 and "at_top_level" in flagged[0], (
+        "POSITIVE CONTROL failed: the detector did not see a top-level `local`, "
+        f"so its empty results elsewhere prove nothing; got {flagged}"
+    )
+
+
+def test_remote_incomplete_summary_exits_and_names_the_repos(
+    source_repo: Path, tmp_path: Path
+):
+    """AC 4 tail — validation must never print PASSED over partial state.
+
+    Extracts the failure-summary block from the GENERATED remote script and
+    runs both arms. The permitting arm matters as much as the refusing one: a
+    summary that exits 1 unconditionally would break every clean deploy.
+
+    Scope note: this proves the summary block, not the whole loop. The full
+    mid-loop semantics (break, skip post-sync steps, still stamp, continue)
+    are proven on the real remote by AC 14(c), which plants a never-plugin-owned
+    file in one repo and reads the exit code and the stamp.
+    """
+    remote_script = _capture_remote_script(source_repo, tmp_path)
+    block = re.search(
+        r'^if \[ -n "\$deploy_failed" \]; then\n.*?^fi$', remote_script, re.M | re.S
+    )
+    assert block, (
+        "the generated remote script has no failure summary, so a refusal would "
+        f"fall through to validation:\n{remote_script[-3000:]}"
+    )
+
+    runner = tmp_path / "summary.sh"
+
+    # REFUSING ARM
+    runner.write_text(
+        'set -euo pipefail\ndeploy_failed=1\nfailed_repos=" spektiv realign"\n'
+        + block.group(0)
+        + "\necho REACHED_VALIDATION\n"
+    )
+    refused = subprocess.run(
+        ["bash", str(runner)], capture_output=True, text=True, timeout=60
+    )
+    combined = refused.stdout + refused.stderr
+    assert refused.returncode == 1, f"a refusal must exit non-zero:\n{combined}"
+    assert "REMOTE DEPLOY INCOMPLETE" in combined, combined
+    assert "spektiv" in combined and "realign" in combined, (
+        f"the summary must name every refusing target:\n{combined}"
+    )
+    assert "REQUIRED NEXT ACTION" in combined, combined
+    assert "REACHED_VALIDATION" not in combined, (
+        f"validation ran over partial state and would print PASSED:\n{combined}"
+    )
+
+    # PERMITTING ARM
+    runner.write_text(
+        'set -euo pipefail\ndeploy_failed=""\nfailed_repos=""\n'
+        + block.group(0)
+        + "\necho REACHED_VALIDATION\n"
+    )
+    clean = subprocess.run(["bash", str(runner)], capture_output=True, text=True, timeout=60)
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert "REACHED_VALIDATION" in clean.stdout, (
+        "a clean deploy must still reach validation:\n" + clean.stdout + clean.stderr
+    )
+    assert "REMOTE DEPLOY INCOMPLETE" not in clean.stdout, clean.stdout

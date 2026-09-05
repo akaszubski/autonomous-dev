@@ -29,6 +29,39 @@ REPOS=(
 # Subdirs to sync
 SUBDIRS=(hooks commands agents lib config skills scripts templates)
 
+# The deploy exclusions, sourced from the SINGLE source of truth rather than
+# re-typed here. `deploy_state.py excludes` prints one BARE pattern per line;
+# the --exclude= prefix is added below.
+#
+# Why this exists: deploy_to() below has carried `rsync -a --delete` with ZERO
+# exclusions across three consumer repos and eight subdirs. That is strictly
+# more destructive than every other transport in this repo — it deletes
+# hooks/extensions/ (consumer-local state Issue #560 exists to preserve), the
+# runtime .claude/ trees a hook wrote relative to its own cwd, and every
+# gitignored artifact the provenance gate measures. Adding the exclusions
+# NARROWS what --delete may remove; it arms nothing new.
+#
+# REFUSES on an empty set rather than proceeding: an empty exclude array is
+# indistinguishable at the rsync call site from the unguarded state this
+# change removes, so a silently-failed subcommand would restore the defect.
+DEPLOY_EXCLUDES=()
+while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    DEPLOY_EXCLUDES+=("--exclude=$pattern")
+done < <(python3 "$PLUGIN_SRC/scripts/deploy_state.py" excludes 2>/dev/null || true)
+
+if [ "${#DEPLOY_EXCLUDES[@]}" -eq 0 ]; then
+    echo "REFUSED: could not build the deploy exclusion set."
+    echo "  source: $PLUGIN_SRC/scripts/deploy_state.py excludes"
+    echo "  Syncing with --delete and no exclusions would remove consumer-local"
+    echo "  state (hooks/extensions/, Issue #560) from every repo in \$REPOS."
+    echo "  Nothing was deployed."
+    echo "  REQUIRED NEXT ACTION: verify the subcommand runs and prints patterns —"
+    echo "    python3 $PLUGIN_SRC/scripts/deploy_state.py excludes"
+    echo "  then re-run this script."
+    exit 1
+fi
+
 deploy_to() {
     local dest="$1/.claude"
     local name="$(basename "$1")"
@@ -45,7 +78,12 @@ deploy_to() {
                 echo "    would sync $subdir/"
             else
                 mkdir -p "$dest/$subdir"
-                rsync -a --delete "$PLUGIN_SRC/$subdir/" "$dest/$subdir/"
+                # --delete-after defers deletion until the transfer completes,
+                # so a mid-transfer failure leaves nothing deleted.
+                # --exclude=".claude/" matches the final path component at any
+                # depth, and an unqualified exclude PROTECTS a receiver-side
+                # file from --delete (man rsync, FILTER RULES WHEN DELETING).
+                rsync -a --delete --delete-after "${DEPLOY_EXCLUDES[@]}" --exclude=".claude/" "$PLUGIN_SRC/$subdir/" "$dest/$subdir/"
             fi
         fi
     done
