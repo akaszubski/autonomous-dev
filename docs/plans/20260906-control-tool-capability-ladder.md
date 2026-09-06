@@ -1,6 +1,6 @@
 # Control-tool capability ladder — build the instrument before wiring the system
 
-**Status:** PROPOSED v6 — separates the universal assurance transaction into its own standalone capability before `/implement`, bounds its first graph/projection consumers, distinguishes declared from authenticated role identity, and retains the external bootstrap-assurance overlay plus durable-rung/execution-child split; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
+**Status:** PROPOSED v7 — records ACP/A2A as future transport and vocabulary precedents without making either a core dependency, while retaining the v6 universal assurance transaction, bounded graph/projection consumers, authenticated-carrier boundary, external bootstrap overlay, and durable-rung/execution-child split; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
 
 **Date:** 2026-09-06
 
@@ -78,8 +78,10 @@ The repository already contains partial capabilities. They are evidence and reus
 | `plugins/autonomous-dev/lib/pipeline_state.py` | current HMAC/state implementation as T0 adapter evidence | atomic JSON is pipeline-coupled; HMAC covers only seven fixed fields, accepts unsigned legacy state, and may accept stale invalid state; C0 receipt persistence is therefore owned separately by `assurance_contract.write_receipt()` |
 | inventory, reachability, settings, and manifest validators | parsers and graph inputs after independent characterization | parallel output formats and success claims do not share one typed authority |
 | closed Issue #119 bootstrap-first installer | precedent for solving a distribution bootstrap paradox with a smaller outer mechanism | installs the system but does not solve the epistemic bootstrap problem of an incomplete assurance tool judging itself |
-| [in-toto attestations](https://in-toto.io/attestation/) | field-shape precedent for subject plus predicate and signed functionary evidence | a supply-chain envelope does not define our policy claims, opposite arms, invalidation, or promotion states; keep an explicit field mapping and no runtime dependency in C0/C0T |
+| [in-toto attestations](https://github.com/in-toto/attestation/blob/main/spec/README.md) | field-shape precedent for subject plus predicate and signed functionary evidence | a supply-chain envelope does not define our policy claims, opposite arms, invalidation, or promotion states; keep an explicit field mapping and no runtime dependency in C0/C0T |
 | [SLSA build provenance v1.2](https://slsa.dev/spec/v1.2/build-provenance) | precedent for subject, build definition, run details, and dependency/material identity | build provenance is one evidence type, not a software-policy verdict; use compatible meanings where they fit and record incompatibilities rather than claiming conformance |
+| [Agent Client Protocol v1](https://agentclientprotocol.com/protocol/overview) plus maintained [Claude](https://github.com/agentclientprotocol/claude-agent-acp) and [Codex](https://github.com/agentclientprotocol/codex-acp) adapters | future precedent for a neutral supervisor to negotiate sessions, prompts, permissions, cancellation, and event transport across coding agents | adapter and negotiated-session identity do not prove the exact installed agent binary, Claude settings registration, or native hook payloads required by T0; no C0/C0T/T0 dependency or new rung is introduced, and any later adoption requires its own D-G adapter proof with exact adapter/agent identities and rollback |
+| [A2A Protocol](https://a2a-protocol.org/latest/topics/key-concepts/) | vocabulary precedent for task, context, message, state, and artifact exchange | transport lifecycle is not assurance lifecycle, promotion authority, or durable evidence; C0T's digest-bound artifact chain remains authoritative and this plan adds no A2A service or runtime dependency |
 | open Issue #1749 | bounded live stale-test fixture: a test requires `plan_gate` in `settings.local.json` although #1183 intentionally made that hook block empty | fix independently without restoring duplicate registration; retain its missing/exactly-one/duplicate arms as C4/C5 regression evidence |
 
 C0 does not copy or extract the pipeline-state writer. It owns one receipt-specific `assurance_contract.write_receipt()` implementation with the exact persistence semantics in section 3.3; pipeline state remains an adapter concern and no second general atomic-JSON utility is introduced.
@@ -751,3 +753,15 @@ Accepted revisions: define and bind distinct `transaction_manifest_digest` and `
 **Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
 
 The critic confirmed distinct transaction/case manifest binding and mutation, full-chain recomputation before strict state comparison, integration-free C0T ownership, a single bounded T0 carrier rather than a new identity framework, honest local-carrier authentication limits, explicit `UNMEASURED` handling, and a real-carrier substitution/replay/race/missing-field matrix for every role.
+
+### Round 10 — plan-critic — 2026-09-06
+
+**Verdict: PROCEED** — composite 4.17/5.
+
+The critic verified ACP v1, the maintained Claude/Codex ACP adapters, and A2A prior art. It confirmed that ACP is a future neutral-supervisor transport precedent rather than proof of the exact installed Claude settings/hook carrier, that A2A task/message/artifact states do not replace the assurance transaction, and that neither belongs in C0/C0T/T0 or warrants a new rung now. The two Existing Solutions dispositions preserve the research without expanding the current build.
+
+### Round 11 — plan-critic — 2026-09-06
+
+**Verdict: PROCEED** — composite 4.33/5.
+
+The critic re-read the v7 diff and primary protocol sources, confirmed that only status, prior-art disposition, and critique history changed, and found no new dependency, rung, acceptance requirement, or sequence change. It also confirmed that T0 still requires the exact installed native Claude hook carrier and that ACP/A2A cannot substitute for its real `PreToolUse`/`PostToolUse` evidence.
