@@ -1155,3 +1155,4 @@
 {"fire_id": "20260906T003758Z", "fired_at": "2026-09-06T00:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260906T003758Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260906T023800Z", "fired_at": "2026-09-06T02:38:47Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "issues list returned 403 \u2014 token lacks repo scope"}
+{"fire_id": "20260906T023800Z", "phase": "FIRE_END", "exit_reason": "issues_list_403_forbidden", "note": "GITHUB_TOKEN returned 403 on /repos/akaszubski/autonomous-dev/issues; rate_limit call succeeds. Token appears to lack repo scope. No cluster could be selected."}
