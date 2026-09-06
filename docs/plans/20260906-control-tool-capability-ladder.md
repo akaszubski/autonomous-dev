@@ -1,12 +1,14 @@
 # Control-tool capability ladder — build the instrument before wiring the system
 
-**Status:** PROPOSED v2 — replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
+**Status:** PROPOSED v4 — adds an external bootstrap-assurance overlay and separates durable rung state from auto-closing implementation changesets; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
 
 **Date:** 2026-09-06
 
 **Governing intent:** [`PROJECT.md`](../../PROJECT.md), especially INV-1, INV-5, INV-6, INV-7, INV-8, Q1, and Q2
 
 **Product decision:** `autonomous-dev` is a local control-assurance tool with Claude Code integrations. It is not a Claude Code hook solution with supporting utilities.
+
+**Bootstrap decision:** until the tool is trustworthy enough to judge later work, a smaller independent promotion overlay judges the tool from immutable criteria and raw observations; the candidate never certifies itself.
 
 **Execution rule:** build and prove one standalone capability, connect it to one real trigger in report-only mode, prove that carrier and rollback, activate it as the sole decision owner, remove the superseded owner, and only then start the next rung.
 
@@ -73,6 +75,7 @@ The repository already contains partial capabilities. They are evidence and reus
 | `plugins/autonomous-dev/lib/acceptance_criteria_tracker.py` | historical counterexample fixtures | presence/string-count semantics cannot establish operating effectiveness |
 | `plugins/autonomous-dev/lib/pipeline_state.py` | current atomic-write and HMAC implementation as extraction/reuse evidence | atomic JSON is pipeline-coupled; HMAC covers only seven fixed fields, accepts unsigned legacy state, and may accept stale invalid state |
 | inventory, reachability, settings, and manifest validators | parsers and graph inputs after independent characterization | parallel output formats and success claims do not share one typed authority |
+| closed Issue #119 bootstrap-first installer | precedent for solving a distribution bootstrap paradox with a smaller outer mechanism | installs the system but does not solve the epistemic bootstrap problem of an incomplete assurance tool judging itself |
 
 C0 does not copy another atomic-write implementation. Transition A must decide, with a caller inventory, whether to extract the generic implementation from `pipeline_state.py` into a dependency-neutral utility or to keep receipt emission on stdout and let an adapter own persistence. The accepted design must leave one implementation for every caller it touches; it may not make the new core import pipeline orchestration.
 
@@ -147,7 +150,7 @@ C0 is Python-standard-library-only at runtime. JSON Schema files are design/buil
 
 ## 4. The repeatable rung
 
-Every capability follows the same seven transitions. One issue owns one standalone capability rung (A–C) or one adapter rung (D–G), never both.
+Every capability follows the same seven transitions. One durable rung issue owns one standalone capability (A–C) or one adapter (D–G), never both. Every protected changeset underneath that rung uses its own execution child issue and owns exactly one transition or indivisible owner-switch package. The rung issue is never passed to `/implement`: `/implement` automatically injects `Closes #N`, so using a rung issue as its carrier would confuse “a changeset landed” with “the capability was promoted.” An execution-child close is implementation evidence only; the rung remains open until its independently defined release state exists.
 
 | Transition | Required evidence | State after success |
 |---|---|---|
@@ -199,11 +202,59 @@ Every activation packet answers all six dimensions separately:
 
 Aggregate suite green, coverage, test count, file presence, issue checkboxes, agent prose, and log volume cannot satisfy any dimension by themselves.
 
-### 5.3 Independent bootstrap and anti-self-certification
+### 5.3 Bootstrap assurance overlay and anti-self-certification
 
-C0 cannot certify its own trustworthiness. Its first packet is independently assembled with standard parsers, `ast.parse`, Ruff, ShellCheck/actionlint where relevant, frozen pytest node collection, standard digest tools, direct subprocess calls, and a reviewer who compares outputs to the pre-registered cases. Candidate self-mutations must make the independent checks fail.
+The build temporarily has two distinct systems:
 
-Later capabilities may use a released earlier capability, but a change to the C0 schema, runner, receipt verifier, or exit semantics invalidates every dependent receipt and reruns the independent bootstrap suite. The candidate tool never promotes its own changed kernel solely from its own `PASS`.
+1. **Candidate tool:** the new `adevctl` capability being built.
+2. **Bootstrap assurance overlay:** a deliberately smaller promotion procedure that does not import, call for its verdict, or trust the candidate's decision code.
+
+This avoids an infinite regress. The overlay is not a second product, runtime library, registry, hook, or framework. It has exactly one bounded test-only executor, `tests/bootstrap/run_control_tool_bootstrap.py`, plus one frozen packet schema, `tests/bootstrap/control-tool-bootstrap-packet.schema.json`. The driver is authored and frozen in C0-A before candidate code exists; it cannot import candidate modules, is never installed, exposes no extension/provider API, accepts only the closed C0 case manifest, and is never called by production adapters. Its only output is a bootstrap packet under `docs/audits/proofs/control-tool-bootstrap/<candidate-commit>/bootstrap.json`.
+
+#### Separation of authority
+
+| Plane | Owner | May do | Cannot do |
+|---|---|---|---|
+| Specification | adopted plan, C0-A manifest, user, plan-critic | freeze claims, cases, subjects, counterfactuals, thresholds, and invalidation | inspect candidate results and then weaken criteria |
+| Construction | implementer in later C0-B run | implement against immutable inputs, supply diagnostics | edit bound schemas/cases/fixtures or promote itself |
+| Observation | frozen bootstrap driver invoking standard parsers/digest tools, direct subprocess/native carrier, mutation controls | produce raw bytes, exits, process state, installed identities, and mutant outcomes | import candidate modules or consume the candidate's summarized verdict as its observation |
+| Adversarial judgment | fresh spec-validator/reviewer/security/doc-master/CIA perspectives | challenge omissions and compare raw observations to adopted criteria | override a failed deterministic case or manufacture missing evidence |
+| Promotion | user-bound adopted plan plus deterministic packet result | release, reject, or require a new preregistration | infer success from agent consensus, aggregate suite green, or candidate self-report |
+
+Agents add scrutiny but are not roots of trust. Independence comes from different inputs and mechanisms: immutable criteria written before implementation; the frozen driver running in a verifier process whose import audit and `sys.path` exclude candidate modules; standard SHA-256 recomputation over raw bytes; direct process/OS observations; a clean manifest-only install; real-carrier invocation; and mutations that prove each deciding observation can turn red.
+
+#### Minimal trusted base
+
+C0-A records exact executable path, version, and where practical digest for `git`, `python3`, the OS/platform, `shasum`, Ruff, pytest and any parser/linter used by the overlay. It records which claim each tool independently observes and forbids one derived output from serving as both candidate result and external oracle. It also freezes and hashes the driver and packet schema, proves the driver rejects imports from `plugins/autonomous-dev/lib` and `plugins/autonomous-dev/scripts`, and runs mutation controls against each driver decision class before candidate construction. Runtime C0 remains stdlib-only; development tools are part of the observed bootstrap environment, not product dependencies.
+
+The frozen driver recomputes at least these claims without importing `assurance_contract`, `assurance_case`, or `adevctl`:
+
+- plan, case-manifest, schema, fixture, candidate-source, staged, and installed digests;
+- schema rejection of malformed/unknown/empty inputs;
+- exact pre/post pytest node collection and skip/error counts;
+- process cwd/environment, child termination, output bounds, and exit states from OS-visible facts;
+- source-free `python3 -S` execution from a manifest-only install;
+- receipt canonical bytes and SHA-256 from the frozen encoding formula;
+- one deliberately broken instance of every decision-bearing observation, with the expected raw failure retained;
+- recovery to the exact pre-mutation/pre-promotion digest.
+
+The bootstrap packet records raw observation, candidate claim, comparison and status separately. If candidate output and an external observation disagree, the packet is `INVALID`; neither side wins by precedence. The case is investigated, corrected through a new immutable preregistration when necessary, and rerun in full. Negative and inconclusive results remain in the packet. The driver may emit `BOOTSTRAP_PASS`, but it cannot emit `STANDALONE_RELEASED`.
+
+Every manifest entry binds two distinct identifiers: candidate test node `C0-Cnn` and frozen external oracle `BOOT-Cnn`. The candidate node is useful diagnostic/self-check evidence; only the bootstrap driver may execute the corresponding `BOOT-Cnn` raw observation. Candidate and external paths may share fixtures and immutable expected bytes, but they may not share verdict code. For deterministic cases the required result is exhaustive agreement over the frozen fixture/mutant matrix, not a statistical confidence claim; sampled timing claims separately report population, sample count, distribution and uncertainty as specified in the trigger protocol.
+
+#### Bootstrap and self-hosting rule
+
+- **C0-B construction:** the candidate may emit only `CANDIDATE_PASS` or a non-pass state; it cannot emit `STANDALONE_RELEASED`.
+- **C0-C proof:** the frozen C0-A driver runs against the immutable C0-B candidate commit and emits the independent packet. Only an explicit user promotion record that cites a `BOOTSTRAP_PASS` packet, exact candidate commit, plan digest, driver digest, case-manifest digest and packet digest creates `STANDALONE_RELEASED`.
+- **New leaf capability:** the last released `adevctl` version (N-1) may check unchanged contract/integrity rules for candidate N, but targeted independent observations must still prove the new behavior.
+- **Adapter-only change:** the released capability digest stays fixed; the overlay concentrates on the actual carrier, installed subject, exit propagation, evidence sink, timing, and recovery.
+- **Kernel change:** any change to canonical encoding, schemas, result states/exits, runner isolation, receipt persistence/verification, CLI dispatch, or strict signing returns the staged candidate to the full C0 overlay. Installed N-1 and its subject-bound receipts remain production authority throughout evaluation; staged N cannot invalidate or replace them.
+
+Version N can never be the sole authority that promotes version N. N-1 is useful compatibility evidence, not sufficient proof; for the first version there is no N-1 and the overlay supplies all promotion evidence. Only after staged N passes the overlay, every affected adapter passes shadow/real-carrier proof, and one atomic owner switch activates N do receipts whose runtime tool/kernel dependency changed become `BEHIND`; unaffected receipts retain their own dependency-derived status, N-1 receipts become historical evidence, and rollback re-establishes N-1 authority only after exact subject re-verification.
+
+#### Retirement and permanence
+
+After C0 release, manual duplication retires case by case only when the released tool reproduces the observation and an independent mutation proves the replacement detects its own absence or corruption. Each retired step is recorded with its tool-owned replacement and recovery path. The full overlay is no longer run for ordinary adapters or unchanged leaf capabilities, but its frozen driver, packet schema, immutable fixtures and raw-oracle commands remain the permanent re-entry suite for every kernel change. They may change only in a new pre-candidate specification commit with independent review. Any new provider mechanism, product import, installed/runtime consumer, non-kernel scope, or second driver is rejected; a growing second harness is a program failure.
 
 ### 5.4 Trigger proving protocol
 
@@ -225,12 +276,12 @@ The tracked plan is the durable authority; `.claude/plans/` is only the ignored 
 
 After the user explicitly adopts an exact commit and SHA-256:
 
-1. update #1737 and repurposed #1731/#1732 from their superseded B0/S0 sequence to this capability ladder, preserving old-plan links as history;
+1. update #1737 and the rung/execution issue graph from proposed to adopted authority, preserving old-plan links as history;
 2. extract the committed blob, not mutable working-tree bytes, with `git show <adopted-commit>:docs/plans/20260906-control-tool-capability-ladder.md`;
 3. write it as `.claude/plans/control-tool-capability-ladder.md`;
 4. independently verify the extracted bytes against the adopted SHA-256;
 5. record the source commit, blob ID, SHA-256, mirror path, and adoption event on the program issue;
-6. invoke `/implement #1731 C0-A` only, naming the adopted plan digest.
+6. invoke `/implement #1745 C0-A` only, naming the adopted plan digest; never pass parent rung #1731 to `/implement`.
 
 The ignored mirror never becomes acceptance authority. A changed tracked plan requires a new critic verdict, commit, digest, explicit adoption event, and mirror replacement. A stale or mismatched mirror blocks execution rather than silently seeding the planner.
 
@@ -240,11 +291,11 @@ This order builds the measurement instrument before using it to simplify hooks a
 
 ### C0 — assurance kernel and executable-case runner
 
-**Issue:** repurpose #1731.
+**Rung issue:** repurpose #1731. **Execution children:** #1745 owns C0-A, #1746 owns C0-B, and #1747 owns independent C0-C proof/promotion.
 
 Build only the common contract plus `case check`, `case run`, and `receipt verify`. It must be useful from a shell with no Claude Code, GitHub, deploy, or hook integration. Pre-register a small fixture matrix covering pass, fail, opposite-arm omission, zero collection, skip, timeout, malformed input, environment leakage, wrong subject/profile, tamper, stale receipt, dependency loss, and tool self-mutation.
 
-Transition A is a dedicated `/implement #1731 C0-A` run ending in an immutable C0-pre commit. It creates `tests/acceptance/control-tool-c0.json` containing the schemas' exact versions and SHA-256 digests; every C0-A fixture/golden-vector path and SHA-256; the cases, expected nodes, and independent raw-observation commands; and no production implementation. The later `/implement #1731 C0-B-C` run may not edit the manifest, either schema, or any bound fixture/golden vector. A necessary correction stops B/C and requires a reviewed replacement pre-registration commit rebinding all affected digests before implementation resumes. Candidate file ownership is deliberately small:
+Transition A is a dedicated `/implement #1745 C0-A` run ending in an immutable C0-pre commit. It creates `tests/acceptance/control-tool-c0.json` containing the schemas' exact versions and SHA-256 digests; every C0-A fixture/golden-vector, driver and packet-schema path and SHA-256; the paired candidate-node/external-oracle cases; trusted-base identities; and no production implementation. The later `/implement #1746 C0-B` run may not edit the manifest, either schema, either bootstrap file, or any bound fixture/golden vector. A necessary correction stops B/C and requires a reviewed replacement C0-A execution issue and preregistration commit rebinding all affected digests before implementation resumes. Candidate and bootstrap file ownership are deliberately small:
 
 | Path | C0 responsibility |
 |---|---|
@@ -258,11 +309,15 @@ Transition A is a dedicated `/implement #1731 C0-A` run ending in an immutable C
 | `tests/e2e/test_adevctl_install.py` | manifest-only installed CLI without source fallback |
 | `tests/fixtures/assurance/` | frozen non-production subjects, cases, mutants, and golden JSON vectors |
 | `tests/acceptance/control-tool-c0.json` | immutable C0-pre case manifest; B/C reads but cannot modify it |
+| `tests/bootstrap/run_control_tool_bootstrap.py` | frozen test-only independent executor; never installed and never imported by product code |
+| `tests/bootstrap/control-tool-bootstrap-packet.schema.json` | frozen schema separating raw observation, candidate claim, comparison, and promotion prerequisites |
+| `tests/bootstrap/test_control_tool_bootstrap.py` | pre-candidate driver contract/import-boundary tests and one killed mutant per decision class |
+| `docs/audits/proofs/control-tool-bootstrap/<candidate-commit>/bootstrap.json` | C0-C immutable evidence packet produced after candidate construction; not candidate source or a runtime input |
 | `plugins/autonomous-dev/config/install_manifest.json` | ships only the proved C0 files; no settings, hook, command, or workflow registration |
 
 No `__main__` package, dynamic provider registry, command Markdown, hook, settings entry, CI workflow, deploy call, or pipeline-state change is in C0.
 
-The immutable C0 case manifest pre-registers these minimum nodes:
+The immutable C0 case manifest pre-registers these minimum candidate nodes and their distinct `BOOT-C01` through `BOOT-C12` external oracles. Each external oracle independently observes the stated outcome using the frozen driver; it does not invoke the named candidate test as its verdict:
 
 | Case | Exact node | Required oracle / counterfactual | Budget |
 |---|---|---|---:|
@@ -275,11 +330,11 @@ The immutable C0 case manifest pre-registers these minimum nodes:
 | `C0-C07` | `tests/integration/test_adevctl_case.py::test_declared_and_observed_subjects_cannot_substitute` | declared and computed bytes/profile agree / wrong digest, dependency, subject, or profile is `BEHIND` | 10s |
 | `C0-C08` | `tests/integration/test_adevctl_case.py::test_receipt_integrity_detects_tamper_without_claiming_authenticity` | unchanged receipt verifies and authenticity is null / result, output, subject, dependency, or caller mutation fails integrity | 10s |
 | `C0-C09` | `tests/integration/test_adevctl_case.py::test_receipt_sink_failure_returns_error_on_decision_channel` | persistence succeeds at restrictive permissions / unwritable, partial, replace, or permission failure returns `ERROR` and no durable-success claim | 10s |
-| `C0-C10` | `tests/integration/test_adevctl_case.py::test_independent_bootstrap_kills_kernel_mutants` | unmodified candidate passes independent observations / result, digest, timeout, environment, or oracle mutant is detected | 45s |
+| `C0-C10` | `tests/integration/test_adevctl_case.py::test_candidate_exposes_observable_kernel_mutants` | candidate exposes the frozen inputs/outputs needed for independent observation / result, digest, timeout, environment, import boundary, or oracle mutant survives or cannot be externally distinguished | 45s |
 | `C0-C11` | `tests/e2e/test_adevctl_install.py::test_manifest_only_install_runs_without_source_fallback` | copied manifest files run under `python3 -S` for `--version`, case, and verify with source/site paths excluded / omitted file, extra file, third-party import, or source fallback refuses | 60s |
 | `C0-C12` | `tests/integration/test_adevctl_case.py::test_measurement_packet_records_workload_samples_and_max` | every observation plus n/window/profile/max is present / sparse p95/p99, omitted error, or inherited timeout claim refuses | 30s |
 
-**Exit:** independent bootstrap proves the standalone CLI and schema on source and manifest-only installed bytes; no runtime trigger has changed. Before C0 promotion, record the pre-C0 commit and destination digests, create a clean detached worktree at that commit, and rehearse `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global` from it. Promote C0 with that identical command. Recovery runs the same command from the recorded clean pre-C0 worktree, verifies restored destination digests, then re-promotes only after repair. `deploy-all.sh` has no rollback mode, and the plan does not claim one. Because no caller is registered, C0 failure cannot change enforcement decisions.
+**Exit:** #1746 closes with immutable candidate bytes and at most `CANDIDATE_PASS`; this does not release C0. Under #1747 the frozen driver independently proves the standalone CLI and schema on source and manifest-only installed bytes and writes a digest-bound `BOOTSTRAP_PASS` packet; no runtime trigger has changed. Before C0 promotion, record the pre-C0 commit and destination digests, create a clean detached worktree at that commit, and rehearse `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global` from it. Only the explicit user promotion record creates `STANDALONE_RELEASED`, after which promotion uses that identical command. Recovery runs the same command from the recorded clean pre-C0 worktree, verifies restored destination digests, then re-promotes only after repair. `deploy-all.sh` has no rollback mode, and the plan does not claim one. Because no caller is registered, C0 failure cannot change enforcement decisions.
 
 ### T0 — `/implement` adapter
 
@@ -444,9 +499,9 @@ The following stop the next transition:
 
 ## 8. GitHub issue operating model
 
-The program issue is the navigation and state ledger. This plan is the acceptance authority after explicit adoption of an exact commit and SHA-256. Child issues link plan rung IDs and evidence; they do not restate or mutate policy semantics.
+The program issue is the navigation ledger. This plan is the acceptance authority after explicit adoption of an exact commit and SHA-256. Durable rung issues own acceptance/state; execution child issues own exactly one protected changeset and auto-close when that changeset lands. Issues link plan rung/case IDs and evidence; they do not restate or mutate policy semantics.
 
-Every child issue must contain:
+Every rung issue must contain:
 
 - one rung only: standalone capability A–C or one adapter D–G, never both;
 - predecessor release receipt and successor issue;
@@ -457,28 +512,32 @@ Every child issue must contain:
 - exact closure packet fields;
 - overlap dispositions: `absorbed`, `residual`, `independent`, `historical`, or `rejected with reason`.
 
-No issue closes from a commit reference alone. Existing issues remain open until their individual residual is evidenced or explicitly rejected. Contradictory historical text receives an append-only correction and stops acting as current authority; history is not rewritten.
+Every execution child additionally names one transition/changeset, its rung parent, exact immutable inputs, produced artifact/commit, and the fact that its automatic close is not promotion. A proof/promotion step that does not require protected edits is not passed to `/implement`; this prevents automatic `Closes #N` from substituting for independent judgment.
+
+No rung issue closes from a commit reference alone. Existing issues remain open until their individual residual is evidenced or explicitly rejected. Contradictory historical text receives an append-only correction and stops acting as current authority; history is not rewritten.
 
 ## 9. Immediate next execution package
 
-Only C0 becomes implementation-ready after explicit plan adoption, in two separately reviewed runs/commits.
+Only C0 becomes implementation-ready after explicit plan adoption, using one separately reviewed specification changeset, one separately reviewed candidate-construction changeset, and then an independent proof/promotion step.
 
-The first `/implement #1731 C0-A` package contains only:
+The `/implement #1745 C0-A` package contains only:
 
 1. case and receipt schemas;
-2. `tests/acceptance/control-tool-c0.json` with C0-C01 through C0-C12, exact future nodes, subjects, oracles, counterfactuals, budgets, independent raw observations, and the SHA-256 of both schemas plus every fixture/golden vector;
+2. `tests/acceptance/control-tool-c0.json` with C0-C01 through C0-C12 paired to BOOT-C01 through BOOT-C12, exact future nodes, subjects, oracles, counterfactuals, budgets, independent raw observations, trusted-base executable/version/digest identities, and the SHA-256 of both product schemas, the bootstrap driver/packet schema, and every fixture/golden vector;
 3. the bound non-production fixtures/golden vectors, immutable to C0-B-C;
-4. review confirming no production implementation or trigger changed;
+4. the frozen `tests/bootstrap/run_control_tool_bootstrap.py`, packet schema and `tests/bootstrap/test_control_tool_bootstrap.py`, with driver mutation tests confirming observation independence, no candidate import/decision reuse, no provider/extension surface, and no production implementation or trigger change;
 5. the immutable C0-pre commit.
 
-The second `/implement #1731 C0-B-C` package consumes that exact manifest and contains:
+The `/implement #1746 C0-B` package consumes that exact manifest and contains:
 
 1. pure contract/receipt core and thin `adevctl` case/receipt CLI;
-2. standalone P0–P2 tests and independent bootstrap/mutation/tamper packet;
+2. standalone P0–P2 candidate tests and observable mutation/tamper fixtures, but no independent promotion packet;
 3. manifest-only installed-copy proof under Python `-S`;
 4. install-manifest entry only after that staged-copy proof; no command, hook, CI, deploy-postflight, or doc-master trigger;
-5. architecture/testing/runbook/changelog updates limited to shipped C0 facts;
-6. measured performance packet, exact clean-worktree recovery rehearsal, and `STANDALONE_RELEASED` receipt.
+5. architecture/testing/runbook/changelog updates limited to candidate C0 facts;
+6. measured candidate output and an immutable candidate commit that can report only `CANDIDATE_PASS` or non-pass.
+
+Issue #1747 then runs the frozen driver without `/implement`, retains every raw/candidate comparison and negative result in the schema-valid packet, performs manifest-only and exact clean-worktree recovery proof, and requests the explicit digest-bound user promotion record. Only that record closes #1747 and parent #1731 as `STANDALONE_RELEASED`.
 
 T0 is a later `/implement` run. It consumes the released C0 contract unchanged. If T0 reveals a core defect, T0 stops; C0 is reopened and repaired as its own versioned capability change before the adapter work resumes.
 
@@ -495,13 +554,14 @@ The program completes only when:
 - superseded hooks, libraries, configs, tests, and documentation claims are removed or explicitly historical;
 - a clean consumer proves the shipped toolkit without source fallback;
 - the resulting system is smaller in authorities and integration paths, with complexity remaining only in independently testable capabilities.
+- the temporary bootstrap overlay has retired every observation the released tool can safely own, while its bounded raw-oracle re-entry suite remains available for kernel changes and has not grown into a second harness.
 
 ## Acceptance Criteria
 
 - **AC-01 — product boundary:** C0 is callable and useful as a manifest-only installed CLI without Claude Code, GitHub, command Markdown, hooks, workflows, deployment execution, or agents; core imports do not cross into adapter/runtime owners.
 - **AC-02 — narrow stable contract:** the no-float canonical JSON subset/digest preimage, closed two-runner/oracle vocabulary, six result states/exit codes, declared-versus-observed identity, receipt integrity limits, receipt-specific atomic persistence, subprocess isolation, stdlib-only runtime, and sink-failure semantics pass C0-C01 through C0-C12 and independent mutant controls.
-- **AC-03 — no self-certification:** a separate `/implement` C0-A run and immutable C0-pre commit freeze `tests/acceptance/control-tool-c0.json` before the C0-B-C implementation run; independent parsers, digests, subprocess observations, and mutations—not candidate `PASS` alone—authorize `STANDALONE_RELEASED`.
-- **AC-04 — one rung at a time:** each GitHub child owns one A–C capability rung or D–G adapter rung; the next capability cannot start until every planned adapter for the current capability is `ADAPTER_RELEASED` on current bytes.
+- **AC-03 — no self-certification:** `/implement #1745 C0-A` and its immutable C0-pre commit freeze the manifest, schemas, fixtures, driver and packet schema before `/implement #1746 C0-B`; #1747 independently executes paired BOOT-C01 through BOOT-C12 raw observations, and only an explicit digest-bound user promotion—not candidate `PASS`, a commit close, or agent consensus—creates `STANDALONE_RELEASED`.
+- **AC-04 — one rung at a time:** each durable GitHub rung issue owns one A–C capability or D–G adapter, while each protected changeset has a separate auto-closing execution child; the rung parent is never passed to `/implement`, and the next capability cannot start until every planned adapter for the current capability is `ADAPTER_RELEASED` on current bytes.
 - **AC-05 — real enforcement endpoint:** report-only integrations cannot enforce; an activated integration terminates at a real blocking hook/job/deploy failure, proves both permission and refusal through the actual carrier, and has exactly one decision owner.
 - **AC-06 — signed gate binding:** before T0 activation, the receipt digest and run/subject identity are covered in the exact schema-v2 sentinel HMAC preimage and read through a strict assurance verifier; unsigned, invalid, legacy, wrong-run, wrong-subject, and stale state cannot authorize commit or be substituted by agent-completion state.
 - **AC-07 — dimensional proof:** each activation reports design, logic, connectivity, deployment, observability, and provenance/currency separately; missing/failed/behind/unmeasured dimensions never collapse into aggregate pass.
@@ -510,6 +570,7 @@ The program completes only when:
 - **AC-10 — currency and documentation:** C4/T5 make final code, tests, projections, impacted documentation, and changelog one subject-bound transaction; `Last Updated`, issue state, test presence, counts, and agent prose cannot establish currency.
 - **AC-11 — safe simplification:** behavior migrates vertically one control family at a time; adapters contain translation only, duplicate settings/path extraction/registries/telemetry authority are subtracted with their replacement, and no module-count target drives deletion.
 - **AC-12 — durable execution authority:** the tracked adopted plan commit/SHA-256 is authority, `.claude/plans/` is a byte-verified ignored mirror only, and every issue/evidence packet links immutable case IDs and exact subjects.
+- **AC-13 — independent bootstrap scrutiny:** C0 promotion is decided from immutable pre-implementation criteria plus the single frozen test-only driver and raw observations that do not import or trust candidate decision code; candidate/external disagreement is `INVALID`; later version N is never promoted solely by N; N-1 remains production authority until the atomic switch; and every overlay step either maps to a proved tool-owned replacement or remains in the bounded kernel re-entry suite.
 
 ## Critique History
 
@@ -536,3 +597,15 @@ Accepted revisions: remove the ambiguous HMAC/nonce wording by freezing both exa
 **Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
 
 The critic confirmed the exact HMAC message/key/nonce contract, immutable binding of both schemas and every C0-A fixture/golden vector, staged C0/T0 boundary, installed-runtime cases, plan validation, and clean-worktree recovery. Remaining risk is editorial only: AC-03/AC-06 summarize the detailed singular formulas rather than duplicating them.
+
+### Round 5 — plan-critic — 2026-09-06
+
+**Verdict: REVISE** — composite 2.17/5.
+
+Accepted revisions: name and freeze one test-only bootstrap executor and packet schema; forbid candidate imports, extensions, installation and production consumers; separate `CANDIDATE_PASS`, `BOOTSTRAP_PASS`, explicit user promotion and `STANDALONE_RELEASED`; preserve N-1 authority through staged evaluation and invalidate only dependency-affected receipts after atomic activation; split durable rung issues from `/implement` execution children because the latter auto-inject `Closes #N`.
+
+### Round 6 — plan-critic — 2026-09-06
+
+**Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
+
+The critic confirmed the single non-production driver/packet boundary, distinct candidate/bootstrap/user-promotion authorities, N-1 production authority through staged evaluation, dependency-specific receipt invalidation after atomic activation, paired C0-Cnn/BOOT-Cnn verdict independence, and the #1745/#1746/#1747 split that prevents `/implement` auto-close from promoting parent #1731.
