@@ -1,6 +1,6 @@
 # Repository integrity recovery — one intent, one graph, one proof path
 
-**Status:** PROPOSED — activation blocked by the current goal's abort clause; not authorization to edit protected infrastructure
+**Status:** PROPOSED v2 — proof-system bootstrap now precedes every behavior migration; issue publication records the proposal but does not authorize protected-infrastructure edits
 
 **Date:** 2026-09-06
 
@@ -8,7 +8,7 @@
 
 **Governing intent:** [`PROJECT.md`](../../PROJECT.md), especially INV-1, INV-5, INV-7, and Q1/Q2
 
-**Execution rule:** every protected-infrastructure change below runs through `/implement`; no bypass is part of this plan
+**Execution rule:** every protected-infrastructure change below runs through `/implement`; the manually witnessed Bootstrap Slice B0 must prove and activate the acceptance-proof path before S0 or any later migration; no bypass is part of this plan
 
 ## WHY + SCOPE
 
@@ -84,19 +84,20 @@ Any implementation, test, generated projection, or functional Markdown change af
 
 ## Minimal Path
 
-The current active goal has aborted by its own terms. That is an authorization boundary, not just a finding:
+The prior active goal has aborted by its own terms. That is an authorization boundary, not just a finding:
 
 1. A documentation-only disposition records the existing goal as `ABORTED`; it does not rewrite dates or silently replace the goal.
-2. Work then **stops**. No protected-infrastructure phase below begins until the user explicitly adopts this plan (or a narrowed version) as the successor goal.
-3. Adoption authorizes only the small successor-policy amendment, the bounded **Safety Slice S0**, and **Slice 1** below. The later roadmap is sequencing context, not pre-approved implementation scope.
+2. The proposed GitHub program/phase graph may be published so the audit and acceptance criteria are not lost, but issue creation is navigation—not implementation authority.
+3. Protected-infrastructure work then **stops** until the user explicitly adopts the final plan bytes (or a narrowed version) as the successor goal.
+4. Adoption authorizes the manually witnessed **Bootstrap Slice B0** first. Only a current B0 closeout packet authorizes the bounded **Safety Slice S0**, then Slice 1A and 1B in order. The later roadmap is sequencing context, not pre-approved implementation scope.
 
-Adoption binds the exact plan bytes presented to the user and authorizes S0 followed by Slice 1A implementation. Slice 1A creates an explicitly non-authoritative, byte-complete typed successor-goal draft and reports its digest; it does not try to parse prose into policy. The user then approves those exact bytes, and the existing `record_alignment_verdict()` approval receipt records the approved subject path/digest before the goal or PROJECT projection becomes authoritative. Goal objective/scope are normative and content-bound to that receipt; milestone observations are measured; lifecycle status is derived from those observations plus the approved activation/abort rules; and the PROJECT banner is derived from status. No new approval registry is introduced, and “report-only 1A” below refers only to the new evaluator/CI enforcement state—not to approved governance or native-manifest source changes.
+Adoption binds the exact plan bytes presented to the user and authorizes B0 followed by the already-bounded S0 and Slice 1 implementation only when the preceding packet is current. Slice 1A creates an explicitly non-authoritative, byte-complete typed successor-goal draft and reports its digest; it does not try to parse prose into policy. The user then approves those exact bytes, and the existing `record_alignment_verdict()` approval receipt records the approved subject path/digest before the goal or PROJECT projection becomes authoritative. Goal objective/scope are normative and content-bound to that receipt; milestone observations are measured; lifecycle status is derived from those observations plus the approved activation/abort rules; and the PROJECT banner is derived from status. No new approval registry is introduced, and “report-only 1A” below refers only to the new evaluator/CI enforcement state—not to approved governance or native-manifest source changes.
 
 ### GitHub reconciliation — phase input, not implementation authority
 
 The issue tracker must be reconciled, but a 291-open-issue cleanup is not a prerequisite that delays the live S0 safety repair. The measured 2026-09-06 snapshot is: this plan cites 36 issue numbers—20 open, 15 closed, and nonexistent `#1747`—while a title-level search found at least 40 additional open candidates overlapping its phase subjects. Those counts describe reconciliation scope only; they are not durable status or proof.
 
-After adoption, create one canonical program tracker bound to the adopted plan path, commit, and digest. Before each phase starts, reconcile only that phase's candidate issues and record one disposition per issue:
+Publish one proposed program tracker now, bound to this plan's immutable path, commit, and digest; append a content-bound adoption event later if the user approves those exact bytes. Before each phase starts, reconcile only that phase's candidate issues and record one disposition per issue:
 
 | Disposition | Required treatment |
 |---|---|
@@ -112,11 +113,102 @@ No issue closes merely because its title overlaps an epic or because a new plan 
 
 For S0, update existing [#1673](https://github.com/akaszubski/autonomous-dev/issues/1673) as the canonical phase issue rather than filing another one: append that its “unwired” premise is historical, record that source commit `d90f8539` chose `fix` but did not deploy it, and map its false-positive/permit/refuse criteria to S0 below. Closed [#1503](https://github.com/akaszubski/autonomous-dev/issues/1503) and [#1588](https://github.com/akaszubski/autonomous-dev/issues/1588) remain historical inputs with correction links; they are not reopened or treated as proof that the installed MCP arm works.
 
+The proposed issue graph has one navigation node per executable boundary:
+
+```text
+Program tracker (proposal + adopted-plan digest + crosswalk)
+  └─ B0 acceptance-proof bootstrap
+       └─ #1673 S0 sensitive-write durability
+            └─ Phase 1 / Slice 1A native load + report-only contract
+                 └─ Phase 2 / Slice 1B blocking activation
+                      └─ Phase 3 canonical projections and ownership
+                           └─ Phase 4 install/deploy/health/CI convergence
+                                └─ #1587 Phase 5 behavioral proof
+                                     └─ Phase 6 library/topology subtraction
+                                          └─ #1636 Phase 7 consumer proof and continuing assurance
+```
+
+These are dependency edges, not one giant issue checklist: only the current node is implementation-ready, and each child stays `BLOCKED_BY_PROOF` until the parent packet is current. B0 and the new phase issues are created as proposed navigation now; #1673, #1587, and #1636 remain the canonical existing issues for their boundaries. The committed plan/phase packet owns the crosswalk; the program tracker indexes source-issue disposition comments and artifact digests so phase issues do not copy one another's acceptance text.
+
+Initial overlap classification, verified against live issue bodies on 2026-09-06:
+
+| Existing issue | Program relationship | Treatment before execution |
+|---|---|---|
+| [#1660](https://github.com/akaszubski/autonomous-dev/issues/1660) | `PARTIAL_RESIDUAL` into B0-5 | Map real mutation producer/caller/restoration/budget criteria to B0; retain any broader mutation-quality residual open |
+| [#1531](https://github.com/akaszubski/autonomous-dev/issues/1531) | `PARTIAL_RESIDUAL` into B0-3/B0-5 | Reuse watched-failing, real-property, order-independence, and absence-not-success principles; retain unrelated bypass/audit scope |
+| [#1406](https://github.com/akaszubski/autonomous-dev/issues/1406) | `PARTIAL_RESIDUAL` into B0-2/B0-6 | Move deterministic real-seam and mocked-seam detection to B0; do not add a generic scaffolder merely to close the issue |
+| [#1395](https://github.com/akaszubski/autonomous-dev/issues/1395) | `INDEPENDENT` | B0 reuses oracle/probe/evidence discipline; a broad user-facing `/uat` product remains independently sequenced |
+| [#1575](https://github.com/akaszubski/autonomous-dev/issues/1575) | `PARTIAL_RESIDUAL`; proposed mechanism rejected | Absorb post-deploy subject verification into B0/Phase 4/Phase 7; do not create another specialist agent for behavior already owned by test-master/spec-validator plus the deterministic evaluator |
+| [#1585](https://github.com/akaszubski/autonomous-dev/issues/1585) | `PARTIAL_RESIDUAL` across B0/Phase 3/Phase 5 | Map no-E2E/acceptance and false-positive tier-gate criteria; retain distinct doc/CIA residuals until proved |
+| [#1583](https://github.com/akaszubski/autonomous-dev/issues/1583) | `CURRENT_PROGRAM` at every closeout | Delivery-time plan conformance becomes subject-bound phase closeout; keep open until B0 proves the mechanism and a migrated slice exercises it |
+| [#1416](https://github.com/akaszubski/autonomous-dev/issues/1416) | `PARTIAL_RESIDUAL` into B0-1/B0-3 | Make acceptance cases precede implementation; do not add a standalone `/atdd` command without separate demonstrated need |
+| [#1617](https://github.com/akaszubski/autonomous-dev/issues/1617) | `CURRENT_PHASE` under #1587 | Map both-arm guard proof and runtime/deploy parity to Phase 5; preserve its exact unresolved controls |
+| [#1673](https://github.com/akaszubski/autonomous-dev/issues/1673) | `CURRENT_PHASE` S0 | Correct stale premises, retain the installed-gap evidence, and map each checkbox to S0-1–S0-7 |
+| [#1587](https://github.com/akaszubski/autonomous-dev/issues/1587) | `CURRENT_PHASE` Phase 5 | Remains the canonical “prove it works, not merely exists” behavior issue after B0 creates the proof substrate |
+| [#1636](https://github.com/akaszubski/autonomous-dev/issues/1636) | `CURRENT_PHASE` Phase 7 | Remains the canonical consumer enforcement/receipt issue after install/deploy convergence |
+
+This table is a dated reconciliation input, not live status. Publication comments link each issue back to the immutable plan and program tracker; later closure still requires checkbox-level mapping and current receipts.
+
+### Bootstrap Slice B0 — prove the proof system before it judges any migration
+
+The acceptance-proof protocol below is the product's missing control, not optional test documentation. The previous sequence was circular: it made the protocol mandatory for S0 while scheduling its executable owner only in later behavioral-proof work. B0 resolves that bootstrap paradox before the sensitive-hook repair or any consolidation begins.
+
+B0 changes no sensitive-path policy, settings ownership, hook placement, or broad library topology. It does **not** wire into `step5_quality_gate.py`: the repository's own negative scope lock proves that host is pinned unreachable, so doing so would recreate disconnected enforcement. Instead B0 replaces the shallow acceptance decision at the reached boundaries: an explicit CLI invocation in `/implement`, an independent CI job/required-summary edge, a deploy postflight invocation, and the phase-closeout command. The old `acceptance_criteria_tracker.py` and `step5_quality_gate.py` lose acceptance authority and are deleted when callers permit or remain clearly non-authoritative compatibility readers. B0 reuses the root `scripts/mutation_witness.py` and `scripts/mutation_witness_gate.py`; it does not create another mutation engine, `/atdd` or `/uat` command, specialist agent, dashboard, database, or requirements registry.
+
+Because B0 cannot assume the mechanism it is creating, B0 itself uses a one-time **manual bootstrap control** whose exact inputs and outputs are committed in its phase packet:
+
+1. In a separate **B0-pre** commit before any evaluator or caller edit, test-master creates the parser-valid B0 case manifest bound to the adopted plan digest. It contains only plan acceptance-ID references plus exact case IDs, test nodes, required proof levels, subjects/profiles, historical counterexamples, timeouts, and expected control/mutant outcomes. Independent review compares it to the pre-registered matrix below and records its digest; the mutable B0 issue only links that digest.
+2. Record base commit, tracked-diff, dirty-worktree exclusions, Claude Code version, settings/profile identities, and source/staged/selected project-local installed digests before testing.
+3. Run independent P0 checks directly—JSON/YAML/native parsers, `ast.parse`, Ruff, ShellCheck, actionlint, and import-graph checks—without asking the candidate evaluator to certify them.
+4. Collect the exact selected pytest nodes before execution and persist the node IDs/count; zero collection, collection error, unexpected skip, or after-run selection change is a failure.
+5. Prove the old tracker's false-positive with the controlled comment-only criterion fixture and prove the candidate rejects it; also replay uncollected-node, stale-digest, wrong-profile, source/install mismatch, mocked-seam-as-runtime, and missing/opposite-arm fixtures.
+6. Run every genuine case unmodified, then use the existing mutation-witness executor or a temporary candidate-copy mutation to break its claimed assertion/route. The control must pass and the mutant must fail; restoration and target digest are independently checked.
+7. Materialize a clean manifest-only staged copy, run the candidate there without source-tree imports, and compare the independently calculated inventory/digests with the candidate receipt.
+8. Promote B0a with the exact vector `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global`. From that byte-verified project-local installed `.claude/` target, materialize a manifest-selected copy as the disposable repository's `.claude/`; set `CLAUDE_CONFIG_DIR` to a separate empty temporary user-config directory and load only the project settings source. Start a fresh Claude Code process there and exercise one `/implement` lifecycle case. Record exact cwd, version, copied inventory, environment allowlist, source/staged/installed digests, and before/after state; reject duplicate owners and strip credentials/remotes/external mutation. If unavoidable managed policy adds a competing hook/settings owner, isolation is `UNMEASURED`. The invalid `plugin-native` carrier remains `UNMEASURED` until Phase 1, and hosted runtime evidence cannot authorize activation under INV-8.
+9. Have spec-validator examine only the adopted cases and observable results, and have reviewer/security/doc-master inspect implementation, safety, and documentation separately. Their verdicts are recorded but cannot override a failed or unmeasured deterministic case.
+10. Assemble the packet from the final bytes, independently recompute its plan/subject/test/log digests with standard tools, and rerun the full matrix after any remediation. Only then may the new gate change from report-only to required.
+
+After B0 is active, every later `/implement` run receives a case manifest compiled from the adopted plan's stable acceptance IDs before test authorship. Test-master authors the executable case design and is required on the default path when any P1–P5 case is needed; the adopted criterion ID/text and plan digest are immutable inputs, and the implementer may add lower-level tests but cannot author or weaken the manifest it must satisfy. Spec-validator consumes the immutable criteria/case projection and independently observes behavior, while the deterministic evaluator—not an agent verdict—decides completeness. CI runs the same evaluator as a required independent job, and deploy/phase closeout re-evaluate the same cases against the installed subject rather than accepting the pre-deploy result.
+
+**B0 acceptance criteria:**
+
+- **B0-1 — one authoritative mapping:** every adopted B0 criterion generates one or more stable case IDs; every case maps back to a criterion and governing policy/control; duplicate/orphan/empty mappings refuse, and a criterion string appearing in a comment or unrelated test never counts;
+- **B0-2 — subject and level enforcement:** every case declares an exact subject/profile and required P0–P5 level; a mocked seam, source-only test, staged-only result, or different-profile receipt cannot satisfy a higher or different subject;
+- **B0-3 — observable binary oracle:** each case names stimulus, observable outcome/forbidden effects, opposite arm, and counterfactual; “test exists,” “agent PASS,” coverage percentage, and aggregate suite green are never sufficient oracles;
+- **B0-4 — collection and execution integrity:** expected node IDs and counts are recorded before execution; missing node, zero collection, collection error, unexpected skip, timeout, parser error, narrowed after-selection, or `continue-on-error` cannot become PASS;
+- **B0-5 — non-vacuity:** the existing mutation witness has a real claim producer and checked caller; a genuine case passes its control and fails its named mutant, while `assert True`, self-comparison, comment-only mutation, stale anchor, and below-floor semantic threshold refuse or remain explicitly non-authoritative;
+- **B0-6 — real subject:** a clean clone, manifest-only stage, source layout, installed layout, and isolated native lifecycle case report separate identities/states; wrong profile, duplicate owner, stale installed byte, source fallback, or unknown schema invalidates only the affected claim and cannot be hidden by another green subject;
+- **B0-7 — durable evidence:** the final packet is canonical JSON with plan/issue/case/runner/subject/dependency/log digests, timestamps/durations, bounded outputs, currency/expiry, and every `UNMEASURED` item; changing code, tests, cases, docs, evaluator, settings, schema, or installed subject invalidates it;
+- **B0-8 — one enforced path:** `/implement`, required CI, deploy verification, and phase closeout call the same evaluator/contract with context-specific subjects; missing evaluator, empty denominator, parse failure, absent report, or unexpected job skip refuses;
+- **B0-9 — bootstrap independence:** the one-time B0 packet includes all ten manual bootstrap steps above and proves candidate self-mutations with independent commands; the candidate never attests its own activation from its own PASS alone;
+- **B0-10 — bounded and simpler:** changed-slice evaluation fits the declared commit-path budget; deep P3–P5 cases run in independent bounded jobs; the old presence-only acceptance decision and any superseded duplicate mapping are deleted or reduced to thin compatibility readers in the same slice.
+
+The adopted plan pre-registers B0's minimum executable matrix below. `b0.acceptance.json` may normalize paths and add fixture digests, but it may not change these IDs, required levels/subjects, runners, control/mutant oracles, or timeouts without a new plan digest and adoption event.
+
+| Case ID / criteria | Required level and subject | Exact checked-in runner | Control oracle → counterfactual oracle | Timeout |
+|---|---|---|---|---:|
+| `B0-C01` / B0-1 | P1, evaluator mapping over adopted plan digest | `tests/integration/test_acceptance_proof_contract.py::test_mapping_requires_exact_plan_ids` | every B0 ID has a case and no orphan → comment-only/duplicate/orphan/empty mapping refuses | 10s |
+| `B0-C02` / B0-2 | P1, source/profile/level compatibility | `tests/integration/test_acceptance_proof_contract.py::test_subject_and_level_are_not_substitutable` | exact subject/profile at or above required level permits → mocked/source/wrong-profile/lower-level receipt refuses | 10s |
+| `B0-C03` / B0-3 | P1, case oracle schema and evaluator | `tests/integration/test_acceptance_proof_contract.py::test_binary_oracle_requires_both_arms_and_counterfactual` | observable permit/refuse arms plus named counterfactual validate → presence/agent verdict/aggregate green or missing arm refuses | 10s |
+| `B0-C04` / B0-4 | P2, real pytest collection/execution subprocess | `tests/integration/test_acceptance_proof_contract.py::test_collection_identity_is_frozen_before_execution` | exact pre/post nodes and count agree with zero skips/errors → removed node, zero/error, timeout, skip, continued failure, or narrowed post-selection refuses | 20s |
+| `B0-C05` / B0-5 | P2, root mutation witness plus temporary genuine case | `tests/integration/test_acceptance_proof_contract.py::test_real_claim_kills_mutant_and_restores_subject` | control passes, named mutant fails, journal completes, digest restores → `assert True`, stale anchor, surviving mutant, or failed restoration refuses | 45s independent job |
+| `B0-C06` / B0-6 | P3, clean manifest-only stage and managed installed copy | `tests/e2e/test_acceptance_proof_flow.py::test_stage_and_install_have_distinct_bound_identities` | source/stage/install identities agree after managed install → source fallback, omitted manifest member, stale install, duplicate owner, or wrong profile refuses affected claim | 60s independent job |
+| `B0-C07` / B0-7 | P1, canonical receipt over final dependencies | `tests/integration/test_acceptance_proof_contract.py::test_receipt_provenance_and_currency_are_content_bound` | canonical receipt revalidates unchanged final bytes → code/test/case/doc/evaluator/settings/schema/subject mutation yields `BEHIND`, `STALE`, or `UNVERIFIED`, never PASS | 10s |
+| `B0-C08` / B0-8 | P3, local structure/subprocess subjects for reached `/implement` STEP 8/final closeout, CI workflow/summary, and deploy-postflight callers | `tests/e2e/test_acceptance_proof_flow.py::test_all_four_caller_definitions_share_one_contract` | parsed callers name the same evaluator/schema and locally executable callers block the same bad case → removing/weakening each definition independently refuses activation; this case makes no claim that GitHub ran CI | 60s independent job |
+| `B0-C09` / B0-9 | P3, committed bootstrap packet versus independent standard tools | `tests/e2e/test_acceptance_proof_flow.py::test_bootstrap_packet_matches_independent_observations` | independent parser/digest/node/result recomputation equals packet → candidate-authored PASS with missing/mismatched independent evidence refuses | 60s independent job |
+| `B0-C10` / B0-10 | P2, changed-slice command plus superseded-authority inventory | `tests/integration/test_acceptance_proof_contract.py::test_fast_path_budget_and_old_authority_subtraction` | the maximum of 20 declared local runs is ≤10s and old presence decision has zero enforcing callers → any run over budget or any old/new dual authority refuses | 5m independent measurement |
+| `B0-C11` / B0-6, B0-8, B0-9 | P4 assurance, fresh Claude process using one manifest-selected project-local installed carrier | `tests/e2e/test_acceptance_proof_flow.py::test_fresh_process_receipt_contract`; with the byte-verified installed `.claude/` copied into the disposable repo, the packet runner executes `env CLAUDE_CONFIG_DIR=<empty-user-config-dir> claude -p --output-format stream-json --include-hook-events --no-session-persistence --permission-mode acceptEdits --setting-sources project --strict-mcp-config --mcp-config '{"mcpServers":{}}' --allowedTools 'Bash,Read,Edit,Write,Agent' '/implement --fix Execute only tests/fixtures/acceptance-proof/b0-sentinel.md; do not use remotes or external services.'` | copied project carrier has no duplicate runtime owner and every file matches the recorded project-installed digest; command expands and exact evaluator receipt/state is observed → extra managed-policy competitor makes isolation `UNMEASURED`; missing event/state/receipt or wrong digest is `FAILED`; unavailable hosted runtime is `UNMEASURED`, never activation PASS; plugin-native stays `UNMEASURED` | 10m one run per B0a/B0b |
+| `B0-C12` / B0-4, B0-8 | P3, actual GitHub Actions run for exact B0 candidate commit | packet command `gh run view <run-id> --json headSha,event,conclusion,jobs,url` plus downloaded acceptance-proof artifact verification | `headSha` equals candidate, event is draft-PR or workflow-dispatch, acceptance job and required summary conclude success, artifact digest matches local schema/cases → absent/wrong SHA, skipped/continued/missing job, non-success, or artifact mismatch refuses B0 activation/closeout | 20m external CI run |
+
+`B0-C01` through `B0-C10` and the exact-commit CI receipt `B0-C12` are activation requirements. `B0-C11` must be attempted and recorded on both sides of activation, but cannot authorize B0b under INV-8; only a current same-digest result may claim `E2E_PROVEN`.
+
+**B0 exit:** one current manual-bootstrap packet proves the new evaluator on source, staged, installed, and mutant subjects, records the fresh-process runtime dimension honestly, and binds every B0 case to its pre-registered runner/oracle/timeout. The gate is required in `/implement`, CI, deploy postflight, and phase closeout; the same exact B0 matrix passes after activation; and S0's matrix can be compiled without criterion-string searching or mutable issue prose. Until that exit exists, S0 and every later behavior migration remain blocked.
+
 ### Safety Slice S0 — make the partial source repair durable and live before broader recovery
 
 Source commit `d90f8539` landed after the initial audit and changes the three exact Serena probes from allow to deny by unioning `tool_intent.write_targets()` with the old jq `file_path`. The focused source suites collect 225 tests and pass. That commit is still incomplete as a durable control: both the project-installed and global-installed hooks retain SHA-256 `b6e3e406...` rather than source `bd961ed3...` and still allow the same Serena payload; the source adapter deliberately loses MCP coverage if Python/import/classification fails; and boolean-plus-empty-target still conflates broad writes, persisted-state writes, and unknown effects. Its proof appends `BROKEN` then `FIXED` beneath a top-level `Q2: YES`, is not installed-subject-bound, and retains the false claim that an `ask` reason is model-visible.
 
-After successor adoption, S0 is therefore the first protected-infrastructure changeset and runs through `/implement --fix`; the disconnected-hook inventory does not continue while the active installed sensitive-write control is stale and its source fix has known fail-open/ambiguity semantics. It is deliberately separate from the settings/compiler rewrite and from `unified_pre_tool.py` subtraction:
+After successor adoption **and B0 exit**, S0 is the first protected behavior changeset and runs through `/implement --fix`; the disconnected-hook inventory does not continue while the active installed sensitive-write control is stale and its source fix has known fail-open/ambiguity semantics. It is deliberately separate from the settings/compiler rewrite and from `unified_pre_tool.py` subtraction:
 
 - **S0-1 — proof currency:** regenerate the verdict from ordered arms plus source/installed dependencies so `BROKEN` followed by a source-only `FIXED` cannot yield installed `PROVEN`, and correct the stale claim that an `ask` `permissionDecisionReason` is model-visible;
 - **S0-2 — typed effect:** evolve the existing canonical tool-effect result—not a second registry—from a boolean/possibly-empty target list to explicit `EXACT`, `BROAD`, `NON_FILESYSTEM`, and `UNKNOWN` dispositions with certainty and domain;
@@ -618,7 +710,7 @@ Tests and prose mentions never establish production reachability.
 
 ## Implementation sequence
 
-Phase 0 is a governance disposition and stop. If the user then adopts this successor, create the digest-bound program tracker, reconcile #1673/#1503/#1588 against S0-1 through S0-7, and run S0 to harden and deploy the partial source repair before the Slice 1 portions of Phases 1–2: 1A introduces approved governance/native source changes while keeping the new evaluator report-only, then 1B may make that evaluator required. Before each later phase, reconcile that phase's issue/acceptance-criteria cluster; Phases 3–7 remain a deferred roadmap and each needs a fresh scope check after prior-phase evidence exists.
+Phase 0 is the completed governance disposition and stop. The proposed digest-bound GitHub program/phase graph may be created now to preserve the audit, but it carries no implementation authority. If the user adopts the final successor bytes, run B0 under the manual bootstrap control and make the acceptance-proof evaluator required before S0. Only then reconcile #1673/#1503/#1588 against S0-1 through S0-7 and harden/deploy the partial sensitive-write repair. The Slice 1 portions of Phases 1–2 follow: 1A introduces approved governance/native source changes while keeping the artifact-contract evaluator report-only, then 1B may make that evaluator required. Before each later phase, reconcile that phase's issue/acceptance-criteria cluster and require the preceding final-digest-bound packet; Phases 3–7 remain a deferred roadmap and each needs a fresh scope check after prior-phase evidence exists.
 
 ### Phase 0 — record the abort, then stop
 
@@ -628,6 +720,23 @@ Phase 0 is a governance disposition and stop. If the user then adopts this succe
 2. Stop and request explicit adoption of the successor slice. Do not edit `PROJECT.md` or treat writing or approving this plan as implicit implementation authority.
 
 **Exit criteria:** the old goal is not ACTIVE and no successor implementation has started without an explicit user decision.
+
+### Bootstrap Slice B0 — activate acceptance proof under an independent manual control
+
+**Goal:** make “the delivered and installed behavior satisfies every adopted acceptance criterion” a deterministic relationship that `/implement`, CI, deployment, and phase closeout can all enforce before those mechanisms are trusted to migrate anything else.
+
+1. **B0-pre — executable-specification commit:** before any production edit, test-master writes only `tests/acceptance/b0.acceptance.json` from the immutable plan digest and the exact B0-C01…B0-C12 matrix above. Standard JSON parsing and independent reviewer comparison must pass; commit and link that digest from GitHub. Any later semantic change requires a new plan digest/adoption event rather than an implementer edit.
+2. In B0a, build one schema, one evaluator module, and one thin CLI that consume the immutable B0-pre artifact. Remove acceptance authority from the text/presence tracker and unreachable `step5_quality_gate`; never compose the new evaluator into either as its enforcement route.
+3. Make test-master own future pre-implementation case design on default and TDD paths. The immutable adopted criterion text/ID is input to the test-master; required level, subject, oracle, opposite arm, counterfactual, and runner are frozen before implementer dispatch and cannot be weakened by implementation output.
+4. Connect the CLI explicitly to reached `/implement`, CI, deploy-postflight, and phase-closeout callers. Wire the existing root mutation-witness executor to real case claims only after proving its producer, restoration journal, exact-node execution, and budget. Static vacuity scanning remains complementary P0/P1 evidence.
+5. Add one contract-test family plus the first real `tests/e2e/` case for the proof system: adopted case → collected runner → genuine control → killed mutant → clean manifest-only stage → installed subject → fresh-process assurance result → final packet → stale-subject invalidation.
+6. **B0a — `REPORT_ONLY` build changeset:** ship the evaluator/cases and report-only invocations without adding them to the required CI summary or making their exit code block `/implement`/deploy. Promote only the recorded project-local subject with `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global`, copy that installed subject into the isolated disposable repository, start a fresh Claude process, and complete the ten-step independent bootstrap packet. The old controls remain enforcing during this changeset; any target/profile-vector difference refuses the packet.
+7. Seed B0a with one missing caller route, one comment-only criterion, one stale installed byte, one narrowed after-suite, and one killed-then-restored evaluator mutation. Each must be independently observed as failed; plugin-native remains `UNMEASURED`. Run CI for the exact candidate commit through a draft PR targeting `master`/`main` or `workflow_dispatch`, and bind the receipt to the run's exact `head_sha`; a branch push alone is not CI evidence because current push triggers exclude feature branches.
+8. **B0b — atomic `REQUIRED` activation changeset:** only after B0a's final-byte packet is current, change the four reached callers together—`/implement` command invocation, required CI job/summary edge, deploy postflight, and phase closeout—from report-only to blocking. No file-map row or partial commit may activate fewer than all four.
+9. Deploy B0b with the identical `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global` vector, then start another fresh Claude process and rerun the exact immutable B0 cases through all four callers. Neither B0a nor B0b can declare completion alone; B0 closes only from this post-activation packet plus the independent bootstrap packet.
+10. Update current testing/architecture/runbook documentation only for behavior that actually ships. The proposed future remains in this plan; the B0 phase packet is historical evidence and GitHub is its navigational projection.
+
+**Exit criteria:** B0-1 through B0-10 are current at their declared levels; the manual packet independently verifies candidate output and mutations; the active evaluator refuses every seeded failure and permits the clean case through all four callers; `tests/e2e/` and required CI collect non-zero declared cases; and S0's matrix is generated from S0 IDs without prose/string matching.
 
 ### Successor-policy amendment — first Slice 1A changeset after explicit adoption
 
@@ -762,14 +871,33 @@ Everything below is explicitly deferred. Settings consolidation, agent/command r
 
 Stop after row 1 until explicit adoption.
 
-### Tracker reconciliation — after adoption and before each phase
+### Tracker reconciliation — publish as proposed now; refresh after adoption and before each phase
 
 | Order | GitHub action | Exit evidence |
 |---:|---|---|
-| 1 | Create one program tracker referencing the adopted plan commit and digest; list only phase order, current phase issue, and links to plan acceptance IDs | tracker contains no independent policy/acceptance prose and cannot authorize implementation |
+| 1 | Create one proposed program tracker referencing this plan's immutable commit and digest; list only phase order, current phase issue, and links to plan acceptance IDs | tracker is explicitly non-authorizing and contains no independent policy/acceptance prose |
 | 2 | Update #1673 as S0's canonical issue; append the corrected wiring state and map every checkbox to S0-1 through S0-7; link #1503/#1588 as historical corrections | zero unmapped S0 checkboxes; no duplicate S0 issue |
 | 3 | Before each later phase, query open and closed issues plus changelog/commit history, produce the phase crosswalk, and apply one allowed disposition per candidate | every candidate and every checkbox has a disposition; unresolved criteria remain open |
 | 4 | At phase completion, update/close only from current subject-bound receipts and the adopted plan decision; record independent/deferred work without closing it | closure comments name plan digest, acceptance IDs, commit, receipt, and any retained residual |
+
+The proposed tracker may be created before adoption so the audit is not lost. Adoption is recorded later as a content-bound event against the exact plan commit/digest; it does not rewrite the tracker or make issue prose a second source of truth. The tracker links one canonical execution issue per phase and an overlap crosswalk. Existing issues remain open until their individual residuals are either proved or explicitly retained; no mass closure is part of publication.
+
+### Bootstrap Slice B0 — first protected implementation after adoption
+
+| Order | File/family | Action and responsibility | Acceptance criteria |
+|---:|---|---|---|
+| 1 | `tests/acceptance/b0.acceptance.json` | **CREATE in B0-pre only:** parser-valid executable specification bound to the adopted plan digest and exact B0-C01…B0-C12 matrix; independent comparison and digest are committed before evaluator/caller edits; no mutable issue authority | B0-1 through B0-4, B0-7, B0-9 |
+| 2 | `plugins/autonomous-dev/config/acceptance-proof.schema.json` | **CREATE in B0a:** one versioned case/receipt schema; validate B0-pre without changing its semantics; no free-text inference | B0-1 through B0-4, B0-7 |
+| 3 | `plugins/autonomous-dev/lib/acceptance_proof.py`, `plugins/autonomous-dev/scripts/check_acceptance_proof.py` | **CREATE in B0a:** one cohesive pure evaluator plus thin read-only CLI; validate denominator, collection identity, subject/level compatibility, state, digest-bound canonical receipt, and invalidation; no agent, GitHub, deploy, or policy authority inside the evaluator | B0-1 through B0-8 |
+| 4 | `plugins/autonomous-dev/lib/acceptance_criteria_tracker.py`, `plugins/autonomous-dev/lib/step5_quality_gate.py` | **SUBTRACT in B0a:** remove acceptance-decision claims and presence/count authority. Delete when their real callers permit; otherwise retain only explicitly non-authoritative compatibility/reporting behavior. The new evaluator must never be composed into the pinned-unreachable quality-gate host | B0-1, B0-3, B0-10 |
+| 5 | root `scripts/mutation_witness.py`, root `scripts/mutation_witness_gate.py` | **REUSE in B0a:** correct stale self-documentation; add the real case producer and reached evaluator caller; prove exact-node execution, restoration journal/digest, control-pass/mutant-fail behavior, and budget; do not relocate or duplicate the engine | B0-5, B0-10 |
+| 6 | `plugins/autonomous-dev/commands/implement.md`, `plugins/autonomous-dev/commands/implement-fix.md`, `plugins/autonomous-dev/agents/test-master.md`, `plugins/autonomous-dev/agents/spec-validator.md` | **B0a report-only, B0b atomic required:** invoke the CLI explicitly at the reached STEP 8 test boundary and again over final bytes before STEP 12.7 commit/phase closeout; require test-master on default/TDD paths when P1-P5 proof is needed; freeze cases before implementer dispatch; make spec-validator consume results without becoming the deterministic gate | B0-1, B0-3, B0-8, B0-9 |
+| 7 | `tests/integration/test_acceptance_proof_contract.py`, `tests/e2e/test_acceptance_proof_flow.py`, bounded fixtures | **CREATE in B0a:** one contract family and one real E2E flow covering mapping/state/level/subject, pre/post collection identity, historical false positives, control/mutant/restoration, clean manifest-only stage, installed mismatch, fresh-process assurance, and stale evidence | B0-1 through B0-9 |
+| 8 | `.github/workflows/ci.yml`, existing CI routing/summary tests | **B0a report-only, B0b atomic required:** independent acceptance-proof job runs exact matrix-declared nodes, including declared spec-validation/E2E nodes; candidate evidence comes from a draft PR or workflow-dispatch run whose `head_sha` equals the receipt; skip/error/empty/continued failure cannot satisfy the required summary | B0-4, B0-8 |
+| 9 | `plugins/autonomous-dev/config/install_manifest.json`, `scripts/deploy-all.sh` | **B0a report-only, B0b atomic required:** ship schema/evaluator/CLI/cases/fixtures and invoke the same CLI at deploy postflight against staged/installed identities. This is a thin caller addition; broader delivery ownership remains Phase 4 | B0-6, B0-8 |
+| 10 | `docs/testing/ACCEPTANCE-PROOF.md`, `docs/ARCHITECTURE-OVERVIEW.md`, `docs/RUNBOOK.md`, `CHANGELOG.md`, `docs/audits/proofs/acceptance-proof-bootstrap/<packet-id>/` | Document only shipped behavior and commit the manual-bootstrap/final closeout packet: exact matrix/nodes, environment/subjects, control/mutant results, isolated fresh-process measurement, exact-commit CI receipt, independent digests, specialist verdicts, and rehearsed activation/rollback result | B0-4 through B0-10 |
+
+B0-pre, B0a, and B0b are separate, reviewable changesets, but none is independently “green” or closable. Row 1 lands alone. Rows 2–10 remain report-only in B0a while the ten-step manual control proves the final candidate. B0b changes the four reached callers in rows 6, 8, and 9 atomically, deploys, starts a fresh Claude process, and reruns the immutable B0 matrix; only that post-activation packet can close B0.
 
 ### Successor policy — first Slice 1A changeset after explicit adoption
 
@@ -1002,11 +1130,12 @@ The S1 criteria above are the adoption gate for the implementation-ready slice. 
 
 ### Rollback
 
+- `deploy-all.sh` has no transaction/previous-version rollback today, so B0 must not claim one. B0's fixed forward/recovery vector is `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global`; a different target list or global-settings polarity refuses the packet. Before B0a promotion, record the pre-B0 commit and project-local destination inventory/digests, create an isolated clean detached worktree at that commit, rehearse that exact command from it, verify every recorded target digest, then re-promote B0a with the same command and verify again. If B0b activation fails any caller or fresh-process check, atomically revert all four source callers to report-only, execute that same clean-worktree redeploy from the recorded pre-B0 commit, verify the restored digests and bounded smoke oracle, keep the ten-step manual control in force for authorized emergency work, and keep S0 plus every later phase blocked. Never bypass or disable only the failing caller.
 - Only the new contract evaluator/CI enforcement is report-only in Slice 1A. Native metadata and content-approved PROJECT/goal changes are ordinary source/governance changes and are not represented as behavior-neutral. Reverting 1B returns the evaluator to report-only 1A; technical removal reverts evaluator, sidecars, manifest subprojection, tests, CI wiring, and baseline against the exact pre-change commit.
 - PROJECT/goal rollback is a separate governance operation: present the exact prior goal/PROJECT subject digest for explicit human approval, record it through the same approval owner, then regenerate the banner. A technical rollback cannot silently reinstate prior policy bytes.
 - Contract kernel and CLI are additive until all callers agree; old callers remain as thin delegates during one compatibility window.
 - Generated settings/manifest changes are reproducible from the previous source commit, so rollback is regeneration from that commit, not hand editing.
-- Deployment stages before activation and retains each previous managed component plus its signed transaction journal. Recovery restores or completes the last journaled component before another deploy; it never trusts an unsigned partial receipt.
+- Phase 4 must add staged deployment plus a signed previous-version transaction journal before any later phase may claim journaled rollback. Until then, B0/S0 recovery uses the independently rehearsed clean-worktree redeploy at the exact recorded commit and verifies every target digest; an unsigned partial provenance result is a failure, not a rollback receipt.
 - Hook subtraction is one coherent decision group per commit. Revert restores both adapter and its generated declarations/proofs together.
 - Forward changes may only lower the baseline. An emergency rollback restores code and its previously signed/reviewed baseline as one release unit and reports the larger historical set as `ROLLBACK_BASELINE`; mixing old code with a newer/lower baseline is forbidden. A newly exposed UNKNOWN remains visible in forward development.
 
