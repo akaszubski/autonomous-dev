@@ -1,6 +1,6 @@
 # Control-tool capability ladder — build the instrument before wiring the system
 
-**Status:** PROPOSED v4 — adds an external bootstrap-assurance overlay and separates durable rung state from auto-closing implementation changesets; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
+**Status:** PROPOSED v6 — separates the universal assurance transaction into its own standalone capability before `/implement`, bounds its first graph/projection consumers, distinguishes declared from authenticated role identity, and retains the external bootstrap-assurance overlay plus durable-rung/execution-child split; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
 
 **Date:** 2026-09-06
 
@@ -63,6 +63,8 @@ This is a two-tier library design:
 
 There is no dynamic plugin framework, service, database, dashboard, second pipeline, or new specialist agent. New capabilities are ordinary explicit modules and subcommands. Existing mechanisms are reused behind the contract only when their behavior and ownership are proven; their current APIs and file boundaries are not preserved merely for compatibility.
 
+The same contract applies to any software repository. A repository supplies an explicit versioned profile naming its policy sources, subject root, supported runners, documentation owners, and integration carriers; the core does not infer those facts from Claude-specific paths. Claude Code agents, hooks, and commands are one adapter family. A repository with no agents or hooks can use the identical case manifests and receipts from a shell, CI job, or another orchestrator.
+
 ## Existing Solutions
 
 The repository already contains partial capabilities. They are evidence and reuse candidates, not proof that the new product boundary exists:
@@ -73,11 +75,14 @@ The repository already contains partial capabilities. They are evidence and reus
 | `plugins/autonomous-dev/scripts/proof_of_block.py` | subprocess transport, permit/refuse/fault idioms | specialized internal model and receipts; direct subprocess is not proof of registration/runtime dispatch |
 | `scripts/mutation_witness.py` | bounded mutation, restoration journal, verdict classification | separate claim format and disputed/stale reachability statements; not a common acceptance contract |
 | `plugins/autonomous-dev/lib/acceptance_criteria_tracker.py` | historical counterexample fixtures | presence/string-count semantics cannot establish operating effectiveness |
-| `plugins/autonomous-dev/lib/pipeline_state.py` | current atomic-write and HMAC implementation as extraction/reuse evidence | atomic JSON is pipeline-coupled; HMAC covers only seven fixed fields, accepts unsigned legacy state, and may accept stale invalid state |
+| `plugins/autonomous-dev/lib/pipeline_state.py` | current HMAC/state implementation as T0 adapter evidence | atomic JSON is pipeline-coupled; HMAC covers only seven fixed fields, accepts unsigned legacy state, and may accept stale invalid state; C0 receipt persistence is therefore owned separately by `assurance_contract.write_receipt()` |
 | inventory, reachability, settings, and manifest validators | parsers and graph inputs after independent characterization | parallel output formats and success claims do not share one typed authority |
 | closed Issue #119 bootstrap-first installer | precedent for solving a distribution bootstrap paradox with a smaller outer mechanism | installs the system but does not solve the epistemic bootstrap problem of an incomplete assurance tool judging itself |
+| [in-toto attestations](https://in-toto.io/attestation/) | field-shape precedent for subject plus predicate and signed functionary evidence | a supply-chain envelope does not define our policy claims, opposite arms, invalidation, or promotion states; keep an explicit field mapping and no runtime dependency in C0/C0T |
+| [SLSA build provenance v1.2](https://slsa.dev/spec/v1.2/build-provenance) | precedent for subject, build definition, run details, and dependency/material identity | build provenance is one evidence type, not a software-policy verdict; use compatible meanings where they fit and record incompatibilities rather than claiming conformance |
+| open Issue #1749 | bounded live stale-test fixture: a test requires `plan_gate` in `settings.local.json` although #1183 intentionally made that hook block empty | fix independently without restoring duplicate registration; retain its missing/exactly-one/duplicate arms as C4/C5 regression evidence |
 
-C0 does not copy another atomic-write implementation. Transition A must decide, with a caller inventory, whether to extract the generic implementation from `pipeline_state.py` into a dependency-neutral utility or to keep receipt emission on stdout and let an adapter own persistence. The accepted design must leave one implementation for every caller it touches; it may not make the new core import pipeline orchestration.
+C0 does not copy or extract the pipeline-state writer. It owns one receipt-specific `assurance_contract.write_receipt()` implementation with the exact persistence semantics in section 3.3; pipeline state remains an adapter concern and no second general atomic-JSON utility is introduced.
 
 The tool uses a deliberately narrow canonical JSON subset rather than claiming that ordinary “sorted JSON” is portable canonicalization: UTF-8; objects, arrays, strings, booleans, null, and integers only; no floats or NaN; keys sorted by Unicode code point; `json.dumps(..., ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))`; exact UTF-8 bytes hashed with SHA-256. Golden vectors include non-ASCII strings, key ordering, negative/large integers, arrays, escaped controls, and rejection of floats. If cross-language consumers later require RFC 8785, that is a versioned capability change with compatibility vectors, not an unannounced encoding change.
 
@@ -148,6 +153,53 @@ C0 is Python-standard-library-only at runtime. JSON Schema files are design/buil
 - An adapter cannot weaken core exit semantics or manufacture `PASS`.
 - Every public function and subcommand has one owner, one schema, and one testable contract.
 
+### 3.5 Universal software-assurance transaction
+
+Every protected change, whether to this toolkit or to consumer software, is one subject-bound transaction. The durable transaction is data, not a conversation transcript, prompt, checklist, issue body, or agent verdict:
+
+```text
+POLICY_BOUND -> CASES_FROZEN -> OBSERVERS_PROVEN -> SUBJECT_BUILT
+             -> RAW_OBSERVED -> INDEPENDENTLY_REVIEWED -> DOCS_BOUND
+             -> PROMOTED | REFUSED | INVALIDATED
+```
+
+The transaction manifest is frozen before protected production implementation begins and contains:
+
+- transaction, repository-profile, policy-claim, case, and issue identifiers plus their immutable digests;
+- declared subject and dependency selectors, expected pre-change identity, and invalidation rules;
+- for every claim: evidence level, runner, argv, explicit root/environment, stimulus, oracle, opposite arm, counterfactual or mutant, timeout, and required raw observations;
+- named role authorities, including who may propose, freeze, build, observe, review, document, and promote;
+- an explicit frozen documentation/projection impact set and the expected final-subject binding; C4 may later derive and verify that set from the released graph without changing transaction semantics;
+- every permitted omission as an explicit `UNMEASURED` item, never an implicit pass.
+
+For new behavior, the observer must fail against the pre-change subject or a bound negative fixture. For preserved behavior or refactoring, a deliberate mutant/counter-control must prove the observer can turn red. A criterion, oracle, fixture, threshold, or observer changed after implementation results exist invalidates the transaction and requires a superseding preregistration; history remains immutable.
+
+Agent separation is mechanical where the carrier can prove it and explicitly unmeasured where it cannot. The core always verifies the allowed transition, predecessor, artifact, and subject digests; it records caller-declared role separately from any adapter-observed authenticated carrier identity. Preventive write isolation belongs to a capable adapter such as Claude hooks or CI permissions, while a generic shell profile can provide only after-the-fact digest detection unless it supplies an authenticated carrier. Missing or unverifiable identity is `UNMEASURED`, never silently promoted to authenticated provenance. Agent prose can explain a typed observation but cannot create `PASS`, waive a failed deterministic case, change promotion state, or substitute for missing raw evidence.
+
+The generic role contract is:
+
+| Existing role | Required input | Required artifact | Forbidden authority |
+|---|---|---|---|
+| planner | policy/profile plus discovered scope | transaction and case-manifest proposal | implementation, observation, or promotion |
+| plan-critic | proposal plus policy and independent prior art | critique and frozen-spec recommendation bound to exact digests | post-result criterion weakening |
+| test-master | frozen cases without candidate implementation details | executable observers, fixtures, and red/mutant sensitivity packet | editing criteria or production code |
+| implementer | frozen cases/observers and approved scope | changed subject plus build diagnostics | editing frozen inputs or self-verdict |
+| spec-validator | frozen cases and independently runnable observers | raw observation packet and typed comparisons | trusting implementer summaries or overriding deterministic failure |
+| reviewer/security-auditor | final subject, diff, policy, and raw packet | typed defects, risks, and invalidation requests | waiving failed or missing evidence |
+| doc-master | graph-derived impact set and final subject/receipt digests | updated documentation/projections and semantic observations | choosing its own denominator or asserting currency from prose |
+| continuous-improvement analyst | complete transaction/event stream | post-run process findings and proposed future cases | current-run promotion |
+
+Skills provide one canonical assurance method plus domain-specific case/observer templates; they do not duplicate the workflow, result states, role authority, or forbidden-action lists. Prompts become thin role adapters that name exact schemas and digests. Hooks become thin carrier adapters that verify current receipts and propagate typed exits. CI, deploy, and health consume the same contract. Independence derives from frozen inputs, isolated execution, distinct raw observations, and mutation sensitivity—not from giving two agents different names.
+
+The four product qualities are therefore mechanically testable:
+
+| Quality | Required property | Refusal example |
+|---|---|---|
+| accurate | every promoted claim has a falsifiable case, sensitive observer, raw result, and exact subject binding | aggregate green but opposite arm, mutant, authenticated carrier where required, or real trigger missing |
+| simple | one schema, one policy owner, one decision owner, and thin adapters; removal accompanies replacement | duplicate extractor, registry, prompt rule, or enforcement owner |
+| durable | immutable history, explicit invalidation, installed/runtime identity, bounded failure behavior, and rehearsed recovery | current receipt depends on changed bytes or recovery was not exercised |
+| consistent | the same contract and result semantics across local, CI, deploy, health, and supported hosts; projections are generated or checked | source/installed or Claude/Codex projection differs without a declared transform |
+
 ## 4. The repeatable rung
 
 Every capability follows the same seven transitions. One durable rung issue owns one standalone capability (A–C) or one adapter (D–G), never both. Every protected changeset underneath that rung uses its own execution child issue and owns exactly one transition or indivisible owner-switch package. The rung issue is never passed to `/implement`: `/implement` automatically injects `Closes #N`, so using a rung issue as its carrier would confuse “a changeset landed” with “the capability was promoted.” An execution-child close is implementation evidence only; the rung remains open until its independently defined release state exists.
@@ -162,7 +214,7 @@ Every capability follows the same seven transitions. One durable rung issue owns
 | F. Activate | one decision owner switches; rollback is rehearsed; superseded owner is removed or made non-authoritative | `ACTIVE` |
 | G. Stabilize | full acceptance rerun, current receipt, docs/changelog transaction, no unexplained differential | `ADAPTER_RELEASED` |
 
-No work starts on transition A of the next capability until all planned adapter rungs for the current capability are `ADAPTER_RELEASED`. Multiple adapters for one capability are separate D–G issues and are added sequentially. The old control remains the sole enforcement owner during shadowing; the new adapter may observe but cannot enforce. At activation, there is no dual-enforcing interval.
+No work starts on transition A of the next peer capability until all planned adapter rungs for the current capability are `ADAPTER_RELEASED`. A dependency-neutral kernel with no direct production adapter may feed one explicitly named standalone capability before that capability receives its first adapter; C0 -> C0T is the only initial instance. Multiple adapters for one capability are separate D–G issues and are added sequentially. The old control remains the sole enforcement owner during shadowing; the new adapter may observe but cannot enforce. At activation, there is no dual-enforcing interval.
 
 ### Change-size limits
 
@@ -336,19 +388,83 @@ The immutable C0 case manifest pre-registers these minimum candidate nodes and t
 
 **Exit:** #1746 closes with immutable candidate bytes and at most `CANDIDATE_PASS`; this does not release C0. Under #1747 the frozen driver independently proves the standalone CLI and schema on source and manifest-only installed bytes and writes a digest-bound `BOOTSTRAP_PASS` packet; no runtime trigger has changed. Before C0 promotion, record the pre-C0 commit and destination digests, create a clean detached worktree at that commit, and rehearse `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global` from it. Only the explicit user promotion record creates `STANDALONE_RELEASED`, after which promotion uses that identical command. Recovery runs the same command from the recorded clean pre-C0 worktree, verifies restored destination digests, then re-promotes only after repair. `deploy-all.sh` has no rollback mode, and the plan does not claim one. Because no caller is registered, C0 failure cannot change enforcement decisions.
 
+### C0T — standalone assurance-transaction lifecycle
+
+**Issue:** #1748. Its A/B execution children and independent C proof issue are created only after C0 is `STANDALONE_RELEASED`.
+
+C0T is the reusable change-lifecycle capability described in section 3.5. It consumes released C0 canonical encoding, case execution, result states, receipts, and persistence without changing them. It has no command-Markdown, agent, hook, settings, CI, deploy, health, or documentation-review integration. C0 has no direct production adapter: it is the dependency-neutral kernel used by C0T, and T0 is the first production adapter for the released C0T capability.
+
+C0T stores an append-only chain of immutable transition records rather than one mutable success flag. `transaction_manifest_digest` always means the digest of the complete frozen manifest described in section 3.5; `case_manifest_digest` is the distinct digest of its executable-case set. Each record binds both digests plus transaction/profile/policy identity; prior-record digest; requested transition; declared role; adapter-observed carrier credential or explicit absence; input and produced artifact identities; subject/dependency identities; referenced C0 observation receipts; documentation/projection impact-set digest; result; reason codes; and its own receipt digest. The core validates state order and allowed artifact classes, but never claims to authenticate a declared role. A profile may require authenticated carrier evidence for specified transitions; absence, spoof, run mismatch, or credential mismatch is `UNMEASURED` or `FAIL` according to the frozen case, never `PASS`.
+
+The initial closed transition vocabulary is `POLICY_BOUND`, `CASES_FROZEN`, `OBSERVERS_PROVEN`, `SUBJECT_BUILT`, `RAW_OBSERVED`, `INDEPENDENTLY_REVIEWED`, `DOCS_BOUND`, `PROMOTED`, `REFUSED`, and `INVALIDATED`. `PROMOTED` is legal only from `DOCS_BOUND` with all required C0 receipts current and passing, no deciding `UNMEASURED`, and any required external promotion credential present. `REFUSED` retains the failed raw evidence. `INVALIDATED` is terminal for that chain; correction creates a new transaction identifier linked to the superseded chain.
+
+#### C0T file and command boundary
+
+| Path | C0T responsibility |
+|---|---|
+| `plugins/autonomous-dev/config/assurance-transaction.schema.json` | closed transaction manifest, transition record, role/carrier, impact-set, and chain schema |
+| `plugins/autonomous-dev/lib/assurance_transaction.py` | pure transition validation, chain verification, invalidation, and promotion eligibility |
+| `plugins/autonomous-dev/scripts/adevctl.py` | thin `transaction check`, `transaction advance`, and `transaction verify` subcommands |
+| `tests/unit/lib/test_assurance_transaction.py` | state, chain, authority, invalidation, and promotion unit cases |
+| `tests/integration/test_adevctl_transaction.py` | fresh-process transition, concurrency/replay, tamper, observer-receipt, and fault cases |
+| `tests/e2e/test_adevctl_generic_repository.py` | manifest-only installed CLI over a repository with no Claude artifacts |
+| `tests/fixtures/assurance/transaction/` | frozen manifests, chains, credentials, impact sets, mutants, and one case-specific external observer with no candidate imports |
+| `tests/acceptance/control-tool-transaction-v1.json` | immutable pre-implementation C0T cases and exact fixture/observer digests |
+| `docs/audits/proofs/control-tool-transaction/<candidate-commit>/proof.json` | released-C0 receipts plus independent raw comparisons for C0T promotion |
+
+The exact nodes frozen before implementation are:
+
+| Case | Exact node | Required oracle / counterfactual |
+|---|---|---|
+| `C0T-C01` | `tests/unit/lib/test_assurance_transaction.py::test_closed_state_machine_rejects_replay_skip_and_out_of_order` | every legal edge advances once / replay, skipped state, unknown state, and transition after terminal state refuse |
+| `C0T-C02` | `tests/unit/lib/test_assurance_transaction.py::test_chain_binds_manifest_predecessor_inputs_artifacts_and_subject` | complete chain verifies / transaction manifest, case manifest, predecessor, policy, artifact, subject, or dependency mutation refuses |
+| `C0T-C03` | `tests/unit/lib/test_assurance_transaction.py::test_declared_role_is_not_authenticated_carrier_identity` | declared and observed identities remain distinct / role spoof, missing required carrier, wrong run, or credential substitution cannot pass |
+| `C0T-C04` | `tests/unit/lib/test_assurance_transaction.py::test_frozen_input_change_invalidates_instead_of_rewriting_history` | superseding transaction preserves prior chain / edited criterion, oracle, fixture, threshold, or observer invalidates the old chain |
+| `C0T-C05` | `tests/integration/test_adevctl_transaction.py::test_observer_sensitivity_requires_prechange_failure_or_killed_mutant` | new behavior fails before change or preserved behavior kills mutant / always-green or implementation-authored substitution refuses |
+| `C0T-C06` | `tests/integration/test_adevctl_transaction.py::test_promotion_requires_current_raw_receipts_and_explicit_impact_set` | all required current receipts and explicit final impact set permit eligibility / missing, stale, failed, invalid, error, or unmeasured evidence refuses |
+| `C0T-C07` | `tests/integration/test_adevctl_transaction.py::test_concurrent_partial_and_sink_failures_never_create_promoted_chain` | one atomic ordered record per transition / race, partial write, broken sink, duplicate advance, or crash cannot promote |
+| `C0T-C08` | `tests/e2e/test_adevctl_generic_repository.py::test_installed_transaction_runs_without_claude_assets_or_source_fallback` | installed CLI completes a non-Claude process-runner transaction / missing Claude files, source exclusion, and absent agents do not alter semantics |
+
+The C0T-A specification changeset freezes the schema, case manifest, fixtures, case-specific external observer, and nodes before production implementation. C0T-B builds only the pure module/CLI/tests. C0T-C uses the already released C0 runner to execute the frozen case-specific observer in a source-free installed environment and compares candidate claims with independently parsed chain bytes; the observer may not import `assurance_transaction`. C0T is `STANDALONE_RELEASED` only after every C0T-C01 through C0T-C08 receipt and counter-control is current, the external comparison agrees, and recovery restores the prior installed C0-only manifest exactly.
+
 ### T0 — `/implement` adapter
 
 **Issue:** repurpose #1732.
 
-Add one explicit `/implement` receipt-producing invocation in report-only mode, then make the already registered `PreToolUse` git-commit gate verify it. Command Markdown is a producer, never enforcement authority: activation occurs only when the blocking hook refuses commit for a missing, non-pass, wrong-run, wrong-subject, or invalidly signed receipt.
+Convert `/implement` into the first consumer of the universal software-assurance transaction, then make the already registered `PreToolUse` git-commit gate verify the resulting receipt. Command Markdown and agent prose are producers, never enforcement authority: activation occurs only when the blocking hook refuses commit for a missing, non-pass, wrong-run, wrong-subject, wrong-manifest, invalid-role-chain, invalidated, or invalidly signed receipt.
 
-The exact authority carrier is the existing per-repository `.claude/local/implement_pipeline_state.json`, upgraded to schema v2 with an `assurance` object. `pipeline_state.record_assurance_receipt()` writes and re-signs it; `pipeline_state.verify_assurance_state_strict()` is the only T0 authorization reader. Its HMAC message is the C0 canonical encoding of exactly `{schema_version, session_start, mode, run_id, explicitly_invoked, alignment_passed, alignment_verdict, nonce, assurance: {contract_version, run_id, case_manifest_digest, subject_kind, subject_digest, receipt_digest}}`; only the `hmac` field is omitted. To preserve the existing secret model exactly, HMAC-SHA256 key bytes are `(per_run_secret + nonce).encode("utf-8")`; the nonce is therefore intentionally present in both key derivation and the signed message. Missing secrets, unsigned/legacy schema, invalid HMAC, stale sentinel, run mismatch, or subject mismatch fail closed for T0 even if older state readers remain backward-compatible elsewhere. `pipeline_completion_state.py` remains the independent agent-completeness carrier and cannot satisfy assurance.
+T0 is one adapter rung but not one large changeset. After C0T is released, create four execution children and run them in order:
 
-Live code has no current mechanical acceptance owner at commit: the advisory tracker is written by `/implement`, read only by the pinned-unreachable `step5_quality_gate.py`, while the commit hook verifies agent-completion state. T0 therefore introduces the first executable-case owner; report-only results compare against the advisory tracker only to expose differences, not to claim enforcement equivalence. At activation the unreachable/advisory acceptance tracker is deleted or explicitly demoted to a non-authoritative projection, while the existing agent-completeness control remains separate.
+1. **T0-D — produce in shadow:** make planner/plan-critic/test-master create and freeze the schema-valid transaction, cases, observers, and sensitivity packet; compare with current prose criteria without enforcing.
+2. **T0-E — observe the real workflow:** make implementer consume immutable inputs, spec-validator emit raw observations/typed comparisons, reviewer/security request invalidation rather than waivers, and doc-master/CIA emit their bounded artifacts against the explicitly frozen v1 impact set; prove context and write boundaries with removed-artifact, wrong-role, changed-criterion, implementation-leakage, and stale-subject controls.
+3. **T0-F — activate one commit owner:** bind the final transaction receipt into strict pipeline state and switch only the commit acceptance owner; delete or structurally demote marker, prose, and presence-based acceptance authority in the same changeset.
+4. **T0-G — stabilize:** rerun the complete workflow from a fresh installed Claude process, prove recovery, update the explicitly declared final-subject documentation, and record the prompt/skill duplication inventory as input to C5; prompt/skill projection and subtraction remain C5/T6 work and are not prerequisites for T0 release.
 
-Exercise a fresh project-local Claude process and prove exact command expansion, state/receipt creation, real commit refusal/permission, wrong settings source, missing CLI, ignored result, invalid HMAC, stale sentinel, wrong run, and stale installed copy. Measure before setting a budget. Activate only this boundary.
+Until T0-F, the existing workflow remains authoritative and the transaction is report-only. A differential is evidence to investigate, not a reason to make the new path agree with the old one. T0 does not rewrite every prompt at once: each execution child changes only the roles needed for its transition, and frozen cases prove the handoff before the next child begins.
 
-**Exit:** `/implement` has one executable-case decision owner and rollback is rehearsed; CI and deploy remain unchanged.
+T0-E uses one thin `transaction_carrier` adapter called from the existing Claude hooks; it does not treat `unified_session_tracker.py`, completion records, environment variables, transcripts, or SubagentStop prose as credentials. At blocking `PreToolUse` of the native `Agent`/`Task` carrier, Claude supplies `session_id` and `tool_input.subagent_type`; the adapter verifies the requested role and predecessor, then mints a single-use HMAC dispatch record under the current run secret/nonce. That record binds run, transaction manifest, case manifest, predecessor transition, role, exact input artifacts, allowed output artifact class/path, and prompt digest. A subsequent in-agent `PreToolUse` payload must contain the same Claude-supplied `session_id` and `agent_type`; the adapter allows only the bound output path while that one generation is active, and `PostToolUse` binds the resulting artifact digest before the transition can advance. T0 v1 is sequential per role; a second live generation for the same role/run refuses instead of falling back to FIFO. `SubagentStop` is telemetry only because the live payload can omit identity and exposes no stable cross-hook tool-use ID.
+
+| Role | Claude-observed carrier | Local issuer and verifier | Required run/artifact binding |
+|---|---|---|---|
+| planner | blocking Agent/Task `PreToolUse` plus in-agent write `PreToolUse`/`PostToolUse` | T0 `transaction_carrier` signed dispatch record and strict verifier | policy/profile -> transaction proposal |
+| plan-critic | same carrier; exact critic prompt digest | same issuer/verifier, distinct single-use role record | proposal/policy/prior-art digests -> frozen-spec recommendation |
+| test-master | same carrier; candidate production paths excluded from its declared inputs | same issuer/verifier, distinct single-use role record | frozen cases -> observer/fixture/sensitivity packet |
+| implementer | same carrier; frozen input paths read-only and production output paths explicit | same issuer/verifier, distinct single-use role record | frozen transaction/observers -> changed-subject digest |
+| spec-validator | same carrier; observers invoked independently of implementer summary | same issuer/verifier, distinct single-use role record | final subject/frozen cases -> raw observation packet |
+| reviewer | same carrier | same issuer/verifier, distinct single-use role record | final subject/diff/raw packet -> typed review artifact |
+| security-auditor | same carrier | same issuer/verifier, distinct single-use role record | final subject/diff/raw packet -> typed security artifact |
+| doc-master | same carrier; writes limited to explicit frozen impact set | same issuer/verifier, distinct single-use role record | final subject/impact set -> documentation artifact digests |
+| continuous-improvement analyst | same carrier; no current transaction-write authority | same issuer/verifier records observation only | complete event/receipt set -> advisory future-case artifact |
+
+These records authenticate the local hook carrier within the repository's stated accidental-error threat model, not a human or remote principal. If the exact Claude version does not expose the required fields on a real invocation, if the blocking hook is absent, or if issuance/write/post-write binding cannot be observed, that role's identity dimension remains `UNMEASURED` and T0 cannot activate. Required negative proof substitutes coordinator or another role for each artifact writer, reuses a prior generation, mutates one bound input/path/prompt/run, deletes the record, races a second same-role dispatch, and sends a spoofed SubagentStop; none may advance the chain.
+
+The exact authority carrier is the existing per-repository `.claude/local/implement_pipeline_state.json`, upgraded to schema v2 with an `assurance` object. `pipeline_state.record_assurance_receipt()` writes and re-signs it; `pipeline_state.verify_assurance_state_strict()` is the only T0 authorization reader. Its HMAC message is the C0 canonical encoding of exactly `{schema_version, session_start, mode, run_id, explicitly_invoked, alignment_passed, alignment_verdict, nonce, assurance: {contract_version, transaction_id, transaction_manifest_digest, run_id, case_manifest_digest, transaction_chain_digest, subject_kind, subject_digest, receipt_digest}}`; only the `hmac` field is omitted. The transaction-chain digest covers every predecessor, declared role, adapter-observed carrier credential or absence, produced artifact, referenced observation receipt, impact set, and transition result. The strict reader independently loads and verifies the complete chain against both manifest digests before comparing its recomputed chain digest with signed state; it never trusts the embedded digest alone. To preserve the existing secret model exactly, HMAC-SHA256 key bytes are `(per_run_secret + nonce).encode("utf-8")`; the nonce is therefore intentionally present in both key derivation and the signed message. Missing secrets, unsigned/legacy schema, invalid HMAC, stale sentinel, run mismatch, transaction/manifest/chain mismatch, or subject mismatch fail closed for T0 even if older state readers remain backward-compatible elsewhere. `pipeline_completion_state.py` remains the independent agent-completeness carrier and cannot satisfy assurance.
+
+Live code has no current mechanical acceptance owner at commit: the advisory tracker is written by `/implement`, read only by the pinned-unreachable `step5_quality_gate.py`, while the commit hook verifies agent-completion state. The current evidence-manifest check proves a table marker, and the spec-validator returns a prose verdict; neither binds raw observations to frozen criteria and final bytes. T0 therefore introduces the first executable-case owner; report-only results compare against those mechanisms only to expose differences, not to claim enforcement equivalence. At activation the unreachable/advisory acceptance tracker and marker/prose acceptance paths are deleted or explicitly demoted to non-authoritative projections, while the existing agent-completeness control remains separate and cannot authorize acceptance.
+
+Exercise a fresh project-local Claude process and prove exact command expansion, role-specific context/write boundaries, immutable artifact handoffs, observer sensitivity, state/receipt creation, real commit refusal/permission, changed criteria after freeze, implementer-authored oracle substitution, missing raw evidence, wrong settings source, missing CLI, ignored result, invalid HMAC, stale sentinel, wrong run, wrong manifest, and stale installed copy. Measure before setting a budget. Activate only this boundary.
+
+**Exit:** `/implement` has one generic assurance-transaction owner, every role is mechanically bounded to typed artifacts, the final receipt binds policy/cases/observers/final subject/docs, and rollback is rehearsed; CI and deploy remain unchanged.
 
 ### T1 — exact-SHA CI adapter
 
@@ -386,7 +502,7 @@ After T2a is `ADAPTER_RELEASED`, connect the same capability to `/health-check` 
 
 **Issue:** repurpose #1736.
 
-Compile canonical declarations, native settings, manifests, entrypoints, imports, subprocess targets, and generated registrations into one deterministic graph. It must distinguish `declared`, `shipped`, `registered`, `reachable`, `invoked`, and `proved`, reject duplicate owners and unknown edges, and retain evidence for dynamic edges rather than assuming them. Use the current inventory and reachability logic as inputs; do not preserve their duplicate output formats.
+C2 v1 compiles only the first released transaction route: declared policy source/profile -> C0T manifest -> frozen observers -> changed subject -> C0 receipts -> explicit documentation impact set, plus the C0/C0T/T0 source, install-manifest, CLI, command, settings, hook, and role-artifact carrier edges needed by that route. It distinguishes `declared`, `shipped`, `registered`, `reachable`, `invoked`, and `proved`, rejects duplicate owners and unknown edges, and retains evidence for dynamic edges rather than assuming them. Every supported policy-source fallback is one ordered profile rule with fixtures; commands, hooks, and libraries may not independently rediscover `PROJECT.md` or another policy source. Use current inventory and reachability logic as inputs but preserve none of their duplicate output formats. Activate a no-new-unmapped-edge ratchet for this bounded denominator; extend the graph only when the next control family is preregistered rather than attempting a whole-repository ontology in v1.
 
 **Exit:** `adevctl graph check` proves route existence and non-vacuity standalone against fixtures and the repository snapshot; it is not yet a gate.
 
@@ -434,9 +550,11 @@ Connect C4 to the existing documentation review/final-closeout boundary in repor
 
 **Issue:** #1743.
 
-Generate settings registrations, hook metadata projections, install manifest membership, command/reference indexes, and count summaries from canonical artifact/control owners. Each projection has deterministic regeneration and a declared consumer. Do not generate semantic prose or create a universal configuration language.
+C5 v1 owns one already-proven divergent family only: `plugins/autonomous-dev/skills/planning-workflow/SKILL.md` and `plugins/autonomous-dev/skills/testing-guide/SKILL.md` are the canonical sources; `.claude/skills/<name>/SKILL.md` is a byte-identical Claude projection; `.agents/skills/<name>/SKILL.md` is either byte-identical or produced by the finite anchored replacements in `plugins/autonomous-dev/config/host_projection_transforms.json`, with every changed block recorded in a reviewed difference manifest and golden output. Unknown, ambiguous, unused, or overlapping replacements refuse generation. It does not synthesize prose or copy workflow ownership into the projections.
 
-**Exit:** `adevctl project generate/check` reproduces each bounded projection byte-for-byte and refuses hand-edited or multiply owned outputs.
+After that family is released and consumed by T6, later C5 versions may add one projection family at a time—settings registrations, hook metadata, install-manifest membership, command/reference indexes, count summaries, then other agent/skill/prompt projections—each with its own frozen source/destination/transform/consumer cases. There is no all-family initial compiler and no universal configuration language.
+
+**Exit:** `adevctl project generate/check` reproduces each bounded projection byte-for-byte, explains every intentional host difference, and refuses hand-edited, stale, orphaned, or multiply owned outputs; the presently divergent source/loaded planning and testing skills are fixtures that must fail before repair.
 
 ### T6 — install/deploy projection adapter
 
@@ -448,7 +566,7 @@ Make install/deploy consume checked C5 projections one family at a time. Prove s
 
 ### M0 — vertical migration and subtraction
 
-**First slice:** #1673, the sensitive-write control, only after C0–C5 and T0–T6 are released as shown in the dependency graph.
+**First slice:** #1673, the sensitive-write control, only after C0, C0T, C1–C5, and T0–T6 are released as shown in the dependency graph.
 
 Migrate one control family at a time:
 
@@ -473,7 +591,7 @@ Install manifest-selected bytes into a clean consumer, run the released tool wit
 ## 7. Dependency graph and stop conditions
 
 ```text
-C0 -> T0 -> T1 -> C1 -> T2a -> T2b -> C2 -> T3 -> C3 -> T4
+C0 -> C0T -> T0 -> T1 -> C1 -> T2a -> T2b -> C2 -> T3 -> C3 -> T4
                                                         |
                                                         v
                                                C4 -> T5 -> C5 -> T6
@@ -510,6 +628,7 @@ Every rung issue must contain:
 - source/stage/install/runtime requirements that apply;
 - observability, traceability, provenance, currency, performance, security, and rollback criteria;
 - exact closure packet fields;
+- the universal transaction states and exact role/artifact authorities used by the rung;
 - overlap dispositions: `absorbed`, `residual`, `independent`, `historical`, or `rejected with reason`.
 
 Every execution child additionally names one transition/changeset, its rung parent, exact immutable inputs, produced artifact/commit, and the fact that its automatic close is not promotion. A proof/promotion step that does not require protected edits is not passed to `/implement`; this prevents automatic `Closes #N` from substituting for independent judgment.
@@ -528,6 +647,8 @@ The `/implement #1745 C0-A` package contains only:
 4. the frozen `tests/bootstrap/run_control_tool_bootstrap.py`, packet schema and `tests/bootstrap/test_control_tool_bootstrap.py`, with driver mutation tests confirming observation independence, no candidate import/decision reuse, no provider/extension surface, and no production implementation or trigger change;
 5. the immutable C0-pre commit.
 
+The frozen fixture set includes a repository with no Claude settings, agents, hooks, or command Markdown so that the `process` runner and receipt contract are proven as software-tool behavior rather than as Claude workflow behavior.
+
 The `/implement #1746 C0-B` package consumes that exact manifest and contains:
 
 1. pure contract/receipt core and thin `adevctl` case/receipt CLI;
@@ -539,7 +660,7 @@ The `/implement #1746 C0-B` package consumes that exact manifest and contains:
 
 Issue #1747 then runs the frozen driver without `/implement`, retains every raw/candidate comparison and negative result in the schema-valid packet, performs manifest-only and exact clean-worktree recovery proof, and requests the explicit digest-bound user promotion record. Only that record closes #1747 and parent #1731 as `STANDALONE_RELEASED`.
 
-T0 is a later `/implement` run. It consumes the released C0 contract unchanged. If T0 reveals a core defect, T0 stops; C0 is reopened and repaired as its own versioned capability change before the adapter work resumes.
+C0T is the next standalone capability after C0 promotion and receives its own A, B, and C execution children under its durable rung. T0 begins only after C0T is `STANDALONE_RELEASED`; it consumes the released C0 and C0T contracts unchanged. If T0 reveals a kernel or transaction defect, T0 stops and the owning capability is reopened and repaired as its own versioned change before adapter work resumes.
 
 ## 10. Program completion
 
@@ -551,6 +672,8 @@ The program completes only when:
 - source, stage, install, runtime, receipt, and policy identities are traceable end to end;
 - stale or contradictory claims cannot act as current authority;
 - settings, manifests, registrations, indexes, and maintained counts have one canonical owner;
+- agent, skill, and prompt roles exchange typed digest-bound artifacts, with authority enforced outside their prose;
+- supported host projections and policy-source discovery follow one declared profile and cannot drift silently;
 - superseded hooks, libraries, configs, tests, and documentation claims are removed or explicitly historical;
 - a clean consumer proves the shipped toolkit without source fallback;
 - the resulting system is smaller in authorities and integration paths, with complexity remaining only in independently testable capabilities.
@@ -561,9 +684,9 @@ The program completes only when:
 - **AC-01 — product boundary:** C0 is callable and useful as a manifest-only installed CLI without Claude Code, GitHub, command Markdown, hooks, workflows, deployment execution, or agents; core imports do not cross into adapter/runtime owners.
 - **AC-02 — narrow stable contract:** the no-float canonical JSON subset/digest preimage, closed two-runner/oracle vocabulary, six result states/exit codes, declared-versus-observed identity, receipt integrity limits, receipt-specific atomic persistence, subprocess isolation, stdlib-only runtime, and sink-failure semantics pass C0-C01 through C0-C12 and independent mutant controls.
 - **AC-03 — no self-certification:** `/implement #1745 C0-A` and its immutable C0-pre commit freeze the manifest, schemas, fixtures, driver and packet schema before `/implement #1746 C0-B`; #1747 independently executes paired BOOT-C01 through BOOT-C12 raw observations, and only an explicit digest-bound user promotion—not candidate `PASS`, a commit close, or agent consensus—creates `STANDALONE_RELEASED`.
-- **AC-04 — one rung at a time:** each durable GitHub rung issue owns one A–C capability or D–G adapter, while each protected changeset has a separate auto-closing execution child; the rung parent is never passed to `/implement`, and the next capability cannot start until every planned adapter for the current capability is `ADAPTER_RELEASED` on current bytes.
+- **AC-04 — one rung at a time:** each durable GitHub rung issue owns one A–C capability or D–G adapter, while each protected changeset has a separate auto-closing execution child; the rung parent is never passed to `/implement`, peer capabilities wait for every planned adapter, and the sole initial kernel composition is C0 -> independently released C0T -> T0.
 - **AC-05 — real enforcement endpoint:** report-only integrations cannot enforce; an activated integration terminates at a real blocking hook/job/deploy failure, proves both permission and refusal through the actual carrier, and has exactly one decision owner.
-- **AC-06 — signed gate binding:** before T0 activation, the receipt digest and run/subject identity are covered in the exact schema-v2 sentinel HMAC preimage and read through a strict assurance verifier; unsigned, invalid, legacy, wrong-run, wrong-subject, and stale state cannot authorize commit or be substituted by agent-completion state.
+- **AC-06 — signed gate binding:** before T0 activation, transaction, manifest, chain, receipt, run, and subject identity are covered in the exact schema-v2 sentinel HMAC preimage and read through a strict assurance verifier; the chain covers role/carrier, predecessor, artifacts, observations, and impact-set facts; unsigned, invalid, legacy, wrong-run, wrong-transaction, wrong-chain, wrong-subject, and stale state cannot authorize commit or be substituted by agent-completion state.
 - **AC-07 — dimensional proof:** each activation reports design, logic, connectivity, deployment, observability, and provenance/currency separately; missing/failed/behind/unmeasured dimensions never collapse into aggregate pass.
 - **AC-08 — measured performance:** trigger budgets name workload, machine/profile, window, sample count, failures, and maximum; p95/p99 are withheld below 100 representative samples.
 - **AC-09 — rollback and subtraction:** the identical deployment vector is rehearsed before activation; the superseded authority is removed or made structurally non-authoritative in the owner-switch changeset, with no dual-enforcing interval.
@@ -571,6 +694,7 @@ The program completes only when:
 - **AC-11 — safe simplification:** behavior migrates vertically one control family at a time; adapters contain translation only, duplicate settings/path extraction/registries/telemetry authority are subtracted with their replacement, and no module-count target drives deletion.
 - **AC-12 — durable execution authority:** the tracked adopted plan commit/SHA-256 is authority, `.claude/plans/` is a byte-verified ignored mirror only, and every issue/evidence packet links immutable case IDs and exact subjects.
 - **AC-13 — independent bootstrap scrutiny:** C0 promotion is decided from immutable pre-implementation criteria plus the single frozen test-only driver and raw observations that do not import or trust candidate decision code; candidate/external disagreement is `INVALID`; later version N is never promoted solely by N; N-1 remains production authority until the atomic switch; and every overlay step either maps to a proved tool-owned replacement or remains in the bounded kernel re-entry suite.
+- **AC-14 — universal assurance transaction:** C0T independently proves `POLICY_BOUND` through promotion/refusal/invalidation on an append-only digest chain before T0 integration; declared role and authenticated carrier identity remain distinct, required missing identity is `UNMEASURED`, pre-change or mutant sensitivity and post-result criterion-change invalidation are mechanical, raw observations persist, and an installed non-Claude fixture completes without agent or hook authority.
 
 ## Critique History
 
@@ -609,3 +733,21 @@ Accepted revisions: name and freeze one test-only bootstrap executor and packet 
 **Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
 
 The critic confirmed the single non-production driver/packet boundary, distinct candidate/bootstrap/user-promotion authorities, N-1 production authority through staged evaluation, dependency-specific receipt invalidation after atomic activation, paired C0-Cnn/BOOT-Cnn verdict independence, and the #1745/#1746/#1747 split that prevents `/implement` auto-close from promoting parent #1731.
+
+### Round 7 — plan-critic — 2026-09-06
+
+**Verdict: REVISE** — composite 2.17/5.
+
+Accepted revisions: move the new lifecycle state machine, immutable artifact chain, invalidation, and promotion logic out of thin T0 into separately proved C0T; add exact schema/module/CLI/test/fixture boundaries and C0T-C01 through C0T-C08; remove the C0 persistence-choice contradiction; use explicit v1 documentation impacts until C4; defer prompt/skill subtraction until C5/T6; distinguish declared role from authenticated carrier identity and bind the final chain into strict T0 state; bound C2 v1 to the first transaction route and C5 v1 to the two already divergent skill families; add explicit in-toto/SLSA dispositions.
+
+### Round 8 — plan-critic — 2026-09-06
+
+**Verdict: REVISE** — composite 2.83/5.
+
+Accepted revisions: define and bind distinct `transaction_manifest_digest` and `case_manifest_digest` fields in every C0T transition and the exact T0 HMAC preimage; make the strict reader independently recompute the chain; add transaction-manifest mutation to C0T-C02; define T0's live local credential issuer/verifier as a single-use signed `transaction_carrier` dispatch record over Claude `PreToolUse`/`PostToolUse`; list the exact binding for every existing role; exclude unreliable SubagentStop/FIFO/transcript inference from deciding authority; require real-carrier role substitution, replay, race, field mutation, missing-hook, and missing-field failures before activation.
+
+### Round 9 — plan-critic — 2026-09-06
+
+**Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
+
+The critic confirmed distinct transaction/case manifest binding and mutation, full-chain recomputation before strict state comparison, integration-free C0T ownership, a single bounded T0 carrier rather than a new identity framework, honest local-carrier authentication limits, explicit `UNMEASURED` handling, and a real-carrier substitution/replay/race/missing-field matrix for every role.
