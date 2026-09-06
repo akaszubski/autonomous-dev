@@ -1158,3 +1158,4 @@
 {"fire_id": "20260906T023800Z", "phase": "FIRE_END", "exit_reason": "issues_list_403_forbidden", "note": "GITHUB_TOKEN returned 403 on /repos/akaszubski/autonomous-dev/issues; rate_limit call succeeds. Token appears to lack repo scope. No cluster could be selected."}
 {"fire_id": "20260906T043812Z", "fired_at": "2026-09-06T04:38:53Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260906T043812Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260906T043812Z", "phase": "FIRE_CORRECTION", "correction_of": "FIRE_END exit_reason=no_drainable_cluster is inaccurate", "actual_cause": "issues_list_403_forbidden", "note": "Step 2 selection script silently swallowed HTTPError 403 (same failure as 20260906T023800Z). Token lacks scope to list /repos/akaszubski/autonomous-dev/issues. No cluster could be selected. This is the 2nd consecutive fire blocked by the same 403."}
