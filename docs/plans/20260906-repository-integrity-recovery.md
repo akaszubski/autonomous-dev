@@ -829,6 +829,75 @@ The evaluator is added to the manifest in 1A but does not attest itself. The 1B 
 
 ## Test and proof plan
 
+### Acceptance-proof protocol — mandatory for every implementation slice
+
+The present test machinery cannot be the closure authority for this recovery. The live 2026-09-06 audit found all of the following at once:
+
+- `tests/e2e/` contains zero test files;
+- required `ci.yml` jobs collect unit, integration, regression, and conditionally GenAI tests, but do not collect `tests/spec_validation/`;
+- `acceptance_criteria_tracker.py` treats a scenario name or the criterion text appearing anywhere in a test file—even a comment—as coverage, and `step5_quality_gate.py` makes the resulting ratio advisory;
+- the 27 smoke tests for spec-validator registration/pipeline presence perform zero subprocess calls and prove prompt text/registration shape, not a real spec-validator dispatch or verdict path;
+- the mutation-witness mechanism is deliberately unwired and has no claim producer;
+- the integration directory currently collects 1,849 tests, but directory placement does not establish that a test crosses a production seam; 83 of its 121 files contain mocking machinery;
+- a focused Ruff run over the acceptance tracker, quality gate, and spec-validator smoke tests reports four unused imports, confirming that lint is useful hard-floor evidence but says nothing about runtime intent.
+
+Those are not arguments to delete unit, structural, mocked, GenAI, or spec-validator tests. They are evidence that **test presence, test count, line coverage, directory tier, agent verdict, and a green aggregate suite are supporting signals rather than acceptance proof**. No one of them may promote an acceptance criterion to `PROVEN`.
+
+Every phase therefore starts by compiling its adopted acceptance IDs into a non-empty **acceptance case matrix**. The plan/issue remains the human-readable source; the matrix and receipts are generated projections, not another manually maintained requirements registry. Each case contains:
+
+| Field | Required meaning |
+|---|---|
+| `acceptance_id` / `policy_refs` | Exact phase criterion and governing `INV-*`/Q1/Q2/control IDs; no free-text-only requirement |
+| `subject` | Repository/working-tree identity, artifact/control IDs, profile, source/config/dependency digests, installed target, Claude Code/tool-schema version where applicable |
+| `preconditions` | Starting state, fixture provenance, enabled owner, disabled competing owners, and expected environment |
+| `stimulus` | Exact tool payload, command, event, failure injection, migration action, or user-visible workflow exercised |
+| `oracle` | Observable exit/decision, side effects, state transition, emitted receipt, and forbidden effects; never “test passed” as the sole oracle |
+| `opposite_arm` | Permit/refuse, success/failure, current/stale, included/excluded, or other contrast that makes a one-sided green path non-vacuous |
+| `counterfactual` | Historical defect replay or one named mutation that must make this case fail while its control remains green |
+| `required_level` | Highest proof level below that this criterion must reach; lower-level results cannot satisfy it |
+| `runner` | Exact checked-in test node or probe command, timeout, cwd, environment allowlist, and expected collected-case count |
+| `evidence` | Machine-readable result, command/runner version, timestamps/duration, subject digest, stdout/stderr digest or bounded excerpt, and resulting currency state |
+
+Every adopted criterion maps to at least one case, every case maps back to an adopted criterion, and each conditional behavior has both arms. Empty matrices, orphan cases, duplicate case IDs, unknown subjects, an uncollected runner, an unexpectedly skipped case, or a narrower after-test selection refuse phase completion. A criterion is complete only when **all** of its required cases are current and passing; percentages and weighted scores cannot hide one missing criterion.
+
+#### Proof levels are subject boundaries, not test-directory labels
+
+| Level | What it may prove | Typical instruments | What it cannot prove |
+|---|---|---|---|
+| `P0 STATIC` | Syntax, schema, type/lint, import graph, generated-byte equality | parsers, `ast.parse`, Ruff, ShellCheck, actionlint, native strict validators | that a component is invoked or behaves correctly |
+| `P1 COMPONENT` | Pure decision/state invariants and fault behavior inside one owner | unit/property tests, temporary filesystem, controlled fault injection | caller wiring, installed bytes, or native runtime dispatch |
+| `P2 COMPOSED` | Real in-repo caller→callee contracts and side effects through the owned seam | integration subprocesses with asserted argv/cwd/env/timeout/return code, real parsers/state stores | manifest-only install, selected runtime profile, or Claude Code lifecycle routing |
+| `P3 PACKAGED` | Clean tracked-source and manifest-only staged materialization, profile/config resolution, source↔installed identity | clean clone, installer/deployer staging, native plugin list/details, installed verifier | the host actually firing the lifecycle event or a consumer deployment |
+| `P4 RUNTIME` | Actual Claude Code event/tool/command/skill/agent dispatch and observable control result on the selected installed subject | isolated native CLI canary, real settings carrier, real hook/permission decision, content-addressed receipt | another profile, host, or consumer not named by the receipt |
+| `P5 OPERATED` | Consumer deployment, recovery, rollback, freshness, and continued effectiveness | at least two declared consumers where required, interruption/recovery drill, scheduled/full-state recheck | future currency after a dependency or subject changes |
+
+Mocks and fakes are allowed below the seam a case is designed to inspect; they are forbidden as substitutes for that seam. A test that mocks hook dispatch cannot satisfy Q1, a direct hook subprocess cannot satisfy native settings dispatch, a staged install cannot satisfy an installed-host claim, and a source digest cannot satisfy a consumer claim. Fault-injection fakes remain valid when the case oracle is specifically the caller's handling of that fault and the production seam on the other side is separately proved.
+
+Deterministic cases are load-bearing. LLM-as-judge and the spec-validator are independent semantic/adversarial signals, but under INV-8 neither a hosted judgment nor an agent's verdict can replace a deterministic required case. A spec-validator `PASS` without the case matrix and receipts is `UNMEASURED`, not acceptance. Mutation becomes load-bearing only after the claim producer, executor, restoration journal, and caller are themselves connected and proved; until then it is a deliberately unwired diagnostic.
+
+#### Vertical migration protocol
+
+Every behavior-preserving replacement or consolidation slice uses this order; a slice cannot skip forward because the aggregate suite is green:
+
+1. **Pre-register the contract:** freeze acceptance cases, required proof levels, subject/profile matrix, intentional behavior changes, timeouts, and rollback oracle before editing production code.
+2. **Characterize the old path:** run the exact cases against current source and every required installed subject. Record `PASS`, `FAILED`, `BEHIND`, or `UNMEASURED` honestly; existing broken behavior is not silently turned into the expected contract.
+3. **Replay history:** add the smallest counterexample corpus from the issue/changelog/audit loop—unwired route, wrong payload key/envelope, stale installed bytes, wrong profile, duplicate owner, zero-collected tier, prose-only invocation, vacuous criterion mapping, or silent timeout/error—and show that the current proof instrument detects each applicable defect.
+4. **Build beside the old path:** introduce the replacement behind a report-only/shadow comparison where two executions are safe. The old path remains the enforcing owner until the replacement has the required evidence; there is never a dual-enforcing interval.
+5. **Differentially execute:** feed identical, ordered stimuli to old and new evaluators and compare decisions, structured reasons, state transitions, and side effects. Every difference is either fixed or listed as an explicitly approved behavior change; normalization may not erase a meaningful difference.
+6. **Break each seam deliberately:** independently remove or mutate declaration, route, caller, profile selection, payload schema, installed byte, proof case, evidence digest, and old/new selector. The intended case must fail for each applicable mutation while unrelated controls stay green.
+7. **Stage and canary:** materialize only from the canonical manifest, prove `P3`, then run the isolated real-runtime `P4` canary with credentials/remotes/external mutation disabled. No retry-to-green; a flaky or unavailable canary reports `FAILED` or `UNMEASURED`.
+8. **Promote one owner:** deploy through `scripts/deploy-all.sh`, verify the active profile and bytes, and obtain current receipts from every subject required by the criterion. A source-only success cannot authorize removal.
+9. **Delete the old path in the same bounded slice:** rerun the identical case IDs and selected node IDs after deletion. Compatibility delegates are allowed only under the plan's named expiry/removal rule and contain no second decision algorithm.
+10. **Prove recovery:** restore the previous managed artifact/config through the documented rollback path, re-run its bounded smoke oracle, then re-promote the new version and prove current state. Manual repair that bypasses the production rollback path does not satisfy `P5`.
+
+The exact before/after case-ID set, collected node IDs, and required subject set are part of the receipt. If the after run silently narrows any of them, equivalence is `UNVERIFIED`. Performance or reliability claims additionally pre-register cold/warm conditions, sample count, percentile/max statistic, and censoring/timeout treatment; a single successful timing and an inferred attribution are not evidence.
+
+#### Phase evidence packet and closeout gate
+
+Each phase emits one compact, final-digest-bound evidence packet rather than leaving the audit in chat or duplicating it across prose documents. It contains the adopted plan/issue digest, acceptance case matrix, before/after/mutant results, exact commands and collection receipts, subject/profile/tool-schema identities, lint/static results, deployed/install receipts, documentation-impact dispositions, GitHub crosswalk status, exceptions with expiry, and a deterministic overall state. Raw bulky logs may be content-addressed attachments, but the packet retains their digest and the bounded evidence needed to reproduce the decision.
+
+Closeout recomputes the packet after the final code, tests, generated projections, and documentation changes. Any post-proof change invalidates it. The gate fails unless every adopted acceptance ID has its required proof level, every required subject is current, all named mutations were killed, every opposite arm passed, the before/after selection is identical, no unexpected skip/error/empty collection occurred, rollback requirements passed, and the issue/documentation crosswalk is complete. Only then may GitHub report the phase complete or the next phase begin.
+
 ### Slice 1 contract kernel
 
 - Native platform: validate exact manifests, native hook carrier, whole clean plugin, and active component roots with the installed Claude Code CLI; parse `plugin list --json` fields and strict `plugin details` inventory, never exit status or text presence alone.
@@ -920,6 +989,7 @@ The S1 criteria above are the adoption gate for the implementation-ready slice. 
 27. No enforcing hook directly selects a transport-specific input key. For every live schema-declared writer the canonical classifier returns `EXACT`, `BROAD`, `NON_FILESYSTEM`, or `UNKNOWN` with domain/certainty and any exact targets; same-key read-only controls remain permitted, while broad and unknown MCP effects cannot silently permit. Schema addition/change invalidates the subject-bound result until classification and both-arm proof are current.
 28. Static built-in sensitive-path policy is enforced by generated native permission rules only where a frozen current-versus-native truth table proves equivalent path semantics; hooks own the non-equivalent, dynamic, content/state-dependent, or MCP argument-sensitive decisions. Native refusal, custom decision, and telemetry have separate proof IDs; an applicability matrix yields exactly one enforcing runtime owner; and the proof store cannot retain `PROVEN` after any appended failing arm, owner ambiguity, installed/source mismatch, or changed tool-schema digest.
 29. Every phase has one canonical GitHub issue and a plan-digest-bound crosswalk from all candidate issue checkboxes to exact phase acceptance IDs, current proof, retained residual, independent scope, or explicit policy rejection. No overlap closure drops an unresolved criterion, no closed/history item authorizes implementation, and no future-phase criterion blocks an earlier phase.
+30. Every adopted phase criterion compiles to a non-empty acceptance case matrix with an exact subject, observable oracle, opposite arm, counterfactual, checked-in runner, and required `P0`–`P5` proof level. A lower-level proxy, test/comment presence, coverage/count metric, mocked production seam, GenAI score, or agent verdict cannot satisfy a higher-level case; before/after test and subject sets cannot narrow; all required cases, mutations, installed subjects, documentation dispositions, and rollback arms must be current in one final-digest-bound phase packet before old code is removed or the phase closes.
 
 ## Rollout and rollback
 
@@ -992,7 +1062,7 @@ The S1 criteria above are the adoption gate for the implementation-ready slice. 
 
 ## Completion definition
 
-The recovery is complete when a clean clone, a staged install, the repo’s installed copy, and at least two consumer copies all produce the same non-empty artifact/control graph for their declared profile; every mandatory policy clause has a control/gap disposition; every new functional artifact has a grounded route and proof or an expiring pinned exception; every active decision claim has one authority and a current dependency-bound status; design, operating, deployment, and currency dimensions are reported separately; every transport installs exactly the canonical set; and the repository has one fewer mechanism each time a compatibility layer is retired.
+The recovery is complete when a clean clone, a staged install, the repo’s installed copy, and at least two consumer copies all produce the same non-empty artifact/control graph for their declared profile; every mandatory policy clause has a control/gap disposition; every adopted acceptance ID has a current final-digest-bound evidence packet at its required proof level with its opposite arm and counterfactual observed; every new functional artifact has a grounded route and proof or an expiring pinned exception; every active decision claim has one authority and a current dependency-bound status; design, operating, deployment, and currency dimensions are reported separately; every transport installs exactly the canonical set; and the repository has one fewer mechanism each time a compatibility layer is retired.
 
 At that point “accurate, durable, simple, and consistent” has an executable meaning:
 
