@@ -1154,3 +1154,4 @@
 {"fire_id": "20260905T223808Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260906T003758Z", "fired_at": "2026-09-06T00:38:18Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260906T003758Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260906T023800Z", "fired_at": "2026-09-06T02:38:47Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "issues list returned 403 \u2014 token lacks repo scope"}
