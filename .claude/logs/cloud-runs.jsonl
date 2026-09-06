@@ -1162,3 +1162,4 @@
 {"fire_id": "20260906T063840Z", "fired_at": "2026-09-06T06:38:40Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260906T063840Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "skipped_issues": [1651, 1660]}
 {"fire_id": "20260906T103804Z", "fired_at": "2026-09-06T10:38:23Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260906T103804Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
