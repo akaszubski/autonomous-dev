@@ -1,6 +1,6 @@
 # Control-tool capability ladder — build the instrument before wiring the system
 
-**Status:** PROPOSED v10 — promotes the improved execution-observation method into a standalone canonical observation journal and an early autonomous-dev cutover that replaces current activity/archive/telemetry logging before the transaction and remaining capability ladder, while retaining the v9 bounded bootstrap recorder, direct hook-identifier binding, complete settings provenance, universal assurance transaction, authenticated-carrier boundary, external bootstrap overlay, and durable-rung/execution-child split; replaces the execution sequence, not the evidence, in [`20260906-repository-integrity-recovery.md`](20260906-repository-integrity-recovery.md)
+**Status:** PROPOSED v11 — incorporates the plugin-native prerequisite in [`20260907-plugin-native-distribution-amendment.md`](20260907-plugin-native-distribution-amendment.md), which must release the private observer/carrier before C0-A; then promotes the improved execution-observation method into a standalone canonical observation journal and early autonomous-dev cutover while retaining the bounded bootstrap recorder, direct hook-identifier binding, complete settings provenance, universal assurance transaction, authenticated-carrier boundary, external bootstrap overlay, and durable-rung/execution-child split
 
 **Date:** 2026-09-06
 
@@ -11,6 +11,8 @@
 **Bootstrap decision:** until the tool is trustworthy enough to judge later work, a smaller independent promotion overlay judges the tool from immutable criteria and raw observations; the candidate never certifies itself.
 
 **Execution rule:** build and prove one standalone capability, connect it to one real trigger in report-only mode, prove that carrier and rollback, activate it as the sole decision owner, remove the superseded owner, and only then start the next rung.
+
+**Carrier prerequisite:** the current `/implement` and Claude plugin carriers are not reliable enough to construct C0-A under its own isolation contract. The separately reviewed plugin-native prerequisite therefore runs P0 through P3 first. It changes distribution and execution plumbing, not the C0/C0O/C0T capability semantics, and each prerequisite rung has its own immutable A/B/C cases, hard smoke route, independent packet, recovery rehearsal, and explicit user promotion.
 
 ## WHY + SCOPE
 
@@ -269,7 +271,7 @@ The build temporarily has two distinct systems:
 1. **Candidate tool:** the new `adevctl` capability being built.
 2. **Bootstrap assurance overlay:** a deliberately smaller promotion procedure that does not import, call for its verdict, or trust the candidate's decision code.
 
-This avoids an infinite regress. The overlay is not a second product, runtime library, registry, hook, or framework. It is one bounded test-only package: one promotion executor, `tests/bootstrap/run_control_tool_bootstrap.py`; one Claude capture/reconciliation helper, `tests/bootstrap/observe_claude_execution.py`; one frozen supplemental-settings fixture; and one packet schema, `tests/bootstrap/control-tool-bootstrap-packet.schema.json`. The package is authored and frozen in C0-A before candidate code exists; it cannot import candidate modules, is never installed, exposes no extension/provider API, accepts only the closed C0 case manifest, and is never called by production adapters. Its only durable repository output is a bootstrap packet under `docs/audits/proofs/control-tool-bootstrap/<candidate-commit>/bootstrap.json`.
+This avoids an infinite regress. The overlay is not a second product, runtime library, registry, hook, or framework. It is one bounded test-only package: one promotion executor, `tests/bootstrap/run_control_tool_bootstrap.py`; one Claude capture/reconciliation helper, `tests/bootstrap/observe_claude_execution.py`; one frozen supplemental-settings fixture; and one packet schema, `tests/bootstrap/control-tool-bootstrap-packet.schema.json`. P0-A first releases the generic data-only observer and its carrier fixtures under the plugin-native prerequisite. C0-A binds that exact released digest unchanged, adds the C0-specific driver/schema/fixtures, and freezes the combined package before candidate code exists. The package cannot import candidate modules, is never installed, exposes no extension/provider API, accepts only the closed C0 case manifest, and is never called by production adapters. Its only durable repository output is a bootstrap packet under `docs/audits/proofs/control-tool-bootstrap/<candidate-commit>/bootstrap.json`.
 
 #### Separation of authority
 
@@ -332,16 +334,17 @@ For each adapter:
 
 ## Plan adoption and execution carrier
 
-The tracked plan is the durable authority; `.claude/plans/` is only the ignored execution mirror consumed by the current `/implement` command. Publishing the proposal or issues does not create that mirror and does not authorize protected-infrastructure edits.
+The tracked plan is the durable authority. Until #1757 releases, authority is the exact two-document set `20260906-control-tool-capability-ladder.md` plus `20260907-plugin-native-distribution-amendment.md` from one commit; `.claude/plans/` is only the ignored byte-verified execution mirror consumed by the current `/implement` command. Publishing the proposal or issues does not create that mirror and does not authorize protected-infrastructure edits.
 
 After the user explicitly adopts an exact commit and SHA-256:
 
-1. update #1737 and the rung/execution issue graph from proposed to adopted authority, preserving old-plan links as history;
-2. extract the committed blob, not mutable working-tree bytes, with `git show <adopted-commit>:docs/plans/20260906-control-tool-capability-ladder.md`;
-3. write it as `.claude/plans/control-tool-capability-ladder.md`;
-4. independently verify the extracted bytes against the adopted SHA-256;
-5. record the source commit, blob ID, SHA-256, mirror path, and adoption event on the program issue;
-6. invoke `/implement #1745 C0-A` only, naming the adopted plan digest; never pass parent rung #1731 to `/implement`.
+1. update #1757, #1737, and the rung/execution issue graph from proposed to adopted authority, preserving old-plan links as history;
+2. extract both committed plan blobs, not mutable working-tree bytes, with `git show <adopted-commit>:<tracked-plan-path>`;
+3. write both as their named `.claude/plans/` mirrors;
+4. independently verify both extracted bytes against their adopted SHA-256 values and refuse mixed commits;
+5. record both source blob IDs/SHA-256 values, mirror paths, and the adoption event on #1757;
+6. invoke only the P0-A execution child named by #1756 and the prerequisite; never pass rung ledgers #1756 or #1731 to `/implement`;
+7. invoke `/implement #1745 C0-A` only after #1757 is closed, which requires all four explicit prerequisite promotion records and current-byte P0-P3 reruns, naming both adopted plan digests.
 
 ### Pre-T0 execution evidence recorder
 
@@ -351,7 +354,7 @@ For main-agent actions, the supervisor joins the assistant `tool_use.id` to tran
 
 The ordinary live transcript under `~/.claude/projects/` was the primary execution-observation source for the manual schema probe; `~/.claude/archive/conversations/` is a per-Stop overwrite of that transcript and may lag by a turn, so it is a recovery copy, not an independent witness. Controlled C0-A/C0-B runs use only the equivalent transcript created under their isolated private run root; they never copy or mutate the ordinary stores. Subagent `.meta.json` records link the parent Agent dispatch `toolUseId` and declared `agentType` to a named subagent transcript, and that transcript binds its own tool calls to results, but current subagent transcripts do not persist their inner hook attachments. C0-A/C0-B may therefore use subagent transcripts to reconstruct work and compare final artifacts, but may not claim inner-hook execution, role authentication, or T0 readiness from them. Those dimensions remain `UNMEASURED` until T0's direct carrier receipts are released.
 
-C0-A turns this protocol into one frozen, bounded bootstrap deliverable: `tests/bootstrap/observe_claude_execution.py`, with closed `capture` and `reconcile` modes, plus `tests/fixtures/assurance/claude-observer.settings.json`. The supplemental settings register the capture mode only for the controlled child process. Capture streams an opaque SHA-256 over the exact stdin bytes and records an allowlisted envelope of version, run/session, event, tool, per-call ID, agent identity, native duration when supplied, sorted top-level key/type shape, and explicit redaction/omission markers; it never copies prompt, tool-input, tool-output, environment, or file contents. The opaque hash is only a deduplication/tamper fingerprint and cannot satisfy a semantic claim whose preimage was discarded. Reconcile consumes the frozen settings inventory, stream, debug, persisted main/subagent transcript metadata, capture records, process result, and pre/post subject identities; derives lifecycle outcomes only from their named source; and emits a data-only observation fragment containing no comparison, state, eligibility, or promotion field. `run_control_tool_bootstrap.py` is the sole validator, comparison/status owner, and final packet writer under the existing bootstrap packet schema.
+P0-A first turns the generic portion of this protocol into the frozen `tests/bootstrap/observe_claude_execution.py` deliverable and plugin-carrier fixtures named by the prerequisite. C0-A verifies and binds that released observer digest without editing it, adds the C0-specific `tests/fixtures/assurance/claude-observer.settings.json`, driver, and packet schema, and freezes the complete C0 overlay. Capture streams an opaque SHA-256 over the exact stdin bytes and records an allowlisted envelope of version, run/session, event, tool, per-call ID, agent identity, native duration when supplied, sorted top-level key/type shape, and explicit redaction/omission markers; it never copies prompt, tool-input, tool-output, environment, or file contents. The opaque hash is only a deduplication/tamper fingerprint and cannot satisfy a semantic claim whose preimage was discarded. Reconcile consumes the frozen settings inventory, stream, debug, persisted main/subagent transcript metadata, capture records, process result, and pre/post subject identities; derives lifecycle outcomes only from their named source; and emits a data-only observation fragment containing no comparison, state, eligibility, or promotion field. `run_control_tool_bootstrap.py` is the sole validator, comparison/status owner, and final packet writer under the existing bootstrap packet schema.
 
 The supervisor uses one private run directory outside the repository/deploy tree for the child's isolated configuration/session state, stdout/stderr stream, debug log, transcript/subagent metadata, and hook-capture records. The contract freezes its parent, opaque run-root identifier, one-hour crash-retention TTL, directory mode `0700`, file mode `0600`, owner, exclusive no-follow creation, maximum total/per-file/stdin bytes and record count, atomic finalized file per event, file and parent-directory fsync, and prohibition on shared JSONL append. The supervisor bounds child pipes while draining them; overflow, partial write, collision, symlink, unexpected path escape, wrong permission/owner, fsync, parse, or finalize failure is `ERROR` and cannot pass. The observer reads these native artifacts in place and never copies their raw content. `bootstrap.json` contains only allowlisted observations, digests, result/reason fields, and a cleanup receipt keyed by the opaque run-root identifier—never raw prompt/tool/output/debug/transcript content or a sensitive absolute path.
 
@@ -366,6 +369,10 @@ The ignored mirror never becomes acceptance authority. A changed tracked plan re
 ## Minimal Path
 
 This order builds the measurement instrument, makes autonomous-dev use it instead of the current logging stack, and only then uses the trustworthy evidence base to build and simplify the remaining controls.
+
+### P0–P3 — release the private native plugin carrier
+
+Execute the exact A/B/C sequence and case identities in `20260907-plugin-native-distribution-amendment.md`: P0 private observer/run root (#1756), P1 active-only native discovery carrier (#1755), P2 bounded one-root runtime migrations (#1758), and P3 installed-consumer/fleet switch/subtraction (#1759). Every rung retains the previous production owner until its digest-bound user promotion. #1757 closes only after all four explicit promotion records and current-byte P0-P3 reruns, including `PLUGIN_CARRIER_RELEASED`; no prerequisite packet promotes C0 or changes a standalone capability contract.
 
 ### C0 — assurance kernel and executable-case runner
 
@@ -388,12 +395,12 @@ Transition A is a dedicated `/implement #1745 C0-A` run ending in an immutable C
 | `tests/fixtures/assurance/` | frozen non-production subjects, cases, mutants, and golden JSON vectors |
 | `tests/acceptance/control-tool-c0.json` | immutable C0-pre case manifest; B/C reads but cannot modify it |
 | `tests/bootstrap/run_control_tool_bootstrap.py` | frozen test-only independent executor; never installed and never imported by product code |
-| `tests/bootstrap/observe_claude_execution.py` | frozen test-only hook-event capture/reconciliation observer for C0-A/C0-B and later adapter diagnostics; never installed or authoritative |
+| `tests/bootstrap/observe_claude_execution.py` | P0-released, digest-bound unchanged by C0; frozen test-only hook-event capture/reconciliation observer for C0-A/C0-B and later adapter diagnostics; never installed or authoritative |
 | `tests/bootstrap/control-tool-bootstrap-packet.schema.json` | frozen schema separating raw observation, candidate claim, comparison, and promotion prerequisites |
 | `tests/bootstrap/test_control_tool_bootstrap.py` | pre-candidate driver contract/import-boundary tests and one killed mutant per decision class |
 | `tests/fixtures/assurance/claude-observer.settings.json` | frozen supplemental settings used only by controlled Claude child processes; no production registration |
 | `docs/audits/proofs/control-tool-bootstrap/<candidate-commit>/bootstrap.json` | C0-C immutable evidence packet produced after candidate construction; not candidate source or a runtime input |
-| `plugins/autonomous-dev/config/install_manifest.json` | ships only the proved C0 files; no settings, hook, command, or workflow registration |
+| `plugins/autonomous-dev/config/install_manifest.json` | adds only the proved C0 files to the P3-released standalone manifest; no settings, hook, command, or workflow registration |
 
 No `__main__` package, dynamic provider registry, command Markdown, hook, settings entry, CI workflow, deploy call, or pipeline-state change is in C0.
 
@@ -414,7 +421,7 @@ The immutable C0 case manifest pre-registers these minimum candidate nodes and t
 | `C0-C11` | `tests/e2e/test_adevctl_install.py::test_manifest_only_install_runs_without_source_fallback` | copied manifest files run under `python3 -S` for `--version`, case, and verify with source/site paths excluded / omitted file, extra file, third-party import, or source fallback refuses | 60s |
 | `C0-C12` | `tests/integration/test_adevctl_case.py::test_measurement_packet_records_workload_samples_and_max` | every observation plus n/window/profile/max is present / sparse p95/p99, omitted error, or inherited timeout claim refuses | 30s |
 
-**Exit:** #1746 closes with immutable candidate bytes and at most `CANDIDATE_PASS`; this does not release C0. Under #1747 the frozen driver independently proves the standalone CLI and schema on source and manifest-only installed bytes and writes a digest-bound `BOOTSTRAP_PASS` packet; no runtime trigger has changed. Before C0 promotion, record the pre-C0 commit and destination digests, create a clean detached worktree at that commit, and rehearse `env LOCAL_REPOS=autonomous-dev bash scripts/deploy-all.sh --local --no-global` from it. Only the explicit user promotion record creates `STANDALONE_RELEASED`, after which promotion uses that identical command. Recovery runs the same command from the recorded clean pre-C0 worktree, verifies restored destination digests, then re-promotes only after repair. `deploy-all.sh` has no rollback mode, and the plan does not claim one. Because no caller is registered, C0 failure cannot change enforcement decisions.
+**Exit:** #1746 closes with immutable candidate bytes and at most `CANDIDATE_PASS`; this does not release C0. Under #1747 the frozen driver independently proves the standalone CLI and schema on source and a clean temporary tree built from the exact committed `config/install_manifest.json`, then writes a digest-bound `BOOTSTRAP_PASS` packet; the post-C0 run must also re-prove P3-C08 against the newly populated manifest. C0 creates no production trigger, settings entry, or adapter switch, so promotion does not invoke a deployment script or alter a live owner. Only the explicit user promotion record creates `STANDALONE_RELEASED`. Recovery keeps the recorded N-1 standalone release selected, removes the failed unreferenced temporary tree, verifies its digests, and requires repaired source/install/P3-C08 proof before a later promotion. Because no caller is registered, C0 failure cannot change enforcement decisions.
 
 ### C0O — standalone canonical observation journal
 
@@ -599,7 +606,7 @@ Add explicit source, stage, install, runtime, profile, manifest, and dependency 
 
 **Issue:** repurpose #1735.
 
-Connect C1 to the mandated `deploy-all.sh` postflight in report-only mode, prove local staging/install/recovery with the identical target vector, then activate.
+Connect C1 in report-only mode to the P3-released delivery postflight: native plugin cache/registry verification for Claude profiles and manifest-built standalone-tree verification for provider-neutral profiles. Prove local staging, install, and recovery against the identical frozen target vector, then activate.
 
 **Exit:** deployment creates the authoritative installed-subject receipt and never infers runtime truth from source.
 
@@ -753,14 +760,14 @@ No rung issue closes from a commit reference alone. Existing issues remain open 
 
 ## 9. Immediate next execution package
 
-Only C0 becomes implementation-ready after explicit plan adoption, using one separately reviewed specification changeset, one separately reviewed candidate-construction changeset, and then an independent proof/promotion step.
+Only P0-A becomes implementation-ready after explicit adoption of the two-document plan set. C0-A remains blocked until P0–P3 each complete their separately reviewed preregistration, candidate, independent proof, recovery, and explicit promotion sequence and #1757 is closed after all four promotion records and current-byte P0-P3 reruns.
 
 The `/implement #1745 C0-A` package contains only:
 
 1. case and receipt schemas;
 2. `tests/acceptance/control-tool-c0.json` with C0-C01 through C0-C12 paired to BOOT-C01 through BOOT-C12, exact future nodes, subjects, oracles, counterfactuals, budgets, independent raw observations, trusted-base executable/version/digest identities, and the SHA-256 of both product schemas, the bootstrap driver/observer/settings/packet schema, and every fixture/golden vector;
 3. the bound non-production fixtures/golden vectors, immutable to C0-B-C;
-4. the frozen `tests/bootstrap/run_control_tool_bootstrap.py`, `tests/bootstrap/observe_claude_execution.py`, supplemental observer-settings fixture, packet schema and `tests/bootstrap/test_control_tool_bootstrap.py`, with driver/observer mutation tests confirming ID joins, settings provenance, privacy-bounded capture, observation independence, no candidate import/decision reuse, no provider/extension surface, and no production implementation or trigger change;
+4. the frozen `tests/bootstrap/run_control_tool_bootstrap.py`, the unchanged P0-released `tests/bootstrap/observe_claude_execution.py`, supplemental observer-settings fixture, packet schema and `tests/bootstrap/test_control_tool_bootstrap.py`, with exact P0 observer digest plus driver/observer mutation tests confirming ID joins, settings provenance, privacy-bounded capture, observation independence, no candidate import/decision reuse, no provider/extension surface, and no production implementation or trigger change;
 5. the immutable C0-pre commit.
 
 The frozen fixture set includes a repository with no Claude settings, agents, hooks, or command Markdown so that the `process` runner and receipt contract are proven as software-tool behavior rather than as Claude workflow behavior.
@@ -802,7 +809,7 @@ The program completes only when:
 
 - **AC-01 — product boundary:** C0 is callable and useful as a manifest-only installed CLI without Claude Code, GitHub, command Markdown, hooks, workflows, deployment execution, or agents; core imports do not cross into adapter/runtime owners.
 - **AC-02 — narrow stable contract:** the no-float canonical JSON subset/digest preimage, closed two-runner/oracle vocabulary, six result states/exit codes, declared-versus-observed identity, receipt integrity limits, receipt-specific atomic persistence, subprocess isolation, stdlib-only runtime, and sink-failure semantics pass C0-C01 through C0-C12 and independent mutant controls.
-- **AC-03 — no self-certification:** `/implement #1745 C0-A` and its immutable C0-pre commit freeze the manifest, schemas, fixtures, promotion driver, Claude observer/settings fixture, and packet schema before `/implement #1746 C0-B`; #1747 independently executes paired BOOT-C01 through BOOT-C12 raw observations, and only an explicit digest-bound user promotion—not candidate `PASS`, a commit close, or agent consensus—creates `STANDALONE_RELEASED`.
+- **AC-03 — no self-certification:** P0-A first releases the generic observer through immutable cases and independent raw/mutant proof; `/implement #1745 C0-A` binds that exact observer digest unchanged and freezes the C0 manifest, schemas, fixtures, promotion driver, settings fixture, and packet schema before `/implement #1746 C0-B`; #1747 independently executes paired BOOT-C01 through BOOT-C12 raw observations, and only an explicit digest-bound user promotion—not candidate `PASS`, a commit close, or agent consensus—creates `STANDALONE_RELEASED`.
 - **AC-04 — one rung at a time:** each durable GitHub rung issue owns one A–C capability or D–G adapter, while each protected changeset has a separate auto-closing execution child; the rung parent is never passed to `/implement`, peer capabilities wait for every planned adapter, and the sole initial composition is C0 -> independently released C0O -> sequentially released O0a/O0b/O0c/O0d -> independently released C0T -> T0.
 - **AC-05 — real enforcement endpoint:** report-only integrations cannot enforce; an activated integration terminates at a real blocking hook/job/deploy failure, proves both permission and refusal through the actual carrier, and has exactly one decision owner.
 - **AC-06 — signed gate binding:** before T0 activation, transaction, manifest, chain, receipt, run, and subject identity are covered in the exact schema-v2 sentinel HMAC preimage and read through a strict assurance verifier; the chain covers role/carrier, predecessor, artifacts, observations, and impact-set facts; unsigned, invalid, legacy, wrong-run, wrong-transaction, wrong-chain, wrong-subject, and stale state cannot authorize commit or be substituted by agent-completion state.
@@ -811,10 +818,10 @@ The program completes only when:
 - **AC-09 — rollback and subtraction:** the identical deployment vector is rehearsed before activation; the superseded authority is removed or made structurally non-authoritative in the owner-switch changeset, with no dual-enforcing interval.
 - **AC-10 — currency and documentation:** C4/T5 make final code, tests, projections, impacted documentation, and changelog one subject-bound transaction; `Last Updated`, issue state, test presence, counts, and agent prose cannot establish currency.
 - **AC-11 — safe simplification:** behavior migrates vertically one control family at a time; adapters contain translation only, duplicate settings/path extraction/registries/telemetry authority are subtracted with their replacement, and no module-count target drives deletion.
-- **AC-12 — durable execution authority:** the tracked adopted plan commit/SHA-256 is authority, `.claude/plans/` is a byte-verified ignored mirror only, and every issue/evidence packet links immutable case IDs and exact subjects.
+- **AC-12 — durable execution authority:** the tracked adopted two-document plan set at one commit with both blob/SHA-256 identities is authority until the prerequisite releases; `.claude/plans/` is a byte-verified ignored mirror only, and every issue/evidence packet links immutable case IDs and exact subjects.
 - **AC-13 — independent bootstrap scrutiny:** C0 promotion is decided from immutable pre-implementation criteria plus the single frozen test-only bootstrap package and raw observations that do not import or trust candidate decision code; candidate/external disagreement is `INVALID`; later version N is never promoted solely by N; N-1 remains production authority until the atomic switch; and every overlay step either maps to a proved tool-owned replacement or remains in the bounded kernel/carrier re-entry suite.
 - **AC-14 — universal assurance transaction:** C0T independently proves `POLICY_BOUND` through promotion/refusal/invalidation on an append-only digest chain before T0 integration; declared role and authenticated carrier identity remain distinct, required missing identity is `UNMEASURED`, pre-change or mutant sensitivity and post-result criterion-change invalidation are mechanical, raw observations persist, and an installed non-Claude fixture completes without agent or hook authority.
-- **AC-15 — independent external oracle:** C0-A freezes one privacy-bounded Claude recorder/reconciler and settings fixture inside the bootstrap packet contract; it detects missing, duplicate, cross-run, misbound, unknown-schema, hidden-error, sink-failure, and non-zero-process cases before C0-B, never writes the production journal, and remains a bounded re-entry oracle rather than autonomous-dev logging.
+- **AC-15 — independent external oracle:** P0-A releases one privacy-bounded generic Claude recorder/reconciler; C0-A binds it unchanged with the C0-specific settings and packet contract. It detects missing, duplicate, cross-run, misbound, unknown-schema, hidden-error, sink-failure, and non-zero-process cases before C0-B, never writes the production journal, and remains a bounded re-entry oracle rather than autonomous-dev logging.
 - **AC-16 — canonical product observability:** C0O independently proves a closed privacy-bounded event contract, deterministic native-ID correlation, idempotent-retry/exactly-once SQLite journal, verified query/reconciliation, crash/logical-rotation/non-destructive-expiry behavior, and source-free install; O0a–O0d then move the exhaustive autonomous-dev event families and readers to that journal one released adapter at a time, prove real observed and missing arms, prevent test contamination, and remove the matching activity/archive/telemetry writer path, registration, fallback, and stale test before C0T or later control migrations begin.
 
 ## Critique History
@@ -938,3 +945,9 @@ Accepted revisions: add mandatory parametrized `O0-SCOPE-C01` negative and posit
 **Verdict: PROCEED** — composite 4.00/5; every axis 4/5.
 
 The critic confirmed idempotent replay and acknowledgement-loss recovery, logical-byte rather than SQLite-file proof, non-destructive expiry, bounded capacity failure, the live operational-state scope lock, and the exhaustive four-rung O0 partial-cutover topology. It found no remaining blocking change before committing v10 and binding its exact commit and SHA-256 into the reserved GitHub issues.
+
+### Round 21 — plugin-native prerequisite critique — 2026-09-07
+
+**Verdict: REVISE, REVISE, then PROCEED on v3.**
+
+Three independent Claude Code 2.1.236 / Opus sessions challenged the new carrier prerequisite. The first required immutable per-rung cases, hard packet gates, a pre-carrier observer, honest non-atomic fleet semantics, recovery, archive relocation, and bounded migration. The second removed post-P3 dependencies on deleted delivery scripts, premature C0 claims, settings edits before old-session drain, ambiguous digest authority, and inconsistent #1745 gating. The third confirmed those blockers closed and returned `PROCEED`; its non-blocking precision cautions were incorporated into v4. To avoid recursively changing bytes merely to embed their own verdict, the final exact-v4 review session, result, commit, and both committed SHA-256 values are recorded on #1757, the external adoption ledger.
