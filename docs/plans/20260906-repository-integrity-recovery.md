@@ -1,4 +1,6 @@
-# Repository integrity recovery — one intent, one graph, one proof path
+# Repository integrity recovery — historical audit and superseded execution proposal
+
+> **Superseded for execution on 2026-09-06.** This document remains the detailed audit, evidence inventory, and design input. Its B0/S0/phase sequence is replaced by the capability-first control-tool ladder in [`20260906-control-tool-capability-ladder.md`](20260906-control-tool-capability-ladder.md); do not execute B0 or use this file as current acceptance authority.
 
 **Status:** PROPOSED v2 — proof-system bootstrap now precedes every behavior migration; issue publication records the proposal but does not authorize protected-infrastructure edits
 
