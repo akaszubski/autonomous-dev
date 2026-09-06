@@ -1166,3 +1166,4 @@
 {"fire_id": "20260906T123857Z", "fired_at": "2026-09-06T12:38:57Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260906T123857Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260906T143758Z", "fired_at": "2026-09-06T14:39:03Z", "selected_cluster": "1651,1660", "phase": "FIRE_START", "source": "mcp_github_list_issues", "note": "urllib REST 403 (Anthropic proxy blocks issues endpoint); MCP fallback used"}
+{"fire_id": "20260906T143758Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "cluster_assessment": "both_too_complex_for_cron_light: 1651=security-audit-3-findings-hook-file, 1660=architectural-mutation-harness-rewire", "note": "skip-comment suppressed to avoid comment-thread noise (issues already 13/17 comments deep)"}
