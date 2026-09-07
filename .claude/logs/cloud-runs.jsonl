@@ -1174,3 +1174,4 @@
 {"fire_id": "20260906T223744Z", "fired_at": "2026-09-06T22:38:30Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260906T223744Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit", "commit_sha": "", "skipped_issues": [1651, 1660], "skip_reason": "protected_hooks_paths_multi_file_scope"}
 {"fire_id": "20260907T023756Z", "fired_at": "2026-09-07T02:38:14Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260907T023756Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
