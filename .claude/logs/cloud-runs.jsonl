@@ -1180,3 +1180,4 @@
 {"fire_id": "20260907T103910Z", "fired_at": "2026-09-07T10:39:10Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260907T103910Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260907T123954Z", "fired_at": "2026-09-07T12:40:02Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260907T143742Z", "fired_at": "2026-09-07T14:39:36Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "urllib+GITHUB_TOKEN returned 403; token in env is redacted placeholder"}
