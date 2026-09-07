@@ -1178,3 +1178,4 @@
 {"fire_id": "20260907T083958Z", "fired_at": "2026-09-07T08:39:58Z", "selected_cluster": "none", "phase": "FIRE_START", "note": "github_rest_forbidden_no_app"}
 {"fire_id": "20260907T083958Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster", "note": "github_rest_403_forbidden \u2014 GitHub App not connected to session org; urllib+GITHUB_TOKEN can only reach /user, not /repos/*. Cluster selection impossible without the App, per routine hard-constraint (no gh CLI, no mcp shortcuts).", "ended_at": "2026-09-07T08:40:08Z"}
 {"fire_id": "20260907T103910Z", "fired_at": "2026-09-07T10:39:10Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260907T103910Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
