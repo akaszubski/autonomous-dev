@@ -57,7 +57,7 @@
       "subject_digests": {
         "tests/bootstrap/observe_claude_execution.py": "43086cbe3d808e24f8073c86cee54ea7069afa269e3af581d4b38ce8f23229ff",
         "tests/bootstrap/plugin_carrier_bootstrap.schema.json": "b6c51decc61f4993122ac6e9e1fbdd86e3cde1f1ba49216c73bfc276caa8e473",
-        "tests/bootstrap/test_plugin_carrier_bootstrap.py": "e9e4e9ea62e9c34db5580bb7b3314baaac664bd98a52e7b5861dbd8315c516da",
+        "tests/bootstrap/test_plugin_carrier_bootstrap.py": "63f07e012c6eea83c5b818a020b060f4a6953ba9d64d0a5b1b0b105fb7eb32e7",
         "tests/fixtures/plugin_carrier/claude-observer.settings.json": "b3c3e17be831af470e931aa190be15160a86381b4d31626d0feeaedc53bf30af",
         "tests/fixtures/plugin_carrier/mutants.json": "09c1abd25db9a7c1ed7403291656c41c927a5af99000a4086d38868b90fef0cb",
         "tests/fixtures/plugin_carrier/mutants/M01-packet-root-extra-key.json": "ef51d5b3f3c3b7ca334e4d389ae764421e4998e815c824d633c0fa1ae3206fd7",

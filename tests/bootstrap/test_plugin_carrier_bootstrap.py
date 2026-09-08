@@ -6474,6 +6474,25 @@ def test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing(tmp_pa
             node = {"k": node}
         return node
 
+    def nest_text(depth: int) -> str:
+        """``nest(depth)`` as BYTES, never as an object handed to an encoder.
+
+        A hostile document reaches the observer as bytes on disk. It does not
+        arrive as a Python object that some cooperating encoder had to be able
+        to serialise first, and building it that way put the ENCODER's
+        recursion budget on the path: ``json.dumps(nest(3000))`` recurses once
+        per level and dies inside this fixture, before the observer is ever
+        started. That is interpreter-dependent rather than a property of the
+        subject — it survived on 3.14 and raised ``RecursionError`` on the
+        3.11 CI runner, so the arm below was passing on the local interpreter
+        for a reason that had nothing to do with the observer. Built as text,
+        the same bytes are produced identically on every interpreter, and the
+        depth the observer must survive is no longer capped by the depth this
+        test's own stack can encode. ``test_depth_bombed_jsonl_line_...``
+        builds its bomb the same way for the same reason.
+        """
+        return '{"k": ' * depth + '{"leaf": 1}' + "}" * depth
+
     limit = observer.MAX_DOCUMENT_DEPTH
     assert limit < sys.getrecursionlimit(), (limit, sys.getrecursionlimit())
 
@@ -6484,6 +6503,15 @@ def test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing(tmp_pa
     assert observer._exceeds_walk_depth(nest(sys.getrecursionlimit() * 3)) is True, (
         "the depth probe recursed and would crash on the input it exists to catch"
     )
+
+    # --- INSTRUMENT CONTROL ON THE TEXT BUILDER: at a depth the encoder can
+    # still survive, the textual form decodes to exactly the object form, so
+    # the bytes spliced in below differ from `nest(...)` only in how deep they
+    # go. Both directions, because a builder that always produced the same
+    # shallow document would satisfy the first line alone.
+    assert json.loads(nest_text(limit + 50)) == nest(limit + 50)
+    assert observer._exceeds_walk_depth(json.loads(nest_text(limit + 50))) is True
+    assert observer._exceeds_walk_depth(json.loads(nest_text(2))) is False
 
     document = json.loads((VALID_DIR / "fs-inventory.json").read_text(encoding="utf-8"))
 
@@ -6496,13 +6524,41 @@ def test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing(tmp_pa
         shallow_packet, "D10_NO_WRITE_OUTSIDE_DECLARED_ROOTS"
     )["observation_status"] == "OBSERVED"
 
-    # --- REFUSING ARM: a depth that defeats the CONSUMERS, at the same place
-    # the subject document really enters. Deep enough that the un-fixed bytes
-    # crash on any stack.
+    # --- REFUSING ARM: the same place the subject document really enters,
+    # deep enough that the un-fixed bytes crash on any stack. The deep value is
+    # SPLICED IN AS TEXT for the reason `nest_text` gives: encoding it would
+    # have made this arm's reachability a property of the local interpreter's
+    # stack.
+    #
+    # WHAT THIS ARM IS CARRIED BY, measured rather than assumed. At three times
+    # the recursion limit the document does NOT parse cleanly, so this arm is
+    # held up by the `except (ValueError, RecursionError)` catch in
+    # `_read_json` and NOT by `_exceeds_walk_depth`. Two mutations, disagreeing,
+    # are what established that: removing both consumer-side depth guards and
+    # leaving the parser catch intact leaves THIS arm green (the test still
+    # goes red, but at the `reconcile()` entry point below); removing only the
+    # parser catch turns THIS arm red with an uncaught RecursionError. The
+    # consumer-side guard named in this test's docstring is therefore proven by
+    # the `reconcile()` arm, not by this one. A document between
+    # MAX_DOCUMENT_DEPTH and the parser's own crash depth would bind
+    # `_exceeds_walk_depth` at the FILE boundary too; that gap is real and is
+    # not closed here.
+    splice_marker = "@@DEEP_ENTRY_SPLICE@@"
     bombed = copy.deepcopy(document)
-    bombed["post"]["entries"]["/proof/root/deep"] = nest(sys.getrecursionlimit() * 3)
+    bombed["post"]["entries"]["/proof/root/deep"] = splice_marker
+    bombed_text = json.dumps(bombed)
+    assert bombed_text.count(f'"{splice_marker}"') == 1, (
+        "the splice point is not unique, so the bomb may not land where intended"
+    )
+    bombed_text = bombed_text.replace(
+        f'"{splice_marker}"', nest_text(sys.getrecursionlimit() * 3)
+    )
+    assert splice_marker not in bombed_text, "the splice did not happen"
+    assert len(bombed_text) < observer.MAX_EVIDENCE_BYTES, (
+        "the bomb must fit inside the byte bound, or the byte bound is what fires"
+    )
     deep_root = _make_run_root(tmp_path / "deep")
-    (deep_root / "fs-inventory.json").write_text(json.dumps(bombed), encoding="utf-8")
+    (deep_root / "fs-inventory.json").write_text(bombed_text, encoding="utf-8")
     proc = _run_observer(OBSERVER_PATH, deep_root)
     assert proc.returncode == 0, (
         f"the observer crashed on a deep document instead of degrading: "
