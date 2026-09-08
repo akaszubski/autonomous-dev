@@ -1201,3 +1201,4 @@
 {"fire_id": "20260908T103752Z", "fired_at": "2026-09-08T10:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260908T103752Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
 {"fire_id": "20260908T143825Z", "fired_at": "2026-09-08T14:38:59Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260908T143825Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": "", "cluster": "", "outcomes": {"1651": "skipped_too_complex", "1660": "skipped_too_complex"}}
