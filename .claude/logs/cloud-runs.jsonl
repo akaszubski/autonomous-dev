@@ -1200,3 +1200,4 @@
 {"fire_id": "20260908T083804Z", "phase": "FIRE_END", "exit_reason": "cluster_too_complex_for_cron_light", "commit_sha": "", "cluster_evaluated": "1651,1660", "note": "both issues have prior drain-skip comments (latest 2026-09-04); no new comment posted to avoid spam"}
 {"fire_id": "20260908T103752Z", "fired_at": "2026-09-08T10:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
 {"fire_id": "20260908T103752Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
+{"fire_id": "20260908T143825Z", "fired_at": "2026-09-08T14:38:59Z", "selected_cluster": "none", "phase": "FIRE_START"}
