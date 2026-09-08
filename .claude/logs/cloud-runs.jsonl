@@ -1206,3 +1206,4 @@
 {"fire_id": "20260908T183735Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": "", "skipped_issues": [1651, 1660], "skip_reasons": {"1651": "protected_hooks_file_needs_implement", "1660": "architectural_multi_file_change"}}
 {"fire_id": "20260908T203743Z", "fired_at": "2026-09-08T20:38:01Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260908T203743Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": ""}
+{"fire_id": "20260908T223809Z", "fired_at": "2026-09-08T22:38:24Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
