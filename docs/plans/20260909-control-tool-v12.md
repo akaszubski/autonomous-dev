@@ -264,7 +264,7 @@ Before execution resumes, the program issue checklist and linked commit statuses
 2. mark #1760 candidate `7eaffbec...` as rejected-for-size, preserving its evidence and branch;
 3. consolidate #1755/#1758/#1759 under D0 with explicit overlap dispositions; do not close user-created issues without approval;
 4. keep #1673 as the containment/migration ledger, explicitly mark its old "0 of 4 settings" claim stale, and record local S0 evidence plus remote/real-Serena `UNMEASURED` status;
-5. create a dedicated fan-out consistency issue linked to closed #1483 and open #1522; never route it to unrelated #1641;
+5. use open #1521 as the existing source-to-installed copy-consistency owner and open #1522 as the duplicate-registration/execution owner, linking both to closed #1483; do not create a duplicate fan-out issue or route the work to unrelated #1641;
 6. give every later issue an estimate, complexity budget, promotion trigger, denominator counter-control, invalidation set, and consumer profile.
 
 ## 10. Adoption and immediate authorization
