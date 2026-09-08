@@ -31,7 +31,7 @@ No other taxonomy, graph vocabulary, transaction state machine, persistent servi
 The first implementation uses:
 
 - Claude Code's native `stream-json` plus hook lifecycle records as raw carrier evidence;
-- one small standard-library verifier that joins exact session/tool/hook identifiers and propagates the real process exit; it reuses the native OTel join proven at `451cb1c6` and does not build another observer;
+- one small standard-library verifier that propagates the real process exit and correlates carrier events only when the carrier supplies a frozen exact key; `451cb1c6` proves a timestamp query over dispatcher OTel events, not an exact identifier join, so timestamp proximity may aid diagnosis but can never create a passing correlation;
 - one canonical JSON receipt file per run;
 - existing Git, Python, pytest, Ruff, shell, and Claude executables recorded by path/version/digest where relevant.
 
@@ -82,9 +82,11 @@ This is containment, not proof that legacy deployment is the final architecture.
 
 ### F0 — freeze the next cases before building the runner
 
-Freeze the exact current discovery, `executing`, `installed`, S0, and first delivery-slice cases. Commit alongside them a tiny POSIX process oracle and comparator owned by the bootstrap test harness, not the candidate verifier. The harness runs the candidate and oracle independently; the oracle writes raw command exit and sorted selected node IDs to a file whose path is not exposed to the candidate, and the comparator checks those facts directly against the candidate receipt. Neither bootstrap program can emit the product decision vocabulary or write the product ledger.
+Freeze the exact current discovery, `executing`, `installed`, S0, and first delivery-slice cases. Commit alongside them a tiny POSIX process oracle and comparator owned by the bootstrap test harness, not the candidate verifier. The harness runs the candidate and oracle independently; the oracle writes raw command exit and sorted selected node IDs to a file whose path is not exposed to the candidate, and the comparator checks those facts directly against the candidate receipt. Neither bootstrap program can emit the product decision vocabulary or write the product ledger. An absent, empty, malformed, or unchanged-from-a-prior-run oracle file is a named failing arm.
 
-F0 exits only when the case manifest, oracle, comparator, their mutation controls, and their exact digests are explicitly frozen on the program issue. R0 implementation cannot begin on plan adoption alone: it requires a second explicit authorization naming that F0 commit and digest. The `control-runner-trust` CI job, outside the candidate package, owns the bootstrap verdict. It must reject a verifier mutant that reports agreement while its receipt differs from the oracle and reject a comparator mutation or stale comparator digest.
+F0 exits only when the case manifest, oracle, comparator, their mutation controls, and their exact digests are explicitly frozen on the program issue. It must also measure the identifiers present in real Claude hook ingress, hook result, dispatcher OTel, and `stream-json` records; any proposed cross-record join key is recorded as observed or absent rather than assumed. R0 implementation cannot begin on plan adoption alone: it requires a second explicit authorization naming that F0 commit and digest.
+
+The bootstrap verdict belongs to a separate `control-runner-trust` workflow containing only the frozen trust suite, not to the ambiently red general CI workflow. Before R0 exists, that workflow must be green on the frozen F0 base using its known-good fixture and must turn red for forged-receipt, mutated-comparator, stale-digest, and absent/empty-oracle arms. R0 is then tested with the same digest-bound bootstrap bytes and environment; only the dedicated workflow's own green base and candidate results may grant `RUNNER_TRUSTED`. The candidate cannot write that state or make unrelated CI failures appear green.
 
 ### R0 — trust the smallest useful runner
 
@@ -94,8 +96,8 @@ Required controls:
 
 - capture process status before formatting output; no pipeline can overwrite it;
 - produce a receipt that the frozen comparator agrees byte-for-byte with the primitive oracle on raw exit and selected node IDs; disagreement makes the external CI job fail and the program state remains below `RUNNER_TRUSTED`;
-- record the exact command, cwd, executable identity, selected case IDs, collected node IDs/count, start/end, timeout, stdout/stderr digests, and output truncation;
-- zero selection, changed addopts/plugins, wrong cwd, missing hook event, duplicate hook event, wrong tool-use ID, and stale subject are non-pass;
+- record the exact command, cwd, executable identity, selected case IDs, collected node IDs/count, start/end, timeout, stdout/stderr digests, output truncation, and every carrier identifier actually emitted;
+- zero selection, changed addopts/plugins, wrong cwd, missing hook event, duplicate hook event, mismatched carrier identity, and stale subject are non-pass; a missing identifier is `UNMEASURED` whenever the frozen case requires that identifier for exact correlation;
 - a harmless mutant of the control produces named failures;
 - a no-op/ordinary-path control stays permitted;
 - run the same immutable verifier against base and candidate; compare node-ID sets, not only counts;
@@ -109,12 +111,12 @@ No second verifier family is created implicitly:
 
 | Existing mechanism | Disposition in v12 |
 |---|---|
-| `scripts/proof_of_block.py` | Reuse unchanged for S0 and legacy block-capable hooks. W0 may supersede and remove it only after its live manifest/CI/health-check consumers are enumerated and equivalent cases pass; until then R0 does not own its facts. |
+| `plugins/autonomous-dev/scripts/proof_of_block.py` | Reuse unchanged, including its recorded-artifact/baseline format, as the only persistent block-proof owner for S0 and legacy block-capable hooks. R0 must not write an equivalent hook-block authority beside it. W0 may adapt its output to the canonical receipt or atomically supersede it only after its live manifest/CI/health-check consumers are enumerated and equivalent cases pass. |
 | `lib/retrofit_verifier.py` | Reuse for its current D0 readiness role; R0 consumes no readiness decision from it. Reconcile or remove only in D0. |
 | `lib/completion_verifier.py` | Out of scope: retains its existing pipeline-completion role and cannot grant a control-tool state. |
 | `lib/batch_agent_verifier.py` | Out of scope: retains its existing agent-completeness role and cannot grant a control-tool state. |
 | `lib/runtime_verification_classifier.py` | Reuse only where an existing route already consumes it; W0 does not fork its vocabulary or completeness claims. |
-| OTel join proven at `451cb1c6` | Reuse as the raw Claude evidence source and query shape; do not rebuild the 4,658-line observer. |
+| OTel query proven at `451cb1c6` | Reuse as a raw Claude evidence source and timestamp query shape; do not rebuild the 4,658-line observer and do not treat its timestamp association as exact provenance. Current legacy hook-block rows have no `tool_use_id` and predominantly empty `session_id`; F0 measures live carriers, and ambiguous correlation is non-pass. |
 | Issue #1660 / `scripts/integration_ceiling.py` | Extend the shipped mutation-harness pattern for R0's verifier and comparator mutants; do not build another mutation framework. |
 
 ### D0 — one plugin delivery path
@@ -128,7 +130,7 @@ Use two implementation changesets after F0:
 
 There is no separate P1/P2/P3 vocabulary. Each changeset still has frozen input, candidate, independent proof, and explicit promotion. Existing Issue #1755/#1758/#1759 evidence is folded into D0; overlapping issues receive an append-only disposition rather than duplicate acceptance text. D0 begins RED because open #1755 records that installed Claude Code 2.1.236 rejects the shipped plugin manifests; its first case reproduces that exact installed-CLI failure before changing delivery code.
 
-Exit: `DELIVERY_PROVEN` on exact `installed` bytes. The clean-consumer proof starts from `env -i`, sets isolated `HOME`, `CLAUDE_CONFIG_DIR`, caches, settings, and a pinned minimal `PATH`, explicitly unsets `CLAUDE_PROJECT_DIR` and `PYTHONPATH`, and rejects any executable/module/path provenance under the source checkout. Same-owner machines do not imply organizational independence; independence is claimed only for boundaries that were actually observed.
+Exit: `DELIVERY_PROVEN` on exact `installed` bytes. The clean-consumer proof launches only an installed entrypoint from an isolated temporary cwd, starts from `env -i`, sets isolated `HOME`, `CLAUDE_CONFIG_DIR`, caches, settings, and a pinned minimal `PATH`, explicitly unsets `CLAUDE_PROJECT_DIR` and `PYTHONPATH`, and uses isolated Python mode or disables user-site loading where applicable. It rejects any executable/module/path provenance under the source checkout. A clean installed control must pass; a fault arm that injects an otherwise importable source-checkout module or executable must be detected and fail. Same-owner machines do not imply organizational independence; independence is claimed only for boundaries that were actually observed.
 
 ### K0/O0/W0 — first useful vertical control
 
@@ -195,11 +197,11 @@ Coverage cannot use one enumerator as both numerator and denominator. Each contr
 
 The union is the denominator. Disagreement is `UNMEASURED` or `FAIL`. Every enumerator has a seeded missing-site control that must fail.
 
-W0 additionally requires observed `executing` hook and tool IDs because static discovery and registrations cannot establish the string-embedded shell-to-Python binding in `PreToolUseWrite-protect-sensitive.sh`. A seeded site of a structurally different shape must be missed by each enumerator and recovered by another source; otherwise the union is only a measured lower bound and cannot support a completeness claim.
+W0 additionally requires observed `executing` hook identity plus the exact carrier correlation key frozen by F0 because static discovery and registrations cannot establish the string-embedded shell-to-Python binding in `PreToolUseWrite-protect-sensitive.sh`. If no exact tool-invocation key is present, W0 records that carrier `UNMEASURED` rather than substituting timestamps. A seeded site of a structurally different shape must be missed by each enumerator and recovered by another source; otherwise the union is only a measured lower bound and cannot support a completeness claim.
 
 ### Shadow-to-enforcement promotion
 
-Each adapter freezes its trigger and one volume profile before shadowing. A **qualifying event** is one unique, non-synthetic top-level tool invocation that reaches the adapter's declared matcher, is de-duplicated by `(session_id, tool_use_id, hook_name)`, and has joinable start/completion/result evidence; retries and duplicate registrations count once. A **real trigger event** is the same set excluding frozen synthetic cases. The standard profile is available only when the preceding 30 days contain at least 100 qualifying events. W0 conservatively preselects the low-volume profile because the legacy preceding-30-day proxy contains only 65 sensitive-write records; F0 must measure the stricter joinable-event definition and may not upgrade the profile after shadowing starts. Later issues record their measured profile before shadowing. Promotion requires:
+Each adapter freezes its trigger, exact correlation key, and one volume profile before shadowing. `(session_id, tool_use_id, hook_name)` is only the initial W0 hypothesis: F0 must measure whether those fields actually exist across live hook ingress/result and dispatcher records. A **qualifying event** is one unique, non-synthetic top-level tool invocation that reaches the adapter's declared matcher and has start/completion/result evidence joined by the frozen carrier key; timestamp proximity alone never qualifies, and retries or duplicate registrations count once. If no exact carrier key exists, affected events are `UNMEASURED` and cannot contribute to promotion. A **real trigger event** is the same set excluding frozen synthetic cases. The standard profile is available only when the preceding 30 days contain at least 100 qualifying events. W0 conservatively preselects the low-volume profile because the legacy preceding-30-day proxy contains only 65 sensitive-write records, but those proxy rows do not establish a qualifying denominator: F0 measures the stricter definition, and if the low-volume floor is unreachable the W0 estimate is replanned rather than the key weakened. Later issues record their measured profile before shadowing. Promotion requires:
 
 - at least 7 elapsed days and 100 qualifying events; or, for W0 or another preselected low-volume adapter, at least 7 elapsed days, at least 10 real trigger events, and the complete frozen synthetic corpus;
 - zero unexplained decision differences;
