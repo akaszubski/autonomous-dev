@@ -1198,3 +1198,5 @@
 {"fire_id": "20260908T063812Z", "phase": "FIRE_END", "exit_reason": "cluster_too_complex_for_cron_light", "commit_sha": "", "skipped_issues": "1651,1660", "notes": "Both cluster issues are architectural/security scope. GITHUB_TOKEN REST returned 403 (token len=14); cluster selected via MCP github tool."}
 {"fire_id": "20260908T083804Z", "fired_at": "2026-09-08T08:38:40Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260908T083804Z", "phase": "FIRE_END", "exit_reason": "cluster_too_complex_for_cron_light", "commit_sha": "", "cluster_evaluated": "1651,1660", "note": "both issues have prior drain-skip comments (latest 2026-09-04); no new comment posted to avoid spam"}
+{"fire_id": "20260908T103752Z", "fired_at": "2026-09-08T10:38:55Z", "selected_cluster": "none", "phase": "FIRE_START"}
+{"fire_id": "20260908T103752Z", "phase": "FIRE_END", "exit_reason": "no_drainable_cluster"}
