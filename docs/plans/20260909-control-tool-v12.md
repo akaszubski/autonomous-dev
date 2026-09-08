@@ -86,7 +86,7 @@ Freeze the exact current discovery, `executing`, `installed`, S0, and first deli
 
 F0 exits only when the case manifest, oracle, comparator, their mutation controls, and their exact digests are explicitly frozen on the program issue. It must also measure the identifiers present in real Claude hook ingress, hook result, dispatcher OTel, and `stream-json` records; any proposed cross-record join key is recorded as observed or absent rather than assumed. R0 implementation cannot begin on plan adoption alone: it requires a second explicit authorization naming that F0 commit and digest.
 
-The bootstrap verdict belongs to a separate `control-runner-trust` workflow containing only the frozen trust suite, not to the ambiently red general CI workflow. Before R0 exists, that workflow must be green on the frozen F0 base using its known-good fixture and must turn red for forged-receipt, mutated-comparator, stale-digest, and absent/empty-oracle arms. R0 is then tested with the same digest-bound bootstrap bytes and environment; only the dedicated workflow's own green base and candidate results may grant `RUNNER_TRUSTED`. The candidate cannot write that state or make unrelated CI failures appear green.
+The bootstrap verdict belongs to a separate `control-runner-trust` workflow containing only the frozen trust suite, not to the ambiently red general CI workflow. The same frozen suite and environment profile must be runnable locally for diagnosis; the workflow independently re-executes and records the promotion verdict rather than originating different logic. Before R0 exists, that workflow must be green on the frozen F0 base using its known-good fixture and must turn red for forged-receipt, mutated-comparator, stale-digest, and absent/empty/malformed/unchanged-oracle arms. R0 is then tested with the same digest-bound bootstrap bytes and environment; only the dedicated workflow's own green base and candidate results may grant `RUNNER_TRUSTED`. The candidate cannot write that state or make unrelated CI failures appear green.
 
 ### R0 — trust the smallest useful runner
 
@@ -130,7 +130,7 @@ Use two implementation changesets after F0:
 
 There is no separate P1/P2/P3 vocabulary. Each changeset still has frozen input, candidate, independent proof, and explicit promotion. Existing Issue #1755/#1758/#1759 evidence is folded into D0; overlapping issues receive an append-only disposition rather than duplicate acceptance text. D0 begins RED because open #1755 records that installed Claude Code 2.1.236 rejects the shipped plugin manifests; its first case reproduces that exact installed-CLI failure before changing delivery code.
 
-Exit: `DELIVERY_PROVEN` on exact `installed` bytes. The clean-consumer proof launches only an installed entrypoint from an isolated temporary cwd, starts from `env -i`, sets isolated `HOME`, `CLAUDE_CONFIG_DIR`, caches, settings, and a pinned minimal `PATH`, explicitly unsets `CLAUDE_PROJECT_DIR` and `PYTHONPATH`, and uses isolated Python mode or disables user-site loading where applicable. It rejects any executable/module/path provenance under the source checkout. A clean installed control must pass; a fault arm that injects an otherwise importable source-checkout module or executable must be detected and fail. Same-owner machines do not imply organizational independence; independence is claimed only for boundaries that were actually observed.
+Exit: `DELIVERY_PROVEN` on exact `installed` bytes. The clean-consumer proof launches only an installed entrypoint from an isolated temporary cwd, starts from `env -i`, sets isolated `HOME`, `CLAUDE_CONFIG_DIR`, caches, settings, and a pinned minimal `PATH`, explicitly unsets `CLAUDE_PROJECT_DIR` and `PYTHONPATH`, and runs Python entrypoints in isolated mode (`-I`). It rejects any executable/module/path provenance under the source checkout. A clean installed control must pass; a fault arm that injects an otherwise importable source-checkout module or executable must be detected and fail. Same-owner machines do not imply organizational independence; independence is claimed only for boundaries that were actually observed.
 
 ### K0/O0/W0 — first useful vertical control
 
@@ -158,7 +158,7 @@ Native permission migration and a multi-hop chained canary are deferred. They re
 
 ### Planning envelope
 
-These are solo-engineering estimates, not completion claims: S0 local containment ≤0.5 day; F0 1–2 days; R0 2–4 days; D0 3–5 days; K0/O0/W0 together 3–5 days; T0 2–4 days; each later M0 adapter 1–3 days. The first useful release through W0 is therefore budgeted at 9.5–16.5 engineering days. Each issue freezes its narrower estimate before work, and crossing twice that estimate triggers replanning rather than an overdue-milestone failure.
+These are solo-engineering estimates, not completion claims: S0 local containment ≤0.5 day; F0 2–3 days, including the isolated trust workflow, complexity ratchet, and live four-carrier identifier census; R0 2–4 days; D0 3–5 days; K0/O0/W0 together 3–5 days; T0 2–4 days; each later M0 adapter 1–3 days. The first useful release through W0 is therefore budgeted at 10.5–17.5 engineering days. Each issue freezes its narrower estimate before work, and crossing twice that estimate triggers replanning rather than an overdue-milestone failure.
 
 ## 6. Proof protocol for every changeset
 
@@ -226,7 +226,7 @@ Doc-master refusal uses the same expiry and false-positive accounting. There is 
 Every A/spec issue records an estimate and hard budget before B/build:
 
 - runtime modules, public commands/types/schemas/stores/registrations added;
-- production, test, fixture, generated, and documentation lines added/removed;
+- production, test, fixture, generated, workflow/configuration, and documentation lines added/removed;
 - expected engineering days and proof runtime;
 - legacy authorities/integration paths removed at activation.
 
