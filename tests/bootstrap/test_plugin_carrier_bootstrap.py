@@ -6465,8 +6465,9 @@ def test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing(tmp_pa
     stack-dependent: the reviewer measured a crash at 600 and this machine
     survived to 1,200.
 
-    Negative control of a different shape: a document nested to just under the
-    declared limit must still be read and must still leave the plane OBSERVED.
+    Negative control of a different shape: the unmodified fixture — measured
+    depth 5, far below MAX_DOCUMENT_DEPTH — must still be read and must still
+    leave the plane OBSERVED. Shallow evidence, not the limit's edge.
     """
     def nest(depth: int) -> dict[str, Any]:
         node: Any = {"leaf": 1}
@@ -6530,19 +6531,17 @@ def test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing(tmp_pa
     # have made this arm's reachability a property of the local interpreter's
     # stack.
     #
-    # WHAT THIS ARM IS CARRIED BY, measured rather than assumed. At three times
-    # the recursion limit the document does NOT parse cleanly, so this arm is
-    # held up by the `except (ValueError, RecursionError)` catch in
-    # `_read_json` and NOT by `_exceeds_walk_depth`. Two mutations, disagreeing,
-    # are what established that: removing both consumer-side depth guards and
-    # leaving the parser catch intact leaves THIS arm green (the test still
-    # goes red, but at the `reconcile()` entry point below); removing only the
-    # parser catch turns THIS arm red with an uncaught RecursionError. The
-    # consumer-side guard named in this test's docstring is therefore proven by
-    # the `reconcile()` arm, not by this one. A document between
-    # MAX_DOCUMENT_DEPTH and the parser's own crash depth would bind
-    # `_exceeds_walk_depth` at the FILE boundary too; that gap is real and is
-    # not closed here.
+    # WHAT THIS ARM IS CARRIED BY, measured per interpreter: WHICH of the two
+    # guards fires depends on the C decoder's recursion behaviour at this
+    # depth. On 3.11 (measured 3.11.14) the decoder raises and `_read_json`'s
+    # `except (ValueError, RecursionError)` catches it; on 3.14 (measured
+    # 3.14.3) the decoder parses and `_exceeds_walk_depth` refuses the result.
+    # Neutering either guard alone confirms it, mirrored: the arm stays green
+    # on the interpreter whose OTHER guard still fires. INVARIANT, and the
+    # property this arm establishes: on every interpreter measured at least one
+    # of the two refuses, so the document never reaches a consumer as clean
+    # evidence. Residual: a depth between MAX_DOCUMENT_DEPTH and the decoder's
+    # crash depth binds `_exceeds_walk_depth` here on both — #1767.
     splice_marker = "@@DEEP_ENTRY_SPLICE@@"
     bombed = copy.deepcopy(document)
     bombed["post"]["entries"]["/proof/root/deep"] = splice_marker
