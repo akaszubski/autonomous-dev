@@ -31,9 +31,11 @@ jobs:
 
     steps:
       - name: Checkout code
+        id: checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -41,6 +43,7 @@ jobs:
           cache-dependency-path: 'plugins/autonomous-dev/requirements-dev.txt'
 
       - name: Install dependencies
+        id: install-deps
         run: |
           python -m pip install --upgrade pip
           # pytest-timeout (Issue #1567): required before any --timeout flag
@@ -48,6 +51,7 @@ jobs:
           pip install pytest pyyaml anthropic pytest-timeout
 
       - name: Validate test categorization
+        id: validate-test-categorization
         run: |
           echo "Validating test categorization..."
           python scripts/validate_test_categorization.py --report
@@ -67,6 +71,7 @@ jobs:
             -v --tb=short -o "addopts=" --timeout=30 --timeout-method=signal
 
       - name: Validate hook sidecar consistency
+        id: validate-hook-sidecar
         run: |
           echo "Validating hook registration consistency..."
           pip install jsonschema -q
@@ -144,6 +149,53 @@ jobs:
         run: |
           echo "Running smoke tests (fast sanity check)..."
           python -m pytest tests/regression/smoke/ -v --tb=short -o "addopts=" --timeout=30 --timeout-method=signal
+
+      # Issue #1760 (P0-A). Hard gate. Its shape, and why each part of it is
+      # load-bearing, has ONE home: docs/GITHUB-ACTIONS.md ("P0-A private-carrier
+      # observer hard gate"). The frozen contract is
+      # docs/plans/20260907-plugin-native-distribution-amendment.md (## 4).
+      # Everything below is line-local — warnings to the next editor of THIS
+      # block, not an explanation of the design. Do not restate the design here;
+      # two homes is how a claim about this gate drifts out of agreement with it.
+      #
+      # This `run:` body is FROZEN LINE-FOR-LINE in
+      # tests/acceptance/plugin-carrier-p0.json (cases[P0-C01].run_block) and
+      # re-checked by the frozen node itself, so editing it — including merely
+      # RE-WRAPPING a line continuation — turns the build red. Changing this
+      # step needs a replacement freeze commit, never an in-place edit.
+      #
+      # `ec=0; ... || ec=$?` is REQUIRED, not style: Actions runs `bash -e`, so a
+      # bare non-zero exit aborts the block before the line that reports it.
+      # Exit 5 = nothing collected, 4 = usage/node error.
+      #
+      # The JUnit re-read spells its fallback as
+      # `os.environ.get('RUNNER_TEMP') or '/tmp'`, NOT `.get(..., '/tmp')`: bash
+      # `:-` substitutes on unset OR empty, and the two-argument `.get` would
+      # diverge on an empty RUNNER_TEMP.
+      #
+      # Do NOT switch `outcome` to `conclusion`, do NOT weaken `!= 'failure'` to
+      # `== 'success'`, and do NOT add continue-on-error to any step this
+      # condition names — each of the three disarms or skips this gate. The
+      # ${{ }} wrapper is required: a bare leading `!` is a YAML tag indicator and
+      # will not parse.
+      - name: "P0-A private-carrier observer (hard, Issue #1760)"
+        if: ${{ !cancelled()
+          && steps.checkout.outcome != 'failure'
+          && steps.setup-python.outcome != 'failure'
+          && steps.install-deps.outcome != 'failure'
+          && steps.validate-test-categorization.outcome != 'failure'
+          && steps.validate-hook-sidecar.outcome != 'failure' }}
+        run: |
+          set -euo pipefail
+          pip install jsonschema -q
+          python -c "import sys,json,hashlib,pathlib; m=json.load(open('tests/acceptance/plugin-carrier-p0.json')); d=[x for x in m['cases'] if x['case_id']=='P0-C01'][0]['subject_digests']; bad=[p for p,h in sorted(d.items()) if not pathlib.Path(p).is_file() or hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()!=h]; print('P0-A frozen bytes: %d bound, %d changed%s'%(len(d),len(bad),(': '+', '.join(bad)) if bad else '')); sys.exit(1 if bad else 0)"
+          ec=0
+          python -m pytest tests/bootstrap/test_plugin_carrier_bootstrap.py \
+            -v --tb=short -o "addopts=" --timeout=20 --timeout-method=signal \
+            --junitxml=${RUNNER_TEMP:-/tmp}/p0a-results.xml || ec=$?
+          echo "P0-A pytest exit: $ec"
+          test "$ec" -eq 0 || { echo "P0-A FAIL (pytest exit $ec; 5 = zero collection, 1 = test failure)"; exit 1; }
+          python -c "import sys,os,json,xml.etree.ElementTree as ET; m=json.load(open('tests/acceptance/plugin-carrier-p0.json')); exp=int([x for x in m['cases'] if x['case_id']=='P0-C01'][0]['collection_completeness']['expected_test_count']); r=ET.parse(os.path.join(os.environ.get('RUNNER_TEMP') or '/tmp','p0a-results.xml')).getroot(); s=r.find('testsuite') if r.tag=='testsuites' else r; t=int(s.get('tests','0')); f=int(s.get('failures','0')); e=int(s.get('errors','0')); k=int(s.get('skipped','0')); print('P0-A junit tests=%d expected=%d failures=%d errors=%d skipped=%d'%(t,exp,f,e,k)); sys.exit(0 if (t==exp and f==0 and e==0 and k==0) else 1)"
 
       - name: Validate manifest-doc alignment
         env:

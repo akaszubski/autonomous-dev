@@ -1,0 +1,6 @@
+{"type": "system", "subtype": "init", "session_id": "1f0c9b6a-6f5f-4f3a-9f2b-0d7a5c3e1b40", "tool_use_id": null}
+{"type": "tool_use", "tool_use_id": "toolu_01AAA", "name": "Read", "outcome": "success"}
+{"type": "hook_event", "tool_use_id": "toolu_01AAA", "hook_event_name": "PreToolUse"}
+{"type": "tool_use", "tool_use_id": "toolu_02BBB", "name": "Bash", "outcome": "success"}
+{"type": "hook_event", "tool_use_id": "toolu_02BBB", "hook_event_name": "PreToolUse"}
+{"type": "result", "subtype": "success", "session_id": "1f0c9b6a-6f5f-4f3a-9f2b-0d7a5c3e1b40", "tool_use_id": null}

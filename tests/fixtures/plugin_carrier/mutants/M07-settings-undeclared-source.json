@@ -1,0 +1,39 @@
+{
+  "setting_sources": [
+    "user",
+    "project",
+    "local"
+  ],
+  "declared": [
+    {
+      "path": "/proof/root/settings/user.settings.json",
+      "sha256": "200828debd5f9e0a025dc04e4f6c8eb0b6b8a32352b7b987ca4041c8101abb33"
+    },
+    {
+      "path": "/proof/root/settings/project.settings.json",
+      "sha256": "4030f4bc7259e35d0dde060be3e634b3919bf329e4bdbefa7fd8ecd7de6da351"
+    },
+    {
+      "path": "/proof/root/settings/claude-observer.settings.json",
+      "sha256": "7b421bd08c6d0e2bdf8e40098946ca15ae8cece8a4189342b05b159e7e64846b"
+    }
+  ],
+  "observed": [
+    {
+      "path": "/proof/root/settings/user.settings.json",
+      "sha256": "200828debd5f9e0a025dc04e4f6c8eb0b6b8a32352b7b987ca4041c8101abb33"
+    },
+    {
+      "path": "/proof/root/settings/project.settings.json",
+      "sha256": "4030f4bc7259e35d0dde060be3e634b3919bf329e4bdbefa7fd8ecd7de6da351"
+    },
+    {
+      "path": "/proof/root/settings/claude-observer.settings.json",
+      "sha256": "7b421bd08c6d0e2bdf8e40098946ca15ae8cece8a4189342b05b159e7e64846b"
+    },
+    {
+      "path": "/proof/root/settings/enterprise.settings.json",
+      "sha256": "c78a06ea0ebc9c0450533c4a2542672b56709a8b0e13fec9c0c6d050643c1d48"
+    }
+  ]
+}

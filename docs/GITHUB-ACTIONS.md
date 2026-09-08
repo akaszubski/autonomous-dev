@@ -46,6 +46,33 @@ Note the deliberate asymmetry: `Route tests` is *not* gated on. It is engineered
 
 Two forms are wrong and are rejected by the guard. Use `outcome`, not `conclusion` — `conclusion` is the value *after* `continue-on-error` is applied, so a prerequisite that later gains `continue-on-error: true` would read `success` while broken, disarming the gate from an unrelated diff. Use `!= 'failure'`, not `== 'success'` — a step's `outcome` is `skipped` when its own `if:` is false, which is exactly what happens to `Install dependencies` when the router sets `skip_all`; treating that skip as grounds to suppress the suites is silent suppression on a non-failure. The guard derives *which* prerequisites must be gated on from the parsed job structure (every earlier step that is neither a sibling suite nor `continue-on-error: true`), so a setup step added later is covered without a test edit and no step name is hardcoded.
 
+**P0-A private-carrier observer hard gate (Issue #1760)**: the `smoke` job also runs `tests/bootstrap/test_plugin_carrier_bootstrap.py` — the frozen node that self-tests a stdlib-only, product-import-free observer of Claude Code execution, created together with the immutable acceptance manifest `tests/acceptance/plugin-carrier-p0.json` ahead of any carrier implementation, so that a later candidate is judged against frozen bytes rather than against a description it could rewrite to fit. The frozen contract is `docs/plans/20260907-plugin-native-distribution-amendment.md` (`## 4`).
+
+The step is a hard gate: `set -euo pipefail`, no `continue-on-error`, no `|| true`, no ratchet, no `--maxfail`, and no pipe that could launder an exit code. It runs three checks in order, each able to fail the job on its own:
+
+1. **The frozen-byte check, before pytest.** Every subject bound in `cases[P0-C01].subject_digests` is re-digested and compared. It runs first, and it lives in the workflow rather than in the artifact it judges — so it still refuses when the node's own in-file digest reader has been neutered. That externality is the only reason a test file can be trusted to guard itself.
+2. **The frozen node**, under `--timeout=20 --timeout-method=signal`. The flag is a floor for a hypothetical unmarked test, not the bound on this node: every test here carries an explicit `@pytest.mark.timeout` marker, a marker overrides the CLI default, and `test_manifest_budget_matches_the_declared_timeout_marker` refuses the node if any test lacks one. The flag is retained because Issue #1567 requires every pytest invocation in these workflows to carry one.
+3. **A JUnit re-read**, from `${RUNNER_TEMP:-/tmp}` — outside the working tree, so running the gate locally cannot add an untracked file and move the changeset's own pin. pytest exits `0` on skips, so the exit code alone is not a completeness check; the re-read asserts `failures==0`, `errors==0`, `skipped==0` and that the collected node count is **exactly** `cases[P0-C01].collection_completeness.expected_test_count`. That count is not restated in the workflow — it has one home in the manifest, and `test_manifest_declared_node_count_equals_pytest_collected_count` pins that field to what pytest actually collects, so it cannot drift in either direction without something refusing. An earlier revision used a floor, which would have permitted frozen tests to be deleted silently.
+
+A fourth surface guards the step itself, from inside the frozen node: `tests/bootstrap/test_plugin_carrier_bootstrap.py` re-parses this workflow and requires the P0-A step's `run:` body to equal `cases[P0-C01].run_block` line for line. Editing the step — including merely re-wrapping a line continuation — turns the build red, and needs a replacement freeze commit rather than an in-place edit.
+
+Unlike its two `smoke` siblings, this step satisfies both guards described above. The five `smoke` setup steps each carry a stable `id:` — `checkout`, `setup-python`, `install-deps`, `validate-test-categorization`, `validate-hook-sidecar` — and the step reads:
+
+```yaml
+if: ${{ !cancelled()
+  && steps.checkout.outcome != 'failure'
+  && steps.setup-python.outcome != 'failure'
+  && steps.install-deps.outcome != 'failure'
+  && steps.validate-test-categorization.outcome != 'failure'
+  && steps.validate-hook-sidecar.outcome != 'failure' }}
+```
+
+`!cancelled()` stops a red sibling from silently skipping the gate; because it also removes GitHub's implicit `success()`, every prerequisite is named back explicitly, so a broken `pip install` cannot report a P0-A failure that is not one. `outcome` and `!= 'failure'` are used for the reasons given above. Do not switch to `conclusion`, and do not add `continue-on-error` to any step this condition names: `outcome` is evaluated *before* `continue-on-error`, so a tolerated prerequisite failure would make this condition false and skip the gate while the job stayed green.
+
+`jsonschema` is installed in this step rather than relied on as another step's side effect, so the gate does not depend on install ordering elsewhere in the job.
+
+Scope: the sibling steps `Append-mode writer ratchet (Issue #1718)` and `Run smoke tests` carry no status-check function and remain Issue #1580 offenders. Completing them is #1580's repo-wide work, not this step's, and they are deliberately left unmodified.
+
 ## Usage
 
 ### Automated PR Review

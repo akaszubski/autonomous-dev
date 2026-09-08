@@ -1,0 +1,1025 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/akaszubski/autonomous-dev/blob/master/tests/bootstrap/plugin_carrier_bootstrap.schema.json",
+  "title": "P0-A Private Carrier Bootstrap Proof Packet",
+  "description": "Closed schema for the packet emitted by tests/bootstrap/observe_claude_execution.py. Three disjoint planes (amendment:170-208, ladder:303): observation holds raw facts, candidate_claim is recorded by digest only and is never read by reconcile(), comparison holds recomputed decisions. No plane carries pass/fail/candidate/release vocabulary — the only status vocabulary in this document is observation_status = OBSERVED | UNMEASURED | ERROR (amendment:191, :208). Draft 2020-12 is required: draft-07 cannot express unevaluatedProperties, and additionalProperties alone only inspects properties declared as direct siblings in the same schema object, so it cannot close a $ref/allOf-composed node. Every type:object node below carries BOTH additionalProperties:false and unevaluatedProperties:false.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "observation",
+    "candidate_claim",
+    "comparison"
+  ],
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "p0a.1",
+      "description": "Frozen packet version. A bump requires a replacement A commit (amendment:219)."
+    },
+    "observation": {
+      "$ref": "#/$defs/observation_plane"
+    },
+    "candidate_claim": {
+      "$ref": "#/$defs/candidate_claim_plane"
+    },
+    "comparison": {
+      "$ref": "#/$defs/comparison_plane"
+    }
+  },
+  "$defs": {
+    "observation_status": {
+      "type": "string",
+      "enum": [
+        "OBSERVED",
+        "UNMEASURED",
+        "ERROR"
+      ],
+      "description": "The complete status vocabulary. Missing or ambiguous evidence is UNMEASURED/ERROR (amendment:208). No member of this enum may denote a pass, a candidate result, or a release state (amendment:191, :224-225)."
+    },
+    "sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lowercase 64-character SHA-256 hex, or null when the subject was not readable."
+    },
+    "byte_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Length in bytes. Contents are never copied into the packet (amendment:200) — only lengths and digests."
+    },
+    "posix_mode": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4095,
+      "description": "stat.S_IMODE(st.st_mode) permission bits only. A raw st_mode also encodes the file type and would exceed 0o7777 for any regular file — that is the D12 mutant."
+    },
+    "acl_state": {
+      "const": "UNMEASURED",
+      "description": "POSIX mode bits are not a complete access description on every carrier (macOS ACLs). P0-A records the mode and explicitly declines to claim completeness; the bounds decision is C02's future arm (amendment:273)."
+    },
+    "path_entry": {
+      "type": "object",
+      "required": [
+        "kind",
+        "sha256",
+        "bytes",
+        "content_truncated",
+        "mode",
+        "uid",
+        "acl_state"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "One inventoried path. The node stays CLOSED — `type: object`, all seven `required` names, `additionalProperties: false` and `unevaluatedProperties: false` — which is the site mutant M02 attacks. The seven VALUES are subject-authored and forwarded verbatim by `_filesystem_planes`, so each value schema is unconstrained; their domains are checked by `observe_claude_execution._path_entry_domain_problems`, which NAMES a departure as a discrepancy that degrades the consuming decision.",
+      "properties": {
+        "kind": {},
+        "sha256": {},
+        "bytes": {},
+        "content_truncated": {
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped this entry: `sha256` is then a prefix digest and `bytes` is the cap. Residual: two files that both exceed the cap and differ only past it record identical entries."
+        },
+        "mode": {},
+        "uid": {},
+        "acl_state": {}
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "required": [
+        "root",
+        "root_exists",
+        "entries",
+        "entry_count",
+        "entry_truncated",
+        "member_bytes_truncated",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "root_exists": {
+          "type": "boolean"
+        },
+        "entries": {
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "patternProperties": {
+            "^.+$": {
+              "$ref": "#/$defs/path_entry"
+            }
+          },
+          "description": "Absolute path -> path_entry. Absolute keys are required so a write outside every declared root is expressible (mutant M10)."
+        },
+        "entry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entry_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_INVENTORY_ENTRIES entry cap clipped this inventory, meaning paths exist under `root` that are absent from `entries`. That cap and nothing else. The byte cap that can clip an inventoried FILE has its own field, `member_bytes_truncated`, because this field previously carried both and said the entry cap had fired over an inventory of four paths against a cap of five thousand."
+        },
+        "member_bytes_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped the content digest of at least one inventoried file, so that entry's `sha256` covers a prefix only. That cap and nothing else; the clipped members are identifiable by `content_truncated` on the entries themselves. This field, `entry_truncated`, and the per-entry `content_truncated` are ALL read by the plane-bounds walk, so any of them firing degrades every decision that reads this plane to UNMEASURED. The last of those three is a correction: the walk descended into `pre` and `post` and no further, `content_truncated` occurs in the packet ONLY on the entries, and so the one flag that names WHICH member was clipped was published, schema'd, and read by nobody — D11 compared prefix digests as if they were whole while this plane reported OBSERVED. The walk now descends by STRUCTURE rather than by a list of two key names, and `test_every_published_truncation_flag_is_read_where_it_is_published` derives both the registry and the reader's reach from the module so the next flag cannot be added into the same silence."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "bounded_evidence": {
+      "type": "object",
+      "required": [
+        "path",
+        "present",
+        "bytes",
+        "sha256",
+        "record_count",
+        "byte_truncated",
+        "record_truncated",
+        "unparsable_records",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "Bounded stream/debug/transcript metadata (amendment:197-198). Records counts and digests, never payloads.",
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "bytes": {
+          "$ref": "#/$defs/byte_count"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "record_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped this evidence. That cap and nothing else: a file over the byte cap whose record count never approached MAX_STREAM_RECORDS sets this field and leaves `record_truncated` false."
+        },
+        "record_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_STREAM_RECORDS record cap clipped this evidence. Separate from `byte_truncated` (the MAX_EVIDENCE_BYTES byte cap) because one flag standing for two bounds is how a bound gets lost. Readers with no record cap to apply (the debug-log line counter) report false here, which is a measurement and not a default."
+        },
+        "unparsable_records": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Lines the reader could not decode, including depth-bombed lines that raise RecursionError (CWE-674). Non-zero forces observation_status to ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "recorded_settings_entry": {
+      "type": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "One settings-provenance entry AS THE SUBJECT RECORDED IT, forwarded verbatim. STILL CLOSED where closure means anything: an entry that is an OBJECT may carry `path` and `sha256` and nothing else, so an unknown field here is rejected by this schema and reported by the observer's own stdlib walk exactly as before. What is deliberately NOT constrained is the TYPE of those two values, or whether an entry is an object at all — and that widening is a defect fix, not a relaxation. Enforcing `path: string` and a 64-hex `sha256` here was paid for by a normaliser that DROPPED every entry it could not type and COERCED a non-string `sha256` to null before D06 and D07 ever read them: two DISTINCT non-string digests both became null, `null != null` is false, the mismatch vanished, and the resulting packet was still valid against this schema — so the external jsonschema oracle could not see the laundering either. The type constraint now lives where the decision is made: `_settings_by_path` names every entry it cannot use — no usable path, a repeated path, a non-string digest — as its own D06/D07 discrepancy, which says WHICH entry and WHY where a schema rejection said only that the packet was invalid. The OBSERVER-computed digests (`overlay_sha256`, bounded evidence, path entries) keep `#/$defs/sha256` and its hex pattern; only the SUBJECT-recorded one is forwarded raw. DISCLOSED RESIDUAL, wider than the sentence above: `properties` and `additionalProperties` constrain OBJECTS only, and this union admits `array` with no `items`, so an entry recorded as an array carries arbitrary nested content past BOTH readers — the stdlib walk and `jsonschema` agree, and they agree on permitting it. Closure at declared OBJECT nodes is unaffected and still measured, and the DENOMINATOR depends on which predicate asks: 24/24 nodes spelled strictly `\"type\": \"object\"`, and 25/25 under the self-test's own `_declares_object_type`, which also admits a node whose `type` is a UNION containing `object` — this `$def` is exactly that 25th node. The self-test walks with the union predicate, so 25 is the number that is enforced; 24 is what a strict grep would report and is stated here so the two cannot be read as a disagreement. This is stated rather than closed because every previous attempt to tighten this `$def` was paid for by a normaliser that dropped or coerced the entries it could not type, which is the laundering shape this widening exists to prevent; a reader-side constraint, not a schema-side one, is where the next narrowing belongs.",
+      "properties": {
+        "path": {},
+        "sha256": {}
+      }
+    },
+    "recorded_settings_list": {
+      "type": [
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/recorded_settings_entry"
+      },
+      "description": "A settings-provenance list AS THE SUBJECT RECORDED IT. `object` is absent from the type union on purpose: a list recorded as an object has no shape this schema could close, so the packet is refused by the external oracle while `_settings_by_path` names it as a D06/D07 discrepancy — both fail-closed, from two independent readers."
+    },
+    "recorded_source_list": {
+      "type": [
+        "array",
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ],
+      "description": "A `--setting-sources` list AS THE SUBJECT RECORDED IT, unconstrained for the same reason `recorded_settings_list` is. The previous `array of string` typing forced the observer to coerce every member with `str()` and to substitute its OWN argument whenever the recorded value was not a list, so the packet published the caller's answer as the subject's record and two distinct non-string members became the same two characters. With the value forwarded raw, `_recorded_source_list` is the single decider through both doors and names WHICH member and WHY on a channel that degrades D07, while the external oracle still refuses the `object` case. `object` is absent from the union on the same grounds as its sibling."
+    },
+    "run_frame": {
+      "type": "object",
+      "required": [
+        "cwd",
+        "run_root",
+        "session_uuid",
+        "argv",
+        "refused_flags",
+        "child_executed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "run_root": {
+          "type": "string"
+        },
+        "session_uuid": {
+          "type": "string"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The exact controlled-child argv (amendment:192-195). --safe-mode and --no-session-persistence are refused, never emitted."
+        },
+        "refused_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "child_executed": {
+          "const": false,
+          "description": "P0-A runs no Claude binary; the real canary run is post-acceptance (amendment:205-206, :245)."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "environment_variable": {
+      "type": "object",
+      "required": [
+        "name",
+        "present",
+        "sha256",
+        "bytes",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "$ref": "#/$defs/byte_count"
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "environment_plane": {
+      "type": "object",
+      "required": [
+        "allowlist",
+        "variables",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "CLAUDE_PLUGIN_ROOT and CLAUDE_PLUGIN_DATA are members because hook stdin carries no plugin-identifying field: a native-ID join is provable only from the hook process's own environment.",
+      "properties": {
+        "allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/environment_variable"
+          }
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "executable_identity": {
+      "type": "object",
+      "required": [
+        "name",
+        "present",
+        "path",
+        "version",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "executables_plane": {
+      "type": "object",
+      "required": [
+        "entries",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executable_identity"
+          }
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "settings_plane": {
+      "type": "object",
+      "required": [
+        "overlay_path",
+        "overlay_sha256",
+        "setting_sources",
+        "expected_setting_sources",
+        "declared",
+        "observed",
+        "byte_truncated",
+        "overlay_byte_truncated",
+        "evidence_malformed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "overlay_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overlay_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "setting_sources": {
+          "$ref": "#/$defs/recorded_source_list"
+        },
+        "expected_setting_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The CANONICAL settings-source contract D07 compares the recorded list against, forwarded from the caller. Its one home is the frozen manifest's `expected_settings.setting_sources`; the observer restates it nowhere and `--setting-sources` has no default, so a packet emitted without it cannot be produced. Typed strictly BECAUSE it is not subject-recorded: this is the operand, not the evidence, and an operand this reader cannot walk makes every recorded set compare exact — the fail-open direction. It is published so a third party can recompute D07 from the packet alone and check this field back against the manifest."
+        },
+        "declared": {
+          "$ref": "#/$defs/recorded_settings_list"
+        },
+        "observed": {
+          "$ref": "#/$defs/recorded_settings_list"
+        },
+        "byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped this plane's reading of settings-sources.json — that file and that cap, nothing else. This plane applies neither the record cap nor the entry cap. This is not a rollup: composing two measurements of the SAME cap still names exactly one cap. A decision reading this plane cannot report OBSERVED while it is true. It does NOT cover the overlay: that is a second file, read by a second call, and it carries its own flag below."
+        },
+        "overlay_byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped the OVERLAY read, so `overlay_sha256` covers only the first MAX_EVIDENCE_BYTES of the overlay and is not the whole-file digest a third party recomputing from raw bytes would obtain. The same cap as `byte_truncated` over a DIFFERENT file, which is why it is a separate field: the overlay's truncation member used to be discarded into a throwaway, so an overlay of MAX_EVIDENCE_BYTES + 50,000 published a prefix digest beside a `byte_truncated` that names settings-sources.json and read false, with the plane reporting OBSERVED. One field per bound means one field per (bound, published output), not one per cap."
+        },
+        "evidence_malformed": {
+          "type": "boolean",
+          "description": "True when this plane's evidence contained records the reader could not decode. Forces ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "git_snapshot": {
+      "type": "object",
+      "required": [
+        "head",
+        "dirty_path_count",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "head": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty_path_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "git_plane": {
+      "type": "object",
+      "required": [
+        "pre",
+        "post",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "pre": {
+          "$ref": "#/$defs/git_snapshot"
+        },
+        "post": {
+          "$ref": "#/$defs/git_snapshot",
+          "description": "A COPY of `pre`, not a second sample: this plane is SINGLE-SAMPLED at A-time because no child runs between the two reads (`run.child_executed` is const false), so there is no later moment to observe. Do not read a difference into it; there cannot be one until a rung executes a child."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      },
+      "description": "Git state around the controlled child. SINGLE-SAMPLED at A-time: the observer calls its snapshot helper ONCE per capture, so `post` is a copy of `pre` rather than a second read, and this pair cannot show drift. The DIFFERENTIAL pair in this packet is `filesystem.pre`/`filesystem.post`, which are two separately recorded snapshots within ONE inventory document rather than two reads of it — `_filesystem_planes` calls `_read_json` once and normalises two distinct fields of that single document — and those two fields do differ on the shipped fixtures. A differential Git sample belongs to the rung that actually executes a child (amendment:278); no decision reads this plane."
+    },
+    "hook_join": {
+      "type": "object",
+      "required": [
+        "tool_use_id",
+        "hook_event_name",
+        "exit_code",
+        "stdout_bytes",
+        "decision",
+        "stream_outcome",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "One hook lifecycle join. decision is derived, never asserted by the hook: exit 0 with empty stdout is SILENT (no decision), not an approval.",
+      "properties": {
+        "tool_use_id": {
+          "type": "string"
+        },
+        "hook_event_name": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "stdout_bytes": {
+          "$ref": "#/$defs/byte_count"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "SILENT",
+            "RESPONDED",
+            "NONZERO",
+            "UNKNOWN"
+          ]
+        },
+        "stream_outcome": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "hooks_plane": {
+      "type": "object",
+      "required": [
+        "joins",
+        "orphan_tool_use_ids",
+        "hook_events_without_receipt",
+        "receipts_without_hook_event",
+        "unrankable_record_types",
+        "non_lifecycle_record_count",
+        "any_bound_truncated",
+        "evidence_malformed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "joins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hook_join"
+          }
+        },
+        "orphan_tool_use_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "SYMMETRIC DIFFERENCE between the stream's `tool_use` ids and the UNION of the two lifecycle identity sets (debug receipts and stream `hook_event` records). It answers only 'does every tool call have a lifecycle record from either source, and vice versa'. The union is correct for that question and structurally unable to answer whether a receipt is missing, which is why `hook_events_without_receipt` is a separate field rather than folded in here."
+        },
+        "hook_events_without_receipt": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Stream `hook_event` identities with NO debug receipt — the two identity sets compared in that direction and never unioned first. A receipt is the only place a hook's exit code is observable, so an id here is a hook whose outcome was not measured, not a hook that was quiet. D09 names each one as its own discrepancy and cannot report OBSERVED while this is non-empty; otherwise deleting the single non-zero receipt from a debug log, while its stream `hook_event` and the benign receipts stay in place, would produce a packet byte-identical to a genuinely clean run."
+        },
+        "receipts_without_hook_event": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Debug receipt identities with NO stream `hook_event` — the SURPLUS half of the same multiset subtraction `hook_events_without_receipt` reports the deficit half of. Both are `collections.Counter` differences over (tool_use_id, hook_event_name) pairs, so an id appears once per uncovered unit and two `PreToolUse` events against one `PreToolUse` receipt is named for every multiplicity rather than only for a distinct key. A one-directional difference reached silence through the opposite door: deleting stream `hook_event` records instead of receipts left every published list empty. D09 names each entry and cannot report OBSERVED while either list is non-empty."
+        },
+        "unrankable_record_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Stream records whose `type` this reader could not rank against the lifecycle vocabulary, one named string each. The vocabulary is written in strings, so a record recording `\"type\": [\"hook_event\"]` or `\"type\": 7` claims a lifecycle identity in a form no membership test can decide. Such a record used to leave the join through a bare `continue` — reaching neither the malformed channel nor the named-discrepancy channel — so a ghost `hook_event` with no receipt evaded D09 and an orphan `tool_use` evaded D08 by retyping their own discriminator, with `unparsable_records` at 0 and this plane at OBSERVED. That is the SAME shape the `tool_use_id` rendering closed, one field over: the fix had been applied to the fields the reported bug used and not to the discriminator beside them. Each entry is named on BOTH D08 and D09 and forces this plane to UNMEASURED, because both the orphan set and the receiptless set were computed over strictly less evidence than the subject recorded."
+        },
+        "non_lifecycle_record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Stream records the lifecycle join DECLINED, counted. Most are correct declines — `system` and `result` name other record types — and this field makes no claim that any of them is a violation. What it guarantees is that a decline MOVES A NUMBER IN THE PACKET: appending a record whose `type` is a string outside the vocabulary changes this count, so a third party recomputing from the raw bytes can tell the two runs apart. A decline that moved nothing was invisible, and invisible is how less evidence read exactly as clean as more."
+        },
+        "any_bound_truncated": {
+          "type": "boolean",
+          "description": "A DECLARED ROLLUP, not a bound — the `any` segment in the name is what says so. True when ANY bound clipped ANY input this plane reads. Operands: the stream file's MAX_EVIDENCE_BYTES flag, the stream file's MAX_STREAM_RECORDS flag, and the debug log's MAX_EVIDENCE_BYTES flag — two distinct caps over two files. It is composed from operands that each name exactly one cap, and no per-bound detail is lost: the per-cap fields stay published on the planes the operands came from. A decision reading this plane cannot report OBSERVED while it is true."
+        },
+        "evidence_malformed": {
+          "type": "boolean",
+          "description": "True when this plane's evidence contained records the reader could not decode. Forces ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "filesystem_plane": {
+      "type": "object",
+      "required": [
+        "declared_writable_roots",
+        "legacy_absolute_paths",
+        "pre",
+        "post",
+        "any_bound_truncated",
+        "evidence_malformed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "declared_writable_roots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "legacy_absolute_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pre": {
+          "$ref": "#/$defs/inventory"
+        },
+        "post": {
+          "$ref": "#/$defs/inventory"
+        },
+        "any_bound_truncated": {
+          "type": "boolean",
+          "description": "A DECLARED ROLLUP, not a bound — the `any` segment in the name is what says so. True when ANY bound clipped ANY input this plane reads. Operands: the fs-inventory file's MAX_EVIDENCE_BYTES flag, and `entry_truncated` (MAX_INVENTORY_ENTRIES) plus `member_bytes_truncated` (MAX_EVIDENCE_BYTES) from each of `pre` and `post` — two distinct caps over three subjects. It is composed from operands that each name exactly one cap, and no per-bound detail is lost: the per-cap fields stay published on the planes the operands came from. A decision reading this plane cannot report OBSERVED while it is true."
+        },
+        "evidence_malformed": {
+          "type": "boolean",
+          "description": "True when this plane's evidence contained records the reader could not decode. Forces ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "source_finding": {
+      "type": "object",
+      "required": [
+        "kind",
+        "module",
+        "lineno",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "static",
+            "dynamic",
+            "runtime"
+          ]
+        },
+        "module": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineno": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "evidence": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "source_audit_plane": {
+      "type": "object",
+      "required": [
+        "subject_path",
+        "subject_sha256",
+        "static_findings",
+        "dynamic_findings",
+        "runtime_findings",
+        "runtime_audited",
+        "byte_truncated",
+        "evidence_malformed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "Import boundary (ladder:282, :286). The rule is a category removal, not a member enumeration: any import whose top-level name is outside sys.stdlib_module_names is a finding, however it is reached.",
+      "properties": {
+        "subject_path": {
+          "type": "string"
+        },
+        "subject_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "static_findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_finding"
+          }
+        },
+        "dynamic_findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_finding"
+          }
+        },
+        "runtime_findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_finding"
+          }
+        },
+        "runtime_audited": {
+          "type": "boolean"
+        },
+        "byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped this plane's evidence. That cap and nothing else — this plane reads one source file and applies neither the record cap nor the entry cap. This is not a rollup: composing two measurements of the SAME cap still names exactly one cap. A decision reading this plane cannot report OBSERVED while it is true."
+        },
+        "evidence_malformed": {
+          "type": "boolean",
+          "description": "True when this plane's evidence contained records the reader could not decode. Forces ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "schema_audit_plane": {
+      "type": "object",
+      "required": [
+        "schema_path",
+        "schema_sha256",
+        "document_path",
+        "document_present",
+        "root_unknown_fields",
+        "composed_unknown_fields",
+        "byte_truncated",
+        "evidence_malformed",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "schema_path": {
+          "type": "string"
+        },
+        "schema_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "document_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "document_present": {
+          "type": "boolean"
+        },
+        "root_unknown_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "composed_unknown_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped this plane's evidence. That cap and nothing else — this plane reads two files, the schema and the document, and both are capped by MAX_EVIDENCE_BYTES only. This is not a rollup: composing two measurements of the SAME cap still names exactly one cap. A decision reading this plane cannot report OBSERVED while it is true."
+        },
+        "evidence_malformed": {
+          "type": "boolean",
+          "description": "True when this plane's evidence contained records the reader could not decode. Forces ERROR."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    },
+    "observation_plane": {
+      "type": "object",
+      "required": [
+        "run",
+        "environment",
+        "executables",
+        "settings",
+        "git",
+        "stream",
+        "debug",
+        "transcript",
+        "hooks",
+        "filesystem",
+        "source_audit",
+        "schema_audit"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "Raw facts only. A candidate-authored verdict copied into this plane is refused twice: by this closure, and by decision D05.",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/run_frame"
+        },
+        "environment": {
+          "$ref": "#/$defs/environment_plane"
+        },
+        "executables": {
+          "$ref": "#/$defs/executables_plane"
+        },
+        "settings": {
+          "$ref": "#/$defs/settings_plane"
+        },
+        "git": {
+          "$ref": "#/$defs/git_plane"
+        },
+        "stream": {
+          "$ref": "#/$defs/bounded_evidence"
+        },
+        "debug": {
+          "$ref": "#/$defs/bounded_evidence"
+        },
+        "transcript": {
+          "$ref": "#/$defs/bounded_evidence"
+        },
+        "hooks": {
+          "$ref": "#/$defs/hooks_plane"
+        },
+        "filesystem": {
+          "$ref": "#/$defs/filesystem_plane"
+        },
+        "source_audit": {
+          "$ref": "#/$defs/source_audit_plane"
+        },
+        "schema_audit": {
+          "$ref": "#/$defs/schema_audit_plane"
+        }
+      }
+    },
+    "candidate_claim_plane": {
+      "type": "object",
+      "required": [
+        "present",
+        "source_path",
+        "sha256",
+        "bytes",
+        "byte_truncated",
+        "read_by_reconcile"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "Recorded by digest only. reconcile() never parses this plane, so a candidate cannot supply its own answer (ladder:282).",
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "source_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "$ref": "#/$defs/byte_count"
+        },
+        "byte_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_EVIDENCE_BYTES byte cap clipped the claim read, so `sha256` is a PREFIX digest and `bytes` is exactly MAX_EVIDENCE_BYTES rather than the file's real size. Published for the THIRD PARTY who recomputes the digest from raw bytes, not for a decision: reconcile() does not read this plane (`read_by_reconcile` is const false), so no decision degrades on it and none is meant to. Without it the pair (sha256, bytes) is self-consistent and silently not the whole file, which is the same fail-open the overlay digest carried on the settings plane."
+        },
+        "read_by_reconcile": {
+          "const": false
+        }
+      }
+    },
+    "evidence_bounds": {
+      "type": "object",
+      "required": [
+        "any_bound_truncated",
+        "malformed",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "The output bounds that applied to the evidence THIS decision read. Present on every decision record so a reader can see, per decision, whether the observation was complete (amendment:208). CAPS ONLY. An UNMEASURED decision with any_bound_truncated false and malformed false has NOT been mis-reported: a plane it declares was absent or otherwise unmeasured, which raises no cap flag, and `notes` names that plane and the status it declared.",
+      "properties": {
+        "any_bound_truncated": {
+          "type": "boolean",
+          "description": "A decision-level DECLARED ROLLUP across every plane this decision reads and every bound those planes carry — the `any` segment in the name is what says so, and a decision does not care which cap cut its evidence short, only that one did. Operands: every published per-cap flag on every plane in DECISION_EVIDENCE_PLANES for this decision — byte_truncated (MAX_EVIDENCE_BYTES), record_truncated (MAX_STREAM_RECORDS), entry_truncated (MAX_INVENTORY_ENTRIES), member_bytes_truncated (MAX_EVIDENCE_BYTES) — plus those planes' own any_bound_truncated rollups. `notes` records which plane contributed, and the planes themselves keep the per-cap split."
+        },
+        "malformed": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "decision_record": {
+      "type": "object",
+      "required": [
+        "decision_id",
+        "observation_status",
+        "evidence_count",
+        "discrepancies",
+        "discrepancy_count",
+        "discrepancy_truncated",
+        "evidence_bounds"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "description": "evidence_count 0 forces UNMEASURED: an empty denominator cannot be OBSERVED. So does a declared evidence plane that is itself UNMEASURED or ERROR: this record carries at worst the status of the weakest plane its DECISION_EVIDENCE_PLANES entry names, absence included (amendment:208). That inheritance is NOT visible in evidence_bounds, which reports caps only; the naming note in evidence_bounds.notes is where it is recorded.",
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "pattern": "^D[0-9]{2}_[A-Z0-9_]+$"
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        },
+        "evidence_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discrepancies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 400
+          }
+        },
+        "discrepancy_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many discrepancies this decision found BEFORE MAX_DISCREPANCIES clipped the published list, so the extent of a clip is not removed by the clip. Equal to the length of `discrepancies` unless `discrepancy_truncated` is true."
+        },
+        "discrepancy_truncated": {
+          "type": "boolean",
+          "description": "True when the MAX_DISCREPANCIES cap clipped a published list of this record — `discrepancies`, `evidence_bounds.notes`, or both. That cap and nothing else; it is one cap over one record, so one flag reports it, and the pre-clip extent is `discrepancy_count`. A clipped record cannot report a clean OBSERVED."
+        },
+        "evidence_bounds": {
+          "$ref": "#/$defs/evidence_bounds"
+        }
+      }
+    },
+    "comparison_plane": {
+      "type": "object",
+      "required": [
+        "decisions",
+        "decision_ids",
+        "discrepancy_count",
+        "observation_status"
+      ],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision_record"
+          },
+          "minItems": 1
+        },
+        "decision_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "discrepancy_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of every decision's PRE-CLIP discrepancy_count, not of the published list lengths."
+        },
+        "observation_status": {
+          "$ref": "#/$defs/observation_status"
+        }
+      }
+    }
+  }
+}

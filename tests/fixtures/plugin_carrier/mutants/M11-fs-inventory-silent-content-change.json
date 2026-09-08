@@ -1,0 +1,72 @@
+{
+  "declared_writable_roots": [
+    "/proof/root"
+  ],
+  "legacy_absolute_paths": [
+    "/tmp/autonomous_dev_cmd_context.json",
+    "/tmp/skip_agent_completeness_gate"
+  ],
+  "pre": {
+    "root": "/proof/root",
+    "root_exists": true,
+    "entry_truncated": false,
+    "member_bytes_truncated": false,
+    "observation_status": "OBSERVED",
+    "entries": {
+      "/proof/root": {
+        "kind": "dir",
+        "sha256": null,
+        "bytes": null,
+        "content_truncated": false,
+        "mode": 448,
+        "uid": 501,
+        "acl_state": "UNMEASURED"
+      },
+      "/repo/plugins/autonomous-dev/lib/pipeline_state.py": {
+        "kind": "file",
+        "sha256": "0dfa8e5d096364e135510f4ef876fe24f75035beb891215c28da6592ed45ff38",
+        "bytes": 41231,
+        "content_truncated": false,
+        "mode": 420,
+        "uid": 501,
+        "acl_state": "UNMEASURED"
+      }
+    }
+  },
+  "post": {
+    "root": "/proof/root",
+    "root_exists": true,
+    "entry_truncated": false,
+    "member_bytes_truncated": false,
+    "observation_status": "OBSERVED",
+    "entries": {
+      "/proof/root": {
+        "kind": "dir",
+        "sha256": null,
+        "bytes": null,
+        "content_truncated": false,
+        "mode": 448,
+        "uid": 501,
+        "acl_state": "UNMEASURED"
+      },
+      "/proof/root/stream.jsonl": {
+        "kind": "file",
+        "sha256": "53a96940b1269955a842851c9232c3674ae6dd1fdb3088d6dd22977956a13107",
+        "bytes": 512,
+        "content_truncated": false,
+        "mode": 384,
+        "uid": 501,
+        "acl_state": "UNMEASURED"
+      },
+      "/repo/plugins/autonomous-dev/lib/pipeline_state.py": {
+        "kind": "file",
+        "sha256": "47793583b5bbe952d5b0e92e10527159697389f01d7d0ef4317223af8e66669a",
+        "bytes": 41231,
+        "content_truncated": false,
+        "mode": 420,
+        "uid": 501,
+        "acl_state": "UNMEASURED"
+      }
+    }
+  }
+}

@@ -1,0 +1,506 @@
+{
+  "schema_version": "p0a.1",
+  "observation": {
+    "run": {
+      "cwd": "/proof/worktree",
+      "run_root": "/proof/root",
+      "session_uuid": "1f0c9b6a-6f5f-4f3a-9f2b-0d7a5c3e1b40",
+      "argv": [
+        "claude",
+        "--print",
+        "--output-format",
+        "stream-json",
+        "--include-hook-events",
+        "--verbose",
+        "--debug-file",
+        "/proof/root/debug.log",
+        "--setting-sources",
+        "user,project,local",
+        "--settings",
+        "/proof/root/settings/claude-observer.settings.json",
+        "--session-id",
+        "1f0c9b6a-6f5f-4f3a-9f2b-0d7a5c3e1b40"
+      ],
+      "refused_flags": [
+        "--safe-mode",
+        "--no-session-persistence"
+      ],
+      "child_executed": false,
+      "observation_status": "UNMEASURED"
+    },
+    "environment": {
+      "allowlist": [
+        "CLAUDE_PLUGIN_ROOT",
+        "CLAUDE_PLUGIN_DATA",
+        "CLAUDE_CODE_ENTRYPOINT",
+        "CLAUDECODE",
+        "CLAUDE_PROJECT_DIR",
+        "P0A_PROOF_ROOT",
+        "HOME",
+        "PATH"
+      ],
+      "variables": [
+        {
+          "name": "CLAUDE_PLUGIN_ROOT",
+          "present": true,
+          "sha256": "f4503494cc555d59ed1b905ee66658d168e979c5bad82ae8f50cbf0abafe5d34",
+          "bytes": 46,
+          "observation_status": "OBSERVED"
+        },
+        {
+          "name": "CLAUDE_PLUGIN_DATA",
+          "present": false,
+          "sha256": null,
+          "bytes": null,
+          "observation_status": "UNMEASURED"
+        },
+        {
+          "name": "HOME",
+          "present": true,
+          "sha256": "afec44297a36ea3030a0e2ae3e6d1c0c37eedc4e3d2c128698927ca903438fb2",
+          "bytes": 12,
+          "observation_status": "OBSERVED"
+        },
+        {
+          "name": "PATH",
+          "present": true,
+          "sha256": "a87da12e93529adc52c4fbf4d877e4584009e1fea34305faaf4fd8f42b78e949",
+          "bytes": 184,
+          "observation_status": "OBSERVED"
+        }
+      ],
+      "observation_status": "UNMEASURED"
+    },
+    "executables": {
+      "entries": [
+        {
+          "name": "claude",
+          "present": true,
+          "path": "/usr/local/bin/claude",
+          "version": null,
+          "observation_status": "UNMEASURED"
+        },
+        {
+          "name": "python3",
+          "present": true,
+          "path": "/usr/bin/python3",
+          "version": "Python 3.11.9",
+          "observation_status": "OBSERVED"
+        },
+        {
+          "name": "git",
+          "present": true,
+          "path": "/usr/bin/git",
+          "version": "git version 2.45.2",
+          "observation_status": "OBSERVED"
+        }
+      ],
+      "observation_status": "UNMEASURED"
+    },
+    "settings": {
+      "overlay_path": "/proof/root/settings/claude-observer.settings.json",
+      "overlay_sha256": "cd9ac4796c69028244c8c8a9c94f992842df0b3c6675347515a339a1630223fe",
+      "setting_sources": [
+        "user",
+        "project",
+        "local"
+      ],
+      "expected_setting_sources": [
+        "user",
+        "project",
+        "local"
+      ],
+      "declared": [
+        {
+          "path": "/proof/root/settings/user.settings.json",
+          "sha256": "200828debd5f9e0a025dc04e4f6c8eb0b6b8a32352b7b987ca4041c8101abb33"
+        },
+        {
+          "path": "/proof/root/settings/project.settings.json",
+          "sha256": "4030f4bc7259e35d0dde060be3e634b3919bf329e4bdbefa7fd8ecd7de6da351"
+        },
+        {
+          "path": "/proof/root/settings/claude-observer.settings.json",
+          "sha256": "7b421bd08c6d0e2bdf8e40098946ca15ae8cece8a4189342b05b159e7e64846b"
+        }
+      ],
+      "observed": [
+        {
+          "path": "/proof/root/settings/user.settings.json",
+          "sha256": "200828debd5f9e0a025dc04e4f6c8eb0b6b8a32352b7b987ca4041c8101abb33"
+        },
+        {
+          "path": "/proof/root/settings/project.settings.json",
+          "sha256": "4030f4bc7259e35d0dde060be3e634b3919bf329e4bdbefa7fd8ecd7de6da351"
+        },
+        {
+          "path": "/proof/root/settings/claude-observer.settings.json",
+          "sha256": "7b421bd08c6d0e2bdf8e40098946ca15ae8cece8a4189342b05b159e7e64846b"
+        }
+      ],
+      "byte_truncated": false,
+      "overlay_byte_truncated": false,
+      "evidence_malformed": false,
+      "observation_status": "OBSERVED"
+    },
+    "git": {
+      "pre": {
+        "head": "9e75f5e3934b4bf8d8efb2ff8a295abb13eb03fe",
+        "dirty_path_count": 0,
+        "observation_status": "OBSERVED"
+      },
+      "post": {
+        "head": "9e75f5e3934b4bf8d8efb2ff8a295abb13eb03fe",
+        "dirty_path_count": 0,
+        "observation_status": "OBSERVED"
+      },
+      "observation_status": "OBSERVED"
+    },
+    "stream": {
+      "path": "/proof/root/stream.jsonl",
+      "present": true,
+      "bytes": 512,
+      "sha256": "53a96940b1269955a842851c9232c3674ae6dd1fdb3088d6dd22977956a13107",
+      "record_count": 6,
+      "byte_truncated": false,
+      "record_truncated": false,
+      "unparsable_records": 0,
+      "observation_status": "OBSERVED"
+    },
+    "debug": {
+      "path": "/proof/root/debug.log",
+      "present": true,
+      "bytes": 448,
+      "sha256": "29644206cb632551d4384388ef14be8d08305520a74eb96332690555e7fa8377",
+      "record_count": 5,
+      "byte_truncated": false,
+      "record_truncated": false,
+      "unparsable_records": 0,
+      "observation_status": "OBSERVED"
+    },
+    "transcript": {
+      "path": "/proof/root/transcript.jsonl",
+      "present": true,
+      "bytes": 384,
+      "sha256": "b7332e45b268f90a406579f7a7d4f377150b704234b7103ced8f235863db92ba",
+      "record_count": 3,
+      "byte_truncated": false,
+      "record_truncated": false,
+      "unparsable_records": 0,
+      "observation_status": "OBSERVED"
+    },
+    "hooks": {
+      "joins": [
+        {
+          "tool_use_id": "toolu_01AAA",
+          "hook_event_name": "PreToolUse",
+          "exit_code": 0,
+          "stdout_bytes": 0,
+          "decision": "SILENT",
+          "stream_outcome": "success",
+          "observation_status": "OBSERVED"
+        },
+        {
+          "tool_use_id": "toolu_02BBB",
+          "hook_event_name": "PreToolUse",
+          "exit_code": 0,
+          "stdout_bytes": 0,
+          "decision": "SILENT",
+          "stream_outcome": "success",
+          "observation_status": "OBSERVED"
+        }
+      ],
+      "orphan_tool_use_ids": [],
+      "hook_events_without_receipt": [],
+      "receipts_without_hook_event": [],
+      "unrankable_record_types": [],
+      "non_lifecycle_record_count": 2,
+      "any_bound_truncated": false,
+      "evidence_malformed": false,
+      "observation_status": "OBSERVED"
+    },
+    "filesystem": {
+      "declared_writable_roots": [
+        "/proof/root"
+      ],
+      "legacy_absolute_paths": [
+        "/tmp/autonomous_dev_cmd_context.json",
+        "/tmp/skip_agent_completeness_gate"
+      ],
+      "pre": {
+        "root": "/proof/root",
+        "root_exists": true,
+        "entry_count": 2,
+        "entry_truncated": false,
+        "member_bytes_truncated": false,
+        "observation_status": "OBSERVED",
+        "entries": {
+          "/proof/root": {
+            "kind": "dir",
+            "sha256": null,
+            "bytes": null,
+            "content_truncated": false,
+            "mode": 448,
+            "uid": 501,
+            "acl_state": "UNMEASURED"
+          },
+          "/repo/plugins/autonomous-dev/lib/pipeline_state.py": {
+            "kind": "file",
+            "sha256": "0dfa8e5d096364e135510f4ef876fe24f75035beb891215c28da6592ed45ff38",
+            "bytes": 41231,
+            "content_truncated": false,
+            "mode": 420,
+            "uid": 501,
+            "acl_state": "UNMEASURED"
+          }
+        }
+      },
+      "post": {
+        "root": "/proof/root",
+        "root_exists": true,
+        "entry_count": 3,
+        "entry_truncated": false,
+        "member_bytes_truncated": false,
+        "observation_status": "OBSERVED",
+        "entries": {
+          "/proof/root": {
+            "kind": "dir",
+            "sha256": null,
+            "bytes": null,
+            "content_truncated": false,
+            "mode": 448,
+            "uid": 501,
+            "acl_state": "UNMEASURED"
+          },
+          "/proof/root/stream.jsonl": {
+            "kind": "file",
+            "sha256": "53a96940b1269955a842851c9232c3674ae6dd1fdb3088d6dd22977956a13107",
+            "bytes": 512,
+            "content_truncated": false,
+            "mode": 384,
+            "uid": 501,
+            "acl_state": "UNMEASURED"
+          },
+          "/repo/plugins/autonomous-dev/lib/pipeline_state.py": {
+            "kind": "file",
+            "sha256": "0dfa8e5d096364e135510f4ef876fe24f75035beb891215c28da6592ed45ff38",
+            "bytes": 41231,
+            "content_truncated": false,
+            "mode": 420,
+            "uid": 501,
+            "acl_state": "UNMEASURED"
+          }
+        }
+      },
+      "any_bound_truncated": false,
+      "evidence_malformed": false,
+      "observation_status": "OBSERVED"
+    },
+    "source_audit": {
+      "subject_path": "/proof/worktree/tests/bootstrap/observe_claude_execution.py",
+      "subject_sha256": "e028c0ce064f81edd17f44d8f9a65f0aab2c125f8d25bccb8b5c0891bbfb24d4",
+      "static_findings": [],
+      "dynamic_findings": [],
+      "runtime_findings": [],
+      "runtime_audited": true,
+      "byte_truncated": false,
+      "evidence_malformed": false,
+      "observation_status": "OBSERVED"
+    },
+    "schema_audit": {
+      "schema_path": "/proof/worktree/tests/bootstrap/plugin_carrier_bootstrap.schema.json",
+      "schema_sha256": "916134e11fba94c0828a81ae18d341878d63e050a66efc2d2548f2a8c43f68bd",
+      "document_path": "/proof/root/packet.json",
+      "document_present": true,
+      "root_unknown_fields": [],
+      "composed_unknown_fields": [],
+      "byte_truncated": false,
+      "evidence_malformed": false,
+      "observation_status": "OBSERVED"
+    }
+  },
+  "candidate_claim": {
+    "present": false,
+    "source_path": null,
+    "sha256": null,
+    "bytes": null,
+    "byte_truncated": false,
+    "read_by_reconcile": false
+  },
+  "comparison": {
+    "decisions": [
+      {
+        "decision_id": "D01_SCHEMA_ROOT_CLOSED",
+        "observation_status": "OBSERVED",
+        "evidence_count": 214,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D02_SCHEMA_COMPOSED_CLOSED",
+        "observation_status": "OBSERVED",
+        "evidence_count": 214,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D03_NO_STATIC_PRODUCT_IMPORT",
+        "observation_status": "OBSERVED",
+        "evidence_count": 13,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D04_NO_DYNAMIC_PRODUCT_IMPORT",
+        "observation_status": "OBSERVED",
+        "evidence_count": 96,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D05_NO_CANDIDATE_VERDICT_IN_OBSERVATION",
+        "observation_status": "OBSERVED",
+        "evidence_count": 301,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D06_SETTINGS_DIGEST_MATCH",
+        "observation_status": "OBSERVED",
+        "evidence_count": 3,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D07_SETTINGS_SOURCE_SET_EXACT",
+        "observation_status": "OBSERVED",
+        "evidence_count": 3,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D08_HOOK_TOOL_USE_ID_JOIN",
+        "observation_status": "OBSERVED",
+        "evidence_count": 4,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D09_HIDDEN_HOOK_NONZERO",
+        "observation_status": "OBSERVED",
+        "evidence_count": 2,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D10_NO_WRITE_OUTSIDE_DECLARED_ROOTS",
+        "observation_status": "OBSERVED",
+        "evidence_count": 3,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D11_NO_SILENT_CONTENT_CHANGE",
+        "observation_status": "OBSERVED",
+        "evidence_count": 2,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      },
+      {
+        "decision_id": "D12_MODE_OWNER_RECORDED_FAITHFULLY",
+        "observation_status": "OBSERVED",
+        "evidence_count": 3,
+        "discrepancies": [],
+        "discrepancy_count": 0,
+        "discrepancy_truncated": false,
+        "evidence_bounds": {
+          "any_bound_truncated": false,
+          "malformed": false,
+          "notes": []
+        }
+      }
+    ],
+    "decision_ids": [
+      "D01_SCHEMA_ROOT_CLOSED",
+      "D02_SCHEMA_COMPOSED_CLOSED",
+      "D03_NO_STATIC_PRODUCT_IMPORT",
+      "D04_NO_DYNAMIC_PRODUCT_IMPORT",
+      "D05_NO_CANDIDATE_VERDICT_IN_OBSERVATION",
+      "D06_SETTINGS_DIGEST_MATCH",
+      "D07_SETTINGS_SOURCE_SET_EXACT",
+      "D08_HOOK_TOOL_USE_ID_JOIN",
+      "D09_HIDDEN_HOOK_NONZERO",
+      "D10_NO_WRITE_OUTSIDE_DECLARED_ROOTS",
+      "D11_NO_SILENT_CONTENT_CHANGE",
+      "D12_MODE_OWNER_RECORDED_FAITHFULLY"
+    ],
+    "discrepancy_count": 0,
+    "observation_status": "OBSERVED"
+  }
+}

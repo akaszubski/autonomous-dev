@@ -1,0 +1,5 @@
+[2026-09-07T09:15:02.114Z] [DEBUG] session start session_id=1f0c9b6a-6f5f-4f3a-9f2b-0d7a5c3e1b40
+[2026-09-07T09:15:02.203Z] [DEBUG] settings sources resolved order=user,project,local
+[2026-09-07T09:15:02.481Z] [DEBUG] hook PreToolUse tool_use_id=toolu_01AAA command=claude-observer-canary exit=0 stdout_bytes=0
+[2026-09-07T09:15:03.902Z] [DEBUG] hook PreToolUse tool_use_id=toolu_02BBB command=claude-observer-canary exit=0 stdout_bytes=0
+[2026-09-07T09:15:04.220Z] [DEBUG] session end reason=complete
