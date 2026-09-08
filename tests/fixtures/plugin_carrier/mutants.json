@@ -1,0 +1,193 @@
+{
+  "registry_version": "p0a.1",
+  "description": "One-at-a-time mutants (amendment:185-186): each differs from its valid/ parent by exactly one change, verified mechanically by the kill harness rather than asserted here. Each entry also DECLARES that one location in `location`, and test_every_registry_mutant_declares_the_location_it_actually_changes recomputes it from the raw bytes and refuses any disagreement — an earlier revision's M02 prose named the wrong plane and the wrong entry key and nothing noticed, because the harness measured the COUNT of changed locations and never the location itself. `one_change` remains prose describing the NATURE of the edit; `location` is the machine-checked WHERE. The registry is a bijection onto observe_claude_execution.DECISION_IDS — a new decision with no killing mutant fails the build. ladder:286 requires only that each deciding observation has at least one mutation that turns it red; the bijection is this changeset's stricter choice, made because a set equality is mechanically checkable and 'at least one' is not.",
+  "kinds": {
+    "data": "the mutant file replaces installs_as inside a throwaway run root; the committed observer runs unchanged over it",
+    "source": "a one-hunk unified diff applied to a tmpdir COPY of the observer, never in place, so there is nothing to restore and no restoration journal to corrupt"
+  },
+  "oracles": {
+    "reconcile": "the committed observer recomputes the decision from the mutated raw bytes",
+    "jsonschema": "jsonschema.Draft202012Validator over the closed schema — an external library that shares no code with the observer",
+    "harness_ast": "the self-test's own ast walk over the mutated source; it never calls the observer's audit functions"
+  },
+  "mutants": [
+    {
+      "id": "M01",
+      "kind": "data",
+      "parent": "valid/packet.json",
+      "mutant": "mutants/M01-packet-root-extra-key.json",
+      "installs_as": "packet.json",
+      "one_change": "add \"extra_root_key\" at the packet root, a fourth sibling of the three frozen planes",
+      "location": "/extra_root_key",
+      "decision_id": "D01_SCHEMA_ROOT_CLOSED",
+      "oracle": [
+        "reconcile",
+        "jsonschema"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M02",
+      "kind": "data",
+      "parent": "valid/packet.json",
+      "mutant": "mutants/M02-packet-composed-extra-key.json",
+      "installs_as": "packet.json",
+      "one_change": "add \"extra\" inside observation.filesystem.pre.entries[\"/proof/root\"], a path_entry reached only by resolving $ref out of $defs (observation_plane -> filesystem_plane -> inventory -> patternProperties -> path_entry)",
+      "location": "/observation/filesystem/pre/entries//proof/root/extra",
+      "decision_id": "D02_SCHEMA_COMPOSED_CLOSED",
+      "oracle": [
+        "reconcile",
+        "jsonschema"
+      ],
+      "expected": "KILLED",
+      "not_equivalent_to": "M01 — a root-only-closed copy of the schema rejects M01 and accepts M02. The self-test derives that copy and asserts the disagreement, so the non-equivalence is measured, not claimed."
+    },
+    {
+      "id": "M03",
+      "kind": "source",
+      "parent": "tests/bootstrap/observe_claude_execution.py",
+      "mutant": "mutants/M03-observer-static-product-import.patch",
+      "installs_as": "observe_claude_execution.py",
+      "one_change": "add a module-level `import tier_registry`",
+      "location": "@@ -51,6 +51,7 @@ (+1/-0)",
+      "decision_id": "D03_NO_STATIC_PRODUCT_IMPORT",
+      "oracle": [
+        "harness_ast"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M04",
+      "kind": "source",
+      "parent": "tests/bootstrap/observe_claude_execution.py",
+      "mutant": "mutants/M04-observer-dynamic-product-import.patch",
+      "installs_as": "observe_claude_execution.py",
+      "one_change": "add an in-function `import_module(\"pipeline_state\")` call",
+      "location": "@@ -3024,6 +3024,7 @@ (+1/-0)",
+      "decision_id": "D04_NO_DYNAMIC_PRODUCT_IMPORT",
+      "oracle": [
+        "harness_ast"
+      ],
+      "expected": "KILLED",
+      "not_equivalent_to": "M03 — a scan of module-level Import nodes passes M04 silently. That is the #1503 shape: a matcher enumerating known members instead of removing a category. The self-test runs a deliberately module-level-only scan and asserts it MISSES M04 while the real scan catches it."
+    },
+    {
+      "id": "M05",
+      "kind": "source",
+      "parent": "tests/bootstrap/observe_claude_execution.py",
+      "mutant": "mutants/M05-observer-verdict-into-observation.patch",
+      "installs_as": "observe_claude_execution.py",
+      "one_change": "copy a candidate-authored verdict field into the observation plane",
+      "location": "@@ -3024,6 +3024,7 @@ (+1/-0)",
+      "decision_id": "D05_NO_CANDIDATE_VERDICT_IN_OBSERVATION",
+      "oracle": [
+        "jsonschema"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M06",
+      "kind": "data",
+      "parent": "valid/settings-sources.json",
+      "mutant": "mutants/M06-settings-digest-altered.json",
+      "installs_as": "settings-sources.json",
+      "one_change": "alter the SHA-256 recorded for one observed settings source",
+      "location": "/observed/1/sha256",
+      "decision_id": "D06_SETTINGS_DIGEST_MATCH",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M07",
+      "kind": "data",
+      "parent": "valid/settings-sources.json",
+      "mutant": "mutants/M07-settings-undeclared-source.json",
+      "installs_as": "settings-sources.json",
+      "one_change": "add one undeclared source to the observed set",
+      "location": "/observed",
+      "decision_id": "D07_SETTINGS_SOURCE_SET_EXACT",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED",
+      "not_equivalent_to": "M06 — value comparison and membership comparison are different branches; a digest-only check passes M07 untouched."
+    },
+    {
+      "id": "M08",
+      "kind": "data",
+      "parent": "valid/stream.jsonl",
+      "mutant": "mutants/M08-stream-orphan-tool-use-id.jsonl",
+      "installs_as": "stream.jsonl",
+      "one_change": "change one tool_use event's tool_use_id so it has no hook lifecycle partner",
+      "location": "lines 4-4: replace",
+      "decision_id": "D08_HOOK_TOOL_USE_ID_JOIN",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M09",
+      "kind": "data",
+      "parent": "valid/debug.log",
+      "mutant": "mutants/M09-debug-hidden-hook-nonzero.log",
+      "installs_as": "debug.log",
+      "one_change": "one hook exits 2 while the stream still reports success",
+      "location": "lines 4-4: replace",
+      "decision_id": "D09_HIDDEN_HOOK_NONZERO",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M10",
+      "kind": "data",
+      "parent": "valid/fs-inventory.json",
+      "mutant": "mutants/M10-fs-inventory-legacy-write.json",
+      "installs_as": "fs-inventory.json",
+      "one_change": "add a post-run path under a legacy absolute root outside every declared writable root",
+      "location": "/post/entries//tmp/legacy-activity/2026-09-07.jsonl",
+      "decision_id": "D10_NO_WRITE_OUTSIDE_DECLARED_ROOTS",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED"
+    },
+    {
+      "id": "M11",
+      "kind": "data",
+      "parent": "valid/fs-inventory.json",
+      "mutant": "mutants/M11-fs-inventory-silent-content-change.json",
+      "installs_as": "fs-inventory.json",
+      "one_change": "change the post digest of an already-inventoried path outside the declared roots",
+      "location": "/post/entries//repo/plugins/autonomous-dev/lib/pipeline_state.py/sha256",
+      "decision_id": "D11_NO_SILENT_CONTENT_CHANGE",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED",
+      "not_equivalent_to": "M10 — no new path appears, so M10's set difference misses it entirely."
+    },
+    {
+      "id": "M12",
+      "kind": "data",
+      "parent": "valid/fs-inventory.json",
+      "mutant": "mutants/M12-fs-inventory-mode-owner-drift.json",
+      "installs_as": "fs-inventory.json",
+      "one_change": "record a raw st_mode (0o100600) where stat.S_IMODE truth is 0o600 for a private-root path",
+      "location": "/post/entries//proof/root/stream.jsonl/mode",
+      "decision_id": "D12_MODE_OWNER_RECORDED_FAITHFULLY",
+      "oracle": [
+        "reconcile"
+      ],
+      "expected": "KILLED"
+    }
+  ],
+  "location_forms": {
+    "data": "a JSON pointer into the fixture document, or a `lines A-B: <opcode>` range for the line-oriented .jsonl and .log parents",
+    "source": "the unified-diff hunk header of the single hunk, with its added/removed line counts appended — so a hunk that moves because the observer's bytes shifted turns the check red"
+  }
+}

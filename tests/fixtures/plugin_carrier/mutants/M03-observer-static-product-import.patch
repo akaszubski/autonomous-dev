@@ -1,0 +1,10 @@
+--- a/observe_claude_execution.py
++++ b/observe_claude_execution.py
+@@ -51,6 +51,7 @@
+ import subprocess
+ import sys
+ import uuid
++import tier_registry
+ from collections import Counter
+ from pathlib import Path
+ from typing import Any, Callable, Iterable, NamedTuple

@@ -1,0 +1,10 @@
+--- a/observe_claude_execution.py
++++ b/observe_claude_execution.py
+@@ -3024,6 +3024,7 @@
+             module_dir / SCHEMA_FILENAME, run_root / EVIDENCE_PACKET
+         ),
+     }
++    observation["candidate_verdict"] = _read_json(run_root / EVIDENCE_CANDIDATE_CLAIM).document.get("verdict")
+     pre = _git_snapshot(cwd)
+     post = dict(pre)
+     observation["git"] = {

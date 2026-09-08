@@ -1,0 +1,334 @@
+{
+  "manifest_id": "plugin-carrier-p0",
+  "rung": "P0",
+  "phase": "A",
+  "issue": 1760,
+  "frozen_authority": {
+    "documents": [
+      "docs/plans/20260907-plugin-native-distribution-amendment.md",
+      "docs/plans/20260906-control-tool-capability-ladder.md"
+    ],
+    "contract": "amendment:170-284",
+    "note": "The two-document set from one commit is the tracked plan authority (amendment:255-259). The .claude/ mirror never becomes authority."
+  },
+  "description": "Immutable P0 case manifest, frozen before candidate code exists (amendment:263-264). Planes 1 and 2 cannot write this file. There is no release-state producer anywhere in P0-A: the strongest thing this changeset can emit is a green pytest run, and only an explicit digest-bound user promotion record creates a rung's release state (amendment:224-225).",
+  "non_self_certification": {
+    "achieved": [
+      "the artifact cannot mechanically assert its own pass — no code path emits PASS, CANDIDATE_PASS, or any promotion state",
+      "the evidence is recomputable from raw bytes by a third party with ordinary tools",
+      "the manifest is necessarily a separate artifact: a digest cannot be computed over a file containing that digest"
+    ],
+    "not_achieved": "Non-self-certification is an IDENTITY property — a distinct, independently-keyed functionary attests. P0-A has one operator, one machine, one key on both sides. No field in this manifest closes that, and nothing in this changeset claims to. Independent execution arrives at P0-C from a second clean worktree (amendment:205-206, :281-283), and even then it is the same human operator."
+  },
+  "subjects": [
+    "tests/bootstrap/observe_claude_execution.py",
+    "tests/bootstrap/plugin_carrier_bootstrap.schema.json"
+  ],
+  "fixtures": [
+    "tests/fixtures/plugin_carrier/claude-observer.settings.json",
+    "tests/fixtures/plugin_carrier/mutants.json",
+    "tests/fixtures/plugin_carrier/mutants/M01-packet-root-extra-key.json",
+    "tests/fixtures/plugin_carrier/mutants/M02-packet-composed-extra-key.json",
+    "tests/fixtures/plugin_carrier/mutants/M03-observer-static-product-import.patch",
+    "tests/fixtures/plugin_carrier/mutants/M04-observer-dynamic-product-import.patch",
+    "tests/fixtures/plugin_carrier/mutants/M05-observer-verdict-into-observation.patch",
+    "tests/fixtures/plugin_carrier/mutants/M06-settings-digest-altered.json",
+    "tests/fixtures/plugin_carrier/mutants/M07-settings-undeclared-source.json",
+    "tests/fixtures/plugin_carrier/mutants/M08-stream-orphan-tool-use-id.jsonl",
+    "tests/fixtures/plugin_carrier/mutants/M09-debug-hidden-hook-nonzero.log",
+    "tests/fixtures/plugin_carrier/mutants/M10-fs-inventory-legacy-write.json",
+    "tests/fixtures/plugin_carrier/mutants/M11-fs-inventory-silent-content-change.json",
+    "tests/fixtures/plugin_carrier/mutants/M12-fs-inventory-mode-owner-drift.json",
+    "tests/fixtures/plugin_carrier/valid/debug.log",
+    "tests/fixtures/plugin_carrier/valid/fs-inventory.json",
+    "tests/fixtures/plugin_carrier/valid/packet.json",
+    "tests/fixtures/plugin_carrier/valid/settings-sources.json",
+    "tests/fixtures/plugin_carrier/valid/stream.jsonl",
+    "tests/fixtures/plugin_carrier/valid/transcript.jsonl"
+  ],
+  "cases": [
+    {
+      "case_id": "P0-C01",
+      "state": "FROZEN",
+      "node": "tests/bootstrap/test_plugin_carrier_bootstrap.py::test_observer_has_closed_schema_no_product_import_and_kills_every_decision_mutant",
+      "execution_carrier": "portable",
+      "carrier_note": "Runs directly in CI. No real-Claude or plugin-install node exists at P0-A; P0-A executes no Claude binary, and an unavailable Claude binary never becomes pass merely because CI cannot execute that node (amendment:245).",
+      "timeout_s": 20,
+      "subject_digests": {
+        "tests/bootstrap/observe_claude_execution.py": "43086cbe3d808e24f8073c86cee54ea7069afa269e3af581d4b38ce8f23229ff",
+        "tests/bootstrap/plugin_carrier_bootstrap.schema.json": "b6c51decc61f4993122ac6e9e1fbdd86e3cde1f1ba49216c73bfc276caa8e473",
+        "tests/bootstrap/test_plugin_carrier_bootstrap.py": "e9e4e9ea62e9c34db5580bb7b3314baaac664bd98a52e7b5861dbd8315c516da",
+        "tests/fixtures/plugin_carrier/claude-observer.settings.json": "b3c3e17be831af470e931aa190be15160a86381b4d31626d0feeaedc53bf30af",
+        "tests/fixtures/plugin_carrier/mutants.json": "09c1abd25db9a7c1ed7403291656c41c927a5af99000a4086d38868b90fef0cb",
+        "tests/fixtures/plugin_carrier/mutants/M01-packet-root-extra-key.json": "ef51d5b3f3c3b7ca334e4d389ae764421e4998e815c824d633c0fa1ae3206fd7",
+        "tests/fixtures/plugin_carrier/mutants/M02-packet-composed-extra-key.json": "86fdc0505300f4c8e95a84066c111d29f741fd79a2a2f763f8f594aa3502f907",
+        "tests/fixtures/plugin_carrier/mutants/M03-observer-static-product-import.patch": "4753749d2ac365ae684d343717bcc69c6110eb87ade21053b0e1c6996e503a6b",
+        "tests/fixtures/plugin_carrier/mutants/M04-observer-dynamic-product-import.patch": "28856d2f2322a8143a7659a846a09252475b22ed1b954a72abc62c8d8c9c6f80",
+        "tests/fixtures/plugin_carrier/mutants/M05-observer-verdict-into-observation.patch": "96992d8433a2c568e68f6d7954ed03c1d3c54e7345de31b2c8b0b9af421b91e5",
+        "tests/fixtures/plugin_carrier/mutants/M06-settings-digest-altered.json": "c12be146d9bf47ca1dbd87b2bdeaff7262dc72cdec11fe310c40bad256bfbc14",
+        "tests/fixtures/plugin_carrier/mutants/M07-settings-undeclared-source.json": "7cd0e8d33518b6ccae59cdd8940577ffc0f773397dd4673310e3b0ff4e0f2ddc",
+        "tests/fixtures/plugin_carrier/mutants/M08-stream-orphan-tool-use-id.jsonl": "7e00304f0f562aa3a391a82a05720b6a7394edb437a451908a5bf0b1596a53d6",
+        "tests/fixtures/plugin_carrier/mutants/M09-debug-hidden-hook-nonzero.log": "e5c2ecb96802c562a982a662c496c2e8e3345dc09a21fbe973989703dd44a06b",
+        "tests/fixtures/plugin_carrier/mutants/M10-fs-inventory-legacy-write.json": "b5fde186d3b6e2cf4cb4d7be269a7b98b94496e062130189162f00beecbc7e8f",
+        "tests/fixtures/plugin_carrier/mutants/M11-fs-inventory-silent-content-change.json": "e152905e74358622753cc178a0f4e9508dcc91240349fad85ada664ea308a884",
+        "tests/fixtures/plugin_carrier/mutants/M12-fs-inventory-mode-owner-drift.json": "051967555b65292672cd79d5ce066da3322d347b49b4492b5519cdc46f1cd929",
+        "tests/fixtures/plugin_carrier/valid/debug.log": "9b192101324d83a7d7c2c26d553fbb64a0b517416a9204a6a1926b1623abdb2c",
+        "tests/fixtures/plugin_carrier/valid/fs-inventory.json": "8cc1113fe1c54ca22d331b3f2e7bd7fccc29af6c7ed76ca1a037a4894ee5c770",
+        "tests/fixtures/plugin_carrier/valid/packet.json": "3fec83778de0a04f7b363093126f197d4b7b889b7318faf8a1c5a9af9a4e11a5",
+        "tests/fixtures/plugin_carrier/valid/settings-sources.json": "26e27e19e07792733c70e6910b696d1e60b45bf25a66088d7cf377938dd8c0a4",
+        "tests/fixtures/plugin_carrier/valid/stream.jsonl": "b1dc9144624059776c68d86ea5fcad9af3b4a3ccb57ed4b77904d30fdafe7a73",
+        "tests/fixtures/plugin_carrier/valid/transcript.jsonl": "5280be77dd710b8cf338fb68fdcd238eaf919e60333b4905824aafa84d8e0b40"
+      },
+      "positive_arm": "valid fixtures reconcile: all 12 decisions OBSERVED, every evidence_count > 0, zero discrepancies, and the emitted packet validates against the closed schema",
+      "opposite_arms": [
+        "unknown field refuses — M01 at the packet root and M02 inside a $ref-composed sub-object",
+        "candidate import refuses — M03 static and M04 dynamic",
+        "verdict reuse refuses — M05 copies a candidate verdict into the observation plane",
+        "surviving mutant refuses — test_kill_harness_refuses_a_registry_whose_mutant_survives feeds a registry entry the bound decision cannot see and the harness must report SURVIVED"
+      ],
+      "counterfactual": "Derived schema copies must disagree in predicted directions: a root-only-closed copy rejects M01 and ACCEPTS M02 (so M02 is not a restatement of M01), and a fully-opened copy accepts both (so the rejections come from closure, not from type or required). A module-level-only import scan must MISS M04 while the category scan catches it.",
+      "external_oracle": [
+        "jsonschema.Draft202012Validator over the closed schema — an external library sharing no code with the observer",
+        "hashlib SHA-256 recomputation over raw bytes",
+        "os.lstat / stat.S_IMODE direct OS observation",
+        "ast walks owned by the self-test, never the observer's audit functions",
+        "subprocess execution of the observer under python3 -S with product paths off sys.path"
+      ],
+      "runner": "python -m pytest",
+      "smoke_command": "python -m pytest tests/bootstrap/test_plugin_carrier_bootstrap.py -v --tb=short -o \"addopts=\" --timeout=20 --timeout-method=signal --junitxml=${RUNNER_TEMP:-/tmp}/p0a-results.xml",
+      "run_block": [
+        "set -euo pipefail",
+        "pip install jsonschema -q",
+        "python -c \"import sys,json,hashlib,pathlib; m=json.load(open('tests/acceptance/plugin-carrier-p0.json')); d=[x for x in m['cases'] if x['case_id']=='P0-C01'][0]['subject_digests']; bad=[p for p,h in sorted(d.items()) if not pathlib.Path(p).is_file() or hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()!=h]; print('P0-A frozen bytes: %d bound, %d changed%s'%(len(d),len(bad),(': '+', '.join(bad)) if bad else '')); sys.exit(1 if bad else 0)\"",
+        "ec=0",
+        "python -m pytest tests/bootstrap/test_plugin_carrier_bootstrap.py \\",
+        "  -v --tb=short -o \"addopts=\" --timeout=20 --timeout-method=signal \\",
+        "  --junitxml=${RUNNER_TEMP:-/tmp}/p0a-results.xml || ec=$?",
+        "echo \"P0-A pytest exit: $ec\"",
+        "test \"$ec\" -eq 0 || { echo \"P0-A FAIL (pytest exit $ec; 5 = zero collection, 1 = test failure)\"; exit 1; }",
+        "python -c \"import sys,os,json,xml.etree.ElementTree as ET; m=json.load(open('tests/acceptance/plugin-carrier-p0.json')); exp=int([x for x in m['cases'] if x['case_id']=='P0-C01'][0]['collection_completeness']['expected_test_count']); r=ET.parse(os.path.join(os.environ.get('RUNNER_TEMP') or '/tmp','p0a-results.xml')).getroot(); s=r.find('testsuite') if r.tag=='testsuites' else r; t=int(s.get('tests','0')); f=int(s.get('failures','0')); e=int(s.get('errors','0')); k=int(s.get('skipped','0')); print('P0-A junit tests=%d expected=%d failures=%d errors=%d skipped=%d'%(t,exp,f,e,k)); sys.exit(0 if (t==exp and f==0 and e==0 and k==0) else 1)\""
+      ],
+      "collection_completeness": {
+        "node_file": "tests/bootstrap/test_plugin_carrier_bootstrap.py",
+        "expected_test_count": 90,
+        "rule": "exact",
+        "consumed_by": [
+          ".github/workflows/ci.yml — the P0-A step's JUnit re-read reads this number and compares with ==, so it hardcodes no count of its own",
+          "tests/bootstrap/test_plugin_carrier_bootstrap.py::test_manifest_declared_node_count_equals_pytest_collected_count — pins this number to what pytest actually collects"
+        ],
+        "rationale": "This is the ONLY home for the frozen node file's test count. A floor (tests>=N) permits silent deletion down to N: frozen tests could be removed, renamed out of collection, or fail to import and the gate would still report green. Exact equality refuses in both directions, and because CI derives the number from here rather than restating it, there is one number in one place (INV-5). Adding a test without updating this field fails the pinning test loudly; deleting one fails both the pinning test and the CI gate."
+      },
+      "output_bounds": {
+        "max_evidence_bytes": 4194304,
+        "max_stream_records": 10000,
+        "max_inventory_entries": 5000,
+        "max_discrepancies_per_decision": 50,
+        "max_document_depth": 100,
+        "packet_contents": "prompt/tool/file contents are never copied into the packet (amendment:200); only lengths and digests",
+        "truncation_contract": "Every bound that CLIPS published output carries a matching flag and reconcile() reads all of them: a decision whose evidence was clipped reports UNMEASURED, and one whose evidence contained records the reader could not decode reports ERROR (amendment:208). No decision reports OBSERVED over bounded-out evidence. A THIRD, SEPARATE channel covers what no bound flag can see: a decision inherits the worst `observation_status` of every plane its DECISION_EVIDENCE_PLANES entry names, so an ABSENT plane — which raises no truncation flag — degrades the decisions that declare it and only those. It is kept apart from the two bound flags because an absence is not a cap, and a flag named `..._truncated` must not carry it. Proven by test_an_absent_declared_plane_degrades_exactly_the_decisions_that_declare_it. max_document_depth is NOT a clip bound and carries no flag: it is a READER LIMIT, and a document nested deeper than this module's recursive readers can walk is classified malformed at the parse boundary rather than clipped; reconcile() refuses the same depth BY NAME on an observation handed to it directly, because a parse-boundary guard does not reach a caller-built object. Proven by test_a_document_too_deep_for_the_readers_degrades_instead_of_crashing.",
+        "bound_independence_contract": "One field per bound, and no field stands for a bound it does not name. The observer DECLARES this in TRUNCATION_BOUND_FLAGS and TRUNCATION_ROLLUP_FLAGS, and test_every_truncation_flag_is_single_bound_or_a_declared_rollup walks the module's AST and refuses a binding that breaks the declaration, so the contract is checked against the code rather than asserted about it. SINGLE-BOUND FLAGS: byte_truncated, sha_truncated, file_truncated, content_truncated and member_bytes_truncated carry max_evidence_bytes; record_truncated carries max_stream_records; entry_truncated carries max_inventory_entries; discrepancy_truncated carries max_discrepancies_per_decision, whose PRE-CLIP extent is published beside it as discrepancy_count. A DECLARED ROLLUP carries an `any` segment in its name and enumerates the operands it may read. Two readers ORing the SAME bound over the same file and cap is a composition, not a rollup. Separating the flags does not soften the refusal: any cap firing still degrades its plane to UNMEASURED, and with it each decision that reads that plane, because _TRUNCATION_KEYS is DERIVED from the published flag set rather than restated. WHAT THE AST GUARD IS NOT: it is a syntactic ratchet over the shapes it is proven to refuse, ITS REACH IS NOT CHARACTERISED, and any conflation may escape it. The weight sits on the behavioural tests named in scope_limits, which read the emitted packet rather than the source.",
+        "unit_contract": "Every bound is enforced in the unit its name declares. max_evidence_bytes is a RAW-BYTE bound, so both readers that consult it (_sha256_file and _read_text) count real bytes off a binary handle and agree on the byte_truncated flag for the same file; a text-mode read would count characters and let a multibyte stream reach four times the cap while reporting byte_truncated=false. Bytes past the cap are decoded with errors=replace, so a code point the cap cuts in half becomes U+FFFD deterministically rather than raising or varying."
+      },
+      "expected_settings": {
+        "overlay": "tests/fixtures/plugin_carrier/claude-observer.settings.json",
+        "setting_sources": [
+          "user",
+          "project",
+          "local"
+        ],
+        "setting_sources_consumed_by": [
+          "tests/bootstrap/test_plugin_carrier_bootstrap.py::_canonical_setting_sources — reads this field and passes it to the observer's --setting-sources on every route in that module that feeds one. WHAT THAT DOES AND DOES NOT SAY, because an earlier revision here said 'so no test spells the value' and that was FALSE: the module restated the triple as a literal at thirteen places, and five of them ALSO fed it to observer.capture(), so an edit to this field would have left those five routes comparing against a stale contract while D07 reported clean. Those five now call the helper. Literals still remain and are NOT the contract: argv-shape fixtures that assert how a list is comma-joined, the observer-CLI permitting arm that passes the already-joined string as one token, a direct _settings_provenance truncation cell that never reaches D07, and the one-shot-iterator test whose literal is load-bearing AS A LITERAL — routing it through the helper would compare this field to itself and pass over a reader that had lost the value. The invariant this field carries is therefore about ROUTES THAT FEED THE OBSERVER, not about the absence of the characters 'user', 'project', 'local' from the module",
+          "tests/bootstrap/observe_claude_execution.py::_source_set_discrepancies — compares it, as observation.settings.expected_setting_sources, against the SUBJECT-recorded observation.settings.setting_sources; the result is D07_SETTINGS_SOURCE_SET_EXACT",
+          "tests/bootstrap/test_plugin_carrier_bootstrap.py::test_the_canonical_source_contract_refuses_every_deviation_and_permits_a_reorder — drives both arms and pins the emitted operand back to this field"
+        ],
+        "setting_sources_rule": "MULTISET, not an ordered list, and the grounding for that is the DOCUMENTED PRECEDENCE rather than an experiment. https://code.claude.com/docs/en/cli-usage defines --setting-sources as a \"Comma-separated list of setting sources to load (user, project, local)\" — it SELECTS WHICH SOURCES LOAD, and says nothing about the order of the list meaning anything. https://code.claude.com/docs/en/settings fixes precedence by LEVEL, highest first: managed settings, command line (`claude --settings`), project-local (`.claude/settings.local.json`), shared project (`.claude/settings.json`), user (`~/.claude/settings.json`), with \"A key set at a higher level overrides the same key set lower down.\" For the three SELECTABLE sources that is local > project > user, fixed by level and INDEPENDENT of argv order. So a reorder must PERMIT and is carried as the negative control, while a missing, extra, replaced or DUPLICATED member each changes the multiset and refuses — set-differencing both sides would have lost the duplicate arm. WHAT THE REAL BINARY ESTABLISHED, AND ONLY THAT: acceptance and refusal of the argv value, i.e. that MEMBERSHIP is validated and case-sensitive. Against claude 2.1.236 the binary ACCEPTS `user,project,local`, `local,project,user`, `user,user,local` and a bare `project`, and REFUSES `USER,project,local` and `user,bogus,local` with `Invalid setting source: <x>. Valid options are: user, project, local`. The probe ran `doctor`, which reports on an installation, so an equal exit across two orders is evidence the parser ACCEPTED both and is NOT evidence that the two behave identically; no claim here rests on it having shown that. UNVERIFIED, kept visible rather than collapsed into the above: the precedence is DOCUMENTED, not MEASURED here. capture() executes no child (`run.child_executed` is `const: false`), so nothing here observes a real session resolving settings and a real resolution contradicting the documented precedence would be invisible to every arm. This field is the ONE home for the canonical value: the observer restates it nowhere and its --setting-sources argument is REQUIRED with no default, because the default it used to carry made D07's operand come from inside the subject under observation (ladder:282). What is compared to what, stated precisely: the comparison is this frozen value, forwarded by the caller into the packet as `expected_setting_sources`, against the list the SUPERVISOR recorded in settings-sources.json.",
+        "components": "exactly one PreToolUse hook: a dedicated non-blocking diagnostic canary that always exits zero and writes only inside its supplied private proof root (amendment:52-53)",
+        "installed": false,
+        "installed_note": "This overlay is a FIXTURE. It is never installed, never merged into a real settings file, and install_manifest.json ships zero tests/ paths by design."
+      },
+      "allowed_persistent_write_roots": [
+        "the caller-supplied run root passed to capture()",
+        "pytest tmp_path for the self-test's throwaway worlds"
+      ],
+      "forbidden_writes": "no production journal, no repository sink, no absolute legacy path; source mutants are applied to a tmpdir copy and never in place",
+      "invalidation_rule": "Any bound-byte change invalidates this manifest and requires a replacement A commit (amendment:219). All 23 subject digests — including the verifier itself, tests/bootstrap/test_plugin_carrier_bootstrap.py — are recomputed EXTERNALLY by the first `python -c` line of run_block, before pytest starts. That external guard is exercised on four arms: a driver-only edit, an unrelated edit, a corrupt fixture, and a neutered in-file reader plus a corrupt fixture. DISCLOSED LIMIT: coordinated edits to every repository control defeat it; no guard living in the repository it guards can close that.",
+      "decision_ids": [
+        "D01_SCHEMA_ROOT_CLOSED",
+        "D02_SCHEMA_COMPOSED_CLOSED",
+        "D03_NO_STATIC_PRODUCT_IMPORT",
+        "D04_NO_DYNAMIC_PRODUCT_IMPORT",
+        "D05_NO_CANDIDATE_VERDICT_IN_OBSERVATION",
+        "D06_SETTINGS_DIGEST_MATCH",
+        "D07_SETTINGS_SOURCE_SET_EXACT",
+        "D08_HOOK_TOOL_USE_ID_JOIN",
+        "D09_HIDDEN_HOOK_NONZERO",
+        "D10_NO_WRITE_OUTSIDE_DECLARED_ROOTS",
+        "D11_NO_SILENT_CONTENT_CHANGE",
+        "D12_MODE_OWNER_RECORDED_FAITHFULLY"
+      ],
+      "scope_limits": [
+        "Coverage of reconcile() is not measured; amendment:167-168 records that coverage percentage is not deciding evidence here.",
+        "Completeness of DECISION_IDS against real Claude Code behaviour is unfalsifiable at A-time; C07 (amendment:278) exists to test it.",
+        "All A-time evidence is synthetic, which amendment:203-205 explicitly permits.",
+        "Bounds and crash cleanup are oracle-asserted, not mutant-covered: an interrupted run yields UNMEASURED/ERROR, never success, and the refusal semantics are C05's future arm (amendment:276).",
+        "acl_state is recorded as UNMEASURED on private-root entries: POSIX mode bits are not a complete access description on every carrier, and the bounds decision is C02's future arm (amendment:273).",
+        "The AST conflation guard is a RATCHET over an enumerated set of conflation shapes it is PROVEN to refuse — a syntactic scan with a per-function alias map, not a dataflow analysis and not a completeness guarantee. Its reach is not characterised: any conflation may escape it, and test_conflation_guard_refuses_branch_merge_and_closure_capture_shapes ships a witnessed escape beside the four shapes it pins. This entry names no residual set, because such a list is a universal claim wearing an enumeration's clothes. The protection that does not depend on this guard's reach is behavioural: test_byte_and_record_bounds_are_reported_independently and test_inventory_entry_cap_and_member_byte_cap_are_reported_independently read the emitted packet, not the source.",
+        "The mutant registry's declared `location` is recomputed from raw bytes and refused on disagreement by test_every_registry_mutant_declares_the_location_it_actually_changes, for both mutant kinds. Its sibling `one_change` is prose about the NATURE of the edit and is NOT mechanically checked — stated here rather than left wearing a checked field's authority.",
+        "The git plane is SINGLE-SAMPLED AT A-TIME and cannot show drift: `_git_snapshot` is defined once and called once per capture — measured by AST in test_git_plane_is_single_sampled_and_the_filesystem_pair_is_not, because `grep -c` reports three for that name and would mislead — so `git.post` is a COPY OF `pre`. capture() executes no child (`run.child_executed` is `const: false`), so nothing the observer controls separates possible git samples; a differential one belongs to C07 (amendment:278). Do not read this pair as the shape of `filesystem.pre`/`filesystem.post`, which IS differential: `_filesystem_planes` normalises two distinct fields of one `_read_json`. No DECISION_EVIDENCE_PLANES entry names `git`, so no decision reads this plane.",
+        "The manifest's `smoke_command` is bound to .github/workflows/ci.yml token-for-token by test_manifest_smoke_command_matches_the_ci_pytest_invocation: both are `shlex`-split and the token LISTS must be equal, so the target path, `-o addopts=`, the timeout, the timeout method, the JUnit path and their ORDER are bound. The REST of the step body is bound too, and by a second field rather than by a wider reading of this one: `run_block` freezes the step's whole `run:` block as an ordered line list, and test_the_p0a_ci_step_cannot_be_skipped_or_tolerated requires equality, so an inserted, deleted, reordered or rewritten command is refused whatever it spells. The predecessor of that check tested one token, `|| true`, and was measured PERMITTING a prepended `exit 0`, an appended `|| :`, an appended `; true`, a pipe in place of the exit-code capture, and a body replaced wholesale. The two fields cannot drift apart: the invocation read back out of `run_block` must equal `smoke_command` token for token. WHAT REMAINS UNBOUND is the step's YAML envelope rather than its body: `name:`, `if:` and the block-scalar `run: |` layout. The comparison is made against the PARSED value, so a byte edit yielding the same text is permitted — re-indenting the whole block scalar is the measured example, since YAML strips the common indent — as are trailing whitespace and blank lines, which are shell no-ops. Re-WRAPPING a continuation line is NOT permitted: it changes the parsed lines and is refused, measured rather than reasoned about. The step's `if:` gate and its JUnit re-read are covered by tests/regression/test_ci_pytest_timeout.py::test_multi_suite_steps_gate_on_their_prerequisites and by test_ci_completeness_gate_refuses_partial_collection_and_permits_the_full_count, which extracts and RUNS the step's `python -c` verbatim.",
+        "D05 scans the observation plane for verdict vocabulary, and part of that plane is SUBJECT-FORWARDED. The KEY side is fixed: a key that is an absolute path is a recorded location, not an authored field name, and _is_recorded_location exempts it — before that, an ordinary recorded file named build_pass_marker produced a discrepancy, and this case's positive_arm requires zero, so a filename could DENY the observation. The VALUE side is NOT fixed and is the residual: a subject-written string that IS verdict vocabulary — `\"sha256\": \"pass\"` in a supervisor-written fs-inventory.json — is still a D05 discrepancy and can still deny the positive arm. It is left standing deliberately: an observer-authored verdict VALUE and a forwarded one are the same bytes, so removing the value arm would narrow D05's question rather than correct its category error, and no measured corpus exists here to argue the trade. The direction is fail-closed — denial of observation, never a clean read over a leak — and observe_claude_execution._is_recorded_location plus test_d05_reads_a_recorded_path_as_data_and_an_authored_key_as_a_field_name pin both halves, the fixed one and this one. A rung that consumes this packet for promotion MUST treat a D05 discrepancy over a forwarded value as UNMEASURED, not as a leak.",
+        "The observer does NOT AUTHENTICATE the supervisor-recorded documents it reads. `_settings_provenance` and `_filesystem_planes` each `_read_json` one SUPERVISOR-written document (`settings-sources.json`, `fs-inventory.json`); neither re-reads a settings file nor walks a filesystem. `inventory()` is PROVIDED, not USED — one definition and ZERO calls by AST; `grep -c 'inventory(' tests/bootstrap/observe_claude_execution.py` reports two, definition plus prose mention, and would mislead. Every recorded `sha256`, `mode` and `declared_writable_roots` value is therefore EVIDENCE ABOUT WHAT WAS RECORDED, not a measurement this observer made: a null/null digest pair, or a root widened to any DECLARABLE path, reads CLEAN — not resisted, flagged or degraded. The ONE exception: a DEGENERATE root (`/`, empty, relative) is refused by `_is_declarable_root` and degrades D10, D11 and D12. Of the files handed to it directly (overlay, own source, schema, each bounded stream/debug/transcript file) it measures digest, bytes, record count and bounds, NEVER the truth of their records: a deletion made CONSISTENTLY across `stream.jsonl` and `debug.log` reads CLEAN, an inconsistent one does not — where CONSISTENT is measured per `(tool_use_id, hook_event_name)` PAIR and not per id. Claude fires `PreToolUse` AND `PostToolUse` for one tool call under the SAME id, so a comparison keyed on the id alone absorbed a second event on an already-receipted id: the deletion of its receipt read clean while the identical deletion on a unique id was named. Pinned by test_a_second_hook_event_on_a_receipted_id_cannot_hide_its_missing_receipt, whose cells vary MULTIPLICITY with the id present on both sides throughout. Correct scoping at A-time — amendment:196-200 gives it RECORDING, amendment:190-192 denies it release state — and `test_the_supervisor_trust_disclosure_matches_what_the_observer_actually_does` drives every clause above. THE INHERITANCE THIS EXISTS TO STOP: a later rung building a promotion gate on this packet (amendment:220-225) MUST authenticate those roots, digests and records itself, and MUST NOT read this entry as 'the supervisor is trusted'."
+      ],
+      "decision_scopes": {
+        "D12_MODE_OWNER_RECORDED_FAITHFULLY": "Reads only entries beneath a declared writable root; the general $defs/path_entry domain reader covers known-field violations everywhere else."
+      }
+    },
+    {
+      "case_id": "P0-C02",
+      "state": "FUTURE",
+      "node": "tests/unit/lib/test_execution_run_root.py::test_run_root_is_explicit_private_bounded_and_no_follow",
+      "execution_carrier": "portable",
+      "timeout_s": 10,
+      "subject_digests": null,
+      "positive_arm": "valid root/namespace/modes pass",
+      "opposite_arms": [
+        "relative, reused, symlink, wrong-owner, wrong-mode, escape, and capacity faults refuse"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C03",
+      "state": "FUTURE",
+      "node": "tests/structural/test_execution_sink_inventory.py::test_every_implement_sink_has_one_declared_run_root_owner",
+      "execution_carrier": "portable",
+      "timeout_s": 10,
+      "subject_digests": null,
+      "positive_arm": "frozen command/lib/hook/test/cache/log/state/secret inventory is classified once",
+      "opposite_arms": [
+        "absolute temp, ignored repo sink, fallback, or missing owner fails"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C04",
+      "state": "FUTURE",
+      "node": "tests/integration/test_execution_run_root.py::test_implement_fixture_redirects_every_declared_persistent_artifact",
+      "execution_carrier": "portable",
+      "timeout_s": 60,
+      "subject_digests": null,
+      "positive_arm": "bounded edit/test/revert writes only tracked subject plus run root",
+      "opposite_arms": [
+        "each restored legacy sink is observed and fails"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C05",
+      "state": "FUTURE",
+      "node": "tests/integration/test_execution_run_root.py::test_concurrent_crash_cleanup_and_capacity_faults_preserve_other_runs",
+      "execution_carrier": "portable",
+      "timeout_s": 45,
+      "subject_digests": null,
+      "positive_arm": "concurrent namespaces and stale cleanup are exact",
+      "opposite_arms": [
+        "live-owner deletion, cross-run write, partial/disk-full acknowledgement, and cleanup failure refuse"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C06",
+      "state": "FUTURE",
+      "node": "tests/regression/test_execution_run_root_policy_equivalence.py::test_path_migration_preserves_every_frozen_hook_decision_envelope",
+      "execution_carrier": "portable",
+      "timeout_s": 45,
+      "subject_digests": null,
+      "positive_arm": "old/new permit/refuse/error/timeout envelopes match",
+      "opposite_arms": [
+        "any decision or payload-key mutation fails"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C07",
+      "state": "FUTURE",
+      "node": "tests/e2e/test_execution_run_root_claude.py::test_real_claude_implement_fixture_has_no_unexpected_persistent_write",
+      "execution_carrier": "real-claude",
+      "timeout_s": 120,
+      "subject_digests": null,
+      "positive_arm": "real persisted session joins stream/transcript/hooks and declared inventories",
+      "opposite_arms": [
+        "missing join, unregistered artifact, ordinary-store leak, hidden non-zero, or source mutation refuses"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    },
+    {
+      "case_id": "P0-C08",
+      "state": "FUTURE",
+      "node": "tests/regression/smoke/test_plugin_carrier_p0_release_gate.py::test_p0_packet_matches_frozen_manifest_and_candidate",
+      "execution_carrier": "portable",
+      "timeout_s": 15,
+      "subject_digests": null,
+      "positive_arm": "exact packet/manifest/candidate/tool digests pass",
+      "opposite_arms": [
+        "stale packet, zero nodes, altered manifest, or non-pass state blocks smoke"
+      ],
+      "counterfactual": null,
+      "external_oracle": null,
+      "runner": "python -m pytest",
+      "smoke_command": null,
+      "output_bounds": null,
+      "expected_settings": null,
+      "allowed_persistent_write_roots": null,
+      "invalidation_rule": "Names, arms, and budget are immutable. The B phase adds this case's exact fixture and subject digests through a REPLACEMENT A commit (amendment:219, :263-264); it may not edit this entry in place.",
+      "note": "Immutable name only. The module does not exist at A-time and P0-A does not create it; the A-time smoke route therefore invokes only the P0-A bootstrap verifier."
+    }
+  ]
+}

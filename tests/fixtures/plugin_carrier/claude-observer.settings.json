@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "sh -c 'd=\"${P0A_PROOF_ROOT:-}\"; if [ -n \"$d\" ] && [ -d \"$d\" ]; then printf \"%s canary\\n\" \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> \"$d/canary.log\"; fi; exit 0'"
+          }
+        ]
+      }
+    ]
+  }
+}
