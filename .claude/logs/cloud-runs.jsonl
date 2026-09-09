@@ -1211,3 +1211,4 @@
 {"fire_id": "20260909T003754Z", "fired_at": "2026-09-09T00:39:09Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T003754Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": "", "note": "cluster 1651,1660 stuck \u2014 13+8+ prior skip comments; suppressed re-comment; #1651 needs /implement (protected hook file), #1660 architectural"}
 {"fire_id": "20260909T023757Z", "fired_at": "2026-09-09T02:38:15Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260909T023757Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": ""}
