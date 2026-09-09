@@ -1223,3 +1223,4 @@
 {"fire_id": "20260909T123847Z", "fired_at": "2026-09-09T12:38:47Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T123847Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit_both_stuck_protected_infra_no_new_comment", "commit_sha": ""}
 {"fire_id": "20260909T143749Z", "fired_at": "2026-09-09T14:38:06Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260909T143749Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit_both_stuck_protected_infra_no_new_comment_4th_consecutive", "commit_sha": "", "note": "cluster 1651+1660 stuck 4 fires in a row; drain loop wasteful without human action or label change"}
