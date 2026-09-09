@@ -1222,3 +1222,4 @@
 {"fire_id": "20260909T103755Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit_both_stuck_protected_infra_no_new_comment", "commit_sha": "", "cluster": "1651,1660", "note": "both issues protected-infra (hooks/*.py, lib/*.py) \u2014 require /implement; skip comments already present within last 4h"}
 {"fire_id": "20260909T123847Z", "fired_at": "2026-09-09T12:38:47Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T123847Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit_both_stuck_protected_infra_no_new_comment", "commit_sha": ""}
+{"fire_id": "20260909T143749Z", "fired_at": "2026-09-09T14:38:06Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
