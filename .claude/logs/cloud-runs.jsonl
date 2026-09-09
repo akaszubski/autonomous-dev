@@ -1228,3 +1228,4 @@
 {"fire_id": "20260909T163809Z", "phase": "FIRE_END", "exit_reason": "implementer_no_commit_both_stuck_protected_infra_no_new_comment_5th_consecutive", "commit_sha": ""}
 {"fire_id": "20260909T183813Z", "fired_at": "2026-09-09T18:40:21Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T183813Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_6th_consecutive_no_op_on_same_cluster", "commit_sha": "", "cluster": "1651,1660", "note": "Cluster 1651+1660 selected 6 fires in a row (12+ hrs); both protected-infra requiring /implement (unavailable in cloud). Skipped implementer subagent invocation to avoid 25min budget waste. Notified owner. Cluster needs intervention: relabel, remove auto-improvement, or drain locally with /implement."}
+{"fire_id": "20260909T203747Z", "fired_at": "2026-09-09T20:39:03Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
