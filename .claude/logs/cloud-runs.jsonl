@@ -1214,3 +1214,4 @@
 {"fire_id": "20260909T023757Z", "phase": "FIRE_END", "exit_reason": "both_skipped_too_complex", "commit_sha": ""}
 {"fire_id": "20260909T043809Z", "fired_at": "2026-09-09T04:38:24Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T043809Z", "phase": "FIRE_END", "exit_reason": "both_skipped_stuck_cluster_no_comment", "commit_sha": "", "note": "cluster 1651,1660 has 14+9 prior skip comments; suppressed further skip-comment spam per CLAUDE.md standing rule"}
+{"fire_id": "20260909T063751Z", "fired_at": "2026-09-09T06:38:08Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
