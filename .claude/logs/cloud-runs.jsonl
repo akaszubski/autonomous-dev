@@ -1233,3 +1233,4 @@
 {"fire_id": "20260909T223803Z", "fired_at": "2026-09-09T22:38:18Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
 {"fire_id": "20260909T223803Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_8th_consecutive_no_op_on_same_cluster_1651_1660_midpoint_abort_check_date", "commit_sha": "", "note": "cluster 1651+1660 both require /implement (protected-infra); 3 recent identical skip comments already on each issue; no new comment posted to avoid noise; mid-point abort check date 2026-09-09"}
 {"fire_id": "20260910T003750Z", "fired_at": "2026-09-10T00:38:42Z", "selected_cluster": "1651,1660", "phase": "FIRE_START"}
+{"fire_id": "20260910T003750Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_9th_consecutive_no_op_on_cluster_1651_1660_but_skip_comments_now_posted", "commit_sha": ""}
