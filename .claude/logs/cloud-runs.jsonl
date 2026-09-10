@@ -1246,3 +1246,4 @@
 {"fire_id": "20260910T123757Z", "fired_at": "2026-09-10T12:38:18Z", "selected_cluster": "1661,1662", "phase": "FIRE_START"}
 {"fire_id": "20260910T123757Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_all_issues_too_complex_1661_1662_commented_via_rest", "commit_sha": "", "cluster": "1661,1662"}
 {"fire_id": "20260910T143801Z", "fired_at": "2026-09-10T14:38:18Z", "selected_cluster": "1661,1662", "phase": "FIRE_START"}
+{"fire_id": "20260910T143801Z", "phase": "FIRE_END", "exit_reason": "implementer_skipped_all_duplicates_1661_1662", "commit_sha": ""}
