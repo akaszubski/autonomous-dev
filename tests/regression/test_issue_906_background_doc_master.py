@@ -42,8 +42,6 @@ def _import_validator():
     if str(LIB_DIR) not in sys.path:
         sys.path.insert(0, str(LIB_DIR))
     mod_name = "pipeline_intent_validator"
-    if mod_name in sys.modules:
-        del sys.modules[mod_name]
     return importlib.import_module(mod_name)
 
 
@@ -116,8 +114,6 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.syspath_prepend(str(LIB_DIR))
 
         mod_name = "pipeline_completion_state"
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
         pcs = importlib.import_module(mod_name)
 
         original_path_fn = pcs._state_file_path
@@ -145,9 +141,6 @@ class TestIssue906BackgroundDocMaster:
             "(Issue #874 / #852)"
         )
 
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
-
     def test_874_doc_verdict_recorded_after_retry(self, tmp_path, monkeypatch) -> None:
         """MISSING verdict must be persisted when doc-master retry also produces no output.
 
@@ -161,8 +154,6 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.syspath_prepend(str(LIB_DIR))
 
         mod_name = "pipeline_completion_state"
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
         pcs = importlib.import_module(mod_name)
 
         monkeypatch.setattr(
@@ -194,9 +185,6 @@ class TestIssue906BackgroundDocMaster:
         assert completions.get("doc-master") is False, (
             "doc-master completion flag must be False for MISSING verdict"
         )
-
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
 
     # -----------------------------------------------------------------------
     # #882 — background events skipped for step_ordering checks
@@ -282,8 +270,6 @@ class TestIssue906BackgroundDocMaster:
         monkeypatch.syspath_prepend(str(LIB_DIR))
 
         mod_name = "pipeline_completion_state"
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
         pcs = importlib.import_module(mod_name)
 
         monkeypatch.setattr(
@@ -317,9 +303,6 @@ class TestIssue906BackgroundDocMaster:
         content = IMPLEMENT_MD.read_text()
         assert "MISSING" in content, "implement.md must reference the MISSING verdict explicitly"
         assert "record_doc_verdict" in content, "implement.md must call record_doc_verdict"
-
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
 
     # -----------------------------------------------------------------------
     # Backward compatibility

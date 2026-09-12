@@ -103,9 +103,9 @@ os.environ[_GH_ISSUE_CTX_ENV_VAR] = str(
 # here is already fatal in pytest: the run aborts with a collection error naming
 # the missing module, whereas a warning can be silenced by -W ignore /
 # -p no:warnings or lost in a 2000-test summary. Fail closed.
-from gh_issue_context import DEFAULT_CONTEXT_PATH as _GH_ISSUE_CTX_REAL_PATH
+from gh_issue_context import DEFAULT_CONTEXT_PATH as _GH_ISSUE_CTX_REAL_PATH  # noqa: E402
 
-from tests.helpers.gh_issue_marker_guard import (
+from tests.helpers.gh_issue_marker_guard import (  # noqa: E402
     describe_marker_leak as _describe_marker_leak,
     snapshot_marker as _snapshot_marker,
     watched_marker_path as _watched_marker_path,
@@ -113,6 +113,75 @@ from tests.helpers.gh_issue_marker_guard import (
 
 _GH_ISSUE_CTX_WATCHED = _watched_marker_path(_GH_ISSUE_CTX_REAL_PATH)
 _GH_ISSUE_CTX_BASELINE = _snapshot_marker(_GH_ISSUE_CTX_WATCHED)
+
+# PRODUCTION STATE ISOLATION (Issue #1779, AC1) — two trees, MEASURED
+# contaminated 2026-09-12. Rationale, chokepoints and the named residual around
+# pipeline_state.get_legacy_sentinel_path() live once, in
+# docs/PIPELINE-EVIDENCE-INTEGRITY.md. Both redirects run at IMPORT time and are
+# ENVIRONMENT VARIABLES: the writers are separate PROCESSES a monkeypatch cannot
+# reach, and mkdtemp() gives each xdist worker its own dir. PIPELINE_STATE_FILE is
+# the EXISTING sentinel override, reused rather than duplicated.
+from path_utils import ACTIVITY_LOG_DIR_ENV as _ACTIVITY_LOG_DIR_ENV  # noqa: E402
+
+_ACTIVITY_LOG_REDIRECT_DIR = tempfile.mkdtemp(prefix="autonomous-dev-activity-")
+os.environ[_ACTIVITY_LOG_DIR_ENV] = _ACTIVITY_LOG_REDIRECT_DIR
+
+_PIPELINE_STATE_ENV = "PIPELINE_STATE_FILE"
+_PIPELINE_STATE_REDIRECT_DIR = tempfile.mkdtemp(prefix="autonomous-dev-pipeline-state-")
+os.environ[_PIPELINE_STATE_ENV] = str(
+    Path(_PIPELINE_STATE_REDIRECT_DIR) / "implement_pipeline_state.json"
+)
+
+# Second line of defence, mirroring the #1609 guard: snapshot BOTH real trees now
+# and re-check at session finish, so a writer reaching one another way fails the
+# run loudly. The import is DELIBERATELY UNGUARDED — a try/except would leave the
+# watched path None and turn the check into a no-op.
+from tests.helpers.state_isolation import (  # noqa: E402
+    SESSION_DEPTH_ENV as _SESSION_DEPTH_ENV,
+    describe_tree_leak as _describe_tree_leak,
+    live_run_artifact_dir as _live_run_artifact_dir,
+    next_session_depth as _next_session_depth,
+    session_is_nested as _session_is_nested,
+    snapshot_tree as _snapshot_tree,
+)
+
+_LIVE_REPO_ROOT_FOR_GUARDS = Path(__file__).resolve().parent.parent
+_ACTIVITY_LOG_LIVE_DIR = _LIVE_REPO_ROOT_FOR_GUARDS / ".claude" / "logs" / "activity"
+_LOCAL_STATE_LIVE_DIR = _LIVE_REPO_ROOT_FOR_GUARDS / ".claude" / "local"
+
+_ACTIVITY_LOG_BASELINE = _snapshot_tree(_ACTIVITY_LOG_LIVE_DIR)
+_LOCAL_STATE_BASELINE = _snapshot_tree(_LOCAL_STATE_LIVE_DIR)
+
+_ACTIVITY_LOG_REMEDY = (
+    "route the writer through path_utils.resolve_activity_log_dir(), which "
+    "honours AUTONOMOUS_DEV_ACTIVITY_LOG_DIR. Do not add a per-test cleanup — "
+    "cleanup after the fact still lets a concurrent reader see the synthetic "
+    "record."
+)
+_LOCAL_STATE_REMEDY = (
+    "point the writer at a tmp path. The two MEASURED routes in are "
+    "pipeline_state.get_legacy_sentinel_path(), which ignores $PIPELINE_STATE_"
+    "FILE and always returns the LIVE path, and coverage_baseline.get_default_"
+    "baseline_path(). Writing here destroys alignment_passed / alignment_verdict "
+    "/ pipeline_base_commit for the pipeline this suite is running inside."
+)
+# Live-session bookkeeping files: the operator's doing while the suite runs.
+_ACTIVITY_LOG_EXEMPT_PREFIXES = (".heartbeat_", ".session_date_")
+
+# Same discipline, second shape: `validators/$RUN_ID/`, keyed on the LIVE identity
+# and CAPTURED AT IMPORT so a later os.environ["RUN_ID"] cannot widen it; absent,
+# blank or unsafe yields an empty tuple, exempting NOTHING — fails closed.
+_ACTIVITY_LOG_EXEMPT_DIRS = tuple(
+    d for d in (_live_run_artifact_dir(os.environ.get("RUN_ID", "")),) if d
+)
+
+# ATTRIBUTION, not exemption, and NOT a path carve-out: both trees are process-
+# GLOBAL, so only the OUTERMOST session — whose window CONTAINS every inner one —
+# can own a change (why that drops no coverage: PIPELINE-EVIDENCE-INTEGRITY.md).
+# Unparseable marker => OUTERMOST => ACTIVE.
+_INHERITED_SESSION_DEPTH = os.environ.get(_SESSION_DEPTH_ENV)
+_ATTRIBUTION_POSSIBLE = not _session_is_nested(_INHERITED_SESSION_DEPTH)
+os.environ[_SESSION_DEPTH_ENV] = _next_session_depth(_INHERITED_SESSION_DEPTH)
 
 # Alias `autonomous_dev` -> plugins/autonomous-dev (Issue #1582 follow-up).
 #
@@ -311,24 +380,62 @@ def pytest_sessionfinish(session, exitstatus):
     The baseline is never None — its imports are unguarded above precisely so
     that this comparison cannot silently degrade into a no-op.
 
-    Also removes the per-run redirect directory.
+    Also fails the run if it contaminated the PRODUCTION activity log or the
+    PRODUCTION pipeline state tree (#1779, AC1): the import-time redirects mean
+    no test *should* reach either real tree, and this checks that rather than
+    assuming it, in the OUTERMOST session only (``_ATTRIBUTION_POSSIBLE``).
+    Also removes the per-run redirect directories.
     """
+    findings: list = []
     try:
-        finding = _describe_marker_leak(
+        marker_finding = _describe_marker_leak(
             _GH_ISSUE_CTX_BASELINE,
             _snapshot_marker(_GH_ISSUE_CTX_WATCHED),
             _GH_ISSUE_CTX_WATCHED,
         )
-        if finding:
+        if marker_finding:
+            findings.append(("gh-issue context marker leak", marker_finding))
+
+        activity_finding = _describe_tree_leak(
+            _ACTIVITY_LOG_BASELINE,
+            _snapshot_tree(_ACTIVITY_LOG_LIVE_DIR),
+            _ACTIVITY_LOG_LIVE_DIR,
+            label="PRODUCTION ACTIVITY LOG",
+            remedy=_ACTIVITY_LOG_REMEDY,
+            live_session_id=os.environ.get("CLAUDE_SESSION_ID", ""),
+            exempt_prefixes=_ACTIVITY_LOG_EXEMPT_PREFIXES,
+            exempt_dirs=_ACTIVITY_LOG_EXEMPT_DIRS,
+        )
+        if activity_finding and _ATTRIBUTION_POSSIBLE:
+            findings.append(("production activity log leak", activity_finding))
+
+        # NO exemption here, deliberately: every file under .claude/local/ has a
+        # FIXED name whoever wrote it, so there is no identity segment to key on and
+        # a path carve-out would be the hole the guard exists to prevent. Residual:
+        # docs/PIPELINE-EVIDENCE-INTEGRITY.md.
+        local_state_finding = _describe_tree_leak(
+            _LOCAL_STATE_BASELINE,
+            _snapshot_tree(_LOCAL_STATE_LIVE_DIR),
+            _LOCAL_STATE_LIVE_DIR,
+            label="PRODUCTION PIPELINE STATE",
+            remedy=_LOCAL_STATE_REMEDY,
+        )
+        if local_state_finding and _ATTRIBUTION_POSSIBLE:
+            findings.append(("production pipeline state leak", local_state_finding))
+
+        if findings:
             reporter = session.config.pluginmanager.getplugin("terminalreporter")
-            if reporter is not None:
-                reporter.write_sep("=", "gh-issue context marker leak")
-                reporter.write_line(finding)
-            else:  # pragma: no cover - no terminal (e.g. -p no:terminal)
-                print(finding)
+            for title, finding in findings:
+                if reporter is not None:
+                    reporter.write_sep("=", title)
+                    reporter.write_line(finding)
+                else:  # pragma: no cover - no terminal (e.g. -p no:terminal)
+                    print(finding)
             session.exitstatus = 1
     finally:
         shutil.rmtree(_GH_ISSUE_CTX_REDIRECT_DIR, ignore_errors=True)
+        shutil.rmtree(_ACTIVITY_LOG_REDIRECT_DIR, ignore_errors=True)
+        shutil.rmtree(_PIPELINE_STATE_REDIRECT_DIR, ignore_errors=True)
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
@@ -423,6 +530,14 @@ def _isolate_agent_dispatch_sentinel(request, tmp_path_factory, monkeypatch):
     Redirecting only the test's ``write()`` (e.g. passing ``repo_root=tmp_path``
     at the call site) would decouple it from a hook reading the default path
     in-process, breaking ``test_install_manifest_allows_edit_inside_pipeline``.
+
+    ROUTE 3 (Issue #1779, AC1): a hook SUBPROCESS. A monkeypatch cannot reach
+    another process, and the ``.claude/local/`` leak guard caught one calling
+    ``refresh()`` on the LIVE sentinel. ``ads.SENTINEL_PATH_ENV`` is exported per
+    test at the same path the in-process stand-in returns, so writer and reader
+    stay together across the process boundary; ``_isolated`` POPS it before
+    delegating, so tests exercising default-branch resolution against a temporary
+    fake repo still get the answer they assert on.
     """
     try:
         import agent_dispatch_sentinel as ads
@@ -442,17 +557,24 @@ def _isolate_agent_dispatch_sentinel(request, tmp_path_factory, monkeypatch):
         / "agent-dispatch-sentinel-isolation"
         / hashlib.sha1(request.node.nodeid.encode("utf-8")).hexdigest()[:16]
     )
+    isolated_sentinel = isolated_root / ads._SENTINEL_REL
 
     def _isolated(repo_root: "Path | None" = None) -> Path:
         """Stand-in for ``agent_dispatch_sentinel._path`` (see fixture docstring)."""
         if repo_root is not None:
             # Explicit branch: preserved verbatim (literal, un-normalized).
             return real_path(repo_root)
-        resolved = real_path(None)
+        saved = os.environ.pop(ads.SENTINEL_PATH_ENV, None)
+        try:
+            resolved = real_path(None)
+        finally:
+            if saved is not None:
+                os.environ[ads.SENTINEL_PATH_ENV] = saved
         if resolved == live_sentinel or resolved.resolve() == live_sentinel:
-            return isolated_root / ads._SENTINEL_REL
+            return isolated_sentinel
         return resolved
 
+    monkeypatch.setenv(ads.SENTINEL_PATH_ENV, str(isolated_sentinel))
     monkeypatch.setattr(ads, "_path", _isolated)
     yield
 

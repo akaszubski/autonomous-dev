@@ -32,6 +32,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "plugins" / "autonomous-dev" / "hooks"))
 
 from session_activity_logger import _find_log_dir
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 
 class TestWorktreeLogResolution:
     """Regression tests for Issue #755: worktree log path resolution."""

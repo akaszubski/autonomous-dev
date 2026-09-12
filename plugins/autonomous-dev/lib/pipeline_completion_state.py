@@ -43,6 +43,7 @@ import tempfile
 import threading
 import time
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -150,26 +151,50 @@ def _sanitize_bypass_reason(bypass_reason: Optional[str]) -> Optional[str]:
 
 
 def _find_activity_log_dir(start_dir: Optional[Path] = None) -> Optional[Path]:
-    """Locate the ``.claude/logs/activity/`` directory by walking up from *start_dir*.
+    """Resolve the activity-log root through the single sanctioned chokepoint.
 
-    Mirrors the pattern in ``coordinator_log.py`` / ``session_activity_logger.py``.
-    The search starts at *start_dir* (defaults to ``Path.cwd()``) and checks
-    each ancestor for a ``.claude`` directory.  Does NOT create the directory
-    (read-only resolver).
+    Issue #1779 (AC1), SUBTRACTION. This used to be a SECOND resolver: its own
+    walk up from ``Path.cwd()`` to the first ancestor holding
+    ``.claude/logs/activity``. It referenced neither
+    :data:`path_utils.ACTIVITY_LOG_DIR_ENV` nor
+    :func:`path_utils.resolve_activity_log_dir`, so the test-isolation redirect
+    installed in ``tests/conftest.py`` could not reach it. MEASURED 2026-09-12,
+    one ordinary suite, three runs of three:
+
+        pytest tests/unit/lib/test_pipeline_completion_state.py -k plan_critic
+        -> +553 bytes appended to the repository's PRODUCTION
+           .claude/logs/activity/2026-09-12.jsonl, carrying
+           session_id="test_session_16565_1789196226072450000"
+
+    Two writers reached the production file through here:
+    :func:`record_plan_critic_skipped` and the validator-artifact path
+    resolution in :func:`_missing_validator_artifacts`.
+
+    Behaviour is otherwise preserved EXACTLY: the ``is_dir()`` requirement is
+    kept, so an unresolvable or not-yet-created root still returns ``None`` and
+    still reads as *indeterminate* to :func:`_missing_validator_artifacts`
+    rather than flipping that gate from "no opinion" to "block".
 
     Args:
-        start_dir: Directory to start searching from. Defaults to CWD.
+        start_dir: Directory to resolve from. Defaults to CWD.
 
     Returns:
-        Path to ``<repo>/.claude/logs/activity/`` if found, else ``None``.
+        The resolved activity-log directory if it exists, else ``None``.
     """
-    cwd = start_dir or Path.cwd()
-    candidates = [cwd] + list(cwd.parents)
-    for parent in candidates:
-        log_dir = parent / ".claude" / "logs" / "activity"
-        if log_dir.is_dir():
-            return log_dir
-    return None
+    try:
+        from path_utils import resolve_activity_log_dir  # type: ignore
+    except ImportError:  # pragma: no cover - degraded env without lib/ on path
+        return None
+    try:
+        log_dir = resolve_activity_log_dir(start_path=start_dir)
+    except Exception:
+        # LogDirResolutionError (or anything else): indeterminate, never a cwd
+        # fallback — that fallback is exactly what Issue #1726 removed.
+        return None
+    try:
+        return log_dir if log_dir.is_dir() else None
+    except OSError:
+        return None
 
 
 def _missing_validator_artifacts(
@@ -348,6 +373,115 @@ def _resolve_session_id_from_activity_log(
         if isinstance(sid, str) and sid and sid != "unknown":
             return sid
     return None
+
+
+class SentinelIntegrity(str, Enum):
+    """Integrity of the STEP-0 pipeline sentinel. Three states, never two.
+
+    Issue #1779 (AC3 / INV-7). MEASURED 2026-09-12: a test truncated a live
+    run's ``.claude/local/implement_pipeline_state.json`` to 0 bytes, destroying
+    ``alignment_passed``, ``alignment_verdict``, ``pipeline_base_commit`` and
+    ``issue_number``. ``resolve_session_id`` noticed — it emitted
+    ``[SENTINEL-UNREADABLE] ... JSONDecodeError`` — and then continued its
+    fallback chain as though the file were merely ABSENT. The ordering gate
+    consequently returned ``passed=True`` for ``implementer``.
+
+    Collapsing ABSENT and CORRUPT into one "no usable data" case is the whole
+    defect. They mean opposite things:
+
+    * :attr:`ABSENT` — the normal state of every session that is not inside a
+      pipeline. Refusing it would block ordinary work.
+    * :attr:`CORRUPT` — the file EXISTS and its gating fields cannot be read.
+      Per INV-7 that is a verification failure, and a verification failure is
+      "not passed", never "passed".
+    """
+
+    OK = "ok"
+    ABSENT = "absent"
+    CORRUPT = "corrupt"
+
+
+def sentinel_integrity(*, sentinel_path: Optional[str] = None) -> SentinelIntegrity:
+    """Classify the pipeline sentinel as OK / ABSENT / CORRUPT.
+
+    Deliberately independent of :func:`resolve_session_id`: that function
+    short-circuits on ``CLAUDE_SESSION_ID`` and then never reads the sentinel at
+    all, so a resolvable session id is no evidence the gating state survived.
+
+    "Corrupt" means **exists but does not yield a JSON object**. Catching only
+    ``json.JSONDecodeError`` would be too narrow: a JSON array and a JSON scalar
+    both parse cleanly and neither can carry ``alignment_passed``.
+
+    Args:
+        sentinel_path: Sentinel to inspect. Defaults to ``PIPELINE_STATE_FILE``
+            when set, else :func:`get_legacy_sentinel_path`. The env var is
+            honoured here because a gate that only ever checked the default path
+            would be inert for any run that redirected it.
+
+    Returns:
+        A :class:`SentinelIntegrity`. NEVER raises — any unexpected error is
+        :attr:`SentinelIntegrity.CORRUPT`, because a check that can crash turns
+        a refusal into an outage.
+    """
+    if sentinel_path is None:
+        sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(
+            get_legacy_sentinel_path()
+        )
+    target = Path(sentinel_path)
+    try:
+        if not target.exists():
+            return SentinelIntegrity.ABSENT
+    except OSError:
+        # Cannot even stat it: the path is there in some form we cannot read.
+        return SentinelIntegrity.CORRUPT
+
+    try:
+        raw = target.read_bytes()
+    except OSError:
+        return SentinelIntegrity.CORRUPT
+    except Exception:
+        return SentinelIntegrity.CORRUPT
+
+    if not raw.strip():
+        # The measured shape: 0 bytes (or whitespace) from a killed writer.
+        return SentinelIntegrity.CORRUPT
+
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return SentinelIntegrity.CORRUPT
+
+    if not isinstance(data, dict):
+        return SentinelIntegrity.CORRUPT
+
+    return SentinelIntegrity.OK
+
+
+def describe_sentinel_corruption(sentinel_path: Optional[str] = None) -> str:
+    """Render the refusal text for a CORRUPT sentinel.
+
+    Args:
+        sentinel_path: The sentinel that failed. Resolved the same way as
+            :func:`sentinel_integrity` when omitted.
+
+    Returns:
+        A message naming the path and the required next action, in the
+        stick+carrot shape every other block in this repo uses.
+    """
+    if sentinel_path is None:
+        sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(
+            get_legacy_sentinel_path()
+        )
+    return (
+        f"SENTINEL CORRUPT: the pipeline gating state at {sentinel_path} exists "
+        "but cannot be read as a JSON object, so alignment_passed, "
+        "alignment_verdict and pipeline_base_commit are unverifiable.\n"
+        "INV-7: a verification failure is treated as 'not passed', never as "
+        "'passed' (Issue #1779, AC3).\n"
+        "REQUIRED NEXT ACTION: re-run /implement STEP 0 to rewrite the "
+        "sentinel. Do NOT hand-edit it and do NOT proceed on the assumption "
+        "that alignment passed."
+    )
 
 
 def resolve_session_id(

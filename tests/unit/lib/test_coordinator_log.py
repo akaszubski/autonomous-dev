@@ -30,6 +30,13 @@ from coordinator_log import (
 )
 
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
+
 @pytest.fixture()
 def fake_claude_tree(tmp_path: Path) -> Path:
     """Create a minimal .claude/logs/activity/ tree in tmp_path."""
@@ -67,21 +74,39 @@ def isolated_no_claude_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
     candidate outside ``tmp_path`` is reported absent, making the "no
     project markers anywhere" scenario hermetic without touching production
     code (``lib/coordinator_log.py`` is protected infrastructure).
+
+    Issue #1779 (AC1) EXTENDED THE GUARD, not its scope. The resolver is now
+    ``resolve_activity_log_dir`` -> ``find_project_root``, which probes markers
+    with ``Path.exists()`` — not ``is_dir()`` — and searches ``.git`` before
+    ``.claude``, so the ``is_dir``-only patch stopped covering the hazard it was
+    written for (measured: the unguarded resolver returned a
+    ``/private/var/folders/...`` root for a ``start_dir`` inside ``tmp_path``).
+    Both probes and both markers are guarded below.
     """
     empty_dir = tmp_path / "no_claude_here"
     empty_dir.mkdir()
 
     real_is_dir = Path.is_dir
+    real_exists = Path.exists
+    guarded_markers = (".claude", ".git")
+
+    def _is_outside_sandbox(path: Path) -> bool:
+        if path.name not in guarded_markers:
+            return False
+        try:
+            path.relative_to(tmp_path)
+        except ValueError:
+            return True  # outside the test sandbox — treat as absent
+        return False
 
     def _guarded_is_dir(self: Path) -> bool:
-        if self.name == ".claude":
-            try:
-                self.relative_to(tmp_path)
-            except ValueError:
-                return False  # outside the test sandbox — treat as absent
-        return real_is_dir(self)
+        return False if _is_outside_sandbox(self) else real_is_dir(self)
+
+    def _guarded_exists(self: Path, **kwargs) -> bool:
+        return False if _is_outside_sandbox(self) else real_exists(self, **kwargs)
 
     monkeypatch.setattr(Path, "is_dir", _guarded_is_dir)
+    monkeypatch.setattr(Path, "exists", _guarded_exists)
     return empty_dir
 
 

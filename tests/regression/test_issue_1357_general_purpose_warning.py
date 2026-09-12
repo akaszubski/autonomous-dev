@@ -21,23 +21,27 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root / "plugins/autonomous-dev/hooks"))
 sys.path.insert(0, str(project_root / "plugins/autonomous-dev/lib"))
 
+from tests.helpers.state_isolation import hook_subprocess_env  # noqa: E402
+
 
 def run_hook(input_data, env=None):
-    """Helper to run unified_pre_tool.py hook with given input."""
+    """Helper to run unified_pre_tool.py hook with given input.
+
+    The environment INHERITS the session isolation redirects (Issue #1779, AC1).
+    The previous ``env={**hook_env}`` replaced it outright, so six invocations
+    appended ``session_id="test-session"`` records to the production activity log
+    and deleted the live pipeline sentinel.
+    """
     hook_path = project_root / "plugins/autonomous-dev/hooks/unified_pre_tool.py"
-    
-    # Prepare environment
-    hook_env = env or {}
-    
-    # Run the hook
+
     result = subprocess.run(
         [sys.executable, str(hook_path)],
         input=json.dumps(input_data),
         capture_output=True,
         text=True,
-        env={**hook_env}
+        env=hook_subprocess_env(env),
     )
-    
+
     return result
 
 

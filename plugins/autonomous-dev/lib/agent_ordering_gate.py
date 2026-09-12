@@ -380,13 +380,24 @@ def check_ordering_with_session_fallback(
 
     Returns:
         GateResult indicating whether the agent may proceed.
+
+    Issue #1779 (AC3 / INV-7): a sentinel that EXISTS but cannot be parsed into
+    a JSON object now refuses. MEASURED 2026-09-12 — a 0-byte sentinel produced
+    ``[SENTINEL-UNREADABLE] ... JSONDecodeError`` on stderr and this function
+    still returned ``passed=True`` for ``implementer``, whose only saving grace
+    was that other agents happened to have unmet prerequisites. An ABSENT
+    sentinel is unchanged: that is the normal state outside a pipeline, and it
+    was never the defect.
     """
     try:
         from pipeline_completion_state import (
+            SentinelIntegrity,
+            describe_sentinel_corruption,
             get_completed_agents,
             get_launched_agents,
             get_plan_critic_skipped,
             resolve_session_id,
+            sentinel_integrity,
         )
     except ImportError:
         # If state module not available, fall back to pure logic (no completions)
@@ -395,6 +406,15 @@ def check_ordering_with_session_fallback(
             set(),
             validation_mode=validation_mode,
             pipeline_mode=pipeline_mode,
+        )
+
+    # INV-7 gate, BEFORE any completion lookup: destroyed gating state must not
+    # be able to produce a pass, whichever agent is asking.
+    if sentinel_integrity() is SentinelIntegrity.CORRUPT:
+        return GateResult(
+            passed=False,
+            reason=describe_sentinel_corruption(),
+            missing_agents=[],
         )
 
     completed = get_completed_agents(session_id, issue_number=issue_number)

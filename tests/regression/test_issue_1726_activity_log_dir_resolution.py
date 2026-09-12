@@ -47,8 +47,14 @@ import unified_session_tracker as ust  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every arm controls CLAUDE_PROJECT_DIR explicitly."""
+    """Every arm controls the resolver's environment inputs explicitly.
+
+    ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` (Issue #1779) is the highest-priority
+    input to :func:`resolve_activity_log_dir`, so a test OF the resolver clears it
+    for the same reason ``CLAUDE_PROJECT_DIR`` already was.
+    """
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("AUTONOMOUS_DEV_ACTIVITY_LOG_DIR", raising=False)
 
 
 def _make_repo(tmp_path: Path) -> Path:

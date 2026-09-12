@@ -825,10 +825,25 @@ GH_ISSUE_COMMANDS = {'create-issue', 'plan-to-issues', 'improve', 'refactor', 'r
 # SCRATCHPAD is consulted by _is_scratch_path, which grants a write-gate
 # EXEMPTION. An inline `SCRATCHPAD=... <cmd>` would let a caller nominate any
 # subtree as scratch and skip the pipeline gate on it.
+# Issue #1779: the two AUTONOMOUS_DEV_ path overrides below are the same
+# construction as PIPELINE_STATE_FILE (a separate-process artifact path), so they
+# need the same protection. AUTONOMOUS_DEV_AGENT_DISPATCH_SENTINEL is read by
+# agent_dispatch_sentinel.is_active(), the SOLE authorization signal for the
+# #1296 protected-infrastructure coordinator bypass — unprotected, a caller could
+# point it at a sentinel file it wrote itself. AUTONOMOUS_DEV_ACTIVITY_LOG_DIR is
+# resolve_activity_log_dir()'s first-priority branch and feeds
+# pipeline_completion_state._resolve_session_id_from_activity_log().
+# Listed INDIVIDUALLY, deliberately NOT as an 'AUTONOMOUS_DEV_' entry in
+# PROTECTED_ENV_PREFIXES: AUTONOMOUS_DEV_BYPASS, _SKIP_PLAN_REVIEW,
+# _BYPASS_STALE_HOURS, _GLOBAL_ENFORCEMENT and _SESSION_ID are documented
+# operator-settable escape hatches (CLAUDE.md "Maintainer Escape Hatches") that a
+# prefix rule would refuse, and an exception list to undo a too-broad rule is
+# strictly worse than naming the two variables that bear authority.
 PROTECTED_ENV_VARS = {
     'PIPELINE_STATE_FILE', 'ENFORCEMENT_LEVEL', 'AUTONOMOUS_DEV_COMMAND',
     'INTENT_CLASSIFIER_ENFORCE', 'ALIGNMENT_USER_APPROVED',
     'PLAN_CRITIC_VERDICT_PATH', 'SCRATCHPAD',
+    'AUTONOMOUS_DEV_ACTIVITY_LOG_DIR', 'AUTONOMOUS_DEV_AGENT_DISPATCH_SENTINEL',
 }
 
 # Prefix-based protection: any env var starting with these prefixes is protected (Issue #606)
@@ -2654,7 +2669,29 @@ def _is_pipeline_active() -> bool:
             current_sid = os.environ.get("CLAUDE_SESSION_ID", "")
             should_touch = True  # default: preserve #636 if we cannot read state
             state_path = Path(pipeline_state_file)
-            if state_path.exists():
+            # Issue #1779 (AC3): REFRESH an existing sentinel; never CREATE one.
+            #
+            # This branch exists to keep the OWNING session's mtime fresh
+            # (Issue #636). When the sentinel was ABSENT, `.touch()` did not
+            # refresh anything — it MANUFACTURED a 0-byte file. MEASURED
+            # 2026-09-12 in a fake repo with no sentinel and
+            # CLAUDE_AGENT_NAME=implementer:
+            #
+            #   exists before: False
+            #   _is_pipeline_active() = True
+            #   exists after : True   size: 0
+            #   sentinel_integrity() = SentinelIntegrity.CORRUPT
+            #
+            # So a genuinely ABSENT pipeline reported "exists but cannot be
+            # read", and the INV-7 gate refused on state this hook had just
+            # fabricated. The created file also carried no session_id,
+            # alignment_passed or pipeline_base_commit, so it served no reader:
+            # every consumer json.load()s it and treats the failure as absent.
+            # Not creating it is strictly more informative, and it keeps a test
+            # process from planting a file in the repository's .claude/local/.
+            if not state_path.exists():
+                should_touch = False
+            else:
                 try:
                     import json as _json_touch
                     with open(state_path) as _fh_touch:

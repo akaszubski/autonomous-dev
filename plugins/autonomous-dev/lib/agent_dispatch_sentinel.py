@@ -41,6 +41,13 @@ from typing import Optional
 
 
 _SENTINEL_REL = ".claude/local/active_agent_dispatch.json"
+
+# Issue #1779 (AC1): explicit override for the sentinel path, honoured only by
+# the default (no-``repo_root``) branch of :func:`_path`. Same construction as
+# ``PIPELINE_STATE_FILE`` and ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` — an
+# ENVIRONMENT VARIABLE, because the writers are separate PROCESSES and an
+# in-process monkeypatch cannot reach a subprocess. See :func:`_path`.
+SENTINEL_PATH_ENV = "AUTONOMOUS_DEV_AGENT_DISPATCH_SENTINEL"
 # Issue #1447/#1448 (recurrence 2026-08-09, during #1471): 30s was shorter than
 # real implementer dispatch latency — system-prompt/skill loading + one Read +
 # streaming a multi-line Edit call reliably exceeds it, structurally denying
@@ -135,9 +142,26 @@ def _path(repo_root: Optional[Path] = None) -> Path:
     (which pass ``tmp_path`` directly) keep asserting against the exact path
     they supplied. Do not rely on the explicit branch in production code.
 
+    :data:`SENTINEL_PATH_ENV` overrides the default branch (Issue #1779, AC1).
+    It exists because the Issue #1535 isolation fixture is an in-process
+    monkeypatch and a monkeypatch cannot reach a SUBPROCESS. MEASURED
+    2026-09-12 with one variable changed — driving
+    ``hooks/session_activity_logger.py`` as a subprocess from the repo root::
+
+        PreToolUse  -> .claude/local unchanged, no activity record written
+        PostToolUse -> .claude/local/active_agent_dispatch.json MODIFIED,
+                       activity record written to the redirect
+
+    The PostToolUse branch calls ``refresh()`` unconditionally, so the only
+    event that exercises the activity-log redirect is also the one that slides
+    the LIVE dispatch TTL. Swapping events would have removed the leak by
+    removing the test's subject; an env override keeps the negative control at
+    full strength and takes the production write off the table.
+
     Args:
         repo_root: Repository root directory. If None, resolves via
-            ``find_project_root`` (falling back to ``Path.cwd().resolve()``).
+            :data:`SENTINEL_PATH_ENV` when set, else ``find_project_root``
+            (falling back to ``Path.cwd().resolve()``).
 
     Returns:
         Path to the sentinel file
@@ -146,6 +170,11 @@ def _path(repo_root: Optional[Path] = None) -> Path:
         # Test-only branch: literal, unresolved (preserves existing repo_root tests).
         root = Path(repo_root)
     else:
+        # A blank / whitespace-only value is IGNORED rather than resolved to
+        # ``.``, which would silently relocate the sentinel to the cwd.
+        override = os.environ.get(SENTINEL_PATH_ENV, "").strip()
+        if override:
+            return Path(override)
         try:
             from path_utils import find_project_root
 

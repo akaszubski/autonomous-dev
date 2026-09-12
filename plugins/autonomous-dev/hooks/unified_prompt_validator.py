@@ -388,10 +388,20 @@ def _extract_wrapped_command(text: str) -> Optional[tuple[str, str]]:
 # ============================================================================
 
 def _log_activity(event: str, details: dict) -> None:
-    """Append to shared activity log for full observability."""
+    """Append to shared activity log for full observability.
+
+    Issue #1779 (AC1): the root is resolved through
+    :func:`path_utils.resolve_activity_log_dir`, the single sanctioned
+    chokepoint, instead of the former ``Path(os.getcwd()) / ".claude" / ...``
+    literal. A cwd-relative literal is a second resolver: it ignores
+    ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` (so tests contaminate the production
+    evidence file) and it reopens the Issue #1726 cwd fallback (so a hook
+    invoked from a subdirectory splits the session record).
+    """
     try:
         from datetime import datetime, timezone
-        log_dir = Path(os.getcwd()) / ".claude" / "logs" / "activity"
+        from path_utils import resolve_activity_log_dir
+        log_dir = resolve_activity_log_dir(start_path=Path(os.getcwd()))
         log_dir.mkdir(parents=True, exist_ok=True)
         date_str = datetime.now().strftime("%Y-%m-%d")
         entry = {

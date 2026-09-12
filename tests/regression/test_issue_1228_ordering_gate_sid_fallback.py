@@ -53,6 +53,12 @@ import pipeline_state  # noqa: E402
 import unified_pre_tool  # noqa: E402
 from agent_ordering_gate import get_required_agents  # noqa: E402
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 FIX_REQUIRED = sorted(get_required_agents("fix"))
 
 

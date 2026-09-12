@@ -24,6 +24,12 @@ import pytest
 LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 
 def test_resolve_session_id_is_importable():
     """The function MUST be importable from pipeline_completion_state.

@@ -15,7 +15,6 @@ This test file verifies:
 """
 
 import importlib
-import sys
 from pathlib import Path
 
 import pytest
@@ -32,11 +31,7 @@ def pcs(tmp_path, monkeypatch):
     """Import pipeline_completion_state with state files redirected to tmp_path."""
     monkeypatch.syspath_prepend(str(LIB_DIR))
 
-    # Remove any cached import so we start fresh
     module_name = "pipeline_completion_state"
-    if module_name in sys.modules:
-        del sys.modules[module_name]
-
     mod = importlib.import_module(module_name)
 
     # Redirect state file paths to tmp_path for full isolation
@@ -50,10 +45,6 @@ def pcs(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "_state_file_path", patched_state_file_path)
 
     yield mod
-
-    # Cleanup cached module so subsequent tests get a fresh import
-    if module_name in sys.modules:
-        del sys.modules[module_name]
 
 
 class TestIssue852DocVerdictCompletion:

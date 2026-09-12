@@ -29,7 +29,6 @@ Tests:
 from __future__ import annotations
 
 import importlib
-import sys
 from pathlib import Path
 
 import pytest
@@ -56,9 +55,6 @@ def pcs(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(LIB_DIR))
 
     module_name = "pipeline_completion_state"
-    if module_name in sys.modules:
-        del sys.modules[module_name]
-
     mod = importlib.import_module(module_name)
 
     # Redirect state file paths into tmp_path so we never touch real /tmp state.
@@ -71,9 +67,6 @@ def pcs(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "_state_file_path", patched_state_file_path)
 
     yield mod
-
-    if module_name in sys.modules:
-        del sys.modules[module_name]
 
 
 class TestIssue1174PostDispatchProtocol:

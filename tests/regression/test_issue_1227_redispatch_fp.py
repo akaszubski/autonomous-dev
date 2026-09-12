@@ -4,6 +4,21 @@ Regression tests for Issue #1227: Redispatch false positives in prompt shrink de
 
 Tests that the prompt shrink detector correctly handles legitimate coordinator
 re-dispatches after a gate denial, avoiding false positive blocks.
+
+Issue #1779, AC1 (state isolation). ``setUp`` used to write, and ``tearDown`` to
+``unlink``, whatever ``pipeline_state.get_legacy_sentinel_path()`` returns — the
+LIVE ``.claude/local/implement_pipeline_state.json``. Measured 2026-09-12: this
+module deleted the coordinator's live gating sentinel twice in one session, and
+the recreated ``{session_id, recovered}`` stub reads NOT-active, so a destroyed
+pipeline became indistinguishable from one that never ran.
+
+Fixed with this repo's canonical in-process isolation for that resolver (as in
+``tests/unit/lib/test_pipeline_state_alignment_verdict.py``): patch
+``pipeline_state.get_legacy_sentinel_path`` to a per-test temporary path.
+``prompt_integrity`` imports it inside each function body, so the patched module
+attribute is what resolves. That the patch is LOAD-BEARING is proven durably by
+the session-finish ``.claude/local/`` leak guard in ``tests/conftest.py``, which
+has no exemptions; a module-local meta-assertion would only restate it.
 """
 
 import json
@@ -20,6 +35,7 @@ project_root = current_dir.parent.parent
 lib_path = project_root / "plugins" / "autonomous-dev" / "lib"
 sys.path.insert(0, str(lib_path))
 
+import pipeline_state  # noqa: E402  (sys.path is extended above)
 from prompt_integrity import (
     set_redispatch_flag,
     consume_redispatch_flag,
@@ -33,15 +49,37 @@ from pipeline_state import create_pipeline, save_pipeline, load_pipeline, get_le
 
 class TestRedispatchFalsePrevention(unittest.TestCase):
     """Test redispatch false positive prevention mechanisms."""
-    
+
     def setUp(self):
-        """Create test environment with real sentinel and state files."""
+        """Create test environment with an ISOLATED sentinel and state file."""
         self.run_id = "test-run-001"
-        
-        # Create the sentinel file in the expected location
-        self.sentinel_path = get_legacy_sentinel_path()
+
+        # Isolate the sentinel BEFORE anything resolves it (Issue #1779, AC1).
+        self._tmp_dir = tempfile.TemporaryDirectory(prefix="issue1227-sentinel-")
+        self.addCleanup(self._tmp_dir.cleanup)
+        self.sentinel_path = (
+            Path(self._tmp_dir.name)
+            / ".claude"
+            / "local"
+            / pipeline_state.LEGACY_SENTINEL_FILENAME
+        )
         self.sentinel_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
+        live_sentinel = get_legacy_sentinel_path()
+        self.assertNotEqual(
+            self.sentinel_path.resolve(),
+            live_sentinel.resolve(),
+            "the isolated sentinel resolved to the LIVE path; refusing to run",
+        )
+
+        patcher = patch.object(
+            pipeline_state,
+            "get_legacy_sentinel_path",
+            lambda *a, **kw: self.sentinel_path,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         sentinel_data = {
             "run_id": self.run_id,
             "mode": "full",
@@ -49,22 +87,27 @@ class TestRedispatchFalsePrevention(unittest.TestCase):
         }
         with open(self.sentinel_path, "w") as f:
             json.dump(sentinel_data, f)
-        
+
         # Create pipeline state
         self.state = create_pipeline(self.run_id, "test feature", mode="full")
         save_pipeline(self.state)
-        
+
     def tearDown(self):
-        """Clean up test files."""
+        """Clean up test files.
+
+        ``self.sentinel_path`` is the per-test temporary sentinel, never the
+        live one — see the module docstring. The patcher is released by an
+        ``addCleanup`` registered in ``setUp``, so it survives a failing test.
+        """
         # Remove sentinel
         if self.sentinel_path.exists():
             self.sentinel_path.unlink()
-            
+
         # Remove state file
         state_path = Path(f"/tmp/pipeline_state_{self.run_id}.json")
         if state_path.exists():
             state_path.unlink()
-    
+
     def test_redispatch_flag_set_and_consumed_once(self):
         """Test 1: Set flag for doc-master, consume returns True, second consume returns False."""
         # Set flag

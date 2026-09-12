@@ -474,6 +474,35 @@ def _parse_llm_json(response: Optional[str]) -> Optional[Dict[str, Any]]:
     return parsed
 
 
+# Issue #1779 (AC1). The literal the shipped config names, kept in ONE place so
+# the "is this the default?" comparison below cannot drift from the value it
+# compares against.
+_DEFAULT_TELEMETRY_LOG_SUBPATH = ".claude/logs/activity"
+
+
+def _default_telemetry_log_dir() -> Path:
+    """Default telemetry root, via the single sanctioned chokepoint.
+
+    Issue #1779 (AC1): was ``Path(os.getcwd()) / ".claude" / "logs" /
+    "activity"``, a second resolver that ignored
+    ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` and so wrote classifier telemetry into
+    the repository's production evidence file from any test that constructed a
+    classifier without an explicit ``telemetry_log_dir``.
+
+    Returns:
+        The resolved activity-log directory. Falls back to the historical
+        cwd-relative literal ONLY when the chokepoint cannot resolve a project
+        root at all — telemetry must never raise, and a hook running outside
+        any project is the case that produced that constraint.
+    """
+    try:
+        from path_utils import resolve_activity_log_dir  # type: ignore
+
+        return resolve_activity_log_dir(start_path=Path(os.getcwd()))
+    except Exception:
+        return Path(os.getcwd()) / ".claude" / "logs" / "activity"
+
+
 def _append_telemetry(
     log_dir: Path,
     *,
@@ -552,9 +581,7 @@ class IntentClassifier:
     security_keywords: List[str] = field(
         default_factory=lambda: list(_DEFAULT_SECURITY_KEYWORDS)
     )
-    telemetry_log_dir: Path = field(
-        default_factory=lambda: Path(os.getcwd()) / ".claude" / "logs" / "activity"
-    )
+    telemetry_log_dir: Path = field(default_factory=lambda: _default_telemetry_log_dir())
     telemetry_enabled: bool = True
 
     # Internal: built lazily on first classify() call.
@@ -585,10 +612,17 @@ class IntentClassifier:
         if not isinstance(telemetry_cfg, dict):
             telemetry_cfg = {}
 
-        log_dir_str = telemetry_cfg.get("log_dir", ".claude/logs/activity")
+        log_dir_str = telemetry_cfg.get("log_dir", _DEFAULT_TELEMETRY_LOG_SUBPATH)
         if not isinstance(log_dir_str, str) or not log_dir_str:
-            log_dir_str = ".claude/logs/activity"
-        log_dir = Path(os.getcwd()) / log_dir_str
+            log_dir_str = _DEFAULT_TELEMETRY_LOG_SUBPATH
+        # Issue #1779 (AC1): the DEFAULT location — the one the shipped config
+        # names, and so the one every real run uses — resolves through the
+        # sanctioned chokepoint. An operator who configures some OTHER directory
+        # has made an explicit choice and still gets it, cwd-relative as before.
+        if log_dir_str == _DEFAULT_TELEMETRY_LOG_SUBPATH:
+            log_dir = _default_telemetry_log_dir()
+        else:
+            log_dir = Path(os.getcwd()) / log_dir_str
 
         keywords = raw.get("security_keywords", _DEFAULT_SECURITY_KEYWORDS)
         if not isinstance(keywords, list) or not keywords:

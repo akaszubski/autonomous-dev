@@ -16,6 +16,19 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _control_activity_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests assert log PLACEMENT under their own temp tree (#1779, AC1).
+
+    ``tests/conftest.py`` sets ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` session-wide so
+    no test can append to the production activity log; it is the resolver's
+    highest-priority input, so a test that owns the destination must clear it.
+    Cleared here, not in conftest: the session-wide default is the safe one.
+    """
+    monkeypatch.delenv("AUTONOMOUS_DEV_ACTIVITY_LOG_DIR", raising=False)
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
+
 def test_stop_hook_session_id_fallback_with_empty_env():
     """Test Stop hook uses payload session_id when env var is empty string."""
     # Test both debug and normal mode branches

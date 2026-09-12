@@ -40,31 +40,39 @@ from typing import Optional
 
 
 def _find_activity_log_dir(*, start_dir: Optional[Path] = None) -> Optional[Path]:
-    """Locate the ``.claude/logs/activity/`` directory by walking up from *start_dir*.
+    """Resolve the activity-log root through the single sanctioned chokepoint.
 
-    The search starts at *start_dir* (defaults to ``Path.cwd()``) and checks
-    each ancestor for a ``.claude`` directory.  If found, returns the
-    ``logs/activity`` sub-path (creating it if necessary).
+    Issue #1779 (AC1), SUBTRACTION. This was the third of three independent
+    activity-root resolvers; it walked up from ``Path.cwd()`` to the first
+    ancestor holding ``.claude`` and consulted neither
+    :data:`path_utils.ACTIVITY_LOG_DIR_ENV` nor
+    :func:`path_utils.resolve_activity_log_dir`, so a test process could not
+    redirect it and its records landed in the repository's production evidence
+    file.
+
+    Creation behaviour is preserved: this resolver's caller WRITES, so the
+    directory is still created when missing (mode 0o700).
 
     Args:
-        start_dir: Directory to start searching from. Defaults to CWD.
+        start_dir: Directory to resolve from. Defaults to CWD.
 
     Returns:
-        Path to the activity log directory, or ``None`` if no ``.claude``
-        directory is found in any ancestor.
+        Path to the activity log directory, or ``None`` if the root cannot be
+        resolved or the directory cannot be created.
     """
-    cwd = start_dir or Path.cwd()
-    candidates = [cwd] + list(cwd.parents)
-    for parent in candidates:
-        claude_dir = parent / ".claude"
-        if claude_dir.is_dir():
-            log_dir = claude_dir / "logs" / "activity"
-            try:
-                log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-            except OSError:
-                return None
-            return log_dir
-    return None
+    try:
+        from path_utils import resolve_activity_log_dir  # type: ignore
+    except ImportError:  # pragma: no cover - degraded env without lib/ on path
+        return None
+    try:
+        log_dir = resolve_activity_log_dir(start_path=start_dir)
+    except Exception:
+        return None
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    except OSError:
+        return None
+    return log_dir
 
 
 def log_background_agent_completion(

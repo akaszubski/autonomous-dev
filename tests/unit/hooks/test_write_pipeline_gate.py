@@ -331,6 +331,18 @@ class TestNoPath:
 class TestBypassLogging:
     """When operator bypass sentinel is consumed, activity is logged (Issue #1356)."""
 
+    @pytest.fixture(autouse=True)
+    def _control_activity_root(self, monkeypatch):
+        """These tests assert log PLACEMENT under their own temp tree (#1779, AC1).
+
+        ``tests/conftest.py`` sets ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` session-wide so
+        no test can append to the production activity log; it is the resolver's
+        highest-priority input, so a test that owns the destination must clear it.
+        Cleared here, not in conftest: the session-wide default is the safe one.
+        """
+        monkeypatch.delenv("AUTONOMOUS_DEV_ACTIVITY_LOG_DIR", raising=False)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
     def test_bypass_consumption_logged_to_activity(self, monkeypatch, tmp_path):
         """When sentinel is consumed, an entry is written to activity log with agent identity."""
         import json

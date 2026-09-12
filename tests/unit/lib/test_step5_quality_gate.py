@@ -21,6 +21,18 @@ from step5_quality_gate import (
 import coverage_baseline
 
 
+@pytest.fixture(autouse=True)
+def _baseline_writes_stay_out_of_the_repository(tmp_path, monkeypatch):
+    """Keep the gate's success-path baseline write inside tmp_path (#1779, AC1).
+
+    MEASURED 2026-09-12: 9 of this module's 10 ``run_quality_gate()`` calls
+    overwrote the REAL ``.claude/local/coverage_baseline.json`` with fixture
+    values (90.0 / 0 / 10). Only the destination moves; save_baseline still runs.
+    """
+    path = tmp_path / "coverage_baseline.json"
+    monkeypatch.setattr(coverage_baseline, "get_default_baseline_path", lambda: path)
+
+
 class TestParsePytestOutput:
     """Tests for parse_pytest_output."""
 

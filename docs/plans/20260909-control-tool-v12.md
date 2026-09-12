@@ -175,6 +175,27 @@ Every execution issue freezes a small table before implementation:
 | invalidation | exact dependencies that make the receipt stale |
 | promotion | observation period/sample and allowed unexplained differences |
 
+### Minimal vertical proof before broad testing
+
+The first deliverable for each claim is one thin, executable route:
+
+```text
+policy claim -> real carrier stimulus -> production control -> observable decision/effect -> durable receipt -> production consumer
+```
+
+Before production implementation or a broad regression matrix begins, the execution issue must name every arrow, the exact executing entrypoint, and the consumer that uses the result. The initial proof contains only three cases: one permitting arm, one refusing arm of a different shape, and one deliberately broken instrument or route. It runs against the real entrypoint and must prove that the consumer receives the decision or refuses its absence. A helper, parser, report, receipt writer, or correlator with only test callers cannot satisfy this step and is removed or deferred before the slice expands.
+
+Only an observed escape from that vertical proof may justify another case. Each added case records the distinct failure class it detects and the existing case it could not replace; parametrization shares transport and setup rather than multiplying test functions. Source-string pins, duplicated expected inventories, and one-test-per-branch expansion are rejected when a real-route assertion, a dynamic two-source comparison, or one property can cover the same claim.
+
+The test order is therefore:
+
+1. one real end-to-end canary proving the complete route and its absence;
+2. a compact contract matrix at boundaries where components translate data or decisions;
+3. unit/property tests only for algorithms whose failure is not already observable through the first two layers;
+4. semantic/documentation checks as projections, never substitutes for the executing route.
+
+Before each additional implementation cycle, record a test-reuse and subtraction ledger: cases reused, cases added with unique failure classes, superseded cases/helpers deleted, production callers added or removed, and current runtime/proof line budgets. Crossing a frozen budget stops expansion immediately; remediation must subtract or split the connected slice, not add proof scaffolding around a disconnected design. Passing many derived tests cannot offset a failed vertical proof, a missing production caller, or a missing durable receipt.
+
 ### Runner counter-controls
 
 A proof packet is invalid unless all hold:

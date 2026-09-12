@@ -59,6 +59,29 @@ class PolicyFileNotFoundError(Exception):
     pass
 
 
+# Issue #1779 (AC1): explicit override for the activity-log root.
+#
+# Measured 2026-09-12: the production activity file
+# ``.claude/logs/activity/<date>.jsonl`` carried 269 synthetic test-session
+# events, including deny/allow records against real repository paths, so any
+# query that did not manually filter session identity read tests as runtime
+# evidence. In the same session a test-created ``.claude/plan_mode_exit.json``
+# made the LIVE plan-exit gate DENY a read-only coordinator inspection — the
+# contamination reached an enforcement decision, not just a log.
+#
+# The redirect is an ENVIRONMENT VARIABLE and not a monkeypatch because the
+# production writers are separate PROCESSES: Claude Code spawns
+# ``session_activity_logger.py`` and ``unified_pre_tool.py`` as subprocesses,
+# and an in-process patch cannot reach them. ``tests/conftest.py`` sets it at
+# import time so every xdist worker and every hook subprocess it spawns
+# inherits a per-run temporary root.
+#
+# It is checked BEFORE ``CLAUDE_PROJECT_DIR`` deliberately: real sessions set
+# ``CLAUDE_PROJECT_DIR`` to the repository, so an override evaluated second
+# could never isolate anything.
+ACTIVITY_LOG_DIR_ENV = "AUTONOMOUS_DEV_ACTIVITY_LOG_DIR"
+
+
 class LogDirResolutionError(RuntimeError):
     """Raised when the activity-log directory cannot be tied to a project root.
 
@@ -120,15 +143,22 @@ def resolve_activity_log_dir(*, start_path: Optional[Path] = None) -> Path:
 
     Resolution order:
 
-    1. **Worktree parent** (Issue #755) — when ``start_path`` is inside a
-       ``.worktrees/`` tree, the parent repo's ``.claude`` wins. Checked first
-       so a ``CLAUDE_PROJECT_DIR`` pointing at the worktree cannot reopen the
-       split #755 closed.
-    2. ``CLAUDE_PROJECT_DIR`` when set to an existing directory.
-    3. :func:`find_project_root`, which searches for ``.git`` all the way up
+    1. :data:`ACTIVITY_LOG_DIR_ENV` (``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR``) when
+       set to a non-blank value — the explicit activity root (Issue #1779).
+       First so a test process can isolate itself even though real sessions set
+       ``CLAUDE_PROJECT_DIR`` to the repository. A blank / whitespace-only
+       value is IGNORED rather than resolved to ``.``, which would reopen the
+       Issue #1726 cwd fallback this resolver exists to refuse. The directory
+       need not exist yet; callers create it.
+    2. **Worktree parent** (Issue #755) — when ``start_path`` is inside a
+       ``.worktrees/`` tree, the parent repo's ``.claude`` wins. Checked before
+       ``CLAUDE_PROJECT_DIR`` so a variable pointing at the worktree cannot
+       reopen the split #755 closed.
+    3. ``CLAUDE_PROJECT_DIR`` when set to an existing directory.
+    4. :func:`find_project_root`, which searches for ``.git`` all the way up
        before considering ``.claude`` — that priority is precisely what makes
        a stray ``.claude`` below the root lose.
-    4. Loud failure — :class:`LogDirResolutionError`, never a cwd fallback.
+    5. Loud failure — :class:`LogDirResolutionError`, never a cwd fallback.
 
     Args:
         start_path: Directory to resolve from. Defaults to the current
@@ -142,6 +172,11 @@ def resolve_activity_log_dir(*, start_path: Optional[Path] = None) -> Path:
         LogDirResolutionError: If no project root can be determined.
     """
     start = Path(start_path) if start_path is not None else Path.cwd()
+
+    # Issue #1779 (AC1): explicit activity root wins over every inference.
+    explicit_root = os.environ.get(ACTIVITY_LOG_DIR_ENV, "").strip()
+    if explicit_root:
+        return Path(explicit_root)
 
     worktree_dir = _worktree_parent_log_dir(start)
     if worktree_dir is not None:

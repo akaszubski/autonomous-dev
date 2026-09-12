@@ -220,6 +220,10 @@ class TestIssue1448HookWiring:
         env = dict(os.environ)
         env["CLAUDE_SESSION_ID"] = "test-session-1448"
         env["ACTIVITY_LOGGING"] = "true"
+        # Issue #1779 (AC1): this test asserts on ``sentinel_path``, so it names
+        # that path explicitly instead of inheriting conftest's suite-wide
+        # isolation value — strictly more precise than the old cwd inference.
+        env[ads.SENTINEL_PATH_ENV] = str(self.sentinel_path)
         return subprocess.run(
             [sys.executable, str(SESSION_ACTIVITY_LOGGER)],
             input=json.dumps(payload),

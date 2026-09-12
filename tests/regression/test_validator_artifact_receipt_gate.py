@@ -35,6 +35,13 @@ LIB_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE from a tree
+# they build under tmp_path, so the session-wide redirect from tests/conftest.py
+# must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 import pipeline_completion_state as P  # noqa: E402
 from pipeline_completion_state import (  # noqa: E402
     _missing_validator_artifacts,

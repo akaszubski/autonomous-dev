@@ -13,6 +13,7 @@ Issue: #1484
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -38,11 +39,17 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
 def _py(code: str, cwd: Path) -> str:
     """Run a python snippet in a subprocess with cwd set, return stdout."""
     full = f"import sys\nsys.path.insert(0, {str(_LIB)!r})\n" + textwrap.dedent(code)
+    # Issue #1779 (AC1): this module's SUBJECT is cwd/worktree-derived sentinel
+    # resolution, so conftest's AUTONOMOUS_DEV_AGENT_DISPATCH_SENTINEL override is
+    # removed — inheriting it would point worktree and main checkout at one path.
+    env = dict(os.environ)
+    env.pop("AUTONOMOUS_DEV_AGENT_DISPATCH_SENTINEL", None)
     proc = subprocess.run(
         [sys.executable, "-c", full],
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        env=env,
     )
     assert proc.returncode == 0, f"subprocess failed: {proc.stderr}\n{proc.stdout}"
     return proc.stdout.strip()

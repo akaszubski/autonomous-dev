@@ -30,6 +30,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "session_activity_logger.py"
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 
 def _run_hook(stdin_payload: dict, env_extra: dict, cwd: Path) -> tuple[int, str]:
     env = os.environ.copy()

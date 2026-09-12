@@ -38,6 +38,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
+# Issue #1779 (AC1): these tests' SUBJECT is activity-root INFERENCE, so the
+# session-wide redirect from tests/conftest.py must not stand in front of it.
+from tests.helpers.state_isolation import (  # noqa: E402,F401
+    activity_root_inference_is_the_subject,
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers

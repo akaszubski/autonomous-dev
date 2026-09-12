@@ -646,6 +646,18 @@ class TestSessionIdFromStdin:
     level so logging functions can fall back to it.
     """
 
+    @pytest.fixture(autouse=True)
+    def _control_activity_root(self, monkeypatch):
+        """These tests assert log PLACEMENT under their own temp tree (#1779, AC1).
+
+        ``tests/conftest.py`` sets ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` session-wide so
+        no test can append to the production activity log; it is the resolver's
+        highest-priority input, so a test that owns the destination must clear it.
+        Cleared here, not in conftest: the session-wide default is the safe one.
+        """
+        monkeypatch.delenv("AUTONOMOUS_DEV_ACTIVITY_LOG_DIR", raising=False)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
     def test_session_id_from_stdin_when_env_absent(self, monkeypatch, tmp_path):
         """When CLAUDE_SESSION_ID env var is absent, log entries use session_id from stdin."""
         monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)

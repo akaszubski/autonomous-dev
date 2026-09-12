@@ -51,20 +51,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def _find_project_root() -> Path:
-    """Find project root by walking up from cwd looking for .git or .claude."""
-    current = Path.cwd()
-    while current != current.parent:
-        if (current / ".git").exists() or (current / ".claude").exists():
-            return current
-        current = current.parent
-    return Path.cwd()
-
-
 def _get_log_dir() -> Path:
-    """Get the activity log directory, creating it if needed."""
-    root = _find_project_root()
-    log_dir = root / ".claude" / "logs" / "activity"
+    """Get the activity log directory, creating it if needed.
+
+    Issue #1779 (AC1): resolved through
+    :func:`path_utils.resolve_activity_log_dir`, the single sanctioned
+    chokepoint. The former private ``_find_project_root`` walk was a second
+    resolver — it ignored ``AUTONOMOUS_DEV_ACTIVITY_LOG_DIR`` (so a test could
+    not redirect it away from the production evidence file) and preferred the
+    first ``.claude`` it met over the repository's ``.git`` root, which is the
+    stray-``.claude`` capture Issue #1726 removed from the other producers.
+    """
+    from path_utils import resolve_activity_log_dir
+
+    log_dir = resolve_activity_log_dir(start_path=Path.cwd())
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
