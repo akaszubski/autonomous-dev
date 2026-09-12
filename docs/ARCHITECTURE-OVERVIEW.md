@@ -5,6 +5,8 @@ covers:
   - plugins/autonomous-dev/lib/
   - plugins/autonomous-dev/hooks/
   - plugins/autonomous-dev/commands/
+  - bootstrap/control_trust/
+  - .github/workflows/control-runner-trust.yml
 ---
 
 # Architecture Overview
@@ -13,7 +15,7 @@ Complete technical architecture for the autonomous-dev plugin, including agents,
 
 **Component Counts**: 17 agents (18 archived), 20 skills, 26 active commands (23 user-facing), 238 libraries (excludes `__init__.py` package markers — see `scripts/validate_structure.py::_count_libraries()`), 28 active hooks (62 archived).
 
-**Last Updated**: 2026-09-04
+**Last Updated**: 2026-09-10
 
 ---
 
@@ -93,7 +95,7 @@ Reusable Python libraries for security, validation, automation, and more. See [L
 - **Security**: security_utils.py, mcp_security.py, sandbox_enforcer.py, agent_ordering_gate.py (pure-logic pipeline ordering decisions — no I/O), secret_patterns.py (shared credential/OWASP patterns — single source of truth for hooks and active scanner), active_security_scanner.py (dependency audit, credential history scan, OWASP pattern scan — used by security-auditor STEP 0)
 - **Validation**: validation.py, alignment_validator.py, project_validator.py
 - **Automation**: unified_git_automation.py (git operations), batch_processor.py, session_tracker.py
-- **State Management**: session_state_manager.py (session persistence), batch_state_manager.py, user_state_manager.py, session_resource_manager.py (resource tracking), pipeline_state.py (pipeline progression tracking), pipeline_completion_state.py (agent ordering enforcement state — completions written by three paths: (1) session tracker at SubagentStop, (2) coordinator synchronously after every foreground Agent dispatch via `record_agent_completion()` — Issue #1174 post-dispatch protocol, (3) coordinator explicitly for background agents like doc-master where SubagentStop is unreliable — Issue #852; launches written by pre-tool hook; all 8 mutators serialize through an internal `_locked_rmw()` read-modify-write lock and writes land atomically via `tempfile`+`os.replace()` — a concurrent reader never observes a truncated file and no writer's update is silently dropped, closing the truncate-before-lock race that discarded completions under concurrent dispatch, Issue #1544; tri-scope)
+- **State Management**: session_state_manager.py (session persistence), batch_state_manager.py, user_state_manager.py, session_resource_manager.py (resource tracking), pipeline_state.py (pipeline progression tracking), pipeline_completion_state.py (agent ordering enforcement state — completions written by three paths: (1) session tracker at SubagentStop, (2) coordinator synchronously after every foreground Agent dispatch via `record_agent_completion()` — Issue #1174 post-dispatch protocol, (3) coordinator explicitly for background agents like doc-master where SubagentStop is unreliable — Issue #852; launches written by pre-tool hook; all 8 mutators serialize through an internal `_locked_rmw()` read-modify-write lock and writes land atomically via `tempfile`+`os.replace()` — a concurrent reader never observes a truncated file, closing the truncate-before-lock race that discarded completions under concurrent dispatch (Issue #1544); this closes torn reads, not every loss: `_locked_rmw()`'s own fail-open fallback (lockfile unopenable — permissions, full `/tmp`) can, by its own design, still lose a concurrent writer's update, and a state read past its 7200s staleness window returns as though empty rather than as a persisted value — neither is a "no update ever dropped" guarantee; tri-scope)
 - **Infrastructure**: path_utils.py, performance_timer.py, agent_tracker.py, pipeline_timing_analyzer.py, pipeline_efficiency_analyzer.py (cross-run efficiency analysis — model tier recommendations, token trend detection, IQR outlier detection; CIA check #14), test_pruning_analyzer.py (AST-based test hygiene — detects orphaned imports, archived refs, zero-assertion tests, duplicate coverage, and stale regressions; used by `/sweep --tests`; module-level `find_vacuous_tests()` separately flags constant-placeholder assertions such as `assert True`, pinned by a shrink-only ratchet in `tests/`), test_issue_tracer.py (test-to-issue traceability — maps tests to GitHub issues, flags untested issues, orphaned pairs, and untraced tests; used by `/audit --test-tracing` and STEP 13 non-blocking warning), test_lifecycle_manager.py (composition layer — orchestrates TestIssueTracer, TestPruningAnalyzer, tier_registry, and coverage_baseline into a unified `TestHealthReport`; used by `/improve` STEP 2.7 and continuous-improvement-analyst check #12), dependabot_tracker.py (Dependabot security issue tracker — queries GitHub Dependabot API for open vulnerability alerts and auto-creates deduplicated tracking issues for critical/high severity and weekly batch issues for medium severity; invoked non-blocking at STEP 13 in `/implement`; Issue #767), coordinator_log.py (coordinator-side fallback for background agent completion logging — writes JSONL activity entries tagged `"source": "coordinator_fallback"` when SubagentStop hook fails to fire for background agents; convenience wrapper `ensure_doc_master_logged()` for the most common case; Issue #868), hook_recovery.py (hook recovery telemetry and stale-state cleanup — `log_block_with_recovery()` is now a **deprecated shim** (Issue #972) that delegates to `hook_telemetry.log_block_event()`; calls still work but emit a `DeprecationWarning` — new code should use `hook_telemetry.log_block_event` directly; `clear_stale_state()` removes sentinel files owned by different sessions; `can_user_recover()` checks the exemption registry; `is_recovery_disabled()` reads `HOOK_RECOVERY_DISABLED` env var; Issue #970), hook_telemetry.py (unified hook block telemetry — single canonical surface for all three deny shapes; writes to `.claude/logs/hook-blocks.jsonl`; `block_event_decorator` wraps `output_decision` in `unified_pre_tool.py`; `HOOK_TELEMETRY_DISABLED=1` rollback; Issue #972), hard_floor.py (hard-floor hook registry — declarative always-on enforcement list; `is_hard_floor(hook_name, function_name=None)` and `get_observability_hooks()` public API; dual-source with fallback to in-module constants when JSON config is missing or malformed; Phase C of hooks architecture refactor — Phase D will wire session-mode logic to consume the registry; Issue #997), hook_timing.py (per-hook invocation timing telemetry — `HookTimer` context manager wraps every hook's `__main__` block; writes daily-rotated JSONL to `~/.claude/logs/hook_timings_YYYY-MM-DD.jsonl`; `HOOK_TIMING_DISABLED` rollback; `HOOK_TIMING_DIR` redirect for tests; sibling of `hook_telemetry.py` — separate files, independent evolution; security-hardened in Issue #1056: `MAX_HOOK_NAME_LENGTH=128` cap prevents oversized JSONL rows, log files created with `LOG_FILE_MODE=0o600` (owner-only) to prevent exposure on multi-user systems, `_sanitize_os_error()` strips absolute paths from OSError messages before writing to stderr; Issue #1012)
 - **See**: [LIBRARIES.md](LIBRARIES.md) for complete API reference
 
@@ -282,25 +284,20 @@ autonomous-dev uses a **Diamond Model** — not the traditional TDD pyramid. Acc
 
 ---
 
+## Control-Tool Trust Bootstrap (F0)
+
+*Added 2026-09-10, Issue #1773, under adopted plan [`docs/plans/20260909-control-tool-v12.md`](plans/20260909-control-tool-v12.md) (#1757). Bootstrap-only: added beside the system, changes no existing agent, hook, pipeline step, or ownership, and grants no installed-control authority — R0 (a real control verifier) and D0 (plugin-native delivery) each require their own separate authorization.*
+
+New artifacts under `bootstrap/control_trust/` — a frozen case manifest (`cases.json`), a POSIX-shell primitive process oracle (`oracle.sh`) independent of the harness it measures, and a standard-library-only comparator/rung-budget CLI (`trustcheck.py`) — registered for CI by one isolated workflow that lives outside that directory, [`.github/workflows/control-runner-trust.yml`](../.github/workflows/control-runner-trust.yml) (job `trust`, step `control-tool-complexity-ratchet`), running only the frozen `bootstrap/control_trust/proof/` suite with no dependency on another workflow's result. Case-level detail, per-case measurement state, and the rung's frozen budget live in `cases.json`/`rung_scope.json` and are not restated here; proof methodology is in [`docs/TESTING-STRATEGY.md`](TESTING-STRATEGY.md#independent-observer-proof-control-tool-bootstrap-rungs); the pinned local reproduction and documentation-maintenance provenance for this rung are in [`docs/RUNBOOK.md`](RUNBOOK.md); CI trigger semantics are in [`docs/GITHUB-ACTIONS.md`](GITHUB-ACTIONS.md).
+
+---
+
 ## Cross-References
 
 
 ## CC-Native vs Plugin Components
 
-In audit Issue #1162, it was identified that autonomous-dev currently bundles all components (skills, commands, permissions, MCP validation) within the plugin structure, creating unnecessary overhead. The refactor strategy addresses this redundancy by migrating certain components to Claude Code's native infrastructure while preserving the load-bearing methodology that defines autonomous-dev's value proposition.
-
-| Component | Current Location | Target Location | Status |
-|-----------|-----------------|-----------------|--------|
-| Skills (22) | `plugins/autonomous-dev/skills/` | `.claude/skills/` | Planned |
-| Commands (25) | `plugins/autonomous-dev/commands/` | `.claude/commands/` | Planned |
-| Permission Policy | `config/auto_approve_policy.json` | Native `permissions.allow`/`permissions.deny` | Planned |
-| MCP Validation | `unified_pre_tool.py` (6 layers) | `unified_pre_tool.py` (Layer 1 only) | Planned |
-| 8-step Pipeline | `commands/implement.md` | `commands/implement.md` (preserved) | No change |
-| Plan-critic Loop | `agents/plan-critic.md` | `agents/plan-critic.md` (preserved) | No change |
-| Agent Ordering | `lib/agent_ordering_gate.py` | `lib/agent_ordering_gate.py` (preserved) | No change |
-| Session Archiving | `hooks/conversation_archiver.py` | `hooks/conversation_archiver.py` (preserved) | No change |
-
-The refactor preserves autonomous-dev's core methodology — the 8-step pipeline, plan-critic adversarial review, strict agent dispatch ordering, and session archiving. These remain plugin-specific as they represent the harness's unique contribution. The migration targets redundant components that duplicate Claude Code native functionality, with an estimated 25% reduction in plugin overhead. Implementation will be delivered across multiple sub-PRs, each focused on a single component migration to minimize risk. Progress is tracked under Issue #1162.
+**Historical proposal, superseded as active direction.** Issue #1162 (closed) proposed migrating skills/commands/permission-policy/MCP-validation layers to Claude Code's native infrastructure, citing an estimated 25% overhead reduction that this F0 work does not independently verify; the issue's closure is not itself evidence that every one of its originally proposed migrations shipped, and this page no longer restates that table as a live plan. Current execution authority for plugin-native delivery is adopted plan [`docs/plans/20260909-control-tool-v12.md`](plans/20260909-control-tool-v12.md) (#1757): its D0 (plugin-native delivery) is a separate, not-yet-authorized rung from the F0 bootstrap described above, and broader native-permission migration remains deferred pending that authorization. See [RUNBOOK.md](RUNBOOK.md), [TESTING-STRATEGY.md](TESTING-STRATEGY.md), and [SESSION-ANALYTICS.md](SESSION-ANALYTICS.md) for the components each of those pages actually owns.
 
 ---
 **Related Documentation**:

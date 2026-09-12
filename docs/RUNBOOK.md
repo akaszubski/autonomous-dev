@@ -1,3 +1,9 @@
+---
+covers:
+  - bootstrap/control_trust/
+  - .github/workflows/control-runner-trust.yml
+---
+
 # Runbook — autonomous-dev
 
 Operational sequences for maintainers. Not loaded into context; consulted on demand.
@@ -46,6 +52,73 @@ pytest --cov=plugins/autonomous-dev/hooks --cov=plugins/autonomous-dev/lib --cov
 **Test directories → Diamond layers**: `tests/unit/` (L2), `tests/property/` (L3), `tests/integration/` + `tests/regression/` (L4), `tests/genai/` (L5), `tests/spec_validation/` (L5/L6).
 
 ---
+
+## Control-Tool Trust Harness Local Reproduction (F0, #1773)
+
+Pinned local reproduction of `.github/workflows/control-runner-trust.yml`'s job `trust`, step `control-tool-complexity-ratchet` — the SAME frozen suite and measurement profile as CI (`-B -I`, no ambient config/conftest/cache/plugin autoload, isolated `--basetemp`), never byte-identical local/CI argv: CI's `F0_PYTHON` resolves to a runner-specific tool-cache interpreter under its own runner-temp roots, and a local venv path legitimately differs. Report the raw pytest exit this command prints, not a job's overall conclusion — an action's own POST steps can still fail a CI job after this named step's own exit is already recorded. This proof suite carries its own separate 10-minute rung re-proof budget (v12 §5/§8); it does not replace the ordinary `<60s` fast-test and `<10s` hook budgets used elsewhere in this file. Run all of this from the F0 checkout root — `$PWD` below is assumed to be the repository root.
+
+**One-time setup** (needs network; the isolated proof run below does not) — venv creation, the exact-version check, and the pinned dependency install all run inside ONE subshell, so a failed creation or a failed version check stops before `pip install` ever runs:
+
+```bash
+(
+  python3.11 -m venv /path/to/private/venv || {
+    echo "REFUSED: venv creation failed — do not proceed" >&2
+    exit 1
+  }
+  /path/to/private/venv/bin/python -c \
+    "import sys; assert sys.version_info[:3] == (3, 11, 14), sys.version" || {
+    echo "REFUSED: venv Python is not 3.11.14 — do not proceed" >&2
+    exit 1
+  }
+  /path/to/private/venv/bin/python -m pip install pytest==8.4.2 PyYAML==6.0.2
+)
+```
+
+**Isolated proof run** (a fresh scratch root per invocation — `mktemp -d` templates end in `X`s so every run gets a unique directory; never reuse or hand-pick `--basetemp`, and never point scratch at the live worktree). Scratch allocation is refused explicitly before anything runs. The raw pytest exit is captured under an `if`/`else` and returned from a subshell. This block re-validates the pinned Python/pytest/PyYAML versions at the top of every invocation and hard-bounds the pytest subprocess to 600s via a small stdlib `subprocess.run(..., timeout=600)` wrapper:
+
+```bash
+(
+  f0_scratch=$(mktemp -d "${TMPDIR:-/tmp}/f0-proof-run.XXXXXXXX") || {
+    echo "REFUSED: could not allocate a scratch root — refusing rather than running with an empty prefix" >&2
+    exit 1
+  }
+  if env -i PATH=/usr/bin:/bin PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+       /path/to/private/venv/bin/python -B -I -c '
+import importlib.metadata as m, subprocess, sys
+assert sys.version_info[:3] == (3, 11, 14), "REFUSED: interpreter is not 3.11.14: " + sys.version
+assert m.version("pytest") == "8.4.2", "REFUSED: pytest is not 8.4.2: " + m.version("pytest")
+assert m.version("PyYAML") == "6.0.2", "REFUSED: PyYAML is not 6.0.2: " + m.version("PyYAML")
+try:
+    rc = subprocess.run(
+        [sys.executable, "-B", "-X", "pycache_prefix=" + sys.argv[1] + "/pycache", "-I",
+         "-m", "pytest", "-p", "no:cacheprovider", "-c", "/dev/null",
+         "--rootdir=" + sys.argv[2],
+         "--basetemp=" + sys.argv[1] + "/tests", "--noconftest", "-q", sys.argv[2]],
+        timeout=600,
+    ).returncode
+except subprocess.TimeoutExpired:
+    print("REFUSED: TIMEOUT - local proof exceeded its 600s bound; the exit code below is a timeout marker, not a genuine pytest exit code", file=sys.stderr)
+    sys.exit(124)
+print(f"pytest raw exit (inner): {rc}")
+sys.exit(rc)
+' "$f0_scratch" "$PWD/bootstrap/control_trust/proof"
+  then
+    rc=0
+  else
+    rc=$?
+  fi
+  echo "pytest raw exit (outer wrapper): $rc"
+  exit "$rc"
+)
+```
+
+Preserve your venv's own Python executable spelling above — never resolve to a base/system interpreter. What was actually printed decides the outcome, never the outer numeric exit code alone, which cannot injectively encode any of the following: (1) a `REFUSED: TIMEOUT` line on stderr means the 600s wrapper fired before pytest could exit on its own; no `pytest raw exit (inner):` line is printed in this case, because the `except subprocess.TimeoutExpired` branch never reaches that `print`. (2) `pytest raw exit (inner): N` with `N >= 0` means the pytest child exited normally with that status, and ordinary pytest exit codes (0-5) pass through `sys.exit(rc)` unchanged, so the outer wrapper status equals N. (3) `pytest raw exit (inner): N` with `N < 0` means `subprocess.run().returncode` is reporting the pytest child as terminated BY SIGNAL — Python's own convention is that a negative returncode is `-signum` — not that pytest itself exited with a negative status; this is a distinct condition from (1) and (2) and can only be read from this printed line, never inferred from the outer exit alone. `sys.exit(rc)` does not reproduce a negative `rc` at the shell: POSIX process exit statuses are one unsigned byte, so the OS reports `rc & 0xFF` to the wrapping shell (inner `-9` becomes outer `247`) — neither the printed negative value nor bash's own 128+signal convention (137 for a directly signal-killed foreground process), so the outer wrapper status by itself cannot be used to recover which signal killed the child. (4) Neither line was printed at all: the remaining case, most likely a startup/profile failure (a version assertion raising before pytest is invoked) or an interrupted run (killed, disconnected) — treat this as the best available inference from what was captured, not a certainty.
+
+### Documentation-maintenance provenance for this rung (native author → Codex actuator → fresh native verifier)
+
+Temporary F0 maintenance scaffolding for getting this rung's six documentation files corrected during a native-tool-refusal window — not a shipped collector, not evidence for a portable consumer proof, and not a permission bypass; it grants no product state and authorizes nothing beyond the six named files. Three distinct actors, none standing in for another: (1) a read-only native Claude doc-master (Read/Grep/Glob only) that reads the required sources and authors either an unapplied patch or, under a separately recorded exact-delta transport clarification, a JSON array of exact `old`/`new` replacement records against a previously bound, digest-identified draft patch; (2) Codex acting only as the mechanical, exact-byte patch actuator — applying only the exact bytes the author produced, substituting delta records into a newly derived patch when that is the input rather than repairing or paraphrasing them, after independently re-verifying patch (or derived-patch) identity/digest, each target file's preimage hash, the frozen source hashes the patch cites, unchanged git index/base/branch, and the absence of a current hold; (3) a fresh, full-role native doc-master with no memory of the draft, reading the actual resulting files and performing the real semantic sweep. A drafting-agent PASS, a green CLI exit from the actuator, or the parent's own successful patch application is each someone else's claim, not this gate's completion — only the fresh verifier's independent read of the final files is. Before any actor runs: verify Claude.ai Max subscription authentication is active and scrub paid-API/provider override environment variables from the invoking shell — this procedure runs on existing subscription auth, never a metered key. The originating `/implement` run id and Claude session id are retained across all three actors' invocations rather than minted fresh, so completion state and activity logs stay attributable to one pipeline run. Each of the two native doc-master specialists (the draft author and the fresh verifier) gets the complete canonical doc-master role text, not a summarized persona; Codex's actuator role is mechanical patch application only — it is not a native specialist dispatch and has no canonical role text to receive. Each specialist dispatch's actual Agent-tool result and the independently observed file effects (`git diff`, file hashes) are checked directly — a coordinator's own prose summary of what a child did is not evidence of what the child did. Only OBSERVED completion is recorded through the existing agent-completion APIs; recording one that did not run is FORBIDDEN (see `CLAUDE.md`, Critical Rules). The interactive session's own native pre-tool guard does NOT intercept the parent's separate patch-application tool call, so the scope check (exactly the six named target paths, no Add/Delete/Move/symlink/duplicate target), the preimage check, the source-hash check, the index/base/branch-unchanged check, and the no-current-hold check must all be carried over EXPLICITLY by the applying party using the existing exact-applicator invariants — never assumed inherited from the interactive session's own hooks. Any real denial or hold, a mismatched identity/scope/preimage, a partial application, or an unintended effect STOPS this route immediately — never switch tools, retry through a different path, or record synthetic completion to route around the stop; the correct response is to halt and report, not to route around the guard quietly. The SAME run's lock already held for this rung must remain actually held continuously from the final prechecks above through the parent's ordinary patch-application call and its immediate effect checks — a prior author's already-released lock is not standing ownership for a later actor's application or verification. Session capture for each specialist dispatch preserves `--output-format stream-json`, `--include-hook-events`, `--include-partial-messages` (a liveness signal only, never a completeness one), and `--forward-subagent-text`, plus a `--debug-file` capture (a file path, distinct from the `--debug` flag, which writes to stderr instead); where an Agent result is too large to inspect inline, the persisted tool-result artifact it references is read by its own ID-bound path alongside the raw child output — a truncated preview or a parent's own relay of "it worked" is not a substitute for either.
+
+**Tested streaming-input transport option** (private canary, installed CLI 2.1.236, existing subscription auth, no API key): piping stdin with `--input-format stream-json --output-format stream-json --replay-user-messages --include-hook-events --verbose` accepts newline-delimited user records while the pipe stays open, and each is confirmed by its own exact replayed `user` acknowledgement before its `result` — a `result` message alone is not the final process exit while the pipe remains open; native exit 0 followed the pipe's own close, not either individual result. This does not establish a portable numeric terminal-input-length limit, and does not test or establish mid-tool cancellation, permission callbacks, or resumed-agent delivery guarantees. See [SESSION-ANALYTICS.md](SESSION-ANALYTICS.md) for this rung's own carrier/identifier-join limits, which streaming input does not repair.
 
 ## Manual perf-smoke procedure (Issue #1133 AC8)
 

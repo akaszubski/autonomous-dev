@@ -1,0 +1,565 @@
+{
+  "rung": "F0",
+  "manifest_note": "The frozen F0 case denominator. A case that is not fully specified can never be re-run or disproved, so every case carries both arms, a fault arm, a mutant, two differently grounded denominator sources, its invalidation inputs, and an explicit measurement state. UNMEASURED is a first-class result here; there is no vocabulary for 'not checked' that reads like a pass.",
+  "authoring_provenance": {
+    "written_by": "the F0 implementer, in a write-only stage",
+    "executed_by_the_author": "nothing",
+    "consequence": "every F0 runtime case below is UNMEASURED at authoring time. The MEASURED cases are the frozen four-carrier census taken BEFORE this changeset by the supervisor; they are asserted here as DATA and are deliberately not re-measured, because a re-measurement would overwrite a finding with whatever this environment happens to produce."
+  },
+  "carrier_facts": {
+    "hook_response_records_carrying_tool_use_id": 0,
+    "hook_response_records_examined": 7,
+    "dispatcher_otel_carries_tool_use_id": false,
+    "dispatcher_otel_carries_hook_id": false,
+    "dispatcher_otel_traceid_defined": false,
+    "dispatcher_otel_spanid_defined": false,
+    "dispatcher_otel_carries_session_id": true,
+    "dispatcher_otel_carries_prompt_id": true,
+    "pretooluse_ingress_carries_session_id": true,
+    "pretooluse_ingress_carries_prompt_id": true,
+    "pretooluse_ingress_carries_tool_use_id": true,
+    "posttooluse_ingress_carries_session_id": true,
+    "posttooluse_ingress_carries_prompt_id": true,
+    "posttooluse_ingress_carries_tool_use_id": true,
+    "stream_json_content_id_matches_tool_use_id": true,
+    "text_output_format_log_exporters": 1,
+    "stream_json_include_hook_events_log_exporters": 0,
+    "stream_json_include_hook_events_reported_enabled": true
+  },
+  "carrier_facts_provenance": {
+    "source": "private supervisor carrier census (artifact set adev-f0-evidence-lHQCBUCy). The raw captures are account-bearing and are NOT reproduced here or anywhere in this repository; only field names, presence and counts are recorded.",
+    "archive_sha256": "822af4726cc814f2e4202f42186d80956a06e263b5da94decaa8edbc8c2cd308",
+    "cli": "installed Claude Code 2.1.236",
+    "effective_configuration": "The operator's installed settings FILES were unchanged on disk. The ingress rows were nevertheless captured with an ADDITIVE --settings hook overlay on the command line, so the EFFECTIVE configuration in force during the capture was AUGMENTED. Saying 'installed settings unmodified' without saying that would overstate the rows: they describe an augmented configuration, not a stock installation.",
+    "sessions": "TWO separate native sessions, not one: the stream-json ingress and hook-result capture, and a distinct text-output OTel exporter probe. A row taken in one session is not evidence about the other, and the two are never merged into a single observation.",
+    "measured_scope": "top-level Read ingress only, on this machine",
+    "not_covered": "Serena and other MCP tool routes, write-protection hooks, remote consumers, subagent-dispatched tools. None of these were observed and none may be inferred from the rows that were.",
+    "freshness": "These are FROZEN HISTORICAL observations. They must not be relabelled as fresh executions and must not be generalised to a carrier that was not measured."
+  },
+  "join_status": {
+    "state": "UNMEASURED",
+    "reason": "The full tool -> hook-result -> OTel join was never established. Live Read ingress and stream-json tool ids join exactly, but 0 of 7 hook-result records carried a tool_use_id. The dispatcher OTel records DO carry session.id and prompt.id; what they lack is any TOOL- or HOOK-level identifier -- no tool_use_id, no hook_id, and traceId and spanId undefined -- so the missing link is specific rather than a claim that those records are empty. No exact key spans all three surfaces. Nearness in time or a shared session is not a join and may never be substituted for one. Serena and other MCP routes and every remote consumer were not observed at all and stay UNMEASURED.",
+    "consequence": "Any later control whose case requires that join records the carrier UNMEASURED rather than passing on a weaker key."
+  },
+  "cases": [
+    {
+      "id": "carrier-pretooluse-ingress-identifiers",
+      "subject": "installed Claude Code 2.1.236 PreToolUse hook ingress records, stage=executing",
+      "stimulus": "one real top-level Read tool invocation in a live session, captured at the hook ingress boundary",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "inferring_a_field_that_was_not_observed"],
+        "observed": "session_id, prompt_id and tool_use_id are all PRESENT"
+      },
+      "opposite_arm": "the dispatcher OTel case below, where the TOOL identifier is absent under the same method while session.id and prompt.id are present: presence here is informative only because a specific absence elsewhere was observed the same way. It is NOT true that all three identifiers were absent from OTel, and this row may not be read as saying so.",
+      "fault_arm": "a record missing tool_use_id must be recorded as an absent key, never back-filled from an adjacent record",
+      "mutant": "re-measure this row in the current environment and overwrite the literal: the frozen-facts arm of the proof suite turns red on any drift",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print --output-format stream-json --include-hook-events --verbose --settings <private additive hook overlay>",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the installed settings files were unchanged on disk, but the EFFECTIVE configuration was augmented by an additive --settings hook overlay; this row describes that augmented configuration",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "hook",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-hook-ingress-capture"],
+      "invalidation": ["installed Claude Code version", "installed settings hook registrations", "the hook event schema"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy"}
+    },
+    {
+      "id": "carrier-posttooluse-ingress-identifiers",
+      "subject": "installed Claude Code 2.1.236 PostToolUse hook ingress records, stage=executing",
+      "stimulus": "the completion half of the same real top-level Read invocation",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "pairing_a_start_with_an_unrelated_completion"],
+        "observed": "session_id, prompt_id and tool_use_id are all PRESENT"
+      },
+      "opposite_arm": "the hook-RESULT case below, where tool_use_id is absent on every record examined: ingress and result are different records and one may not stand in for the other",
+      "fault_arm": "a completion whose tool_use_id does not match any start is UNMEASURED, not a pair",
+      "mutant": "re-measure and overwrite the literal; the frozen-facts arm turns red",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print --output-format stream-json --include-hook-events --verbose --settings <private additive hook overlay>",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the installed settings files were unchanged on disk, but the EFFECTIVE configuration was augmented by an additive --settings hook overlay; this row describes that augmented configuration",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "hook",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-hook-ingress-capture"],
+      "invalidation": ["installed Claude Code version", "installed settings hook registrations", "the hook event schema"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy"}
+    },
+    {
+      "id": "carrier-hook-result-tool-use-id-absent",
+      "subject": "hook_response records emitted by the installed dispatcher, stage=executing",
+      "stimulus": "the hook results produced during the same captured session",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "treating_an_empty_result_as_no_defect"],
+        "observed": "0 of 7 examined records carry tool_use_id"
+      },
+      "opposite_arm": "the two ingress cases above, which DO carry tool_use_id under the same capture: without them a zero here would be indistinguishable from a capture that can see nothing",
+      "fault_arm": "a result attributed to a tool invocation without an exact shared key is UNMEASURED",
+      "mutant": "re-measure and overwrite the literal, or raise the examined denominator without raising the numerator; the frozen-facts arm turns red",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print --output-format stream-json --include-hook-events --verbose --settings <private additive hook overlay>",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the installed settings files were unchanged on disk, but the EFFECTIVE configuration was augmented by an additive --settings hook overlay; this row describes that augmented configuration",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "hook",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-hook-result-capture"],
+      "invalidation": ["installed Claude Code version", "the hook result schema", "the dispatcher implementation"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy", "records_examined": 7}
+    },
+    {
+      "id": "carrier-stream-json-content-id-matches-tool-use-id",
+      "subject": "stream-json transcript content entries beside hook ingress records, stage=executing",
+      "stimulus": "one real top-level Read invocation observed on both surfaces at once",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "prefix_or_substring_matching_of_identifiers"],
+        "observed": "content[].id equals tool_use_id exactly"
+      },
+      "opposite_arm": "the dispatcher OTel case, where no such identifier exists to match: an exact join on one pair of surfaces does not extend to a third",
+      "fault_arm": "any partial or near match is a non-join and is recorded UNMEASURED",
+      "mutant": "re-measure and overwrite the literal; the frozen-facts arm turns red",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print --output-format stream-json --include-hook-events --verbose --settings <private additive hook overlay>",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the installed settings files were unchanged on disk, but the EFFECTIVE configuration was augmented by an additive --settings hook overlay; this row describes that augmented configuration",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-stream-json-capture"],
+      "invalidation": ["installed Claude Code version", "the stream-json content schema"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy"}
+    },
+    {
+      "id": "carrier-dispatcher-otel-identifiers-absent",
+      "subject": "dispatcher OpenTelemetry records, stage=executing",
+      "stimulus": "the OTel records emitted during the console-exporter probe session, which is a DIFFERENT native session from the stream-json ingress capture",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "substituting_a_trace_field_that_is_undefined"],
+        "observed": "session.id and prompt.id ARE present; tool_use_id and hook_id are absent and traceId and spanId are undefined. What is missing is every TOOL- and HOOK-level identifier, not every identifier."
+      },
+      "opposite_arm": "the ingress and stream-json cases, whose tool identifiers WERE present under the same method, and the session.id/prompt.id this very record does carry: both make the absence specific rather than a record the capture simply could not read",
+      "fault_arm": "correlating an OTel record to a tool invocation on anything but an exact shared key is a non-pass",
+      "mutant": "declare any of the four absent tool/hook/trace fields present without re-observing it, or declare session.id absent; the frozen-facts arm turns red on either",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print with console OTel exporters, in the text-output probe session",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the operator's installed settings files, unchanged on disk, plus console OTel exporter environment variables; the settings themselves were not edited",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-dispatcher-otel-capture"],
+      "invalidation": ["installed Claude Code version", "the OTel record schema", "exporter configuration"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy"}
+    },
+    {
+      "id": "carrier-otel-enabled-is-not-an-operating-exporter",
+      "subject": "the installed CLI's OTel logging configuration, stage=executing",
+      "stimulus": "the same console-exporter configuration run twice in TWO SEPARATE native sessions: once with text output, once with stream-json plus hook events",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "reading_enabled_true_as_evidence_of_operation"],
+        "observed": "text output produced 1 log exporter; stream-json with hook events reported enabled=true with 0 exporters and an event-dropped warning"
+      },
+      "opposite_arm": "the text-output run producing ONE exporter is the positive control: without it, zero would mean 'exporters never work here' rather than 'this configuration reported enabled while exporting nothing'",
+      "fault_arm": "a status field reporting a mechanism's PRESENCE is never accepted as evidence of its OPERATION",
+      "mutant": "drop the positive control and keep only the zero; the frozen-facts arm requires text_output_format_log_exporters to stay above zero and turns red",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print with OTEL_LOGS_EXPORTER=console, once with --output-format text and once with --output-format stream-json --include-hook-events --verbose",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "console OTel exporter environment",
+        "plugins": "the operator's installed plugin set, unmodified",
+        "timeout_s": null
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:paired-console-exporter-capture"],
+      "invalidation": ["installed Claude Code version", "OTel exporter environment variables"],
+      "measurement": {"state": "MEASURED", "observed_by": "supervisor, before this changeset", "artifact": "adev-f0-evidence-lHQCBUCy"}
+    },
+    {
+      "id": "f0-oracle-raw-child-status",
+      "subject": "bootstrap/control_trust/oracle.sh, stage=source",
+      "stimulus": "measure the private subject s_runtime_fail, which collects cleanly and fails at CALL time",
+      "expected": {
+        "collect_exit": 0,
+        "run_exit": 1,
+        "selected_ids": ["s_runtime_fail/test_s.py::test_alpha[with space]", "s_runtime_fail/test_s.py::test_zebra"],
+        "selected_count": 2,
+        "forbidden_effects": ["write:live_worktree", "write:.claude", "network", "paid_api", "product_decision_vocabulary", "writing_the_product_ledger"]
+      },
+      "opposite_arm": "CO-0: an unmutated COPY of the oracle run from a private temp directory over all four declared subjects must reproduce the hand-declared exits and selections",
+      "fault_arm": "an oracle that cannot start, or emits nothing, is a refusal rather than an assumed-clean measurement",
+      "mutant": "MO-1: route the already-saved status through a pipeline and re-read it; the real failure becomes exit 0 and the arm must turn red",
+      "runner": {
+        "executable": "/bin/sh plus the pinned CPython 3.11.14 with pytest 8.4.2",
+        "argv": "python -B -X pycache_prefix=<private> -I -m pytest -p no:cacheprovider -c /dev/null --rootdir=<workroot> --noconftest [--collect-only] -q <target>",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and -p no:cacheprovider",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-node-ids"],
+      "invalidation": ["oracle.sh bytes", "the pinned interpreter and pytest versions", "the subject bytes"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage. This case becomes MEASURED only from an independent run of the frozen proof suite under the pinned profile, reported with its raw exit."}
+    },
+    {
+      "id": "f0-oracle-strict-selection-parser",
+      "subject": "bootstrap/control_trust/oracle.sh selection parser, stage=source",
+      "stimulus": "a subject placed OUTSIDE the declared workroot, so pytest emits rootdir-stripped node ids",
+      "expected": {
+        "collect_exit": 0,
+        "run_exit": 0,
+        "selected_ids": [],
+        "selected_count": 0,
+        "forbidden_effects": ["write:live_worktree", "accepting_an_id_that_names_no_file", "silently_dropping_a_space_bearing_parameter_id"]
+      },
+      "opposite_arm": "PV-1: the same parser over a correctly placed subject must recover the exact hand-declared set of two ids, one of which contains a space",
+      "fault_arm": "a misconfigured rootdir must produce a VISIBLE empty selection, which the comparator then refuses, rather than plausible ids",
+      "mutant": "MO-2: replace the strict parser with a loose match on '::'; stripped ids are then admitted and the count looks healthy",
+      "runner": {
+        "executable": "/bin/sh plus the pinned CPython 3.11.14 with pytest 8.4.2",
+        "argv": "as f0-oracle-raw-child-status, with the target outside --rootdir",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and -p no:cacheprovider",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-node-ids"],
+      "invalidation": ["oracle.sh bytes", "the pytest node-id format", "the pinned pytest version"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage; only an independent run of the frozen suite can establish it."}
+    },
+    {
+      "id": "f0-oracle-sorted-selection",
+      "subject": "bootstrap/control_trust/oracle.sh selection ordering, stage=source",
+      "stimulus": "the private subject s_pass, whose two tests are DEFINED out of sorted order",
+      "expected": {
+        "collect_exit": 0,
+        "run_exit": 0,
+        "selected_ids": ["s_pass/test_s.py::test_alpha[with space]", "s_pass/test_s.py::test_zebra"],
+        "selected_count": 2,
+        "forbidden_effects": ["write:live_worktree", "emitting_an_order_that_depends_on_definition_order"]
+      },
+      "opposite_arm": "the same subject measured by the independently written candidate, whose sort is its own, must produce the identical ordered list",
+      "fault_arm": "two honest runs that disagree only in order must be refused, not normalised away by the comparator",
+      "mutant": "MO-3: remove the sort; the definition/sort asymmetry of the subject makes the difference observable",
+      "runner": {
+        "executable": "/bin/sh plus the pinned CPython 3.11.14 with pytest 8.4.2",
+        "argv": "as f0-oracle-raw-child-status",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and -p no:cacheprovider",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-node-ids"],
+      "invalidation": ["oracle.sh bytes", "the subject bytes", "the C collation order"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage; only an independent run of the frozen suite can establish it."}
+    },
+    {
+      "id": "f0-oracle-conftest-suppression",
+      "subject": "bootstrap/control_trust/oracle.sh measurement profile, stage=source",
+      "stimulus": "a private subject whose fixture is supplied by a SEEDED harmless conftest beside it, never the product conftest",
+      "expected": {
+        "collect_exit": 0,
+        "run_exit": 1,
+        "selected_ids": ["seeded/test_s.py::test_uses_seeded"],
+        "selected_count": 1,
+        "forbidden_effects": ["loading_the_product_conftest", "importing_the_system_under_measurement", "write:live_worktree"]
+      },
+      "opposite_arm": "the same subject with conftest suppression turned OFF must resolve the fixture and exit 0, which is what makes the suppressed arm informative",
+      "fault_arm": "ambient conftest code reaching the measurement is a refusal: a trust harness may not load the system it measures",
+      "mutant": "MO-4: drop the suppression flag; the seeded fixture resolves and the arm turns red",
+      "runner": {
+        "executable": "/bin/sh plus the pinned CPython 3.11.14 with pytest 8.4.2",
+        "argv": "as f0-oracle-raw-child-status, with and without conftest suppression",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and -p no:cacheprovider",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-fixture-resolution"],
+      "invalidation": ["oracle.sh bytes", "the pinned pytest version", "the seeded fixture bytes"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage; only an independent run of the frozen suite can establish it."}
+    },
+    {
+      "id": "f0-executing-candidate",
+      "subject": "bootstrap/control_trust/proof/subjects/candidate_verifier.py, stage=executing, standing in for the later R0 verifier",
+      "stimulus": "measure the private subject s_runtime_fail under the frozen profile and emit one control-tool-receipt-1 receipt on stdout",
+      "expected": {
+        "collect_exit": 0,
+        "run_exit": 1,
+        "selected_ids": ["s_runtime_fail/test_s.py::test_alpha[with space]", "s_runtime_fail/test_s.py::test_zebra"],
+        "selected_count": 2,
+        "forbidden_effects": ["reading_the_oracle_record", "emitting_a_partial_record_after_a_bounded_out_child", "write:live_worktree", "network", "paid_api"]
+      },
+      "opposite_arm": "CC-0: the unmutated candidate and an unmutated COPY of it, over the same subject, must both be permitted by the comparator and carry this run's nonce",
+      "fault_arm": "a child that exceeds --child-timeout emits NO record and a named bounded-out token, so the comparison is refused for absent evidence rather than passing for want of it",
+      "mutant": "MC-1 swallow the child status through a pipeline; MC-2 report a frozen prior receipt; MC-3 copy a planted record instead of measuring. Each must be refused BY NAME.",
+      "runner": {
+        "executable": "the pinned CPython 3.11.14 with pytest 8.4.2",
+        "argv": "python -B -X pycache_prefix=<private> -I <candidate> --target ... --workroot ... --nonce ... --child-timeout ... --case f0-executing-candidate --case-manifest bootstrap/control_trust/cases.json",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and -p no:cacheprovider",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-node-ids"],
+      "invalidation": ["candidate_verifier.py bytes", "cases.json bytes", "the pinned interpreter and pytest versions", "the subject bytes"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage. A comparison exit 0 here would establish only that two independent observers reported the same facts; the non-zero subject exit among those facts is adverse evidence and never a product pass."}
+    },
+    {
+      "id": "f0-comparator-refuses-by-name",
+      "subject": "bootstrap/control_trust/trustcheck.py compare, stage=source",
+      "stimulus": "one flat f0-oracle-1 record beside one canonical receipt, with exactly one defect injected per arm",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": 1,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["exiting_2_for_a_designed_refusal", "emitting_more_than_one_stdout_line", "writing_the_product_ledger", "product_decision_vocabulary"]
+      },
+      "opposite_arm": "CT-0: the same fixture unmutated, and an unmutated COPY of the comparator run from a private temp directory, must both exit 0 with the contracted OK line",
+      "fault_arm": "an absent, empty, malformed, replayed or stale-subject record is refused by its own REASON_ID; an unreadable record is never read as agreement",
+      "mutant": "MT-1 drop the required-field check; MT-2 the nonce check; MT-3 the node-id comparison; MT-4 the non-empty check; MT-5 the subject-digest check. Each mutant must PERMIT the input its arm refuses, or the refusal was attributed to the wrong check.",
+      "runner": {
+        "executable": "the pinned CPython 3.11.14",
+        "argv": "python -B -X pycache_prefix=<private> -I trustcheck.py compare --oracle ... --candidate ... --nonce ... --expect-case ... --expect-tool-version ... --expect-dependency-digests ... [--expect-subject-digest ...]",
+        "cwd": "the repository root",
+        "config": "none: the comparator reads no configuration file",
+        "plugins": "none",
+        "timeout_s": 300
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "executed:proof-suite-reason-ids"],
+      "invalidation": ["trustcheck.py bytes", "the receipt schema", "the oracle record framing"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage; the reason-id arms and their mutants are established only by an independent run of the frozen suite."}
+    },
+    {
+      "id": "f0-rung-budget-aggregate",
+      "subject": "bootstrap/control_trust/trustcheck.py budget against bootstrap/control_trust/rung_scope.json, stage=source",
+      "stimulus": "the real worktree at the pinned base, and throwaway private repositories seeding one budget defect each",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": 0,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["writing_the_live_index", "running_ambient_git_config_or_hooks", "creating_files_in_the_live_worktree", "failing_open_when_git_is_unavailable", "traversing_a_repository_configured_with_an_external_filter", "fetching_from_a_promisor_or_partial_clone_remote", "traversing_a_staged_gitlink"]
+      },
+      "opposite_arm": "CB-0: the unmutated instrument against the real worktree at its own pinned base must be PERMITTED, or every refusal below could equally mean the instrument refuses everything",
+      "fault_arm": "an empty changeset, an unpinned or unresolvable or non-ancestor or superseded base, a repository whose local configuration (including through include.path) carries a clean or process filter, a promisor remote or a partialClone extension, a staged mode-160000 gitlink, and an unavailable git are each refused BY NAME rather than scored as clean. The configuration refusal happens BEFORE the first object or worktree query, because the query is what would run the effect. It is a named boundary, not a sandbox, and the pinned /usr/bin/git 2.39.3 has no GIT_NO_LAZY_FETCH to close the fetch route by environment.",
+      "mutant": "MB-3: narrow the runtime classifier to a path prefix so a helper parked outside the tree stops counting; the instrument must then PERMIT what the same fixture otherwise refuses as over budget",
+      "runner": {
+        "executable": "the pinned CPython 3.11.14 and /usr/bin/git",
+        "argv": "python -B -X pycache_prefix=<private> -I trustcheck.py budget --repo ... --base ... --scope ... --reviewed runtime_lines=400,proof_lines=1500,cli_surfaces=1",
+        "cwd": "the repository root",
+        "config": "no global config, no system config, no system attributes file, no hooks, no external diff or textconv, no index refresh. GIT_ATTR_NOSYSTEM does NOT disable attributes: an in-tree .gitattributes still applies, so a configured filter is refused by name rather than suppressed by environment.",
+        "plugins": "none",
+        "timeout_s": 300
+      },
+      "carrier": "CI",
+      "denominator": ["declared:bootstrap/control_trust/rung_scope.json", "observed:git-changed-paths-and-worktree-listing"],
+      "invalidation": ["trustcheck.py bytes", "rung_scope.json bytes", "the pinned base commit", "the tip of the stacked-on branch", "the /usr/bin/git version and its configuration key names"],
+      "measurement": {"state": "UNMEASURED", "reason": "The implementer executed nothing in this write-only stage. The reviewed ceiling is injected from the proof suite, not from this manifest, so the numbers below cannot be self-certified here. The host's own configuration carrying none of the refused keys is a precondition observed on one machine, never evidence that the boundary works; only the seeded private repositories establish that."}
+    },
+    {
+      "id": "f0-workflow-carries-the-raw-verdict",
+      "subject": ".github/workflows/control-runner-trust.yml, stage=source",
+      "stimulus": "the frozen trust suite run by one bounded standard-Ubuntu job on the stacked base branch and on this rung's branch",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["continue-on-error", "a_reusable_workflow_indirection", "artifact_upload_or_cache", "a_later_step_overwriting_the_verdict", "routing_the_verdict_through_a_pipeline"]
+      },
+      "opposite_arm": "a hand-written GOOD workflow fixture carrying the supported bounded setup must return ZERO violations from the same checker that rejects the bad one",
+      "fault_arm": "a job whose last run step is not the verdict command, whose verdict is piped, whose verdict step is unnamed, or whose checkout cannot resolve the pinned ancestor because it is shallow, must be reported: a check can pass by skipping the work it names. The verdict step preserves pytest's raw exit, but an action's own POST steps still run after it, so the JOB conclusion is not literally that exit and is never claimed to be.",
+      "mutant": "seed a workflow document carrying every named violation at once and pass it through the SAME checker the real file uses",
+      "runner": {
+        "executable": "GitHub-hosted ubuntu-24.04 runner",
+        "argv": "the exact local verdict command string, as the final run step named control-tool-complexity-ratchet, with no pipeline and no wrapper, after a full-history actions/checkout (fetch-depth 0, persist-credentials false)",
+        "cwd": "the checked-out repository root",
+        "config": "-c /dev/null for the inner pytest; no ambient CI dependency",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+        "timeout_s": 600
+      },
+      "carrier": "CI",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "on_disk:.github/workflows"],
+      "invalidation": ["the workflow file bytes", "the local verdict command string", "the runner image label", "the verdict step name", "the actions/checkout default fetch depth"],
+      "measurement": {"state": "UNMEASURED", "reason": "This workflow has never executed. Every property recorded here is a CONTRACT limitation checked statically against the file, and none of it is an observed CI result. A green CI run is required before any of it counts as measured."}
+    },
+    {
+      "id": "f0-descendant-process-cleanup",
+      "subject": "processes spawned BELOW the direct child of the candidate, stage=executing",
+      "stimulus": "a bounded-out measurement whose subject spawns its own grandchildren",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["claiming_reaped_without_observing_the_pid", "inventing_a_process_supervisor_for_this_rung"]
+      },
+      "opposite_arm": "direct-child bounding IS established: the recorded child pid is checked gone and its late marker is checked absent",
+      "fault_arm": "a descendant that outlives the bound would make the timeout a wait limit rather than a bound; nothing here observes that either way",
+      "mutant": "none is declared, because no descendant tracking exists to mutate",
+      "runner": {
+        "executable": "the pinned CPython 3.11.14",
+        "argv": "the candidate with --child-timeout over a sleeping subject",
+        "cwd": "the private workroot allocated for this measurement",
+        "config": "-c /dev/null",
+        "plugins": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+        "timeout_s": 180
+      },
+      "carrier": "standalone",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:direct-child-pid-liveness"],
+      "invalidation": ["candidate_verifier.py bytes", "the platform process model"],
+      "measurement": {"state": "UNMEASURED", "reason": "Grandchild cleanup was never observed, and no reaper, supervisor or descendant tracker was invented to make it observable. Recording the gap is the honest result; a later rung that needs the property must build and prove it."}
+    },
+    {
+      "id": "f0-oracle-shell-static-lint",
+      "subject": "bootstrap/control_trust/oracle.sh, stage=source",
+      "stimulus": "a shell static analyser over the oracle bytes",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["a_skipped_check_reported_as_a_pass", "installing_a_tool_to_satisfy_a_check"]
+      },
+      "opposite_arm": "a seeded unquoted expansion must be reported by the same analyser, or a clean result means only that the analyser was silent",
+      "fault_arm": "an absent analyser is an UNMEASURED case with a reason, never a skipped test and never an implied clean result",
+      "mutant": "remove a quoting pair around a path containing a space and require the analyser to name it",
+      "runner": {
+        "executable": "shellcheck",
+        "argv": "shellcheck bootstrap/control_trust/oracle.sh",
+        "cwd": "the repository root",
+        "config": "none",
+        "plugins": "none",
+        "timeout_s": 60
+      },
+      "carrier": "CI",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "on_disk:bootstrap/control_trust"],
+      "invalidation": ["oracle.sh bytes", "the analyser version"],
+      "measurement": {"state": "UNMEASURED", "reason": "shellcheck is not installed on the authoring machine and this rung does not install tooling to satisfy its own check. The gap is recorded here rather than hidden behind a skipped test."}
+    },
+    {
+      "id": "f0-tool-to-hook-to-otel-join",
+      "subject": "the correlation key spanning a tool invocation, its hook result, and the dispatcher OTel record, stage=executing",
+      "stimulus": "one real top-level tool invocation observed on all three surfaces at once",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["timestamp_proximity", "session_proximity", "temporal_correlation", "declaring_a_join_key_that_was_not_observed_on_every_surface"]
+      },
+      "opposite_arm": "the two-surface join that WAS observed exactly: live Read ingress and stream-json tool ids match, so the failure here is specific to the third surface rather than to the method",
+      "fault_arm": "a later control requiring this join records the carrier UNMEASURED instead of promoting on a weaker key",
+      "mutant": "substitute nearness in time for an exact key; the manifest arm forbids those terms outside a forbidden-effects list and turns red",
+      "runner": {
+        "executable": "claude (installed CLI 2.1.236)",
+        "argv": "--print --output-format stream-json --include-hook-events --verbose with an additive --settings hook overlay, alongside a separate console-OTel probe session",
+        "cwd": "a private capture directory outside the source worktree",
+        "config": "the installed settings files unchanged on disk, with the EFFECTIVE configuration augmented by an additive --settings overlay for the ingress capture; the OTel side came from a different session and the two are never merged",
+        "plugins": "the operator's installed plugin set",
+        "timeout_s": null
+      },
+      "carrier": "hook",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:live-three-surface-capture"],
+      "invalidation": ["installed Claude Code version", "the hook result schema", "the OTel record schema", "the capture configuration overlay"],
+      "measurement": {"state": "UNMEASURED", "reason": "No exact identifier spans all three surfaces: 0 of 7 hook-result records carried a tool_use_id, and while the dispatcher OTel records do carry session.id and prompt.id, they carry none of the four tool-, hook- or trace-level candidate keys. The two surfaces that DO join were also observed in a different session from the OTel side. The join is therefore recorded as absent rather than approximated, and Serena, other MCP routes and every remote consumer were never observed at all."}
+    },
+    {
+      "id": "s0-installed-hook-identity",
+      "subject": "the installed copies of the sensitive-write protection hook and its dependency, stage=installed",
+      "stimulus": "compare source bytes against every reachable installed consumer, then execute the installed hook's deny and allow arms directly",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["treating_a_source_pass_as_an_installed_pass", "implying_a_remote_consumer_is_green"]
+      },
+      "opposite_arm": "an ordinary path must stay PERMITTED by the same installed copy that denies the protected one",
+      "fault_arm": "a stale mirror whose bytes differ from source is named stale, not counted as a reached consumer",
+      "mutant": "point the identity check at the source tree instead of the installed tree; it must stop being able to detect a stale mirror",
+      "runner": {
+        "executable": "the installed hook entrypoint",
+        "argv": "direct execution of the installed hook over the three frozen arms",
+        "cwd": "an isolated temporary directory",
+        "config": "the installed settings of each reached consumer",
+        "plugins": "none",
+        "timeout_s": 60
+      },
+      "carrier": "consumer",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:installed-copy-digests"],
+      "invalidation": ["source hook bytes", "installed hook bytes", "the deploy path"],
+      "measurement": {"state": "UNMEASURED", "reason": "F0 measured no installed or executing S0 evidence. Nothing in this changeset touches the deploy path, and remote or disconnected consumers stay explicitly unmeasured rather than implied green. Self-hosting evidence never establishes clean installed consumer protection."}
+    },
+    {
+      "id": "d0-clean-consumer-delivery",
+      "subject": "one plugin-native, source-free clean install, stage=installed",
+      "stimulus": "launch only an installed entrypoint from an isolated temporary cwd under env -i with an isolated HOME and a pinned minimal PATH",
+      "expected": {
+        "collect_exit": null,
+        "run_exit": null,
+        "selected_ids": null,
+        "selected_count": null,
+        "forbidden_effects": ["resolving_any_executable_or_module_under_the_source_checkout", "ambient_home_fallback", "claiming_organizational_independence_from_a_same-owner_machine"]
+      },
+      "opposite_arm": "a clean installed control must pass, so that the fault arm's detection is not simply an inability to run at all",
+      "fault_arm": "injecting an otherwise importable source-checkout module or executable must be DETECTED and fail",
+      "mutant": "drop the provenance rejection and confirm the injected source module is then silently accepted",
+      "runner": {
+        "executable": "the installed entrypoint only",
+        "argv": "env -i with isolated HOME, CLAUDE_CONFIG_DIR, caches, settings and a pinned minimal PATH; Python entrypoints in isolated mode",
+        "cwd": "an isolated temporary directory outside any checkout",
+        "config": "the installed profile",
+        "plugins": "the installed plugin set",
+        "timeout_s": 600
+      },
+      "carrier": "consumer",
+      "denominator": ["declared:bootstrap/control_trust/cases.json", "observed:installed-entrypoint-provenance"],
+      "invalidation": ["the plugin manifest bytes", "the installed CLI version", "the delivery path"],
+      "measurement": {"state": "UNMEASURED", "reason": "D0 has not begun and is not authorized by this rung. It is recorded here so the delivery claim exists in the denominator as an open case rather than as an omission that no enumerator can see."}
+    }
+  ]
+}

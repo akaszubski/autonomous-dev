@@ -1,0 +1,49 @@
+{
+  "rung": "F0",
+  "program_issue": "#1757",
+  "execution_issue": "#1773",
+  "plan": "docs/plans/20260909-control-tool-v12.md",
+  "base": "5fa26e86a8e8830b4640a512be27084a64a1ad27",
+  "base_branch": "refs/remotes/origin/plan/control-tool-v12",
+  "base_note": "The F0 branch is STACKED on plan/control-tool-v12. base is that branch's tip, so a commit landing there while F0 is open makes this base superseded and the budget refuses BASE_STALE rather than silently measuring a shorter diff. The SPELLING is load-bearing and is deliberately the full remote ref: a bare local branch name resolves in a developer clone and not on a CI runner, where actions/checkout fetches branch refs under refs/remotes/origin, so the bare form would read as a local pass while the rung was unmeasurable in CI. The base itself is IMMUTABLE for this rung; it is never re-pinned to a nearer commit.",
+  "aggregate_note": "ONE base and ONE aggregate for the whole rung. Every issue split from F0 counts against these same numbers; splitting work does not reset the budget, and no later split may re-pin base to a nearer commit.",
+  "limits": {
+    "runtime_lines": 400,
+    "proof_lines": 1500,
+    "cli_surfaces": 1
+  },
+  "limits_note": "These are the ceilings actually frozen by the acceptance stage. 400 is the NARROWER runtime ceiling injected by tests/proof REVIEWED_RUNTIME_LINES, not the v12 outer 600; it may not be widened towards 600 without an explicitly adopted rung exception. Counting rule: physical lines minus blank lines minus whole-line comments, per file, for every file under the declared paths.",
+  "changed_paths": [
+    "bootstrap/**",
+    ".github/workflows/control-runner-trust.yml",
+    "PROJECT.md",
+    "CLAUDE.md",
+    "docs/RUNBOOK.md",
+    "docs/ARCHITECTURE-OVERVIEW.md",
+    "docs/TESTING-STRATEGY.md",
+    "docs/SESSION-ANALYTICS.md",
+    "docs/GITHUB-ACTIONS.md",
+    "docs/MAINTAINING-PHILOSOPHY.md",
+    "CHANGELOG.md"
+  ],
+  "changed_paths_note": "The seven documentation paths beyond PROJECT.md and CLAUDE.md are the already-authorized doc-master surface for this rung, declared EXACTLY rather than as a docs/** wildcard: a wildcard would let any later documentation edit leave by omission instead of being reported as OMITTED_SPLIT. docs/GITHUB-ACTIONS.md is the sixth and was found late: its own covers: frontmatter already claims .github/workflows/, so it is the pre-existing owner of this rung's new control-runner-trust.yml and is edited by that ownership. docs/MAINTAINING-PHILOSOPHY.md is the seventh and was found the same way: its own covers: frontmatter claims .claude/PROJECT.md, which is the existing git symlink to the repo-root PROJECT.md this rung changes, so it owns that already-changed subject through the symlink and is edited by that ownership; the symlink itself is neither written nor replaced. Declaring it does not assert that it has changed -- OMITTED_SPLIT is derived from what actually changed, never from a declared entry that matched nothing -- so the changed-subject count rises only when its owner actually edits it. Naming either is the omitted-split rule working as intended -- the changed path is declared in its existing owner rather than excused -- not an exception to it. Declaring them widens no budget -- doc lines are inventoried and reported, never budgeted -- and it does not reset the base or any ceiling.",
+  "removals": [],
+  "removals_note": "F0 removes no existing authority: it adds bootstrap-only artifacts beside the system and takes no decision away from any current owner. A removal becomes due at R0 activation, not here.",
+  "declared_inventory": {
+    "runtime_modules": [
+      "bootstrap/control_trust/oracle.sh",
+      "bootstrap/control_trust/trustcheck.py"
+    ],
+    "public_schemas": ["control-tool-receipt-1"],
+    "private_bootstrap_framings": ["f0-oracle-1"],
+    "cli_surfaces": ["bootstrap/control_trust/trustcheck.py"],
+    "persistent_stores": [],
+    "registrations": [".github/workflows/control-runner-trust.yml"],
+    "inventory_note": "f0-oracle-1 is the POSIX oracle's PRIVATE flat key=value framing and is inventoried here rather than counted as a second public schema; it is never emitted by a product path. Per-invocation temp record directories are scratch, not stores."
+  },
+  "effort": {
+    "frozen_estimate_engineering_days": "2-3",
+    "reproof_budget_minutes": 10,
+    "measured_proof_runtime_s": "UNMEASURED here by design. The implementer executed no test in this changeset, and a run timing is a RESULT, not configuration: copying one into this file would make a stale number read as current on every later run. Each independent execution of the pinned proof profile is reported with its raw exit and wall time against #1773 and in docs/RUNBOOK.md, which are the live evidence pointers for this rung."
+  }
+}

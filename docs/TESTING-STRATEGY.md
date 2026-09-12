@@ -3,11 +3,12 @@ covers:
   - plugins/autonomous-dev/skills/testing-guide/
   - plugins/autonomous-dev/lib/test_coverage_analyzer.py
   - plugins/autonomous-dev/lib/test_runner.py
+  - bootstrap/control_trust/proof/
 ---
 
 # Testing Strategy: The Diamond Model
 
-**Last Updated**: 2026-08-25
+**Last Updated**: 2026-09-10
 
 ## Overview
 
@@ -149,7 +150,7 @@ def test_audit_false_positive_files_unchanged(file_path: str) -> None:
 - `judge()` — holistic 0-10 scoring against criteria
 - `judge_analytic()` — per-criterion binary MET/UNMET scoring; more reliable for multi-faceted assessments
 - `judge_consistent()` — multi-round consensus check using median score; use for high-stakes evaluations
-- `ask()` — raw LLM call, defaults to `temperature=0` for deterministic judging
+- `ask()` — raw LLM call, defaults to `temperature=0`, which narrows sampling variance but is not itself a determinism guarantee; under PROJECT.md INV-6/INV-8 no `ask()`/`judge()` result decides a gate on its own — it advises the deterministic check that does, and no paid API call may become a required gate
 
 **Evaluation types**:
 - **Congruence**: Do file pairs agree? (`implement.md` ↔ `implementer.md`)
@@ -167,7 +168,7 @@ def test_audit_false_positive_files_unchanged(file_path: str) -> None:
 - Few-shot examples increase consistency 65% → 77.5%
 - Analytic rubrics (`judge_analytic`) outperform holistic scoring for multi-criterion evaluations
 - Consistency checks (`judge_consistent`, 3 rounds) for high-stakes judgments where false positives are costly
-- Temperature=0 default ensures reproducible judging; override only for creative/diverse generation tasks
+- `temperature=0` reduces sampling variance; it does not by itself guarantee reproducible judging, and the judgment it produces stays advisory to a deterministic decision under PROJECT.md INV-6/INV-8, never the decision itself — override the default only for creative/diverse generation tasks
 - Cache responses to eliminate redundant API costs
 
 ### Layer 6: Acceptance Criteria (Top)
@@ -244,27 +245,23 @@ Define acceptance criteria → Implement + generate unit tests → Validate all 
 
 ## Migration Path
 
-### Current State (v3.52.0)
-- Two-layer testing: Traditional (deterministic) + GenAI (semantic)
-- Acceptance-first pipeline (acceptance tests before implementation, unit tests alongside code) — default since Issue #404
-- TDD-first pipeline available via `--tdd-first` flag (test-master writes tests before implementation)
-- Binary pass/fail on all tests
+### Historical Migration Path (superseded — current authority is Issue #1757)
 
-### Target State
-- Six-layer diamond: Deterministic floor + probabilistic middle + acceptance top
-- Acceptance-first option (`/implement --acceptance-first`) — Issue #350 ✅
-- Soft-failure thresholds (`SoftFailureTracker`, `thresholds.json`, `--strict-genai`) — Issue #351 ✅
-- Property-based invariants explicitly codified
+*The Current State/Target State/Steps breakdown that stood here (Issues #352, #351, #350, #404, #509) is removed by this same edit; the historical roadmap pointer below replaces it rather than restating it as a second, independently maintained status table.* This F0 rung does not re-verify which of those items are actually in place; current execution authority for any further layer change is adopted plan `docs/plans/20260909-control-tool-v12.md` under Issue #1757, not this section.
 
-### Steps
-1. **Document diamond model** (this file) — Issue #352 ✅
-2. **Add soft-failure thresholds** — Issue #351 ✅
-3. **Add acceptance-first pipeline mode** — Issue #350 ✅
-4. **Make acceptance-first the default mode** — Issue #404 ✅
-5. **Codify property-based invariants** — Issue #509 ✅
-6. **Retire brittle hardcoded tests** — ongoing
+### Intent → Frozen Case → Actual Selection → Verdict (Control-Tool Bootstrap Rungs)
+
+A named case in `bootstrap/control_trust/cases.json` fixes intent BEFORE any implementation runs against it (e.g. `f0-oracle-raw-child-status`, `f0-oracle-strict-selection-parser`, `f0-oracle-sorted-selection`, `f0-oracle-conftest-suppression`, `f0-executing-candidate`, `f0-comparator-refuses-by-name`, `f0-rung-budget-aggregate`, `f0-workflow-carries-the-raw-verdict`) — the manifest is the frozen denominator, not a summary written after the fact. `cases.json`'s own `authoring_provenance` block (lines 4-7) records that every F0 case was written, not executed, by its author; a case's `runner` field (e.g. lines 281-287 for `f0-oracle-sorted-selection`) is that same authoring-time DECLARATION of the intended executable/argv/cwd/config/plugins/timeout, not a receipt of an actual run — so a case's `measurement.state` of `UNMEASURED` means missing an independent observation as of that authoring snapshot, not proof the case was never subsequently run. A run only counts as that independent observation when the ACTUAL executed interpreter, pytest/dependency versions, and invocation (executable, argv, cwd, config, plugins, environment) are checked against the case's declared `runner` identity, not merely assumed from it — a case can name the right subject file and still have been run under a different interpreter or dependency pin, and where no such cross-check exists, that stays a recorded gap in `measurement.state`, never filled in as inferred or invented evidence. Actual selection is the oracle's and the candidate's own independently observed node-ID lists, compared by `trustcheck.py`, whose CLI emits exactly one of two outcomes with a corresponding process exit status: `OK ...` (exit 0, accept) or `REFUSED: <REASON_ID> ...` (nonzero exit, e.g. `SELECTED_MISMATCH`, `STALE_RECORD`, `STALE_SUBJECT`) — PERMIT/REFUSE names the conceptual verdict this page uses, not literal emitted text beyond `OK`/`REFUSED`, and an unhandled error is likewise nonpass, never a third accepting outcome. A declared FAULT arm (e.g. `f0-executing-candidate`'s bounded-out child emitting no record) and a named MUTANT (e.g. MO-3 removing the sort in `f0-oracle-sorted-selection`, MT-3 dropping the node-id comparison in `f0-comparator-refuses-by-name`) are TEST CONDITIONS a case exercises the checker under, not additional verdict categories the comparator itself returns. Each case's own `opposite_arm` is a counter-control on the measuring instrument itself — e.g. `f0-rung-budget-aggregate`'s CB-0 (the unmutated budget check must PERMIT the real worktree at its pinned base) and `f0-comparator-refuses-by-name`'s CT-0 (the unmutated comparator must exit 0 on a clean fixture) — because an instrument that refuses everything is indistinguishable from one that works without a case proving it also permits. A raw RED result and an independently observed effect, against the exact nonempty denominator each case names, are what a case requires before it may be called MEASURED; counts, an aggregate green, full prose exposure, or a model's own judgment confer none of that, and today's `MEASURED`/`UNMEASURED` metadata is not itself mechanically enforced proof of semantic independence — `test_case_manifest.py` requires only a `reason` for `UNMEASURED` and two distinct denominator-source labels, nothing that checks what actually produced them (see Manifest checks above). Cases whose `measurement.state` is `UNMEASURED` (for example `f0-descendant-process-cleanup`, `s0-installed-hook-identity`, `d0-clean-consumer-delivery`) have not been run through this method at all as of this snapshot — they are recorded gaps, not silent passes.
 
 ---
+
+## Independent-Observer Proof (Control-Tool Bootstrap Rungs)
+
+*Added 2026-09-10, F0 (#1773), under adopted plan `docs/plans/20260909-control-tool-v12.md` (#1757). A narrower proof model than the six-layer diamond above: whether an independently-built oracle and the candidate under test observed the SAME facts about one pytest subject — not a replacement for acceptance-first layering.*
+
+**Method**: `bootstrap/control_trust/cases.json` freezes the case denominator before implementation; `trustcheck.py` compares the independently-written POSIX oracle (`oracle.sh`) against the candidate's receipt by the exact selected node-ID LIST, in order, never by count or by an unordered set alone — `check_selected_ids` (`trustcheck.py:172-182`) treats a reordered or substituted id as a mismatch even when the count is identical. This order-sensitivity is established directly from `check_selected_ids`'s own comparison logic, not from `test_oracle.py::test_mo3_missing_sort_changes_the_selection_order` — that test is a separate, oracle-only control: it mutates `oracle.sh`'s own sort step (MO-3) and asserts directly on the two runs' raw `selected` node-ID lists (`test_oracle.py:382-390`), without invoking `trustcheck.py` at all, so it proves the oracle's sort is load-bearing, not that the comparator is order-sensitive. Both observers share one interpreter, one pytest build, and one subject-bytes trust base, so a defect common to that shared base could reproduce on both sides and evade a two-way comparison. What the suite checks against that risk is a third, independently hand-authored expectation table, `proof/_harness.py::SUBJECTS`/`selected_of()`, asserted directly in `test_oracle.py` and `test_candidate_independence.py`. That table's own values were hand-declared from OBSERVED pytest output run under the SAME pinned interpreter/pytest profile the oracle and candidate use — it is independent of the oracle's and candidate's own parsing *code*, but it is not an independent validation of the shared interpreter/pytest/subject trust base itself, since it was observed under that same base.
+
+**Manifest checks are structural, not semantic**: `test_case_manifest.py` requires every case's `denominator` field to name two distinct source labels and a `measurement.state` of `MEASURED` or `UNMEASURED`; only an `UNMEASURED` state additionally requires a non-trivial `reason` string. A `MEASURED` case carries no equivalent field requirement enforced by this test — in practice the manifest's `MEASURED` rows carry `observed_by`/`artifact` keys, but the test does not check for their presence, their content, or the absence of a `reason`. The test also never cross-checks a case's `expected.selected_ids` value against `_harness.py::SUBJECTS`, and two distinct denominator labels are not themselves proof the two sources are independent — the test asserts the labels are present and different, nothing about what actually produced them. `f0-descendant-process-cleanup` is a concrete case that stays `UNMEASURED` with no mutant declared: grandchild-process cleanup below the candidate's direct child was never observed, and no reaper or descendant tracker exists to make it observable.
 
 ## Coverage Gap Assessment (HARD GATE)
 

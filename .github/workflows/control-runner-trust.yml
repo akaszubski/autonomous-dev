@@ -1,0 +1,105 @@
+# The bootstrap trust verdict, and nothing else.
+#
+# This workflow contains ONLY the frozen F0 trust suite. It is deliberately not
+# part of the general CI workflow, whose ambient red would make this verdict
+# unreadable. It has no dependency on another workflow's result, no model
+# reviewer, no third-party helper action, no artifact upload and no cache: each
+# of those is either a route from an unrelated failure into this green, or a way
+# to smuggle state between runs.
+#
+# The named final step, control-tool-complexity-ratchet, is the SUPPORTED
+# REPRODUCTION of the local invocation, with no pipeline around it. What is
+# claimed is the same frozen suite under the same pinned measurement profile --
+# NOT that a developer runs these same bytes: F0_PYTHON resolves to a runner
+# tool-cache interpreter and the two temp roots to runner paths, and a local
+# wrapper may carry diagnostic flags this step does not. Because nothing is
+# piped around it, the raw pytest exit is what that step reports and no LATER
+# run step can overwrite the verdict. The honest qualification: an action's own
+# POST steps still execute after it and can fail the job, so a job conclusion is
+# not literally the raw pytest exit. The step is NAMED so the required check is
+# identifiable in a checks list rather than inferred from a command string.
+#
+# actions/checkout@v4 defaults to fetch-depth 1, which cannot resolve the pinned
+# ancestor the cumulative budget arm needs, so fetch-depth 0 is set. Full-history
+# checkout fetches the remote branch refs, which is why rung_scope.json spells
+# base_branch as refs/remotes/origin/... : a bare local branch name resolves in
+# a developer clone and NOT on the runner, and that difference would read as a
+# pass locally while the rung was unmeasurable in CI. persist-credentials: false
+# leaves no usable token behind in the checkout for any later step.
+#
+# The two branch filters below do NOT mean the same thing, and reading them as
+# if they did is how a workflow ends up silently unable to fire. Under push,
+# branches selects which PUSHED branch starts a run. Under pull_request,
+# branches filters on the pull request's TARGET (base) branch -- never on the
+# originating head branch; a head-name condition would have to be written
+# separately against github.head_ref. Official reference:
+# https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request
+#
+# Applied here: the F0 pull request is STACKED on plan/control-tool-v12, so it
+# is the plan/control-tool-v12 entry under pull_request -- the actual base of
+# that pull request -- which makes this workflow fire on it. No claim is made
+# that the pull request fires because its head branch is named in a filter;
+# head names are not what pull_request.branches matches. feat/control-tool-f0
+# earns its place under push, where it selects pushes to this rung's own
+# branch; under pull_request the same name denotes pull requests TARGETING
+# that branch, not pull requests opened FROM it. A workflow that cannot fire
+# on its own pull request reads as nothing rather than as a failure, and that
+# is precisely the connectivity failure this rung exists to catch.
+#
+# CONTRACT: every property asserted about this workflow is checked STATICALLY,
+# against these bytes, by the proof suite. A static property is not an observed
+# CI result, and this file can never tell you whether a run happened or what it
+# reported -- a status written here would be stale the moment CI first fires.
+# Observed run evidence (raw exit, wall time, run id) is recorded against issue
+# #1773, which is the durable pointer for anyone asking what actually ran.
+name: control-runner-trust
+
+on:
+  push:
+    branches: [plan/control-tool-v12, feat/control-tool-f0, master]
+  pull_request:
+    branches: [plan/control-tool-v12, feat/control-tool-f0, master]
+
+permissions:
+  contents: read
+
+jobs:
+  trust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # WHERE a binding is spelled is load-bearing, and not interchangeable with
+    # WHAT it says. GitHub does not make the `runner` context available at
+    # jobs.<id>.env -- only github, inputs, matrix, needs, secrets, strategy and
+    # vars are -- so ${{ runner.temp }} at THIS key is a workflow-level expression
+    # error: the run never starts, and this rung's verdict reads as NOTHING rather
+    # than as a failure. Same Q1 connectivity class as the trigger filters above,
+    # and the reason it is now checked rather than assumed. MEASURED, actionlint
+    # 1.7.12 on 2026-09-12: the two temp roots at this key exited 1; bound on the
+    # steps that consume them, where `runner` IS available, they exit 0. The
+    # VALUES are unchanged -- only the key they are spelled at moved. F0_PYTHON
+    # names no context at all and so stays here, visible to every step.
+    env:
+      F0_PYTHON: /opt/hostedtoolcache/Python/3.11.14/x64/bin/python
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.14"
+      - run: python -m pip install pytest==8.4.2 PyYAML==6.0.2
+      # The two roots are bound on BOTH steps that read them, with identical
+      # values: a step's env is private to that step, so there is no job-level
+      # place left to say it once. runner.temp is cleaned per job, so the roots
+      # are private per run -- which is what keeps -X pycache_prefix a
+      # no-stale-read. Both bindings are checked statically by the proof suite.
+      - run: mkdir -p "$F0_BASETEMP" "$F0_PYCACHE"
+        env:
+          F0_BASETEMP: ${{ runner.temp }}/f0-basetemp-${{ github.run_id }}
+          F0_PYCACHE: ${{ runner.temp }}/f0-pycache-${{ github.run_id }}
+      - name: control-tool-complexity-ratchet
+        env:
+          F0_BASETEMP: ${{ runner.temp }}/f0-basetemp-${{ github.run_id }}
+          F0_PYCACHE: ${{ runner.temp }}/f0-pycache-${{ github.run_id }}
+        run: env -i PATH=/usr/bin:/bin PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "$F0_PYTHON" -B -X pycache_prefix="$F0_PYCACHE" -I -m pytest -p no:cacheprovider -c /dev/null --rootdir="$PWD/bootstrap/control_trust/proof" --basetemp="$F0_BASETEMP" --noconftest -q bootstrap/control_trust/proof

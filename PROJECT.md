@@ -1,6 +1,6 @@
 # Project Context — Autonomous Development Plugin
 
-**Last Updated**: 2026-08-30
+**Last Updated**: 2026-09-12 (Issue #204)
 **Version**: v3.51.0
 
 > **This is a gate input, not documentation.** The alignment gate reads it on every
@@ -12,7 +12,7 @@
 > content — keep it short and portable. Hard ceiling 225 lines, target 150; it loads every
 > turn. Contract added 2026-08-30, #1708.
 
-🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. **v4 re-baseline 2026-08-28** — milestones resequenced to root-cause order after three measurements falsified the v3 plan: `claude -p` is 12.8s against a 5s budget, so the LLM tier could never succeed; `install_manifest.json` ships 0 `tests/` paths, so no detector reaches a consumer repo; 266 hook invocations exceeded budget in one week, silently dropping their checks. **v5 2026-08-29**: §2.0 names the mechanism this file's DEFINITION OF DONE section states — Q1 connected, Q2 works-as-designed, carried by the existing sidecar (+`invoked_by`/`proves`), enforced by the existing manifest, declarations generated, non-conformance ratcheted. **1 slip on the board — one more aborts (§7.5), and no third rewrite.** Mid-point abort review 2026-09-09. Standing rule (§2): a finding that can refuse becomes **a guard, not an issue**.
+🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. **Current execution authority is control-tool v12, adopted at #1757** — immutable plan bytes at [`docs/plans/20260909-control-tool-v12.md`](docs/plans/20260909-control-tool-v12.md); **F0 alone is authorized (#1773)**, and R0 requires a separate authorization naming the frozen F0 commit and digest. The v3/v4/v5 goal revisions, their abort clauses, and the dated measurements that motivated them are preserved in the goal document as historical evidence and no longer co-govern this work: where they and the adopted plan differ, the plan wins. **Read those figures there rather than re-copying them here** — a metric copied into a gate input is read as current, and none of them has been re-measured. Standing rule (§2): a finding that can refuse becomes **a guard, not an issue**, and extending an existing mechanism beats adding one.
 
 For behaviour rules see [`CLAUDE.md`](CLAUDE.md). For operational sequences see [`docs/RUNBOOK.md`](docs/RUNBOOK.md). For content placement see [`docs/development/CONTENT_ALLOCATION.md`](docs/development/CONTENT_ALLOCATION.md).
 
@@ -103,7 +103,7 @@ of these.*
 
 **Technical requirements**: Markdown (agent/skill/command definitions), Python 3.11+ (hooks/scripts), Bash (automation), JSON (config). pytest. Claude Code 2.0+ with plugins, agents, hooks, skills, slash commands.
 
-**Performance budgets**: < 8,000 tokens per feature; 15–30 minutes per feature; < 60s test execution; < 10s validation hooks.
+**Performance budgets** — ordinary features, unchanged: < 8,000 tokens; 15–30 minutes; < 60s fast-test execution; < 10s validation hooks. **A control-tool rung is budgeted separately and never against those numbers**: it carries a frozen engineering-day estimate and a 10-minute leaf re-proof budget (v12 §5, §8), and its slow proof runtime is REPORTED as measured rather than assumed. The runtime of any individual run is a RESULT and belongs with that run — recorded against #1773 and in [`docs/RUNBOOK.md`](docs/RUNBOOK.md), never copied into this file, where a stale number would read as current. Crossing a rung's frozen estimate by 2× triggers replanning, not an overdue milestone.
 
 **Security requirements**: no hardcoded secrets (enforced by `security_scan.py`); acceptance-first testing mandatory; tool restrictions per agent (principle of least privilege); 80% minimum test coverage; MCP security validation (path traversal, injection prevention).
 
@@ -113,9 +113,12 @@ of these.*
 
 A **harness** — the layer that keeps a model on deterministic rails, because reliability
 compounds multiplicatively: ten steps at 90% fails more than 60% of the time. Four layers, in
-descending order of guarantee: **hooks** (enforcement, blocking, always run) → **agents**
-(intelligence, conditional) → **continuous improvement** (post-hoc analysis, files issues) →
-**autonomous self-improvement** (closed loop, evidence-driven).
+descending order of guarantee: **hooks** (enforcement, blocking, and running on every matched
+event ONLY where an invocation record shows they did — a hook that timed out, was never
+registered, or was never reached runs nothing, so "always run" is a claim requiring evidence,
+not a guarantee) → **agents** (intelligence, conditional) → **continuous improvement**
+(post-hoc analysis, files issues) → **autonomous self-improvement** (closed loop,
+evidence-driven).
 
 *Layer detail, diagram, pipeline flow, model tiers and repository structure:
 [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md). Testing model:
@@ -174,10 +177,11 @@ table this replaced asserted `249 lib modules` — three counting methods give 2
 
 ### The rule
 
-**A finding that can refuse becomes a guard, not an issue** — see the active goal §2 and abort
-condition §7.6. Extending an existing corpus beats adding a mechanism: the reachability ratchet
-is the only thing that has ever caught one of these automatically, and it did so against this
-repo's own work, unprompted, within twelve hours of shipping.
+**A finding that can refuse becomes a guard, not an issue.** Extending an existing corpus beats
+adding a mechanism: the reachability ratchet is the only thing that has ever caught one of these
+automatically, and it did so against this repo's own work, unprompted, within twelve hours of
+shipping. The rule stands on its own evidence; it does not depend on any superseded goal
+revision or abort clause.
 
 ## ENFORCEMENT
 
@@ -185,6 +189,19 @@ PROJECT.md is the gatekeeper — all work validates against this file before exe
 
 **Added 2026-08-28**: an artifact that cannot answer Q1 and Q2 above is not done. Shipping it is
 a scope decision requiring an explicit, recorded reason — not a default.
+
+**Retrofit boundary**: this repo is a retrofit toolkit, so its own green is never the product
+claim. Evidence gathered from `source` bytes, or from this repo hosting itself, does NOT
+establish that a clean installed consumer is protected. An `installed` or `executing` claim
+requires evidence from THOSE bytes; a consumer that was not reached is named `UNMEASURED` and
+is never implied green.
+
+**A model may propose and explain; it may never certify.** A model MAY draft code, propose cases,
+and explain what an observation means — that work is real and is how most of this repo was
+written. What it may never do: grant product trust by its own verdict, override a mechanical
+refusal, choose or change a frozen denominator, or promote a candidate (INV-6, INV-8).
+Deterministic comparison produces the outcome; a model's contribution to that outcome is the
+artifact it proposed, never the verdict on it.
 
 ---
 
