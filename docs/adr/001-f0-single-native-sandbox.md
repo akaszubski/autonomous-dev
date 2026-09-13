@@ -89,6 +89,26 @@ proc view must not acquire this workaround by default.
 
 ## Execution and acceptance
 
+### Native adapter compatibility is a separate boundary
+
+The standalone runtime's accepted configuration is not automatically accepted
+by Claude's embedded runtime. Static inspection of pinned Claude 2.1.236 and
+the separately downloaded, unactivated 2.1.270 found no native mapping for
+`network.deniedResolvedAddresses`; a hostname allowlist does not establish
+resolved-address or DNS-rebinding protection. Do not retain that inert key in
+native settings or credit the standalone guard as native evidence. Native
+`Edit(path)` rules cover file editing; `Write(path)` rules are not a substitute.
+
+External proxy ports are not a drop-in repair: the standalone runtime's proxy
+authentication, credential sentinels and CA ownership have no demonstrated
+shared contract with the embedded runtime. Do not build an adapter merely to
+make those independent states appear compatible. An additional standard OS
+address restriction is only a candidate until positive and refusal effects
+prove it works on this worker; an effective configuration listing alone is
+insufficient. In particular, the tested systemd `IPAddressDeny=any` property
+did not prevent a live connection and supplies no protection here. No real
+credential may be used while this known prerequisite remains unresolved.
+
 1. Freeze candidate settings, service properties, exact file bindings and package
    identities. Keep the old profile and receipts intact. Preparation uses new
    private artifact paths and a new disposable service only.
