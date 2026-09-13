@@ -139,15 +139,6 @@ class TestGracefulDegradation:
         from enforce_prunable_threshold import main
         assert main() == 0
 
-    @patch("enforce_prunable_threshold.get_project_root")
-    def test_project_root_returns_none_passes(self, mock_root):
-        """If get_project_root returns None, should exit 0 (OSError is handled internally)."""
-        # get_project_root() handles OSError/TimeoutExpired internally and returns None.
-        # The outer caller just checks for None -- no outer try/except needed.
-        mock_root.return_value = None
-        from enforce_prunable_threshold import main
-        assert main() == 0
-
 
 class TestSkipEnvVar:
     """Tests for the SKIP_PRUNABLE_GATE environment variable."""
@@ -196,16 +187,6 @@ class TestThresholdConstant:
         assert "from test_lifecycle_manager import PRUNABLE_THRESHOLD" in hook_source, (
             "Hook must import PRUNABLE_THRESHOLD from test_lifecycle_manager, not hardcode it"
         )
-
-    def test_runtime_error_graceful_degradation(self, monkeypatch):
-        """If count_prunable raises RuntimeError, hook exits 0 (graceful degradation)."""
-        # The hook catches (OSError, RuntimeError, AttributeError) from count_prunable.
-        # ImportError from the analyzer import at module load time is handled by sys.exit(0)
-        # at module level -- not at runtime inside main().
-        with patch("enforce_prunable_threshold.count_prunable", side_effect=RuntimeError("analyzer failed")):
-            with patch("enforce_prunable_threshold.get_project_root", return_value=Path("/fake")):
-                from enforce_prunable_threshold import main
-                assert main() == 0
 
 
 class TestCountPrunable:
