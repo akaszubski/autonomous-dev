@@ -277,22 +277,26 @@ If analyzing a batch session, identify systemic issues:
 
 CIA does NOT file GitHub issues directly. Issue #1200 (C2) moved routing/dedup/filing to `/improve --auto-file` (C3). For each finding with severity >= warning, apply finding routing (see "Finding Routing" section above to populate `target_repo`), then emit a record via `cia_finding_store.append_finding`. The store handles secret scrubbing, length clamping, atomic appends, and 0600 file perms.
 
+**REQUIRED (Issue #1790)**: get the findings directory from
+`path_utils.resolve_findings_dir()` — worktree-aware, fails loud. **FORBIDDEN**:
+computing it from `CLAUDE_PROJECT_DIR` or `git rev-parse`. Both are PER-CHECKOUT;
+this call site plus `/improve`'s split one repo's findings across four
+directories (MEASURED 7 / 57 / 4 / 3 in a month), so every frequency and breadth
+denominator ran on a fraction of the evidence.
+
 ```python
 ## Problem
-import os, sys
-from pathlib import Path
+import sys
 sys.path.insert(0, "plugins/autonomous-dev/lib")
 from cia_finding_store import append_finding
+from path_utils import resolve_findings_dir
 
-findings_dir = (
-    Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
-    / ".claude" / "logs" / "findings"
-)
+findings_dir = resolve_findings_dir()
 
 ## Evidence
 append_finding(
     {
-        "severity": "warning",          # info | warning | error
+        "severity": "warning",          # info | warning | error | critical
         "root_cause_tag": "GAMING",     # INCOMPLETE | GATE | ORDERING | GAMING | ...
         "title": "<short title>",       # <= 200 chars
         "evidence": "<file:line refs + before/after diff>",  # <= 2000 chars
@@ -309,6 +313,28 @@ append_finding(
 # For target_repo "both": emit a SINGLE record with "target_repo": "both"
 # as a pass-through field. Do NOT emit two records.
 # /improve --auto-file is responsible for cross-repo fan-out (C3).
+```
+
+**Severity vocabulary** (Issue #1790): exactly `info`, `warning`, `error`,
+`critical`; `error` and `critical` both take the high-severity fast-path that
+waives the breadth gate. Anything else is QUARANTINED — still written
+(fail-open) but with the `invalid` sentinel, which satisfies NO threshold, and
+the original under `severity_invalid_original`. Before #1790 it became `info`,
+so a `critical` finding persisted as the least urgent class there is.
+
+**Retraction** (Issue #1790): when a later session REFUTES a finding you
+emitted, append a tombstone naming its `finding_id` (stamped on every record the
+store writes) rather than let it count toward promotion forever. The original
+line stays in the JSONL for audit; `collect_cia_findings` drops it from signals.
+
+```python
+from cia_finding_store import retract_finding
+
+retract_finding(
+    "<finding_id from the original record>", findings_dir=findings_dir,
+    reason="refuted: <what disproved it, with a receipt>",
+    session_id="<session id>",
+)
 ```
 
 KEEP the human-readable ISSUE-CANDIDATE table in the final report (see "Output format" below) — readers want surfaced candidates without consulting the JSONL store.

@@ -1,7 +1,7 @@
 ---
 name: improve
 description: "Analyze recent sessions for improvement opportunities"
-argument-hint: "[--auto-file] [--session <id>] [--date YYYY-MM-DD] [--trends]"
+argument-hint: "[--auto-file] [--dry-run] [--session <id>] [--date YYYY-MM-DD] [--trends]"
 allowed-tools: [Task, Read, Bash, Glob, Grep]
 user-invocable: true
 user_facing: true
@@ -20,6 +20,9 @@ Analyze session activity logs to test whether autonomous-dev's automation is wor
 # Also create GitHub issues for findings
 /improve --auto-file
 
+# Show every routing decision and the digest WITHOUT touching GitHub
+/improve --auto-file --dry-run
+
 # Analyze specific session
 /improve --session abc123
 
@@ -33,6 +36,7 @@ Analyze session activity logs to test whether autonomous-dev's automation is wor
 ## Arguments
 
 - `--auto-file`: Create GitHub issues in `akaszubski/autonomous-dev` for detected problems (default: report only)
+- `--dry-run`: With `--auto-file`, print every routing decision (route, tag, severity, matched issue, rationale, and the exact title that WOULD be emitted) plus the digest, then exit — **zero `gh` writes**. Issue #1790: the duplicate-creation defect could previously only be discovered from the duplicates it had already created.
 - `--session <id>`: Analyze a specific session ID
 - `--date YYYY-MM-DD`: Analyze a specific date (default: today)
 - `--trends`: Aggregate analysis across all auto-improvement issues and recent sessions. Identifies recurring patterns, worsening metrics, and systemic gaps.
@@ -209,15 +213,24 @@ HELD (no side effect) and surfaced in the digest only.
 > Findings-per-session / Error-without-other-channel), persisted to
 > `.claude/logs/aggregated_reports.jsonl`. The digest is anti-habituation:
 > all 5 sections render even when their respective signal is empty.
+>
+> **REQUIRED (Issue #1790)** — every alternative to these five is FORBIDDEN,
+> because the alternative is what shipped and duplicated issues: persist the
+> digest as `AggregatedReport.digest=digest_to_record(...)` (printing is not
+> persisting) AND read the previous cycle's back through
+> `load_latest_persisted_digest()` before writing this one — persisting to a
+> store no production route reads is the same loss by a slower path; count the
+> EFFECTIVE decisions — `held()` until a write SUCCEEDS
+> — never the planned `decisions`; resolve the findings dir only via
+> `path_utils.resolve_findings_dir()`; title with
+> `issue_triage_analyzer.format_root_cause_title()`; route every pre-write
+> refresh through `reclassify_before_write()`, which reads the fetch's health.
 
-Steps (run from the repo root resolved via `git rev-parse`):
+Steps (all paths resolved through the canonical resolver):
 
-1. Resolve the absolute findings directory (worktree safety, mirrors #1200):
-
-   ```bash
-   PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-   FINDINGS_DIR="${PROJECT_ROOT}/.claude/logs/findings"
-   ```
+1. The findings directory has ONE worktree-aware owner,
+   `path_utils.resolve_findings_dir()`. Step 3 calls it directly — there is no
+   shell variable to export, and no `git rev-parse` computation here.
 
 2. Write the hook-contract context file BEFORE any `gh` call, in its OWN
    STANDALONE Bash tool call. The gh-filing hook expects this file to
@@ -234,11 +247,17 @@ Steps (run from the repo root resolved via `git rev-parse`):
    separate from the macro-promotion python3 block in Step 3 (which
    itself invokes `gh issue create`/`gh issue comment` via subprocess).
 
+   **SKIP this step entirely when `--dry-run` is set** — a dry run makes no
+   `gh` call, so it needs no contract and leaves no marker. The path comes
+   from `gh_issue_context.gh_issue_context_path()` (#1609), never a literal.
+
    ```bash
    python3 -c "
-   import json
+   import json, os, sys
    from datetime import datetime, timezone
-   with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
+   next((sys.path.insert(0, p) for p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)), None)
+   from gh_issue_context import gh_issue_context_path
+   with open(gh_issue_context_path(), 'w') as f:
        json.dump(
            {'command': 'improve', 'timestamp': datetime.now(timezone.utc).isoformat()},
            f,
@@ -250,37 +269,76 @@ Steps (run from the repo root resolved via `git rev-parse`):
    calls, NO filesystem writes — it returns a list of `PromotionDecision`
    records that this step executes.
 
+   Set `DRY_RUN=1` for `--dry-run`: it exits BEFORE the side-effect loop, and
+   that ordering IS the gate.
+
    ```bash
    python3 - <<'PY'
    import json, os, sys, subprocess
+   from dataclasses import asdict as _asdict
    from datetime import datetime, timezone
    from pathlib import Path
+
+   DRY_RUN = os.environ.get("DRY_RUN", "").strip() not in ("", "0", "false", "False")
 
    PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT",
                                        subprocess.check_output(
                                            ["git", "rev-parse", "--show-toplevel"],
                                            text=True).strip()))
-   FINDINGS_DIR = PROJECT_ROOT / ".claude" / "logs" / "findings"
 
-   for _p in ("plugins/autonomous-dev/lib", ".claude/lib"):
-       full = PROJECT_ROOT / _p
-       if full.is_dir():
-           sys.path.insert(0, str(full))
+   # ONE library route (#1790). Prepending is NOT closure: a module missing
+   # from the installed copy stayed satisfiable from an inherited PYTHONPATH,
+   # so this block silently EXECUTED code the consumer never received. Resolve
+   # one directory, require the whole route to be IN it, drop ambient entries.
+   ROUTE_MODULES = ("gh_issue_context", "path_utils", "cia_finding_store",
+                    "cia_promotion_filter", "issue_triage_analyzer",
+                    "runtime_data_aggregator", "macro_promotion",
+                    "benchmark_history", "drain_queue_state")
+   LIB = next((PROJECT_ROOT / _p for _p in (".claude/lib", "plugins/autonomous-dev/lib")
+               if (PROJECT_ROOT / _p).is_dir()), None)
+   if LIB is None:
+       sys.exit(f"/improve STEP 5 REFUSES: no library directory under "
+                f"{PROJECT_ROOT} (looked for .claude/lib, "
+                f"plugins/autonomous-dev/lib). Reinstall the plugin (#1790).")
+   _absent = [m for m in ROUTE_MODULES if not (LIB / f"{m}.py").is_file()]
+   if _absent:
+       sys.exit(f"/improve STEP 5 REFUSES: {_absent} missing from {LIB}. An "
+                f"ambient copy on PYTHONPATH or in site-packages is not the "
+                f"code this install shipped; reinstall the plugin (#1790).")
+   _ambient = set(os.environ.get("PYTHONPATH", "").split(os.pathsep)) | {"", ".", os.getcwd()}
+   sys.path = [str(LIB)] + [_p for _p in sys.path if _p not in _ambient]
+
+   # ONE owner for the findings dir (#1790) and the marker path (#1609), both
+   # resolved per call so their env seams redirect this whole block. The
+   # findings dir is tied to the SAME PROJECT_ROOT that resolved LIB and
+   # REPORT_PATH: resolved from cwd instead, a caller that sets PROJECT_ROOT
+   # while the subprocess sits in another checkout read one repository's
+   # findings and wrote its report into another — the per-checkout split.
+   # AUTONOMOUS_DEV_FINDINGS_DIR still wins inside the resolver.
+   from gh_issue_context import gh_issue_context_path
+   from path_utils import resolve_findings_dir
+   FINDINGS_DIR = resolve_findings_dir(start_path=PROJECT_ROOT)
 
    from runtime_data_aggregator import (
        AggregatedReport, collect_cia_findings, fetch_issues_with_label,
-       persist_report,
-   )
+       load_latest_persisted_digest, persist_report)
    from macro_promotion import (
        CLOSED_LOOKBACK_DAYS, PROMOTION_WINDOW_DAYS,
        build_digest, decide_promotions, detect_recurrence_after_close,
-       format_digest,
-   )
+       digest_from_record, digest_to_record, format_digest, format_dry_run,
+       held, planned_title, reclassify_before_write)
 
    # Collect cross-session CIA findings (Issue #1200 contract).
    signals, cia_health = collect_cia_findings(
        FINDINGS_DIR, window_days=PROMOTION_WINDOW_DAYS,
    )
+
+   # #1790: a green zero is not "nothing was measured" — say which happened.
+   if cia_health.status in ("unmeasured", "degraded", "error"):
+       print(f"CIA findings status={cia_health.status.upper()}: "
+             f"{cia_health.error_message or '(no detail)'}\nThe signal set "
+             f"below is known-incomplete. Do NOT read a low promotion count "
+             f"as 'nothing is wrong'.")
 
    # Fetch open + recently-closed auto-improvement issues.
    open_issues, open_health = fetch_issues_with_label(state="open")
@@ -291,17 +349,55 @@ Steps (run from the repo root resolved via `git rev-parse`):
    decisions = decide_promotions(signals, open_issues)
    recurrence = detect_recurrence_after_close(signals, closed_issues)
 
-   # Side effects per decision.
-   create_failures = 0
+   # FINDING-2 fix (#1201): summing per-cluster distinct_sessions double-counts
+   # sessions appearing in several clusters, and the session-id set is not
+   # reconstructable here, so max() is a deliberate conservative lower bound —
+   # truthful, and it still fires the emission-failure alarm at numerator zero.
+   distinct_sessions_observed = max(
+       (int(s.raw_data.get("distinct_sessions", 0)) for s in signals),
+       default=0,
+   )
+   open_count_for_digest = (
+       open_health.signal_count if open_health.status == "ok" else len(open_issues)
+   )
+
+   def build_counts(outcomes, create_failures=0, refresh_failures=0):
+       # #1790: ONE counting vocabulary. The dry run passes the PLANNED
+       # decisions (nothing executed, so the plan is the honest answer); the
+       # real run passes the EFFECTIVE ones it just derived.
+       return build_digest(
+           outcomes, recurrence,
+           open_auto_improvement_count=open_count_for_digest,
+           findings_observed=len(signals),
+           distinct_sessions_observed=distinct_sessions_observed,
+           create_failures=create_failures, refresh_failures=refresh_failures)
+
+   # DRY RUN GATE (#1790) — must precede every `gh` call; the ordering is the
+   # gate. Prints each decision, the title it WOULD emit, and the digest.
+   if DRY_RUN:
+       print("\n=== /improve --auto-file --dry-run (Issue #1790) ===")
+       print(format_dry_run(
+           decisions, digest_body=format_digest(build_counts(decisions))))
+       print("===================================================\n")
+       sys.exit(0)
+
+   # Side effects per decision. #1790: each outcome IS a PromotionDecision —
+   # `hold` until a write completes — so there is no parallel outcome list to
+   # fall out of alignment with `decisions`. `refresh_health` carries each
+   # untrustworthy pre-write fetch onto the persisted record.
+   create_failures = refresh_failures = 0
+   effective, refresh_health = [], []
    for d in decisions:
        # Check target_repo to determine if we should file the issue
        target_repo = d.signal.raw_data.get("target_repo", "autonomous-dev")
        if target_repo != "autonomous-dev":
            # Skip non-framework findings
            print(f"Skipping auto-file for target_repo={target_repo} (framework-only auto-file)")
+           effective.append(held(d, f"target_repo={target_repo} is not autonomous-dev"))
            continue
-       
+
        if d.route == "hold":
+           effective.append(d)
            continue
        evidence = (
            f"Cross-session CIA evidence ({datetime.now(timezone.utc).isoformat()}):\n"
@@ -312,98 +408,87 @@ Steps (run from the repo root resolved via `git rev-parse`):
            f"{', '.join(d.signal.raw_data.get('file_refs_union', [])) or '(none)'}\n"
            f"- max_severity_label: {d.signal.raw_data.get('max_severity_label', 'info')}\n"
        )
-       if d.route == "append":
-           # TOCTOU mitigation: re-classify immediately before each action to
-           # catch a same-tag issue that opened/closed between fetch and now.
-           from macro_promotion import classify_route
-           fresh_open, _ = fetch_issues_with_label(state="open")
-           route_now, matched_now = classify_route(d.signal, fresh_open)
-           if route_now == "append" and matched_now is not None:
-               target = matched_now
-               rc = subprocess.call([
-                   "gh", "issue", "comment", str(target),
-                   "-R", "akaszubski/autonomous-dev",
-                   "--body", evidence,
-               ])
-               if rc != 0:
-                   create_failures += 1
-           else:
-               # FINDING-1 fix (Issue #1201 remediation): the originally
-               # matched open issue has been closed in the window between
-               # fetch and action. Pivot to CREATE instead of commenting on
-               # a stale (closed) issue, which would silently route the
-               # finding to a closed issue not surfaced in normal open views.
-               tag = d.signal.signal_type
-               max_label = d.signal.raw_data.get("max_severity_label", "info")
-               title = f"[CI-{max_label}-{tag}] {d.signal.description}"[:200]
-               rc = subprocess.call([
-                   "gh", "issue", "create",
-                   "-R", "akaszubski/autonomous-dev",
-                   "--title", title,
-                   "--label", "continuous-improvement,auto-improvement",
-                   "--body", evidence,
-               ])
-               if rc != 0:
-                   create_failures += 1
-       elif d.route == "create":
-           # TOCTOU mitigation before CREATE: re-fetch and re-classify; if a
-           # matching open issue now exists, SWITCH to append.
-           from macro_promotion import classify_route
-           fresh_open, _ = fetch_issues_with_label(state="open")
-           route_now, matched_now = classify_route(d.signal, fresh_open)
-           if route_now == "append" and matched_now is not None:
-               rc = subprocess.call([
-                   "gh", "issue", "comment", str(matched_now),
-                   "-R", "akaszubski/autonomous-dev",
-                   "--body", evidence,
-               ])
-               if rc != 0:
-                   create_failures += 1
-               continue
-           tag = d.signal.signal_type
-           max_label = d.signal.raw_data.get("max_severity_label", "info")
-           title = f"[CI-{max_label}-{tag}] {d.signal.description}"[:200]
-           rc = subprocess.call([
-               "gh", "issue", "create",
-               "-R", "akaszubski/autonomous-dev",
-               "--title", title,
-               "--label", "continuous-improvement,auto-improvement",
-               "--body", evidence,
-           ])
-           if rc != 0:
-               create_failures += 1
+       # TOCTOU mitigation: re-fetch before each write. #1790: the refresh's
+       # SourceHealth is now CONSULTED — a FAILED fetch returns an empty list,
+       # read as "no matching issue exists", and duplicated the issue.
+       fresh_open, fresh_health = fetch_issues_with_label(state="open")
+       e = reclassify_before_write(d, fresh_open, fresh_health)
+       if e.route == "hold":
+           print(f"REFRESH FAILURE, no write performed: {e.rationale}")
+           refresh_failures += 1
+           refresh_health.append(_asdict(fresh_health))
+           effective.append(e)
+           continue
 
-   # Build digest. open_auto_improvement_count is the latest open count.
-   open_count_for_digest = open_health.signal_count if open_health.status == "ok" else len(open_issues)
-   # FINDING-2 fix (Issue #1201 remediation): summing per-cluster
-   # distinct_sessions across all signals double-counts sessions that
-   # appeared in multiple clusters. The aggregated signals do not preserve
-   # the actual session-id set, so the union is not reconstructable from
-   # this layer. Use max() as a lower-bound APPROXIMATION (the largest
-   # single cluster's session count is guaranteed >= the union's lower
-   # bound). This keeps the displayed findings-per-session ratio truthful
-   # (slightly conservative) while still triggering the emission-failure
-   # alarm correctly when the numerator is zero.
-   distinct_sessions_observed = max(
-       (int(s.raw_data.get("distinct_sessions", 0)) for s in signals),
-       default=0,
-   )
-   counts = build_digest(
-       decisions, recurrence,
-       open_auto_improvement_count=open_count_for_digest,
-       findings_observed=len(signals),
-       distinct_sessions_observed=distinct_sessions_observed,
-       create_failures=create_failures,
-   )
+       # ONE guarded write route, titled by the SAME helper the dry run uses.
+       argv = (["gh", "issue", "comment", str(e.matched_open_issue)]
+               if e.route == "append"
+               else ["gh", "issue", "create", "--title", planned_title(e),
+                     "--label", "continuous-improvement,auto-improvement"])
+       rc = subprocess.call(
+           argv + ["-R", "akaszubski/autonomous-dev", "--body", evidence])
+       # #1790: a FAILED write completed NO route, so the decision stays HELD;
+       # promoting it would claim an issue that was never written.
+       effective.append(e if rc == 0 else held(e, f"gh write failed (rc={rc})"))
+       if rc != 0:
+           create_failures += 1
+
+   # Same helper the dry run used, over the EFFECTIVE decisions.
+   counts = build_counts(effective, create_failures=create_failures,
+                         refresh_failures=refresh_failures)
    digest_body = format_digest(counts)
+
+   # #1790: READ the previous cycle's persisted digest BEFORE this one is
+   # written, so the store has a production consumer and an ALARM or a sick
+   # source survives ACROSS runs instead of scrolling past once (the #1201
+   # anti-habituation purpose). The stored body is the rendering THAT build
+   # emitted: alarm lines are QUOTED verbatim, never re-rendered through
+   # today's formatter, which would destroy the evidence the record carries.
+   # A bad read degrades honestly and NEVER blocks the current cycle.
+   REPORT_PATH = PROJECT_ROOT / ".claude" / "logs" / "aggregated_reports.jsonl"
+   print("\n=== PREVIOUS CYCLE (replayed from aggregated_reports.jsonl) ===")
+   try:
+       prior, prior_health = load_latest_persisted_digest(REPORT_PATH)
+       if prior is None:
+           # Absent, empty, corrupt or unreplayable — say WHICH, never invent
+           # a prior cycle and never report the absence as a green zero.
+           print(f"status={prior_health.status.upper()}: no trustworthy prior "
+                 f"digest ({prior_health.error_message or 'no detail'}). This "
+                 f"cycle stands alone — do NOT read the absence as 'nothing "
+                 f"has changed since last time'.")
+       else:
+           if prior_health.status != "ok":
+               print(f"status={prior_health.status.upper()} — "
+                     f"{prior_health.error_message or 'no detail'}; the record "
+                     f"below replays, but may not be the true latest.")
+           was = digest_from_record(prior)
+           print(f"status={prior_health.status.upper()} "
+                 f"generated_at={prior.get('generated_at') or 'unknown'} "
+                 f"promoted={was.promoted} appended={was.appended} "
+                 f"held={was.held} create_failures={was.create_failures} "
+                 f"refresh_failures={was.refresh_failures}")
+           for line in str(prior.get("digest_body", "")).splitlines():
+               if line.startswith("Match-rate:") or "ALARM" in line:
+                   print(f"  prior| {line}")
+           for entry in prior.get("source_health") or []:
+               if entry.get("status") != "ok":
+                   print(f"  prior| source {entry.get('source')}="
+                         f"{str(entry.get('status')).upper()}: "
+                         f"{entry.get('error_message') or 'no detail'}")
+   except Exception as exc:
+       print(f"status=ERROR: prior-digest read raised "
+             f"{type(exc).__name__}: {str(exc)[:200]}. Continuing without a "
+             f"prior cycle — this run is NOT blocked by an unreadable store.")
+   print("===============================================================")
 
    # Print the digest body verbatim so the user sees it inline.
    print("\n=== /improve --auto-file digest (Issue #1201) ===")
    print(digest_body)
    print("=================================================\n")
 
-   # Persist as a single JSONL line. We synthesize an AggregatedReport so
-   # the persistence path mirrors aggregate().
+   # One JSONL line, mirroring aggregate(). #1790: the digest rides that SAME
+   # line — it used to be printed and lost, including the match-rate ALARM.
+   # Untrustworthy refreshes ride along so a reader sees why a cycle wrote less.
    now = datetime.now(timezone.utc)
    report = AggregatedReport(
        signals=signals,
@@ -411,8 +496,13 @@ Steps (run from the repo root resolved via `git rev-parse`):
        window_start=(now.replace(microsecond=0)).isoformat(),
        window_end=now.isoformat(),
        top_n=len(signals),
+       digest=digest_to_record(
+           counts, digest_body=digest_body, generated_at=now.isoformat(),
+           source_health=[_asdict(h) for h in
+                          (cia_health, open_health, closed_health)]
+                         + refresh_health),
    )
-   persist_report(report, PROJECT_ROOT / ".claude" / "logs" / "aggregated_reports.jsonl")
+   persist_report(report, REPORT_PATH)
 
    # Issue #1204: clean up the hook-contract context file inside the same
    # Bash tool call (via this python3 block) so no standalone `rm` is needed.
@@ -420,7 +510,7 @@ Steps (run from the repo root resolved via `git rev-parse`):
    # WRITE happened in its own Bash call (Step 2 above), and is consumed
    # here at the end of all `gh issue create`/`gh issue comment` side effects.
    try:
-       (Path("/tmp/autonomous_dev_cmd_context.json")).unlink()
+       gh_issue_context_path().unlink()
    except FileNotFoundError:
        pass
    PY
@@ -547,8 +637,10 @@ First, as its OWN STANDALONE Bash call, write the hook-contract context
 file:
 ```bash
 python3 -c "
-import json; from datetime import datetime, timezone
-with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
+import json, os, sys; from datetime import datetime, timezone
+next((sys.path.insert(0, p) for p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)), None)
+from gh_issue_context import gh_issue_context_path
+with open(gh_issue_context_path(), 'w') as f:
     json.dump({'command': 'improve', 'timestamp': datetime.now(timezone.utc).isoformat()}, f)
 "
 ```
@@ -556,5 +648,5 @@ with open('/tmp/autonomous_dev_cmd_context.json', 'w') as f:
 Then, as a separate Bash call, create the issue with the cleanup chained
 via `;`:
 ```bash
-gh issue create -R akaszubski/autonomous-dev   --title "[TRENDS] Aggregate analysis $(date +%Y-%m-%d)"   --label "auto-improvement,trends"   --body "{full trend report + **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)}"; rm -f /tmp/autonomous_dev_cmd_context.json
+gh issue create -R akaszubski/autonomous-dev   --title "[TRENDS] Aggregate analysis $(date +%Y-%m-%d)"   --label "auto-improvement,trends"   --body "{full trend report + **Plugin Version**: $(python3 -c "import sys,os;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from version_reader import get_plugin_version;print(get_plugin_version())" 2>/dev/null || echo unknown)}"; rm -f "$(python3 -c "import os,sys;next((sys.path.insert(0,p) for p in ('.claude/lib','plugins/autonomous-dev/lib',os.path.expanduser('~/.claude/lib')) if os.path.isdir(p)),None);from gh_issue_context import gh_issue_context_path;print(gh_issue_context_path())")"
 ```

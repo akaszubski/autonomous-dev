@@ -2087,7 +2087,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "install_orchestrator.py",
     "installation_analyzer.py",
     "installation_validator.py",
-    "macro_promotion.py",
     "math_utils.py",
     "mcp_profile_manager.py",
     "memory_formatter.py",
@@ -2299,7 +2298,7 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        NOTHING moved REACHED -> UNKNOWN and nothing moved the other
 #        way: both measured difference sets, ``live - pin`` and
 #        ``pin - live``, are EMPTY.
-LIBRARY_REACHABILITY_CEILING = 98
+LIBRARY_REACHABILITY_CEILING = 97
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -2308,7 +2307,7 @@ LIBRARY_REACHABILITY_CEILING = 98
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 98
+LIBRARY_CEILING_HIGH_WATER_MARK = 97
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.

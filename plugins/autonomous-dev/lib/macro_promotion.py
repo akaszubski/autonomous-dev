@@ -46,7 +46,7 @@ GitHub Issue: #1201 (builds on #1200)
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -96,20 +96,20 @@ CLOSED_LOOKBACK_DAYS: int = 90
 # Robust two-step import (relative-then-flat fallback) — matches the idiom
 # used by runtime_data_aggregator and issue_triage_analyzer.
 try:
-    from .runtime_data_aggregator import AggregatedSignal  # type: ignore
+    from .runtime_data_aggregator import (  # type: ignore
+        CIA_HIGH_SEVERITY_LABELS, CIA_SEVERITY_ORDER, HEALTH_STATUSES,
+        TRUSTWORTHY_HEALTH_STATUSES, AggregatedSignal)
     from .issue_triage_analyzer import (  # type: ignore
-        cluster_within_tag,
-        extract_root_cause_tag,
-    )
+        cluster_within_tag, extract_root_cause_tag, format_root_cause_title)
 except ImportError:
     _lib_dir = Path(__file__).parent.resolve()
     if str(_lib_dir) not in sys.path:
         sys.path.insert(0, str(_lib_dir))
-    from runtime_data_aggregator import AggregatedSignal  # type: ignore
+    from runtime_data_aggregator import (  # type: ignore
+        CIA_HIGH_SEVERITY_LABELS, CIA_SEVERITY_ORDER, HEALTH_STATUSES,
+        TRUSTWORTHY_HEALTH_STATUSES, AggregatedSignal)
     from issue_triage_analyzer import (  # type: ignore
-        cluster_within_tag,
-        extract_root_cause_tag,
-    )
+        cluster_within_tag, extract_root_cause_tag, format_root_cause_title)
 
 
 # =============================================================================
@@ -161,6 +161,8 @@ class DigestCounts:
             no open issue (silent dropped errors — anti-habituation signal).
         create_failures: Number of ``gh issue create`` failures surfaced
             by STEP 5 (references #1203). Defaults to 0.
+        refresh_failures: Number of decisions abandoned because the
+            pre-write issue refresh could not be trusted (Issue #1790).
     """
 
     promoted: int
@@ -173,6 +175,7 @@ class DigestCounts:
     findings_per_session: Optional[float]
     error_without_other_channel: Tuple[str, ...]
     create_failures: int = 0
+    refresh_failures: int = 0
 
 
 # =============================================================================
@@ -204,7 +207,13 @@ def _meets_promotion_gate(
     frequency = int(signal.frequency or 0)
     distinct_sessions = int(_raw_data_get(signal, "distinct_sessions", 0) or 0)
     max_label = str(_raw_data_get(signal, "max_severity_label", "info"))
-    
+
+    # #1790: gates EVERY branch below. Measured: label='invalid' at
+    # frequency=4 routed CREATE with an unemittable title.
+    if max_label not in CIA_SEVERITY_ORDER:
+        return False, (f"severity {max_label!r} is outside the vocabulary "
+                       f"{sorted(CIA_SEVERITY_ORDER)}; holding (Issue #1790)")
+
     # Rate-limit TEST-PRUNING warnings (Issue #1432)
     # Only re-file if the count has dropped meaningfully (50% or more)
     if signal.signal_type == "TEST-PRUNING":
@@ -213,8 +222,8 @@ def _meets_promotion_gate(
         # Since frequency doesn't directly map to prunable count,
         # we suppress all TEST-PRUNING signals until further notice
         return False, (
-            f"TEST-PRUNING rate-limited (Issue #1432) - suppressed until "
-            f"meaningful reduction in prunable candidates"
+            "TEST-PRUNING rate-limited (Issue #1432) - suppressed until "
+            "meaningful reduction in prunable candidates"
         )
 
     volume_breadth_pass = (
@@ -227,30 +236,29 @@ def _meets_promotion_gate(
             f"{distinct_sessions_min})"
         )
 
-    # Error fast-path waives breadth: string-label equality is the spec.
-    # Never compare against the severity float — see module docstring.
-    if max_label == "error" and frequency >= error_frequency_min:
-        return True, (
-            f"error fast-path met (max_severity_label='error', "
-            f"frequency={frequency} >= {error_frequency_min})"
-        )
+    # High-severity fast-path waives breadth: label MEMBERSHIP is the spec,
+    # never the severity float. #1790: `== "error"` made `critical` promote
+    # LESS readily than a lower severity.
+    is_high_severity = max_label in CIA_HIGH_SEVERITY_LABELS
+    if is_high_severity and frequency >= error_frequency_min:
+        return True, (f"error fast-path met (max_severity_label={max_label!r}, "
+                      f"frequency={frequency} >= {error_frequency_min})")
 
     # Hold: name the failing gate.
-    if frequency < frequency_min and not (max_label == "error"):
+    if frequency < frequency_min and not is_high_severity:
         return False, (
             f"frequency too low (frequency={frequency} < {frequency_min}, "
             f"max_severity_label={max_label!r})"
         )
-    if distinct_sessions < distinct_sessions_min and max_label != "error":
+    if distinct_sessions < distinct_sessions_min and not is_high_severity:
         return False, (
             f"breadth gate failed (distinct_sessions={distinct_sessions} < "
             f"{distinct_sessions_min}, frequency={frequency})"
         )
-    if max_label == "error" and frequency < error_frequency_min:
+    if is_high_severity and frequency < error_frequency_min:
         return False, (
             f"single occurrence below error fast-path (frequency={frequency} "
-            f"< {error_frequency_min}, max_severity_label='error')"
-        )
+            f"< {error_frequency_min}, max_severity_label={max_label!r})")
     # Defensive fallback.
     return False, (
         f"promotion gate failed (frequency={frequency}, "
@@ -475,8 +483,13 @@ def build_digest(
     distinct_sessions_observed: int,
     expired_count: int = 0,
     create_failures: int = 0,
+    refresh_failures: int = 0,
 ) -> DigestCounts:
     """Aggregate counter values for the digest.
+
+    Counts the routes *decisions* CARRY, so pass the EFFECTIVE ones (#1790):
+    counting the plan is how a run that appended-then-duplicated recorded
+    ``appended=1, created=0``.
 
     Args:
         decisions: Output of :func:`decide_promotions`.
@@ -489,13 +502,14 @@ def build_digest(
             window (>= 0). Used as the denominator for findings-per-session.
         expired_count: Findings dropped because they fell outside the window.
         create_failures: ``gh issue create`` failures from STEP 5 (#1203).
+        refresh_failures: Decisions abandoned on an untrustworthy refresh.
 
     Returns:
         A frozen :class:`DigestCounts` ready for :func:`format_digest`.
     """
     promoted = sum(1 for d in decisions if d.route in ("create", "append"))
     appended = sum(1 for d in decisions if d.route == "append")
-    held = sum(1 for d in decisions if d.route == "hold")
+    held = len(decisions) - promoted
 
     if distinct_sessions_observed > 0:
         findings_per_session: Optional[float] = (
@@ -511,11 +525,11 @@ def build_digest(
     seen_descriptions: set = set()
     for d in decisions:
         max_label = str(_raw_data_get(d.signal, "max_severity_label", "info"))
-        if max_label != "error":
+        # #1790: `!= "error"` filtered out ``critical``, this section's case.
+        if max_label not in CIA_HIGH_SEVERITY_LABELS:
             continue
         if d.route in ("create", "append"):
             continue
-        # route == "hold" AND label == "error" — this is a silent error.
         desc = str(d.signal.description)
         if desc in seen_descriptions:
             continue
@@ -533,6 +547,7 @@ def build_digest(
         findings_per_session=findings_per_session,
         error_without_other_channel=tuple(sorted(silent_errors)),
         create_failures=int(create_failures),
+        refresh_failures=int(refresh_failures),
     )
 
 
@@ -614,6 +629,11 @@ def format_digest(counts: DigestCounts) -> str:
         lines.append(
             f"Create failures: {counts.create_failures} (see #1203)"
         )
+    if counts.refresh_failures > 0:
+        lines.append(
+            f"Refresh failures: {counts.refresh_failures} ALARM — the pre-write "
+            f"refresh was untrustworthy, so those decisions were abandoned "
+            f"rather than duplicated (#1790)")
 
     # Section 2: Recurrence-after-close
     if counts.recurrence_after_close:
@@ -639,3 +659,184 @@ def format_digest(counts: DigestCounts) -> str:
         lines.append("Error-without-other-channel: 0")
 
     return "\n".join(lines)
+
+
+# Durable digest record (#1790). PURE record/replay; I/O stays in
+# runtime_data_aggregator. Counters ride under ``counts`` as asdict(
+# DigestCounts); a field outside _RATIO/_TUPLE must be a plain int, so a
+# counter added later is validated by default.
+DIGEST_RECORD_VERSION: int = 1
+DIGEST_REQUIRED_FIELDS: Tuple[str, ...] = ("version", "counts", "digest_body",
+                                           "source_health")
+_RATIO_FIELDS = ("match_rate", "findings_per_session")
+_TUPLE_FIELDS = ("recurrence_after_close", "error_without_other_channel")
+
+
+def digest_to_record(
+    counts: DigestCounts, *, digest_body: str,
+    source_health: Optional[List[Dict[str, Any]]] = None,
+    generated_at: str = "",
+) -> Dict[str, Any]:
+    """Serialize a digest to a JSON-safe, replayable record.
+
+    ``digest_body`` is stored verbatim and :func:`digest_from_record` refuses
+    a body the counts do not render, so the two cannot disagree.
+    ``source_health`` (``asdict(SourceHealth)`` dicts, a failed pre-write
+    refresh included) ties the counts to a measured cycle; replay refuses
+    without it. ``generated_at`` keeps this pure.
+    """
+    return {
+        "version": DIGEST_RECORD_VERSION, "generated_at": str(generated_at),
+        "counts": asdict(counts), "digest_body": str(digest_body),
+        "match_rate_alarm_threshold": MATCH_RATE_ALARM_THRESHOLD,
+        "source_health": list(source_health or []),
+    }
+
+
+def _require(condition: Any, message: str) -> None:
+    """Raise ``ValueError(message)`` unless *condition* holds."""
+    if not condition:
+        raise ValueError(message)
+
+
+def digest_from_record(record: Dict[str, Any]) -> DigestCounts:
+    """Rebuild :class:`DigestCounts` from a persisted digest record.
+
+    ``format_digest(digest_from_record(r)) == r["digest_body"]`` byte for byte,
+    ENFORCED here (#1790): a body contradicting its counts is a forgery or a
+    stale rendering, so changing :func:`format_digest` MUST bump
+    :data:`DIGEST_RECORD_VERSION`. ONE validated envelope (version, keys,
+    usable source health, every counter's type, then the body): dataclass
+    construction type-checks nothing, and a defaulted digest reports
+    ``match_rate=None`` — "no alarm" — for a cycle that tripped it.
+
+    Raises:
+        ValueError: For any record that would not replay.
+    """
+    _require(isinstance(record, dict), f"not a dict: {type(record).__name__}")
+    missing = [key for key in DIGEST_REQUIRED_FIELDS if key not in record]
+    _require(not missing, f"missing field(s) {missing}; refusing to default (INV-7)")
+    _require(record["version"] == DIGEST_RECORD_VERSION,
+             f"unknown version {record['version']!r} != {DIGEST_RECORD_VERSION}")
+
+    health = record["source_health"]
+    _require(isinstance(health, list) and health,
+             f"no usable source_health ({health!r}); nothing ties these counts "
+             f"to a measured cycle")
+    for entry in health:
+        _require(isinstance(entry, dict)
+                 and str(entry.get("source", "") or "").strip()
+                 and entry.get("status") in HEALTH_STATUSES,
+                 f"unusable source_health entry {entry!r}; want a source name "
+                 f"and a status in {sorted(HEALTH_STATUSES)}")
+
+    counts = record["counts"]
+    _require(isinstance(counts, dict), f"counts not a dict: {counts!r}")
+    absent = [f.name for f in fields(DigestCounts) if f.name not in counts]
+    _require(not absent, f"counts missing field(s) {absent}")
+    rebuilt: Dict[str, Any] = {}
+    for name in (f.name for f in fields(DigestCounts)):
+        value = counts[name]
+        number = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if name in _TUPLE_FIELDS:
+            ok, kind = isinstance(value, (list, tuple)), "a sequence"
+        elif name in _RATIO_FIELDS:
+            ok, kind = value is None or number, "a number or null"
+        else:
+            ok, kind = number and not isinstance(value, float), "an int"
+        _require(ok, f"count {name!r} must be {kind}, got {value!r}")
+        rebuilt[name] = value
+    for pair in rebuilt["recurrence_after_close"]:
+        _require(isinstance(pair, (list, tuple)) and len(pair) == 2,
+                 f"malformed recurrence_after_close entry {pair!r}; "
+                 f"want a [tag, issue_number] pair")
+    rebuilt["recurrence_after_close"] = tuple(
+        (str(tag), int(num)) for tag, num in rebuilt["recurrence_after_close"])
+    rebuilt["error_without_other_channel"] = tuple(
+        str(desc) for desc in rebuilt["error_without_other_channel"])
+    replayed = DigestCounts(**rebuilt)
+    _require(isinstance(record["digest_body"], str)
+             and format_digest(replayed) == record["digest_body"],
+             "digest_body contradicts the counts stored beside it — a forgery, "
+             "or a rendering this build cannot reproduce (bump "
+             "DIGEST_RECORD_VERSION when format_digest() changes)")
+    return replayed
+
+
+def held(decision: PromotionDecision, reason: str) -> PromotionDecision:
+    """The same decision, reduced to ``hold`` with *reason* as its rationale.
+
+    The ONE way an outcome is recorded (#1790): abandoned refresh, failed
+    ``gh`` write and out-of-scope repo all end here, so no second list drifts.
+    """
+    return replace(decision, route="hold", matched_open_issue=None,
+                   rationale=reason)
+
+
+def reclassify_before_write(
+    decision: PromotionDecision, fresh_open: List[Dict[str, Any]], health: Any,
+) -> PromotionDecision:
+    """Re-route a promoted decision against a FRESH fetch of the open issues.
+
+    ``hold`` when the refresh cannot be trusted (write NOTHING, count a refresh
+    failure), otherwise whatever :func:`classify_route` now says, route flips
+    included. #1790: a FAILED fetch returns an empty list, so discarding its
+    health duplicated the issue — and a lost cycle is recoverable, a duplicate
+    is not.
+    """
+    status = str(getattr(health, "status", "") or "")
+    if status not in TRUSTWORTHY_HEALTH_STATUSES:
+        return held(decision, (
+            f"pre-write refresh not trustworthy (status={status!r}: "
+            f"{getattr(health, 'error_message', '') or 'no detail'}); an empty "
+            f"list from a FAILED fetch is not evidence of absence (#1790)"))
+    route_now, matched_now = classify_route(decision.signal, fresh_open)
+    return replace(
+        decision, route=route_now,
+        matched_open_issue=None if matched_now is None else int(matched_now),
+        rationale=(f"refreshed match #{matched_now}" if route_now == "append"
+                   else "refreshed fetch found no matching open issue"))
+
+
+def planned_title(decision: PromotionDecision) -> str:
+    """Return the issue title ``/improve`` would emit for *decision*.
+
+    The single source of that title for BOTH the dry run and the write branch
+    (#1790). An unemittable tag or severity renders VISIBLY, never substituted.
+    """
+    try:
+        return format_root_cause_title(
+            root_cause_tag=str(decision.signal.signal_type),
+            severity_label=str(_raw_data_get(
+                decision.signal, "max_severity_label", "info")),
+            description=str(decision.signal.description))
+    except ValueError as exc:
+        return f"<UNEMITTABLE: {exc}>"
+
+
+def format_dry_run(decisions: List[PromotionDecision], *, digest_body: str) -> str:
+    """Render every routing decision plus the digest, with zero side effects.
+
+    ``/improve --auto-file --dry-run`` prints this and exits BEFORE any ``gh``
+    write. Deterministic; the tally renders as one explicit VERDICT line.
+    """
+    tally = {"create": 0, "append": 0, "hold": 0}
+    lines = ["DRY RUN: no GitHub side effects will be performed.",
+             f"Decisions: {len(decisions)}", ""]
+    for index, d in enumerate(sorted(decisions, key=lambda d: (
+            d.route, str(d.signal.signal_type), str(d.signal.description))), 1):
+        route = str(d.route) if str(d.route) in tally else "hold"
+        tally[route] += 1
+        lines.append(
+            f"[{index}] route={route.upper()} tag={d.signal.signal_type} "
+            f"severity={_raw_data_get(d.signal, 'max_severity_label', 'info')} "
+            f"frequency={d.signal.frequency} "
+            f"distinct_sessions={_raw_data_get(d.signal, 'distinct_sessions', 0)} "
+            f"matched=" + (f"#{d.matched_open_issue}"
+                           if d.matched_open_issue is not None else "(none)"))
+        lines.append(f"     rationale: {d.rationale}")
+        if route in ("create", "append"):
+            lines.append(f"     would emit title: {planned_title(d)}")
+    return "\n".join(lines + [
+        "", f"DRY RUN VERDICT: create={tally['create']} "
+            f"append={tally['append']} hold={tally['hold']}", "", digest_body])

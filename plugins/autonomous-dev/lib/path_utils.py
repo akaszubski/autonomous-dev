@@ -81,6 +81,9 @@ class PolicyFileNotFoundError(Exception):
 # could never isolate anything.
 ACTIVITY_LOG_DIR_ENV = "AUTONOMOUS_DEV_ACTIVITY_LOG_DIR"
 
+# Same convention, position and fail-loud contract as ACTIVITY_LOG_DIR_ENV.
+FINDINGS_DIR_ENV = "AUTONOMOUS_DEV_FINDINGS_DIR"
+
 
 class LogDirResolutionError(RuntimeError):
     """Raised when the activity-log directory cannot be tied to a project root.
@@ -127,6 +130,105 @@ def _worktree_parent_log_dir(start: Path) -> Optional[Path]:
     except Exception:
         return None
     return None
+
+
+def git_common_repo_root(start: Path) -> Optional[Path]:
+    """Return the SHARED repository root when *start* is in a linked worktree.
+
+    The robust test is ``git rev-parse --git-dir != --git-common-dir``;
+    :func:`_worktree_parent_log_dir` fires only on a ``/.worktrees/`` substring,
+    false for SIBLING worktrees, which is why the per-checkout split stayed open
+    (#1790). ``None`` when git ANSWERED there is no linked parent.
+
+    Raises:
+        LogDirResolutionError: If git could not be RUN at all — returning
+            ``None`` there silently restored the fragmented ownership.
+    """
+    import subprocess
+
+    # ONE invocation, so the comparison cannot straddle two repository states.
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-dir",
+             "--git-common-dir"],
+            capture_output=True, text=True, timeout=5, cwd=str(start))
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise LogDirResolutionError(
+            f"git worktree discovery could not run for {start}: "
+            f"{type(exc).__name__}: {exc}. Refusing to fall back to a "
+            f"per-checkout findings directory — set {FINDINGS_DIR_ENV} to "
+            f"state the store explicitly (Issue #1790)") from exc
+    answers = [ln.strip() for ln in result.stdout.splitlines()
+               if ln.strip()] if result.returncode == 0 else []
+    if len(answers) != 2 or answers[0] == answers[1]:
+        return None
+    # A normal repo's common dir is ``<root>/.git``; a bare repo's is the root.
+    common_dir = Path(answers[1])
+    root = common_dir.parent if common_dir.name == ".git" else common_dir
+    try:
+        return root if root.is_dir() else None
+    except OSError:
+        return None
+
+
+def _resolve_log_dir(start: Path, leaf: str, *, noun: str, env_var: str,
+                     refusing: str) -> Path:
+    """Shared tail of both log-dir resolvers (#1790): ``CLAUDE_PROJECT_DIR``,
+    then :func:`find_project_root`, then a LOUD refusal — never a cwd fallback.
+    """
+    env_root = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    try:
+        if env_root and Path(env_root).is_dir():
+            return Path(env_root) / ".claude" / "logs" / leaf
+    except OSError:
+        pass  # An unreadable value is not a reason to fall back to cwd.
+    try:
+        return find_project_root(start_path=start) / ".claude" / "logs" / leaf
+    except FileNotFoundError as exc:
+        message = (
+            f"Cannot resolve the {noun} from {start}\n"
+            f"Expected: {env_var} or CLAUDE_PROJECT_DIR set, or a .git/.claude "
+            f"marker in an ancestor directory\n"
+            f"Refusing to fall back to {refusing}")
+        try:
+            sys.stderr.write(f"[path_utils] {message}\n")
+        except Exception:
+            pass
+        raise LogDirResolutionError(message) from exc
+
+
+def resolve_findings_dir(*, start_path: Optional[Path] = None) -> Path:
+    """Resolve ``<project_root>/.claude/logs/findings`` — the ONE owner.
+
+    MEASURED (#1790): three PER-CHECKOUT computations split one repository's
+    findings across four directories — 7 / 57 / 4 / 3 records in a month — so
+    every frequency and breadth denominator ran on a fraction.
+
+    Order: (1) :data:`FINDINGS_DIR_ENV` when non-blank, a blank value IGNORED
+    rather than resolved to ``.``; (2) the worktree parent, ahead of any
+    caller- or environment-supplied root, and a discovery that cannot RUN
+    raises; (3) an explicit *start_path*, so an ambient ``CLAUDE_PROJECT_DIR``
+    cannot redirect a caller into another repository's evidence; then
+    :func:`_resolve_log_dir`. The result is NOT created.
+
+    Raises:
+        LogDirResolutionError: If no project root can be determined, or if
+            worktree discovery could not run.
+    """
+    explicit_root = os.environ.get(FINDINGS_DIR_ENV, "").strip()
+    if explicit_root:
+        return Path(explicit_root)
+    start = Path(start_path).resolve() if start_path is not None else Path.cwd()
+    shared_root = git_common_repo_root(start)
+    if shared_root is not None:
+        return shared_root / ".claude" / "logs" / "findings"
+    if start_path is not None:
+        return start / ".claude" / "logs" / "findings"
+    return _resolve_log_dir(
+        start, "findings", noun="CIA findings directory",
+        env_var=FINDINGS_DIR_ENV,
+        refusing="the current directory or to the autonomous-dev source "
+                 "checkout (Issue #1790)")
 
 
 def resolve_activity_log_dir(*, start_path: Optional[Path] = None) -> Path:
@@ -182,31 +284,9 @@ def resolve_activity_log_dir(*, start_path: Optional[Path] = None) -> Path:
     if worktree_dir is not None:
         return worktree_dir
 
-    env_root = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
-    if env_root:
-        candidate = Path(env_root)
-        try:
-            if candidate.is_dir():
-                return candidate / ".claude" / "logs" / "activity"
-        except OSError:
-            pass  # Unreadable value is not a reason to fall back to cwd
-
-    try:
-        root = find_project_root(start_path=start)
-    except FileNotFoundError as exc:
-        message = (
-            f"Cannot resolve the activity-log directory from {start}\n"
-            f"Expected: CLAUDE_PROJECT_DIR set, or a .git/.claude marker in an "
-            f"ancestor directory\n"
-            f"Refusing to fall back to the current directory (Issue #1726)"
-        )
-        try:
-            sys.stderr.write(f"[path_utils] {message}\n")
-        except Exception:
-            pass
-        raise LogDirResolutionError(message) from exc
-
-    return root / ".claude" / "logs" / "activity"
+    return _resolve_log_dir(start, "activity", noun="activity-log directory",
+                            env_var=ACTIVITY_LOG_DIR_ENV,
+                            refusing="the current directory (Issue #1726)")
 
 
 def find_project_root(
@@ -336,7 +416,10 @@ def is_worktree() -> bool:
             _is_worktree_func = git_is_worktree
         except (ImportError, Exception):
             # Fallback: If import fails, create a function that always returns False
-            _is_worktree_func = lambda: False
+            def _worktree_unavailable() -> bool:
+                return False
+
+            _is_worktree_func = _worktree_unavailable
 
     return _is_worktree_func()
 

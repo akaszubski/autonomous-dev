@@ -120,6 +120,26 @@ Temporary F0 maintenance scaffolding for getting this rung's six documentation f
 
 **Tested streaming-input transport option** (private canary, installed CLI 2.1.236, existing subscription auth, no API key): piping stdin with `--input-format stream-json --output-format stream-json --replay-user-messages --include-hook-events --verbose` accepts newline-delimited user records while the pipe stays open, and each is confirmed by its own exact replayed `user` acknowledgement before its `result` — a `result` message alone is not the final process exit while the pipe remains open; native exit 0 followed the pipe's own close, not either individual result. This does not establish a portable numeric terminal-input-length limit, and does not test or establish mid-tool cancellation, permission callbacks, or resumed-agent delivery guarantees. See [SESSION-ANALYTICS.md](SESSION-ANALYTICS.md) for this rung's own carrier/identifier-join limits, which streaming input does not repair.
 
+For supervised crash recovery, preserve the same session and use **non-TTY stdin**
+with the streaming flags above. Send one JSON object per line:
+
+```json
+{"type":"user","message":{"role":"user","content":"The verified correction and next task"},"parent_tool_use_id":null}
+```
+
+During #1790 recovery (2026-09-13, CLI 2.1.236), resuming without a positional
+prompt on a TTY exited with “No deferred tool marker found”; the same resume
+with a held-open FIFO as non-TTY stdin accepted and replayed the correction,
+then read the real installer source. This proves coordinator receipt, **not**
+delivery to an already-running specialist. Check the specialist's actual input
+before treating a correction as applied. A held-open input keeps the process
+alive after a turn result; do not equate that result with process completion.
+Preserve existing containment on relaunch: the #1790 run denied writes to both
+`/tmp/autonomous_dev_cmd_context.json` and its `/private/tmp/` alias using
+`sandbox-exec`; tests use disposable paths through `GH_ISSUE_CMD_CONTEXT_PATH`.
+That macOS-only supervision restriction is not portable product enforcement.
+Never clear a refusal or fabricate interrupted completion to resume work.
+
 ## Manual perf-smoke procedure (Issue #1133 AC8)
 
 When changing in-place cluster mode (`/implement --batch ... --no-worktree`, `scripts/drain-all.sh --cluster-mode`, or `scripts/triage-and-implement.sh` default flow), run this manual perf-smoke against a real 3-issue cluster to verify the cluster mode achieves the ≥40% wall-clock reduction acceptance target vs. running each issue serially.

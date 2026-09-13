@@ -358,10 +358,20 @@ def test_spec_issue896_4_resolver_fallback_home(
 
 
 def test_spec_issue896_5_shell_string_snippets_parse():
-    """Issue #896: every one of the 9 `python3 -c "..."` snippets parses and
+    """Issue #896: every one of the 12 `python3 -c "..."` snippets parses and
     runs without SyntaxError. Downstream import failures (e.g. version_reader
     not on sys.path in the test env) are tolerated — we only check that the
     python fragment itself is syntactically valid and exits cleanly.
+
+    The inventory is 12, not the 9 this docstring carried previously. All
+    three additions are in `improve.md`, which went from 1 snippet to 4; every
+    other command is unchanged (create-issue 2, implement 1, plan-to-issues 1,
+    refactor 2, retrospective 2). The cause is Issue #1609: the hook-contract
+    marker path stopped being the hard-coded `/tmp/autonomous_dev_cmd_context
+    .json` literal and became a `gh_issue_context_path()` lookup, so the two
+    marker WRITES and the `rm -f "$(...)"` CLEANUP each grew a resolver
+    prologue and now match this pattern. The assertion below was already 12 —
+    only this docstring was stale, so the docstring is what is corrected.
 
     We achieve that by stripping any trailing `;from <module> import ...`
     clauses so the snippet is a pure sys.path-resolver exercise.
@@ -375,8 +385,8 @@ def test_spec_issue896_5_shell_string_snippets_parse():
         for match in PYTHON_DASH_C_PATTERN.finditer(content):
             sites.append((fname, match.group("code")))
 
-    assert len(sites) == 9, (
-        f"Expected 9 `python3 -c \"...\"` resolver snippets across commands, "
+    assert len(sites) == 12, (
+        f"Expected 12 `python3 -c \"...\"` resolver snippets across commands, "
         f"found {len(sites)}. Sites: {[s[0] for s in sites]}"
     )
 
@@ -386,6 +396,15 @@ def test_spec_issue896_5_shell_string_snippets_parse():
         # env (version_reader/pipeline_state not on sys.path). Syntax validity
         # is what we care about for Issue #896.
         head, _, _ = code.partition(";from ")
+        # Same isolation for MULTI-LINE snippets, whose project imports and
+        # real side effects sit on the lines AFTER the resolver (Issue #1790
+        # added four). Without this the test EXECUTES a command's marker write:
+        # measured 2026-09-13, two improve.md snippets tried to write the live
+        # /tmp/autonomous_dev_cmd_context.json from inside the test run.
+        resolver_at = head.find("next((sys.path.insert")
+        end_of_resolver = head.find("\n", resolver_at) if resolver_at != -1 else -1
+        if end_of_resolver != -1:
+            head = head[:end_of_resolver]
         # head is `import sys,os;next((sys.path.insert(0,p) ...),None)`.
         result = subprocess.run(
             ["python3", "-c", head],

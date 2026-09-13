@@ -43,12 +43,18 @@ except ImportError:  # pragma: no cover
 # follows the project's two-step idiom (relative-then-absolute fallback) so
 # the module works both as a package import and as a flat import.
 try:
-    from .runtime_data_aggregator import scrub_secrets  # type: ignore
+    from .runtime_data_aggregator import (  # type: ignore
+        CIA_INVALID_SEVERITY_LABEL, CIA_SEVERITY_ORDER, RECORD_TYPE_FIELD,
+        RECORD_TYPE_FINDING, RECORD_TYPE_RETRACTION, RETRACTS_FIELD,
+        cia_finding_identity, scrub_secrets)
 except ImportError:
     _lib_dir = Path(__file__).parent.resolve()
     if str(_lib_dir) not in sys.path:
         sys.path.insert(0, str(_lib_dir))
-    from runtime_data_aggregator import scrub_secrets  # type: ignore
+    from runtime_data_aggregator import (  # type: ignore
+        CIA_INVALID_SEVERITY_LABEL, CIA_SEVERITY_ORDER, RECORD_TYPE_FIELD,
+        RECORD_TYPE_FINDING, RECORD_TYPE_RETRACTION, RETRACTS_FIELD,
+        cia_finding_identity, scrub_secrets)
 
 
 # =============================================================================
@@ -57,11 +63,22 @@ except ImportError:
 
 MAX_EVIDENCE_LENGTH: int = 2000
 MAX_TITLE_LENGTH: int = 200
-ALLOWED_SEVERITIES = frozenset({"info", "warning", "error"})
+#: Derived from the ONE declaration (#1790), never restated.
+ALLOWED_SEVERITIES = frozenset(CIA_SEVERITY_ORDER)
 FILE_MODE: int = 0o600
 DIR_MODE: int = 0o700
 
 _DEFAULT_SEVERITY = "info"
+
+#: Written for a label outside :data:`ALLOWED_SEVERITIES`. QUARANTINE, not
+#: reject: the store is fail-open, so the record is KEPT with a label that
+#: satisfies no threshold and the original under SEVERITY_QUARANTINE_FIELD.
+#: Before #1790 it was rewritten to ``info``, the LOWEST severity there is.
+INVALID_SEVERITY_LABEL = CIA_INVALID_SEVERITY_LABEL
+SEVERITY_QUARANTINE_FIELD = "severity_invalid_original"
+
+#: Public re-export: store and collector MUST agree on identity.
+finding_identity = cia_finding_identity
 
 
 # =============================================================================
@@ -93,12 +110,14 @@ def _normalize_record(
     """Coerce and sanitize a finding record before write.
 
     Steps:
-    1. Validate ``severity``; default to ``"info"`` + stderr warn if invalid.
+    1. Validate ``severity``; an invalid value is QUARANTINED as
+       :data:`INVALID_SEVERITY_LABEL`, never rewritten to ``"info"`` (#1790).
     2. Clamp ``title`` to :data:`MAX_TITLE_LENGTH`, ``evidence`` to
        :data:`MAX_EVIDENCE_LENGTH` BEFORE secret scrubbing.
     3. Strip CR/LF/TAB from every string field.
     4. Scrub secrets from ``title`` and ``evidence``.
     5. Default missing ``ts`` to ``now.isoformat()``.
+    6. Stamp ``record_type``/``finding_id`` for dedup and retraction (#1790).
 
     Returns:
         A new dict — the input is not mutated. All seven required fields are
@@ -110,14 +129,12 @@ def _normalize_record(
     # severity ----------------------------------------------------------------
     severity = record.get("severity", _DEFAULT_SEVERITY)
     if not isinstance(severity, str) or severity not in ALLOWED_SEVERITIES:
-        try:
-            sys.stderr.write(
-                f"[cia-finding-store] invalid severity {severity!r}, "
-                f"defaulting to {_DEFAULT_SEVERITY!r}\n"
-            )
-        except Exception:
-            pass
-        severity = _DEFAULT_SEVERITY
+        _warn(f"INVALID severity {severity!r} (allowed: "
+              f"{sorted(ALLOWED_SEVERITIES)}); quarantining as "
+              f"{INVALID_SEVERITY_LABEL!r} — KEPT, but satisfying no threshold")
+        normalized[SEVERITY_QUARANTINE_FIELD] = _sanitize_string(
+            str(severity))[:MAX_TITLE_LENGTH]
+        severity = INVALID_SEVERITY_LABEL
     normalized["severity"] = severity
 
     # root_cause_tag ----------------------------------------------------------
@@ -156,7 +173,7 @@ def _normalize_record(
     # Pass-through any extra fields (e.g. target_repo, sub_cluster) -----------
     reserved = {
         "severity", "root_cause_tag", "title", "evidence",
-        "file_refs", "session_id", "ts",
+        "file_refs", "session_id", "ts", SEVERITY_QUARANTINE_FIELD,
     }
     for key, value in record.items():
         if key in reserved:
@@ -166,7 +183,31 @@ def _normalize_record(
         else:
             normalized[key] = value
 
+    # Stamped LAST and unconditionally (#1790) so the extra-fields loop cannot
+    # pass a conflicting value, and from the NORMALIZED fields the reader sees.
+    normalized[RECORD_TYPE_FIELD] = RECORD_TYPE_FINDING
+    normalized["finding_id"] = finding_identity(normalized)
+
     return normalized
+
+
+def _require_absolute_findings_dir(findings_dir: Path) -> Path:
+    """Enforce the absolute-path contract BEFORE any record processing.
+
+    The contract is a PROGRAMMER error, so it must not depend on the record:
+    normalization runs inside a catch-and-return-``False`` guard, so a
+    malformed record swallowed the ``ValueError`` and the caller saw an
+    ordinary fail-open ``False`` for a relative directory. Called first by both
+    public entry points; :func:`_append_record` repeats the check because it is
+    the shared write path.
+
+    Raises:
+        ValueError: If *findings_dir* is not absolute.
+    """
+    findings_dir = Path(findings_dir)
+    if not findings_dir.is_absolute():
+        raise ValueError("findings_dir must be absolute")
+    return findings_dir
 
 
 def _safe_exc_repr(exc: BaseException) -> str:
@@ -175,6 +216,14 @@ def _safe_exc_repr(exc: BaseException) -> str:
         return _sanitize_string(f"{type(exc).__name__}: {exc}")[:200]
     except Exception:
         return type(exc).__name__
+
+
+def _warn(message: str) -> None:
+    """Emit a prefixed stderr line, never raising (this store is fail-open)."""
+    try:
+        sys.stderr.write(f"[cia-finding-store] {message}\n")
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -208,39 +257,79 @@ def append_finding(
 
     Raises:
         ValueError: If ``findings_dir`` is not absolute. This is a programmer
-            error — every other failure mode is fail-open.
+            error — every other failure mode is fail-open. Checked BEFORE
+            normalization so a malformed record cannot downgrade the contract
+            breach to a fail-open ``False``.
     """
-    if not isinstance(findings_dir, Path):
-        findings_dir = Path(findings_dir)
-    if not findings_dir.is_absolute():
-        raise ValueError("findings_dir must be absolute")
+    findings_dir = _require_absolute_findings_dir(findings_dir)
+    if now is None:
+        now = datetime.now(timezone.utc)
+    try:
+        payload = _normalize_record(record, now=now)
+    except Exception as exc:
+        _warn(f"normalize_failed: {_safe_exc_repr(exc)}")
+        return False
+    return _append_record(payload, findings_dir=findings_dir, now=now, what="finding")
 
-    # Reject explicit ``..`` traversal. ``resolve()`` would also collapse it,
-    # but an explicit check makes the intent unambiguous and avoids surprises
-    # when the directory does not yet exist.
-    if ".." in findings_dir.parts:
-        try:
-            sys.stderr.write(
-                "[cia-finding-store] findings_dir contains '..' traversal; "
-                "refusing write\n"
-            )
-        except Exception:
-            pass
+
+def retract_finding(
+    finding_id: str, *, findings_dir: Path, reason: str,
+    session_id: str = "unknown", now: Optional[datetime] = None,
+) -> bool:
+    """Append a retraction tombstone withdrawing *finding_id* from promotion.
+
+    #1790: with no tombstone a refuted finding counted toward frequency and
+    breadth forever. The tombstone is an ordinary appended line — no second
+    store: the original stays for audit and ``collect_cia_findings`` drops the
+    identity from the signals it emits. Both arguments are required: a tombstone
+    naming nothing retracts nothing, an unexplained one is not auditable.
+
+    Returns ``True`` on write, ``False`` on refusal or write failure. Raises
+    ``ValueError`` if ``findings_dir`` is not absolute (programmer error) —
+    checked BEFORE the argument refusals, so the tombstone route cannot drift
+    from the finding route on a blank ``finding_id`` or ``reason``.
+    """
+    findings_dir = _require_absolute_findings_dir(findings_dir)
+    target = _sanitize_string(str(finding_id or "")).strip()
+    clean_reason = _sanitize_string(str(reason or "")).strip()
+    if not target or not clean_reason:
+        _warn(f"retraction refused: "
+              f"{'finding_id' if not target else 'reason'} is blank")
         return False
 
     if now is None:
         now = datetime.now(timezone.utc)
+    return _append_record(
+        {
+            RECORD_TYPE_FIELD: RECORD_TYPE_RETRACTION,
+            RETRACTS_FIELD: target[:MAX_TITLE_LENGTH],
+            "reason": scrub_secrets(clean_reason)[:MAX_EVIDENCE_LENGTH],
+            "session_id": _sanitize_string(str(session_id))[:MAX_TITLE_LENGTH],
+            "ts": now.isoformat(),
+        },
+        findings_dir=findings_dir, now=now, what="retraction")
 
+
+def _append_record(
+    payload: Dict[str, Any], *, findings_dir: Path, now: datetime, what: str,
+) -> bool:
+    """Validate the destination, serialize *payload*, append one JSONL line.
+
+    The ONE validation-and-write path for findings AND tombstones: both get the
+    same absolute-path and ``..`` refusal, 0600/0700 permissions, symlink
+    refusal (CWE-59) and ``flock(LOCK_EX)`` window. ``ValueError`` for a
+    relative ``findings_dir`` (programmer error).
+    """
+    findings_dir = _require_absolute_findings_dir(findings_dir)
+    # Explicit ``..`` refusal. ``resolve()`` would collapse it, but the explicit
+    # check is unambiguous when the directory does not yet exist.
+    if ".." in findings_dir.parts:
+        _warn(f"findings_dir contains '..' traversal; refusing {what} write")
+        return False
     try:
-        normalized = _normalize_record(record, now=now)
-        line = json.dumps(normalized, default=str, ensure_ascii=False)
+        line = json.dumps(payload, default=str, ensure_ascii=False)
     except Exception as exc:
-        try:
-            sys.stderr.write(
-                f"[cia-finding-store] normalize_failed: {_safe_exc_repr(exc)}\n"
-            )
-        except Exception:
-            pass
+        _warn(f"{what}_serialize_failed: {_safe_exc_repr(exc)}")
         return False
 
     try:

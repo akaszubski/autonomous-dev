@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
-import tempfile
 import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -26,19 +24,19 @@ from unittest.mock import patch
 
 import pytest
 
-# Add lib to path so the flat-import style works in tests.
-_LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "lib"
-sys.path.insert(0, str(_LIB_DIR))
-
 from cia_finding_store import (
     append_finding,
-    ALLOWED_SEVERITIES,
+    retract_finding,
     MAX_EVIDENCE_LENGTH,
-    MAX_TITLE_LENGTH,
     FILE_MODE,
     DIR_MODE,
 )
 from runtime_data_aggregator import collect_cia_findings, SourceHealth
+
+# ``tests/conftest.py`` already places the plugin lib directory on ``sys.path``
+# for the flat imports above. This path is still needed explicitly below, where
+# a subprocess replicates the production flat-import pattern for Issue #1658.
+_LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "lib"
 
 
 # =============================================================================
@@ -239,6 +237,63 @@ class TestAppendFinding:
         # The sentinel target must NOT have been written to.
         assert sentinel.read_text() == sentinel_initial
 
+    def test_relative_findings_dir_raises_whatever_the_record_contains(
+        self, tmp_path: Path
+    ) -> None:
+        """The absolute-path contract is checked BEFORE the record is touched.
+
+        Failure class: a programmer-error contract made conditional on payload
+        validity. ``append_finding`` normalizes inside a catch-and-return-
+        ``False`` guard, so a relative ``findings_dir`` raised ``ValueError``
+        for a well-formed record and returned a fail-open ``False`` for a
+        malformed one — the SAME contract breach reported two different ways,
+        and the caller most likely to pass a bad path is the one passing a bad
+        record.
+
+        Both routes to the shared write path are covered, so the tombstone
+        route cannot drift from the finding route.
+        """
+
+        class _Malformed(dict):
+            """A record whose normalization raises (the fail-open path)."""
+
+            def get(self, *_args, **_kwargs):
+                raise RuntimeError("malformed record")
+
+        absolute = tmp_path / "findings"
+        relative = Path("relative/findings")
+
+        # Controls: the probe works at all. An absolute dir with a good record
+        # writes, and the malformed record really does trip the fail-open guard
+        # rather than being quietly acceptable.
+        assert append_finding(_make_record(), findings_dir=absolute) is True
+        assert append_finding(_Malformed(), findings_dir=absolute) is False
+
+        # The contract, independent of the record.
+        with pytest.raises(ValueError, match="absolute"):
+            append_finding(_make_record(), findings_dir=relative)
+        with pytest.raises(ValueError, match="absolute"):
+            append_finding(_Malformed(), findings_dir=relative)
+
+        # Same contract on the tombstone route, including the shape whose
+        # arguments are themselves refused (blank id AND blank reason).
+        written = next(absolute.glob("*.jsonl")).read_text(encoding="utf-8")
+        finding_id = json.loads(written.splitlines()[0])["finding_id"]
+        assert (
+            retract_finding(
+                finding_id, findings_dir=absolute, reason="refuted by measurement"
+            )
+            is True
+        )
+        assert retract_finding(finding_id, findings_dir=absolute, reason="") is False
+        with pytest.raises(ValueError, match="absolute"):
+            retract_finding(finding_id, findings_dir=relative, reason="refuted")
+        with pytest.raises(ValueError, match="absolute"):
+            retract_finding("", findings_dir=relative, reason="")
+
+        # Nothing was created at the relative path by any of the refusals.
+        assert not relative.exists(), relative.resolve()
+
 
 # =============================================================================
 # TestCollectCIAFindings
@@ -314,17 +369,41 @@ print("REGRESSION_TEST_OK", len(signals), health.status)
         )
         assert "REGRESSION_TEST_OK" in result.stdout, result.stdout
 
-    def test_collect_cia_findings_returns_empty_when_dir_missing(
+    def test_collect_cia_findings_returns_unmeasured_when_dir_missing(
         self, tmp_path: Path
     ) -> None:
-        """Non-existent absolute path → empty signals, status=empty."""
+        """Non-existent absolute path → ``unmeasured``, NOT ``empty``.
+
+        ADJUSTED for Issue #1790 defect 6. The previous expectation
+        (``status == "empty"``) encoded the conflation the issue names
+        verbatim: ``collect_cia_findings`` returned ``"empty"`` for BOTH "the
+        store is there and holds nothing" and "there is no store", so a
+        missing findings directory was indistinguishable from a measured zero.
+        Every reader that trusted a green zero was reading an absence of
+        measurement as a measurement of absence.
+
+        The assertion is changed rather than the code because ``empty`` and
+        ``unmeasured`` are different facts and only one of them is safe to act
+        on. Both arms are asserted here so the new status cannot itself become
+        a blanket answer.
+        """
         missing = tmp_path / "does-not-exist"
         signals, health = collect_cia_findings(missing)
         assert signals == []
         assert isinstance(health, SourceHealth)
         assert health.source == "cia_findings"
-        assert health.status == "empty"
+        assert health.status == "unmeasured"
         assert health.signal_count == 0
+        assert "does not exist" in health.error_message
+
+        # Other arm: a directory that EXISTS and holds nothing is a real
+        # measurement of zero, and must still report ``empty``.
+        present = tmp_path / "present"
+        present.mkdir()
+        signals, health = collect_cia_findings(present)
+        assert signals == []
+        assert health.status == "empty"
+        assert health.error_message == ""
 
     def test_collect_cia_findings_requires_absolute_findings_dir(self) -> None:
         """Relative path raises ``ValueError`` (worktree-safety regression)."""

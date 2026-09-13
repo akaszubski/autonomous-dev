@@ -19,19 +19,37 @@ import sys
 from pathlib import Path
 from typing import Any
 
+try:
+    from .runtime_data_aggregator import (  # type: ignore
+        CIA_HIGH_SEVERITY_LABELS, CIA_INVALID_SEVERITY_LABEL)
+except ImportError:
+    _lib_dir = Path(__file__).parent.resolve()
+    if str(_lib_dir) not in sys.path:
+        sys.path.insert(0, str(_lib_dir))
+    from runtime_data_aggregator import (  # type: ignore
+        CIA_HIGH_SEVERITY_LABELS, CIA_INVALID_SEVERITY_LABEL)
+
 # Severity tier mapping. Lower tier = more permissive.
-# Stored severities ({"info","warning","error"}) map to threshold tiers
-# ({"info","low","medium","high"}) as follows:
+# Stored severities ({"info","warning","error","critical"}) map to threshold
+# tiers ({"info","low","medium","high","critical"}) as follows:
 _SEVERITY_TIER: dict[str, int] = {
     # stored
     "info": 1,
     "warning": 3,
     "error": 4,
+    # #1790: absent, so `.get(label, 1)` gated the highest severity as ``info``.
+    "critical": 5,
     # threshold-only synonyms
     "low": 1,
     "medium": 3,
     "high": 4,
+    # Quarantined: tier 0 satisfies NO threshold, not even min_severity "info".
+    CIA_INVALID_SEVERITY_LABEL: 0,
 }
+
+#: Fail CLOSED for an unlisted label: the old default of 1 let an unrecognized
+#: label promote as readily as ``info``.
+_UNKNOWN_SEVERITY_TIER: int = 0
 
 _DEFAULTS_PATH = Path(__file__).parent / "config" / "cia_filter_defaults.json"
 
@@ -134,13 +152,15 @@ def should_promote(
         raw = {}
     max_label = str(raw.get("max_severity_label", "info")).lower()
 
-    # Bypass: error severity always promotes.
-    if max_label == "error":
-        return (True, "error-bypass: max_severity_label='error' always promotes")
+    # Bypass: high severity always promotes. The set is imported (#1790), so a
+    # vocabulary change reaches this bypass.
+    if max_label in CIA_HIGH_SEVERITY_LABELS:
+        return (True,
+                f"error-bypass: max_severity_label={max_label!r} always promotes")
 
     # Severity gate.
     min_severity = str(config.get("min_severity", "info")).lower()
-    stored_tier = _SEVERITY_TIER.get(max_label, 1)
+    stored_tier = _SEVERITY_TIER.get(max_label, _UNKNOWN_SEVERITY_TIER)
     min_tier = _SEVERITY_TIER.get(min_severity, 1)
     if stored_tier < min_tier:
         return (False, f"severity {max_label!r} below min_severity {min_severity!r}")

@@ -18,22 +18,26 @@ Security:
 GitHub Issue: #579
 """
 
+import hashlib
 import json
 import math
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
+    # resolve_findings_dir owns the findings dir (#1790); no cycle either way.
     from .benchmark_history import BenchmarkHistory
+    from .path_utils import resolve_findings_dir as _resolve_findings_dir
 except ImportError:
     _lib_dir = Path(__file__).parent.resolve()
     sys.path.insert(0, str(_lib_dir))
     from benchmark_history import BenchmarkHistory
+    from path_utils import resolve_findings_dir as _resolve_findings_dir
 
 
 # =============================================================================
@@ -52,14 +56,18 @@ SEVERITY_WEIGHTS: Dict[str, float] = {
 
 DEFAULT_WEIGHT = 1.0
 
-# Issue #1200: severity-label → float map for the cia_findings collector.
-# Mirrors the {info, warning, error} vocabulary used by append_finding.
-# Deliberately separate from collect_ci_signals's `sev_map` (which uses
-# {critical, warning, info}); the two collectors have different contracts.
+# CIA severity vocabulary, ASCENDING — the ONE declaration (#1790); store,
+# collector, gate and filter import it, and restating it is how ``critical``
+# went missing from all four. INVALID is deliberately not a member.
+CIA_SEVERITY_ORDER: Dict[str, int] = {"info": 0, "warning": 1, "error": 2, "critical": 3}
+CIA_HIGH_SEVERITY_LABELS = frozenset({"error", "critical"})
+CIA_INVALID_SEVERITY_LABEL = "invalid"
+
+# Issue #1200: label → float. The LABEL decides promotion; this is a derived
+# display value, so error/critical may share 1.0.
 CIA_FINDING_SEVERITY_MAP: Dict[str, float] = {
-    "info": 0.33,
-    "warning": 0.66,
-    "error": 1.0,
+    "info": 0.33, "warning": 0.66, "error": 1.0, "critical": 1.0,
+    CIA_INVALID_SEVERITY_LABEL: 0.0,
 }
 
 BENCHMARK_ACCURACY_THRESHOLD = 0.70
@@ -106,19 +114,29 @@ class AggregatedSignal:
     )
 
 
+# Health vocabulary (#1790). ``ok``/``empty`` are MEASUREMENTS; ``unmeasured``
+# (nothing read) and ``degraded`` (read, known-incomplete) are not, and folding
+# them into ``empty`` is the defect this removes. TRUSTWORTHY_* fails closed.
+HEALTH_OK, HEALTH_EMPTY, HEALTH_ERROR = "ok", "empty", "error"
+HEALTH_UNMEASURED, HEALTH_DEGRADED = "unmeasured", "degraded"
+TRUSTWORTHY_HEALTH_STATUSES = frozenset({HEALTH_OK, HEALTH_EMPTY})
+HEALTH_STATUSES = TRUSTWORTHY_HEALTH_STATUSES | {
+    HEALTH_ERROR, HEALTH_UNMEASURED, HEALTH_DEGRADED}
+
+
 @dataclass
 class SourceHealth:
     """Health status of a signal source.
 
     Args:
         source: Name of the signal source
-        status: Health status (ok, error, empty)
+        status: ``ok``/``empty``/``unmeasured``/``degraded``/``error``.
         signal_count: Number of signals collected
-        error_message: Error details if status is 'error'
+        error_message: Detail for 'error', 'degraded' or 'unmeasured'
     """
 
     source: str
-    status: str = "ok"
+    status: str = HEALTH_OK
     signal_count: int = 0
     error_message: str = ""
 
@@ -134,6 +152,8 @@ class AggregatedReport:
         window_end: ISO 8601 end of the analysis window
         generated_at: ISO 8601 timestamp of report generation
         top_n: Maximum number of signals included
+        digest: Optional ``/improve`` digest record, on the SAME JSONL line
+            as its report so there is one store, not two (#1790).
     """
 
     signals: List[AggregatedSignal]
@@ -144,6 +164,14 @@ class AggregatedReport:
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
     top_n: int = 10
+    digest: Optional[Dict[str, Any]] = None
+
+
+#: The keys a persisted report line carries, from the dataclass so a later
+#: field is covered. An object holding NONE of them is a truncated envelope,
+#: not a report declaring no digest: read as the latter, ``{}`` served the
+#: PREVIOUS cycle's digest as ``ok`` (#1790).
+REPORT_ENVELOPE_FIELDS = frozenset(f.name for f in fields(AggregatedReport))
 
 
 # =============================================================================
@@ -761,6 +789,74 @@ def collect_github_signals(
 # =============================================================================
 
 
+# CIA record identity + retraction contract (#1790): ONE identity function.
+RECORD_TYPE_FIELD, RETRACTS_FIELD = "record_type", "retracts"
+RECORD_TYPE_FINDING, RECORD_TYPE_RETRACTION = "finding", "retraction"
+_IDENTITY_FIELDS = ("root_cause_tag", "title", "session_id", "ts")
+
+
+def cia_finding_identity(record: Dict[str, Any]) -> str:
+    """SHA-256 content identity of a CIA finding record (64 hex chars).
+
+    Cross-checkout stable (one observation written twice counts once) and
+    referenceable (a tombstone withdraws it without deleting the original).
+    ``evidence`` is excluded and missing fields read as "".
+    """
+    payload = "\x00".join(str(record.get(k, "") or "") for k in _IDENTITY_FIELDS)
+    return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()
+
+
+class _BoundedRead:
+    """The ONE bounded JSONL reader (#1790), shared by both store readers.
+
+    Yields every JSON OBJECT across *paths*, stopping at :data:`MAX_LINES`.
+    Read defects are COUNTED, not skipped; ``malformed`` is public so a caller
+    charges its own per-record rejections to the same tally.
+    """
+
+    def __init__(self) -> None:
+        self.malformed, self.truncated = 0, False
+        self.unreadable: List[str] = []
+
+    def records(self, paths: List[Path]) -> Any:
+        total = 0
+        try:
+            for path in paths:
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        for line in fh:
+                            if total >= MAX_LINES:
+                                return
+                            total += 1
+                            if not line.strip():
+                                continue
+                            try:
+                                record = json.loads(line)
+                            except (json.JSONDecodeError, ValueError):
+                                record = None
+                            if isinstance(record, dict):
+                                yield record
+                            else:  # not JSON, or JSON that is not an object
+                                self.malformed += 1
+                except (OSError, PermissionError) as exc:
+                    self.unreadable.append(f"{path.name}: {type(exc).__name__}")
+        finally:
+            # Reaching the cap at all means later lines and later FILES were
+            # never opened; the reader cannot certify what it did not look at.
+            self.truncated = total >= MAX_LINES
+
+    @property
+    def notes(self) -> List[str]:
+        """Degradation notes for this read; ``[]`` when it was complete."""
+        return [note for note, present in (
+            (f"{len(self.unreadable)} unreadable file(s): "
+             f"{'; '.join(sorted(self.unreadable)[:5])}", self.unreadable),
+            (f"{self.malformed} malformed line(s)", self.malformed),
+            (f"read stopped at the {MAX_LINES}-line cap; records beyond it "
+             f"were never examined", self.truncated),
+        ) if present]
+
+
 def _parse_iso_ts(ts_str: str) -> Optional[datetime]:
     """Parse an ISO-8601 timestamp into a tz-aware datetime, or None on failure."""
     if not isinstance(ts_str, str) or not ts_str.strip():
@@ -789,11 +885,14 @@ def collect_cia_findings(
        window (chronological filename sort).
     3. Stream-parse with a :data:`MAX_LINES` guard; skip malformed lines and
        records with no ``ts`` or with ``ts < cutoff``.
-    4. Group records by ``root_cause_tag``; within each tag, cluster by
+    4. Index by :func:`cia_finding_identity` (dedup is then free) and drop
+       every identity a retraction tombstone names; both lines stay in the
+       JSONL, only the PROMOTION view excludes the retracted one (#1790).
+    5. Group records by ``root_cause_tag``; within each tag, cluster by
        title-token Jaccard similarity using
        :func:`issue_triage_analyzer.cluster_within_tag` (so the contract
        matches the existing triage analyzer).
-    5. Emit one :class:`AggregatedSignal` per sub-cluster with:
+    6. Emit one :class:`AggregatedSignal` per sub-cluster with:
 
        * ``signal_type`` = ``root_cause_tag``
        * ``frequency`` = cluster size
@@ -806,10 +905,11 @@ def collect_cia_findings(
         window_days: Number of days to look back.
 
     Returns:
-        Tuple of (signals, source_health). Status is ``"empty"`` when no
-        signals were produced (including when the directory does not exist),
-        ``"ok"`` on success, and ``"error"`` if a top-level exception was
-        caught.
+        Tuple of (signals, source_health): ``ok`` read fully with signals;
+        ``empty`` read fully, nothing in window; ``unmeasured`` no directory;
+        ``degraded`` read but incomplete (unreadable file, unparseable line,
+        out-of-vocabulary severity or MAX_LINES truncation, each named in
+        ``error_message``); ``error``.
     """
     source_name = "cia_findings"
 
@@ -832,7 +932,9 @@ def collect_cia_findings(
             from issue_triage_analyzer import cluster_within_tag  # type: ignore
 
         if not findings_dir.exists():
-            return [], SourceHealth(source=source_name, status="empty", signal_count=0)
+            return [], SourceHealth(
+                source=source_name, status=HEALTH_UNMEASURED,
+                error_message=f"findings directory does not exist: {findings_dir}")
 
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=window_days)
@@ -851,43 +953,39 @@ def collect_cia_findings(
                 continue
             monthly_files.append(p)
 
-        # Stream parse records.
-        records: List[Dict[str, Any]] = []
-        total_lines = 0
-        for monthly in monthly_files:
-            try:
-                with open(monthly, "r", encoding="utf-8") as fh:
-                    for line in fh:
-                        if total_lines >= MAX_LINES:
-                            break
-                        total_lines += 1
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            rec = json.loads(line)
-                        except (json.JSONDecodeError, ValueError):
-                            continue
-                        if not isinstance(rec, dict):
-                            continue
-                        ts_str = rec.get("ts", "")
-                        dt = _parse_iso_ts(ts_str)
-                        if dt is None:
-                            # Missing/malformed ts → skip per spec.
-                            continue
-                        if dt < cutoff:
-                            continue
-                        # Default missing session_id to literal "unknown".
-                        if not rec.get("session_id"):
-                            rec["session_id"] = "unknown"
-                        records.append(rec)
-            except (OSError, PermissionError):
+        # ONE identity-indexed collector: dedup is the dict, retraction a set
+        # difference. Read defects are charged to the shared bounded reader.
+        read = _BoundedRead()
+        by_identity: Dict[str, Dict[str, Any]] = {}
+        retracted_ids: set = set()
+        duplicate_records = 0
+        for rec in read.records(monthly_files):
+            dt = _parse_iso_ts(rec.get("ts", ""))
+            if dt is None:
+                read.malformed += 1  # unplaceable in time = incomplete
                 continue
-            if total_lines >= MAX_LINES:
-                break
+            if dt < cutoff:
+                continue
+            if not rec.get("session_id"):
+                rec["session_id"] = "unknown"
+            if rec.get(RECORD_TYPE_FIELD) == RECORD_TYPE_RETRACTION:
+                target = str(rec.get(RETRACTS_FIELD, "")).strip()
+                if target:
+                    retracted_ids.add(target)
+                else:
+                    read.malformed += 1  # a tombstone that names nothing
+                continue
+            identity = cia_finding_identity(rec)
+            if identity in by_identity:
+                duplicate_records += 1
+                continue
+            rec["finding_id"] = identity
+            by_identity[identity] = rec
 
-        if not records:
-            return [], SourceHealth(source=source_name, status="empty", signal_count=0)
+        # AFTER the full read, so a tombstone may precede or follow its target.
+        retracted_count = len(retracted_ids & set(by_identity))
+        records = [r for i, r in by_identity.items() if i not in retracted_ids]
+        degraded_notes: List[str] = read.notes
 
         # Group by root_cause_tag.
         by_tag: Dict[str, List[Dict[str, Any]]] = {}
@@ -895,8 +993,9 @@ def collect_cia_findings(
             tag = str(rec.get("root_cause_tag", "UNTAGGED"))
             by_tag.setdefault(tag, []).append(rec)
 
-        severity_order = {"info": 0, "warning": 1, "error": 2}
+        severity_order = CIA_SEVERITY_ORDER
         severity_inv = {v: k for k, v in severity_order.items()}
+        invalid_severity_records = 0
 
         signals: List[AggregatedSignal] = []
         for tag in sorted(by_tag):
@@ -921,12 +1020,15 @@ def collect_cia_findings(
                     description = ""
                 description = _sanitize_string(description)[:200]
 
-                # Max severity across the cluster.
-                max_sev_int = 0
-                for rec in cluster_records:
-                    sev = str(rec.get("severity", "info"))
-                    max_sev_int = max(max_sev_int, severity_order.get(sev, 0))
-                max_sev_label = severity_inv[max_sev_int]
+                # Max severity. #1790: an unrecognized label must NOT rank as
+                # ``info``; it contributes nothing, and an all-invalid cluster
+                # gets the sentinel.
+                ranks = [severity_order[sev] for sev in
+                         (str(r.get("severity", "info")) for r in cluster_records)
+                         if sev in severity_order]
+                invalid_severity_records += len(cluster_records) - len(ranks)
+                max_sev_label = (severity_inv[max(ranks)] if ranks
+                                 else CIA_INVALID_SEVERITY_LABEL)
                 severity_float = CIA_FINDING_SEVERITY_MAP[max_sev_label]
 
                 # Distinct sessions + file_refs union.
@@ -990,17 +1092,27 @@ def collect_cia_findings(
                             "sub_cluster_size": len(cluster_records),
                             "max_severity_label": max_sev_label,
                             "target_repo": target_repo,
+                            "finding_ids": sorted(str(rec.get("finding_id", ""))
+                                                  for rec in cluster_records),
                         },
                         timestamp=latest_ts,
                     )
                 )
 
-        health = SourceHealth(
-            source=source_name,
-            status="ok" if signals else "empty",
-            signal_count=len(signals),
-        )
-        return signals, health
+        if invalid_severity_records:
+            degraded_notes.append(
+                f"{invalid_severity_records} record(s) with an out-of-vocabulary "
+                f"severity (allowed: {sorted(CIA_SEVERITY_ORDER)})")
+        # Retractions and duplicates are deliberate exclusions: informational,
+        # not degrading. ONE health return, degraded dominating.
+        notes = degraded_notes + ([f"excluded {retracted_count} retracted and "
+                                   f"{duplicate_records} duplicate record(s)"]
+                                  if (retracted_count or duplicate_records) else [])
+        return signals, SourceHealth(
+            source=source_name, signal_count=len(signals),
+            status=(HEALTH_DEGRADED if degraded_notes
+                    else HEALTH_OK if signals else HEALTH_EMPTY),
+            error_message="; ".join(notes))
 
     except ValueError:
         # Re-raise programmer errors (absolute-path guard).
@@ -1030,6 +1142,63 @@ def persist_report(report: AggregatedReport, output_path: Path) -> None:
     report_dict = asdict(report)
     with open(output_path, "a") as f:
         f.write(json.dumps(report_dict, default=str) + "\n")
+
+
+def load_latest_persisted_digest(
+    report_path: Path,
+) -> Tuple[Optional[Dict[str, Any]], SourceHealth]:
+    """Read back the most recent persisted ``/improve`` digest for replay.
+
+    The digest rides the SAME ``aggregated_reports.jsonl`` line as its report
+    (#1790); the LAST line carrying one wins. Only a real report envelope
+    (:data:`REPORT_ENVELOPE_FIELDS`) may declare ``digest: null``; every other
+    shape — malformed line, an object with none of the report's keys (``{}``
+    included), an unreplayable digest — is REPORTED, never skipped in favour
+    of older healthy data. Validation runs the REAL replay path
+    (:func:`macro_promotion.digest_from_record`), not a parallel field check.
+
+    Returns:
+        ``(record, health)`` from ONE exit: ``ok``; ``unmeasured`` (no file or
+        no digest — NOT a green zero); ``degraded`` (unreplayable latest, or a
+        partial read so "latest" may be wrong); ``error`` (exists, unreadable).
+    """
+    report_path, latest, status = Path(report_path), None, HEALTH_OK
+    notes: List[str] = []
+    if not report_path.exists():
+        return None, SourceHealth(
+            source="improve_digest", status=HEALTH_UNMEASURED,
+            error_message=f"digest store does not exist: {report_path}")
+    read = _BoundedRead()
+    try:
+        for record in read.records([report_path]):
+            # A present digest IS the latest candidate, replayable or not.
+            if not REPORT_ENVELOPE_FIELDS & record.keys():
+                read.malformed += 1
+            elif record.get("digest") is not None:
+                latest = record["digest"]
+        notes = read.notes
+        if notes and not read.unreadable:
+            notes.append("'latest' may not be the true latest")
+            status = HEALTH_DEGRADED
+        if read.unreadable:
+            status = HEALTH_ERROR
+        elif latest is None:
+            status = HEALTH_UNMEASURED
+            notes.insert(0, f"no digest-bearing line in {report_path.name}")
+        else:
+            try:
+                from .macro_promotion import digest_from_record  # type: ignore
+            except ImportError:
+                from macro_promotion import digest_from_record  # type: ignore
+            digest_from_record(latest)  # validation only: raises if unreplayable
+    except (ImportError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        latest, status = None, HEALTH_DEGRADED
+        notes = [f"latest digest record failed replay validation: "
+                 f"{type(exc).__name__}: {str(exc)[:200]}"]
+    actionable = latest is not None and status in (HEALTH_OK, HEALTH_DEGRADED)
+    return (latest if actionable else None), SourceHealth(
+        source="improve_digest", status=status, signal_count=int(actionable),
+        error_message="; ".join(notes))
 
 
 # =============================================================================
@@ -1068,7 +1237,8 @@ def aggregate(
     patterns_path = (
         project_root / "plugins" / "autonomous-dev" / "config" / "known_bypass_patterns.json"
     )
-    findings_dir = project_root / ".claude" / "logs" / "findings"
+    # #1790: ONE owner. The old per-checkout path was blind to linked worktrees.
+    findings_dir = _resolve_findings_dir(start_path=project_root)
 
     # Collect from all sources
     session_signals, session_health = collect_session_signals(logs_activity_dir, window_days)

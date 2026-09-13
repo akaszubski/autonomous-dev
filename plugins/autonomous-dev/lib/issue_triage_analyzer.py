@@ -33,12 +33,14 @@ from drain_queue_state import MAX_CLUSTER_SIZE_AUTO_DRAINABLE
 
 # Robust import of runtime_data_aggregator.fetch_open_issues_with_label
 try:
-    from .runtime_data_aggregator import fetch_open_issues_with_label, SourceHealth  # type: ignore
+    from .runtime_data_aggregator import (  # type: ignore
+        CIA_SEVERITY_ORDER, fetch_open_issues_with_label)
 except ImportError:
     _lib_dir = Path(__file__).parent.resolve()
     if str(_lib_dir) not in sys.path:
         sys.path.insert(0, str(_lib_dir))
-    from runtime_data_aggregator import fetch_open_issues_with_label, SourceHealth  # type: ignore
+    from runtime_data_aggregator import (  # type: ignore
+        CIA_SEVERITY_ORDER, fetch_open_issues_with_label)
 
 
 # =============================================================================
@@ -59,6 +61,25 @@ PATH_REGEX = re.compile(r"(?:[a-zA-Z0-9_\-./]+/)+[a-zA-Z0-9_\-]+\.(?:py|md|sh|js
 
 # Bracket tag at the start of a title. Bracket content must be non-empty.
 TAG_REGEX = re.compile(r"^\s*\[([^\]]+)\]")
+
+# Machinery title round-trip PAIR (#1790). MEASURED: /improve emitted
+# f"[CI-{label}-{tag}] ..." while the reader returned the VERBATIM bracket
+# content, which classify_route compared against the BARE signal_type, so a
+# title the machinery wrote could never match the signal that wrote it and
+# every run duplicated its own issue. Normalization lives in the READER because
+# #1712/#1714/#1715/#1716 are already open in the [CI-<sev>-<TAG>] shape. The
+# regex anchors on the severity VOCABULARY, never hyphen position: a bare tag
+# may contain hyphens (HOOK-REGRESSION), and the non-empty trailing (.+) keeps
+# the 2-segment legacy form [CI-warning] verbatim and out of scope.
+MACHINERY_TITLE_PREFIX = "CI"
+SEVERITY_LABEL_VOCABULARY = tuple(sorted(CIA_SEVERITY_ORDER))
+_MACHINERY_TAG_REGEX = re.compile(
+    r"^" + re.escape(MACHINERY_TITLE_PREFIX) + r"-(?P<severity>"
+    + "|".join(re.escape(label) for label in SEVERITY_LABEL_VOCABULARY)
+    + r")-(?P<tag>.+)$")
+#: A ``]`` closes the bracket early, so ``[CI-warning-GA]MING]`` parses back as
+#: tag ``GA``; such a tag is REFUSED at format time, never silently corrupted.
+_TAG_FORBIDDEN_CHARS = "[]"
 
 # Severity classifications by label name substring.
 HIGH_LABEL_KEYWORDS = ("critical", "p0")  # security is a topic label, not a severity signal
@@ -114,25 +135,74 @@ class TriageFinding:
 # =============================================================================
 
 
-def extract_root_cause_tag(title: str) -> str:
-    """Extract the bracket tag from an issue title.
+def parse_root_cause_title(title: str) -> Tuple[str, Optional[str]]:
+    """Parse a title into ``(bare_root_cause_tag, severity_label_or_None)``.
 
-    Args:
-        title: Issue title (may have leading whitespace).
-
-    Returns:
-        The verbatim bracket content (e.g., ``"CI"``, ``"CI-warning"``). Returns
-        ``"UNTAGGED"`` when no bracket tag is present or the tag content is empty.
+    The ONE title reader — :func:`extract_root_cause_tag` and the un-prefix
+    step of :func:`format_root_cause_title` both delegate here, so there is a
+    single place the ``[CI-<sev>-<TAG>]`` shape is decided. A hand-written
+    ``[GAMING] ...`` carries no severity and gets ``None`` rather than a guess;
+    ``UNTAGGED`` when the bracket is absent or empty.
     """
-    if not title:
-        return "UNTAGGED"
-    match = TAG_REGEX.match(title)
-    if match is None:
-        return "UNTAGGED"
-    tag = match.group(1).strip()
+    match = TAG_REGEX.match(title) if title else None
+    raw_tag = match.group(1).strip() if match else ""
+    if not raw_tag:
+        return "UNTAGGED", None
+    machinery = _MACHINERY_TAG_REGEX.match(raw_tag)
+    if machinery is None:
+        return raw_tag, None
+    return machinery["tag"].strip(), machinery["severity"]
+
+
+def extract_root_cause_tag(title: str) -> str:
+    """Return the bare root-cause tag of an issue title.
+
+    ``"[CI-error-HOOK-REGRESSION] ..."`` -> ``"HOOK-REGRESSION"``; the verbatim
+    bracket content for a non-machinery title; ``"UNTAGGED"`` when absent.
+    """
+    return parse_root_cause_title(title)[0]
+
+
+def format_root_cause_title(
+    *,
+    root_cause_tag: str,
+    severity_label: str,
+    description: str,
+    max_length: int = 200,
+) -> str:
+    """Format the canonical machinery issue title, or refuse.
+
+    The write half of the pair: ``parse_root_cause_title(format_root_cause_
+    title(...))`` returns the ORIGINAL ``(tag, severity)``. The bracket leads
+    the string so clamping only removes description bytes, and an already-
+    prefixed tag is un-prefixed THROUGH the parser, so a re-run cannot emit
+    ``[CI-error-CI-error-GAMING]`` and the two halves cannot drift apart.
+
+    Raises:
+        ValueError: For anything that would not round-trip (#1790) — a severity
+            outside :data:`SEVERITY_LABEL_VOCABULARY`, a blank tag, a tag
+            holding a bracket character, or a tag so long the clamp would cut
+            past the closing ``]``.
+    """
+    label = str(severity_label or "").strip()
+    if label not in CIA_SEVERITY_ORDER:
+        raise ValueError(
+            f"severity_label {severity_label!r} is outside the vocabulary "
+            f"{list(SEVERITY_LABEL_VOCABULARY)}; the title would not round-trip")
+    tag = str(root_cause_tag or "").strip()
     if not tag:
-        return "UNTAGGED"
-    return tag
+        raise ValueError("root_cause_tag must be a non-empty bare tag")
+    if any(char in tag for char in _TAG_FORBIDDEN_CHARS):
+        raise ValueError(
+            f"root_cause_tag {tag!r} holds a bracket character, so the title "
+            f"would close its bracket early and parse back truncated")
+    tag = parse_root_cause_title(f"[{tag}]")[0]
+    prefix = f"[{MACHINERY_TITLE_PREFIX}-{label}-{tag}]"
+    if len(prefix) > max_length:
+        raise ValueError(
+            f"root_cause_tag {tag!r} yields a {len(prefix)}-character bracket "
+            f"that max_length {max_length} cuts past its ']', leaving UNTAGGED")
+    return f"{prefix} {str(description or '').strip()}"[:max_length]
 
 
 def _strip_leading_tag(title: str) -> str:
@@ -687,7 +757,7 @@ def _merge_two_findings(a: TriageFinding, b: TriageFinding) -> TriageFinding:
     merged_files = tuple(sorted(set(a.shared_files) | set(b.shared_files)))
     
     # Concatenate non-empty dependency notes
-    notes = []
+    notes: List[str] = []
     if a.dependency_notes:
         notes.extend(a.dependency_notes)
     if b.dependency_notes:
