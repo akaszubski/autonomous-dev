@@ -1,0 +1,153 @@
+{
+  "date": "2026-09-13",
+  "findings": "Use one canonical plugin and one portable Linux tooling recipe with thin harness variants; a declarative sbx environment supplies install-once/attach/resume UX on supported hosts. Full portability is a tested support matrix, not an unconditional promise. Mount a self-contained clone for live editing; linked worktree alone lacks guest Git metadata.",
+  "sources": [
+    {
+      "url": "https://code.claude.com/docs/en/discover-plugins",
+      "title": "Native plugin installation and updates",
+      "version": "Retrieved2026-09-13; local claude plugin install/update help also verified",
+      "relevance": "Native lifecycle replaces file copying; update requires fresh loaded session evidence; source metadata remains necessary"
+    },
+    {
+      "url": "https://git-scm.com/docs/git-bundle",
+      "title": "Git bundle",
+      "version": "Retrieved2026-09-13; local git bundle help verified",
+      "relevance": "Offline transfer of committed objects and refs; excludes working tree and repository configuration, not committed secrets"
+    },
+    {
+      "url": "https://docs.docker.com/ai/sandboxes/install/",
+      "title": "Docker Sandboxes installation",
+      "version": "Retrieved2026-09-13; installed sbx0.42.1",
+      "relevance": "Apple silicon macOS14+, Windows11x64 Hypervisor Platform, Ubuntu24.04+x64/arm64 KVM; not all OS/architectures"
+    },
+    {
+      "url": "https://docs.docker.com/ai/sandboxes/workflows/git/",
+      "title": "Git workflows",
+      "version": "Retrieved2026-09-13",
+      "relevance": "Direct mounts vs private clone; linked host worktree cannot use Git; clone source exposure"
+    },
+    {
+      "url": "https://docs.docker.com/ai/sandboxes/customize/templates/",
+      "title": "Templates",
+      "version": "Retrieved2026-09-13; verify exact installed version",
+      "relevance": "Default -docker variants privileged inside VM; non-Docker variants lighter/non-privileged; separate image store; saved user config rewritten"
+    },
+    {
+      "url": "https://docs.docker.com/ai/sandboxes/configuration/environment-files/",
+      "title": "Environment files",
+      "version": "Retrieved2026-09-13; experimental",
+      "relevance": "Native plan/run/resume; explicit host-side effects, sharedSkills optout, host-global binding/MCP caveats"
+    },
+    {
+      "url": "https://containers.dev/implementors/features/",
+      "title": "Dev Container Features specification",
+      "version": "Retrieved2026-09-13",
+      "relevance": "Existing portable tooling installation unit; implementation may be distro-specific and can request privilege; not equivalent isolation"
+    },
+    {
+      "url": "https://docs.docker.com/ai/sandboxes/governance/audit/local/",
+      "title": "Local audit logs",
+      "version": "Retrieved earlier same2026-09-13 session",
+      "relevance": "Formal logs require paid governance; keep existing independent evidence"
+    },
+    {
+      "url": "https://github.com/loft-sh/devpod",
+      "title": "DevPod",
+      "version": "README retrieved earlier2026-09-13; latest release API v0.6.15",
+      "relevance": "Existing remote/local provisioning option, not required new dependency"
+    }
+  ],
+  "existing_patterns": [
+    {
+      "file": "plugins/autonomous-dev/.claude-plugin/plugin.json",
+      "pattern": "Canonical package currently rejected by pinned native validator; #1755 owns repair",
+      "reusable": true
+    },
+    {
+      "file": "docs/plans/20260909-control-tool-v12.md",
+      "pattern": "F0->R0->D0, exact installed proof and existing issue ownership; no phase shortcut",
+      "reusable": true
+    },
+    {
+      "file": "docs/plans/20260913-f0-native-sandbox-amendment.md",
+      "pattern": "Mandatory strict native composition remains; shell/bwrap tests do not qualify harness workflow",
+      "reusable": true
+    },
+    {
+      "file": "docs/development/CONTENT_ALLOCATION.md",
+      "pattern": "One home per topic; plan/research in tracked docs, live state in GitHub",
+      "reusable": true
+    }
+  ],
+  "recommendations": [
+    {
+      "approach": "Qualify sbx environment files plus a shared mixin and thin per-harness entrypoints consuming one canonical plugin",
+      "pros": [
+        "Native one-command resume",
+        "Runtime owns platform/security mechanics",
+        "No per-repo infrastructure copying"
+      ],
+      "cons": [
+        "Experimental schema and vendor account dependency",
+        "Full native hook evidence and package repair still required",
+        "Windows/Linux host coverage not yet measured"
+      ],
+      "effort": "medium; dependent on existing F0/R0/D0"
+    },
+    {
+      "approach": "Use live mounted self-contained clone or isolated-review workspace; no custom Git mount repair",
+      "pros": [
+        "Clear live-edit vs protected-original behavior",
+        "Avoids exposing parent Git metadata"
+      ],
+      "cons": [
+        "Live mount edits host immediately",
+        "Clone mode source can reveal ignored/untracked secrets"
+      ],
+      "effort": "low configuration; boundary proof required"
+    },
+    {
+      "approach": "Defer Dev Container Feature/DevPod integration until a concrete consumer requires it",
+      "pros": [
+        "Avoid duplicate packaging and release surface"
+      ],
+      "cons": [
+        "Not every existing environment gets turnkey installation in first release"
+      ],
+      "effort": "low now; separately scoped when needed"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Default -docker agent container privileged inside microVM; previous success overstates non-privileged profile evidence",
+      "mitigation": "Select and requalify non-Docker variant; no weakening mandatory gates",
+      "severity": "high"
+    },
+    {
+      "risk": "Linked worktree source mount breaks Git",
+      "mitigation": "Use a self-contained clone for live edits or a fixed Git bundle for mountless autonomous work; no parent mount workaround",
+      "severity": "high"
+    },
+    {
+      "risk": "Unconditional cross-platform claim",
+      "mitigation": "Real OS/architecture evidence and explicit unsupported/remote profiles",
+      "severity": "high"
+    },
+    {
+      "risk": "Settings overwrite, credentials or global MCP/binding side effects",
+      "mitigation": "Supported additive layers, host plan review and narrow scopes; populated-consumer preservation cases",
+      "severity": "high"
+    },
+    {
+      "risk": "Native macOS/Windows builds cannot be replaced by Linux tools",
+      "mitigation": "Retain separate qualified native build jobs and report their outcomes",
+      "severity": "high"
+    },
+    {
+      "risk": "Vendor sign-in/runtime terms confused with MIT product/free offline operation",
+      "mitigation": "Optional adapter, explicit licensing/account requirements and no paid feature dependency",
+      "severity": "medium"
+    }
+  ],
+  "search_limits": "Closed issue exact search returned none; broader existing issues #1755/#1734/#1521/#1636 already own work. Two web queries: one timed out, one irrelevant; official primary pages used. No CVE absence or exhaustive comparison claimed."
+}
