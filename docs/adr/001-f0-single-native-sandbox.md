@@ -54,6 +54,27 @@ Requested command-line properties are therefore insufficient: a new named
 service's effective properties and actual effects must be checked. Do not alter
 the global drop-in or assume that `User=f0` removes supplementary privileges.
 
+The concrete candidate uses a dedicated static system identity, not the existing
+privileged-group account. A maximal DynamicUser/kernel-mount profile failed;
+paired static-identity controls started with both strict and full filesystem
+protection, so the failure must not be attributed to strictness alone.
+
+The worker has a further container-specific procfs constraint. Removing its
+complete proc view prevents bubblewrap from mounting a fresh procfs. A read-only
+support view did not resolve this; a read-write view beneath a root-owned 0700
+directory on read-only tmpfs did. This view is for kernel namespace construction,
+**not tool access**. Private devices still hide the original administrative path.
+The candidate must prove refusal through direct, symlink, proc-root, directory-FD,
+working-directory and mutation routes, including a mapped-root challenge; no
+inherited descriptor may expose the protected view. A marker alone is insufficient.
+The [kernel mount visibility rules](https://github.com/torvalds/linux/blob/master/fs/namespace.c)
+explain why mount visibility and pathname access are distinct checks.
+
+This support mount is a disposable-worker compatibility binding, not a new
+mandatory product dependency or a claim about other platforms. Product portability
+still requires its own installed-consumer proof. A host with an adequate complete
+proc view must not acquire this workaround by default.
+
 ## Alternatives considered
 
 - Keep two strict SRT layers: small configuration, but reproducibly cannot start
@@ -76,6 +97,9 @@ the global drop-in or assume that `User=f0` removes supplementary privileges.
    properties, positive controls, private carrier
    exclusion, network/credential dummy controls and cleanup. A standalone pass
    is not proof of the native CLI adapter.
+   Reject apparent refusals caused by the checker failing before the tested
+   operation (for example, a failed shell redirection). Require the operation's
+   actual error and its positive control, retaining invalid earlier receipts.
 3. Independently review the changed boundary against the amendment. Unknown
    settings, unexpected mounts/privileges and missing required OS effects fail
    admission; no real credential is loaded to discover a known prerequisite gap.
