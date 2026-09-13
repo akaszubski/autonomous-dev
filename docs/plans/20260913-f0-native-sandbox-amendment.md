@@ -25,8 +25,25 @@ required checks. The prior bytes at `3e9b4b1a` (SHA-256
 remain historical evidence, not the current ordering.
 Conditional authentication authority applies only after Stage A passes and only
 to the existing Claude Max subscription via a supported login route; no credential
-copying, paid API fallback, unrestricted account use or unrelated model work.
+copying except the narrowly conditional worker-token route below, paid API
+fallback, unrestricted account use or unrelated model work.
 Neither consumer deployment nor promotion is authorized by an OS pass.
+
+On 2026-09-13 the user approved evaluating a disposable-worker-only subscription
+token route ("approve and go ahead and fix all this"). This permits evaluating
+supported `claude setup-token` handling with the pinned stock sandbox runtime;
+it does not authorize importing existing host credentials or creating a custom
+credential broker. Before minting any token, independently verify secret-safe
+capture and injection, exclusion from tool-visible state and evidence logs, and
+a supported scoped revocation mechanism that does not revoke unrelated sessions.
+Deleting a local token or stopping the worker is not proof of server revocation.
+Only after those prerequisites and Stage A pass may a newly minted test-specific
+token be transferred within the named disposable worker's trusted boundary for
+the frozen native cases. No clipboard, chat, command-line argument or transcript
+may carry its value. If supported scoped revocation cannot be established, do not
+mint a token; preserve the finding and report the remaining admission blocker.
+The previous no-copy amendment bytes at `9b3346b7` remain historical evidence;
+the v12 adoption and all other acceptance gates remain unchanged.
 
 ## Architecture decision
 
@@ -64,8 +81,10 @@ alternative before execution; do not silently relax the boundary.
 ## WHY + SCOPE
 
 Remove the circular requirement to exercise a model-driven native tool route
-before any model authentication. Change only qualification ordering in this
-document; no new runtime, verifier, policy engine or production implementation.
+before any model authentication, and evaluate a narrowly scoped supported token
+route without silently weakening its lifecycle requirements. This document
+changes qualification ordering and conditional authority only; no new runtime,
+verifier, policy engine or production implementation.
 
 ## Existing Solutions
 
