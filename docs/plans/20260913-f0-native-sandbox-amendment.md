@@ -1,4 +1,4 @@
-# F0 amendment — native isolation before authenticated testing
+# F0 amendment — staged isolation and native qualification
 
 Date: 2026-09-13
 
@@ -15,9 +15,17 @@ and SHA-256 `05a3efafecb2099ff8f9d1efdb9601577fdf071072e9b945690cbdbc252fab7d`.
 This is a linked F0 prerequisite amendment, not a retroactive replacement of its
 adoption or evidence. F0 acceptance, frozen cases, oracle independence, budgets
 not already excepted, and the separate exact F0-to-R0 authorization remain intact.
-Local zero-cost provisioning and dummy-secret OS tests are permitted. This
-amendment does not authorize OAuth, real authentication or credential injection;
-these require separate explicit user authority, and missing authority is a blocker.
+Local zero-cost provisioning and dummy-secret OS tests are permitted. On
+2026-09-13 the user approved the explicitly proposed two-stage change with
+"do it": prove outer isolation using dummy data first, then a tightly scoped
+Claude login and native workflow test, with normal development blocked until pass.
+This supersedes this amendment's earlier pre-secret full-native ordering, not its
+required checks. The prior bytes at `3e9b4b1a` (SHA-256
+`7034e937eef11e7500abaa4191d6ce8092ebc701579242121fabab6d0ca85339`)
+remain historical evidence, not the current ordering.
+Conditional authentication authority applies only after Stage A passes and only
+to the existing Claude Max subscription via a supported login route; no credential
+copying, paid API fallback, unrestricted account use or unrelated model work.
 Neither consumer deployment nor promotion is authorized by an OS pass.
 
 ## Architecture decision
@@ -53,10 +61,56 @@ disable, weaker nested sandbox or host security change merely to pass a probe.
 If strict nesting fails, diagnose it and review a supported isolated Linux/VM
 alternative before execution; do not silently relax the boundary.
 
+## WHY + SCOPE
+
+Remove the circular requirement to exercise a model-driven native tool route
+before any model authentication. Change only qualification ordering in this
+document; no new runtime, verifier, policy engine or production implementation.
+
+## Existing Solutions
+
+Reuse the existing outer sandbox, mandatory native sandbox and file permissions,
+frozen F0 fixtures and independent comparator. The sources below and #1773's
+recorded CLI inspection establish the distinction between OS probes and native
+execution; no supported credential-free full native route has been demonstrated.
+
+## Minimal Path
+
+- **Stage A, no model credentials:** freeze exact profile/package/settings
+  identities; complete Prepare, OS viability and OS effects above using dummy
+  data. Demonstrate host/private-evidence exclusion, protected policy, required
+  network/descendant/socket refusals and working positive controls. Account for
+  all gateway/credential plumbing: no registered MCP servers is not evidence
+  that an enabled gateway is disabled or inaccessible. Any missing required
+  observation, unexpected credential or escape blocks Stage B.
+  Exercise the intended Stage B credential paths, gateway and endpoint policy
+  using dummy values. Compare actual configuration after login to that frozen
+  profile; any changed settings, mounts, gateway or endpoint permissions invalidate
+  affected checks, which must pass again before model/tool execution.
+- **Stage B, conditional scoped authentication and native tests:** after an
+  independent Stage A review against frozen cases, use supported subscription
+  authentication for the named disposable F0 worker only. Record effective
+  endpoint permissions and credential handling without capturing secret values;
+  never mount/copy host credentials or grant broad network access for login.
+  The authenticated service is a real account capability, not dummy data:
+  containment does not prevent authorized account consumption, so retain the
+  existing attempt limits and stop on unexpected provider/billing behavior.
+  Run only frozen native qualification cases with fixture inputs, no consumer
+  repository or normal development. Observe actual parent/child/tool/result
+  paths, native sandbox enforcement, hook failures and identifier census.
+- **Admission:** only independent Native composition and F0 integration evidence
+  can complete F0. A login, OS pass or successful model response cannot. Preserve
+  failing evidence, stop the worker and independently verify removal of
+  test-specific access using the supported scoped mechanism on success, failure,
+  cancellation or interruption; do not revoke unrelated sessions or
+  repeatedly retry. If scoped credential cleanup cannot be established, refuse
+  authentication until its lifecycle is defined.
+
 Use dummy data before real authentication. A standalone sandbox-runtime test is
 an OS prerequisite only; its version must match or its differences be explicit.
-If no pre-secret full native route is available, record that blocker rather than
-claiming that a shell test proves Claude integration.
+The security checks are unchanged; only real native checks move after the
+conditional login. Unsupported routes and required missing evidence remain
+blockers rather than substitutes for acceptance.
 
 ## Efficient execution without weaker evidence
 
