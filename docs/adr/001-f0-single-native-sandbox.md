@@ -89,6 +89,14 @@ proc view must not acquire this workaround by default.
 
 ## Execution and acceptance
 
+The [approved layered-IPC trial](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5656271270)
+is a narrowly authorized, credential-free alternative to this single-native
+candidate, not its activation. It moves the Unix-creation refusal obligation
+to the mandatory inner tool sandbox while permitting the outer trusted parent
+to create internal IPC. Its exact scope and required opposite/mutant controls
+live in that decision; earlier outer-layer refusals cannot be relabelled as
+proof of the changed composition. All other admission gates remain in force.
+
 ### Native adapter compatibility is a separate boundary
 
 The standalone runtime's accepted configuration is not automatically accepted
