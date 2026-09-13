@@ -107,6 +107,26 @@ def test_audit_false_positive_files_unchanged(file_path: str) -> None:
 
 **Reference**: `tests/unit/lib/test_phase3_wrap_adoption.py::test_phase3_false_positive_files_unchanged` (Issue #1007 — Phase 3 GenAIAnalyzer adoption audit excluded 4 files that reference Analyzer classes but not GenAIAnalyzer). The docstring of each scope-lock test MUST cite the originating audit (issue number or refactor pass) and explain WHY each file is excluded.
 
+#### Settings Test Subjects (Issue #1762 smoke contract, this repo's fixtures)
+
+Any test that reads settings JSON MUST name which of these three subjects it is testing. They are distinct and MUST NOT be used as aliases of one another. Collapsing them is what made `test_installed_settings_deny_rules` assert that a project file carried a global deny list, and fail on a correctly-configured repo (Issue #1762). The table below describes the `tests/regression/smoke/test_permission_glob_syntax.py` fixture contract for THIS repository — it is not a universal claim about every consumer repo. Retrofit preservation is the product's primary contract: a consumer repo may legitimately retain custom project-level `deny` rules and hooks, and a consumer's installed profile may legitimately be a MERGED result rather than a byte-identical copy of canonical.
+
+| Subject | What it is | Deny-list expectation (this repo's #1762 fixture) | How this test reaches it |
+|---|---|---|---|
+| **project** | `.claude/settings.json` — this repo's own tracked project settings | **No `deny` key at all in this repo, by design** (only `allow`; the extraction yields an empty list by absence, not a literal empty list): hooks and policy live in the user-level profile here. This expectation is specific to this repo's fixture, not a universal rule — a consumer repo's retained project-level `deny` rules are legitimate and would not be a regression there. | Read the repo file directly |
+| **template** | `plugins/autonomous-dev/templates/settings.default.json`, `plugins/autonomous-dev/config/global_settings_template.json`, and `DEFAULT_DENY_LIST` in `lib/settings_generator.py` — the canonical policy the product ships | **Non-empty and valid** | Read the source tree |
+| **installed** | The `installed_config_root` fixture: canonical bytes copied into an isolated `tmp_path` configuration root | **Byte-identical to canonical by construction** — this fixture proves the copy step ran correctly; it is not evidence about what a real installer, a merged consumer profile, or a native deployment actually contains (that class of evidence remains an open gap, tracked separately as Issue #1768) | A fixture that writes the exact canonical bytes into `tmp_path` — it does not read any real installed profile |
+
+Rules that follow from the table:
+
+- **Project settings carry a negative control, not a positive one, in this repo's fixture.** Assert the canonical deny rules are ABSENT from this repo's project file. Absence of the `deny` key is this repo's expected state; a non-empty intersection with the canonical corpus is the regression here. Syntax validation still applies to whatever rules the file does carry.
+- **The `installed_config_root` fixture never reads `$HOME`, CI runner state, or the source checkout as a substitute.** That isolation makes the fixture portable — it runs identically on Linux CI and macOS local — but it is a different evidence class from proof about a real installed profile: the fixture demonstrates byte-copy correctness, not that any actual installer or consumer deployment produced those bytes.
+- **Missing or stale installed bytes in the fixture FAIL rather than skip.** A skip on an absent fixture would silently convert a broken test setup into a pass. That failure is evidence the fixture's own setup is broken, not by itself demonstrated evidence of a deployment defect in the shipped product — actual-installer, merged-consumer, and native-deployment evidence remain open (Issue #1768).
+- **Negative arms vary exactly one thing.** A malformed rule, an empty deny list and a missing `deny` key are three separate tests, so a red attributes to a single cause.
+- **Byte-identity has no standalone positive test.** It is enforced by the `assert _installed_profile_drift(...) is None` precondition that both negative arms (`test_stale_installed_profile_fails`, `test_missing_installed_profile_fails`) run before perturbing the fixture. A separate standalone byte-identity test was removed after mutation testing showed it killed no mutant the shared precondition did not already kill.
+
+**Reference**: `tests/regression/smoke/test_permission_glob_syntax.py` — `PROJECT_SETTINGS_PATH`, `CANONICAL_DENY_SOURCES` and the `installed_config_root` fixture are the three non-aliasable names, scoped to this repo's fixtures.
+
 ### Layer 3: Property-Based Invariants
 
 **What**: Universal properties that hold across all inputs
