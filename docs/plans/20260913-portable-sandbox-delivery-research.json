@@ -3,6 +3,24 @@
   "findings": "Use one canonical plugin and one portable Linux tooling recipe with thin harness variants; a declarative sbx environment supplies install-once/attach/resume UX on supported hosts. Full portability is a tested support matrix, not an unconditional promise. Mount a self-contained clone for live editing; linked worktree alone lacks guest Git metadata.",
   "sources": [
     {
+      "url": "https://martinfowler.com/bliki/StranglerFigApplication.html",
+      "title": "Strangler Fig",
+      "version": "Article2024-08-22; retrieved2026-09-13",
+      "relevance": "Incremental replacement through seams; temporary coexistence needs explicit retirement"
+    },
+    {
+      "url": "https://opentelemetry.io/docs/concepts/context-propagation/",
+      "title": "Context propagation",
+      "version": "Retrieved2026-09-13 including Markdown body",
+      "relevance": "Propagate exact context across boundaries; context can be forged and is not independent assurance"
+    },
+    {
+      "url": "https://in-toto.io/docs/getting-started/",
+      "title": "in-toto getting started",
+      "version": "Retrieved2026-09-13; page last modified2024-12-13",
+      "relevance": "Materials/products and independent verification; recording an artifact does not prove execution used it"
+    },
+    {
       "url": "https://code.claude.com/docs/en/discover-plugins",
       "title": "Native plugin installation and updates",
       "version": "Retrieved2026-09-13; local claude plugin install/update help also verified",
@@ -80,6 +98,13 @@
     }
   ],
   "recommendations": [
+    {
+      "approach": "Prioritize adopted v12 minimal vertical proof; borrow incremental replacement, context propagation and input/output binding without adding frameworks",
+      "pros": ["One connected control before expansion", "Reuse existing telemetry and independent comparator", "Explicit retirement of superseded owners"],
+      "cons": ["Does not repair missing native identifiers by itself", "Artifact hashes do not prove actual reads or semantic examination", "Packaging convenience remains deferred"],
+      "effort": "low for sequencing clarification; existing F0/R0/W0 implementation estimates unchanged",
+      "sources": ["https://martinfowler.com/bliki/StranglerFigApplication.html", "https://opentelemetry.io/docs/concepts/context-propagation/", "https://in-toto.io/docs/getting-started/"]
+    },
     {
       "approach": "Qualify sbx environment files plus a shared mixin and thin per-harness entrypoints consuming one canonical plugin",
       "pros": [

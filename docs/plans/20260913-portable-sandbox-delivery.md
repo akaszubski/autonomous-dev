@@ -83,6 +83,51 @@ and source, not an exhaustive security-advisory survey.
 
 ## Minimal Path
 
+### Execution priority: prove the workflow before improving its packaging
+
+User direction, 2026-09-13: delivery convenience must not displace the existing
+[minimal vertical proof](20260909-control-tool-v12.md#minimal-vertical-proof-before-broad-testing).
+This clarification restricts this proposal's execution scope; it does not alter
+the adopted v12 bytes, frozen F0 cases or separate R0 authorization.
+
+1. Finish only the isolation prerequisites needed for the frozen F0 native route;
+   then measure actual tool ingress, hook result, dispatcher and stream records.
+   A failed prerequisite gets a precise blocker and smallest supported remedy,
+   not a broader environment redesign. Reuse unchanged evidence only when its
+   declared dependencies/profile remain valid; retain required end-to-end reruns.
+2. Freeze F0 evidence and missing-carrier findings honestly; obtain the required
+   separate R0 authorization, then prove the bounded verifier against the existing
+   independent oracle/comparator, including deliberately broken instruments.
+3. Continue D0 and the first W0 control in adopted order: one real permit, refusal
+   and broken route through the executing entrypoint to its production consumer.
+   These three initial cases do not replace mandatory security or F0 mutation cases.
+4. D0's clean-installed-consumer proof remains its exit gate before W0, as v12
+   requires; W0 then proves its own installed/executing control and rollback.
+   Expand only after that connected route works, retiring each superseded owner
+   at its authorized migration boundary, not deferring D0 proof until after W0.
+
+Until required by that route, defer convenience mixins, additional harnesses,
+cross-platform UX work and automatic updates. Native plugin delivery is still D0's
+product requirement, not a prerequisite for F0's existing isolated fixtures.
+One active execution lane owns native settings/session/evidence; parallel work may
+prepare independent frozen cases or inspect existing records, not duplicate runners.
+The existing program issue records the exact next missing receipt and actual worker
+activity; documents and a live idle process are not execution milestones.
+
+Borrow patterns, not frameworks (sources checked 2026-09-13):
+
+| Pattern | Apply to existing mechanisms | Limit / subtraction |
+|---|---|---|
+| [Strangler Fig](https://martinfowler.com/bliki/StranglerFigApplication.html) | Replace one control behind its existing entrypoint, prove equivalent intended behavior, then switch ownership | Temporary coexistence costs complexity; name the old owner and remove it after proof, never preserve known defects as desired behavior |
+| [OpenTelemetry context propagation](https://opentelemetry.io/docs/concepts/context-propagation/) | Reuse native IDs and existing telemetry; prove each required boundary carries an exact identity | A trace ID is correlation, not authenticity or compliance; missing upstream keys remain UNMEASURED, no timestamp joins or new collector |
+| [in-toto materials/products](https://in-toto.io/docs/getting-started/) | Bind existing receipts to exact inputs, outputs and command results, checked independently | Listed materials can be recorded without being used; retain actual read records and effect checks, not an attestation-only PASS or a new signing service |
+
+These reinforce v12's four existing concepts and single-receipt ownership, not new
+schemas. Context propagation plus input/output binding inform provenance together;
+neither proves semantic examination. Required read coverage checks exact returned
+content/ranges and truncation; separate acceptance checks the resulting work against
+intent. Do not claim to prove a model's internal understanding from tool records.
+
 ### Native plugin install and update: the primary delivery method
 
 Use Claude's plugin manager, not the existing file-copy installer, for ongoing
@@ -273,3 +318,7 @@ Round 3: PROCEED; no material contradiction remained. The suggested research
 appendix correction had already been applied during review. Subsequent user
 clarification makes native plugin updating explicit and centers hook execution;
 these additions preserve all existing acceptance/authorization boundaries.
+
+Execution-priority clarification: three further critique rounds, REVISE then
+corrections verified and PROCEED. Explicitly retained D0 installed proof before W0
+and required end-to-end reruns despite unchanged bytes; no new framework or waiver.
