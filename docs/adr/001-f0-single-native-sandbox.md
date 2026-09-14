@@ -105,12 +105,19 @@ Its public CA handoff does not grant access to private keys. Actual tool-visible
 mounts must be observed separately from the trusted parent's view: the same
 pathname can identify a different object in the two namespaces.
 
-The [execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5656436394)
+The historical [execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5656436394)
 identifies the retained receipts, prepared but unexecuted checks, and reported
 platform restriction. Neither a usage-limit reset nor another general approval
 constitutes successful qualification or permission to evade that restriction.
 Resume at the missing evidence once the restriction is legitimately resolved;
 do not restart adoption, login, or unchanged proofs merely because work paused.
+
+The later [connected dummy integration receipt](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5660240758)
+supersedes that checkpoint's pending-work status, not its retained evidence.
+It proves the fixed dummy loader-to-collector route and local process-group
+cleanup only; service/producer provenance and authenticated native admission
+remain separate obligations. A Python fixture emitting native-shaped records
+is not a native Claude invocation, even when its collector accepts the records.
 
 ### Native adapter compatibility is a separate boundary
 
