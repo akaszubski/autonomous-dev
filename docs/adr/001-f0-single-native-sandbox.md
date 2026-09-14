@@ -169,6 +169,46 @@ to compensate for a composition failure.
 
 ## Scope and recovery
 
+### Composed launch and log-handling decisions — 2026-09-14
+
+The private F0 launcher reuses stock systemd lifetime management and the existing
+capture filter. Preserve its runtime directory through service stop, prove the
+owned process graph is gone, read only the declared debug/transcript carriers
+through stable nofollow descriptors, then remove the owned scratch directory.
+Quiescence alone is not completed cleanup. Keep the existing interruption and
+attempt deadlines; runtime preservation does not extend them. Unknown/replaced
+contents on refusal remain explicitly uncleaned, not recursively erased as if
+they had passed verification.
+
+The root parent renders one exact named late service binding from the public
+template. It restores the selected credential binding after the worker's global
+systemd reset without changing that global configuration. Inspect the effective
+typed credential properties, not `systemctl`'s unprintable rendering; the selected
+source and absence of additional credential carriers must match before release.
+Rendering a native source is not authorization to read or use it.
+
+Disable ambient user/project/local settings with the supported empty argument
+`--setting-sources ''`, retaining explicit `--settings` and managed policy.
+Managed-policy absence or effective contents still require examination; this is
+not a claim that managed policy is disabled. This narrow launch-input refinement
+does not change the frozen PR8 command or weaken its sandbox restrictions.
+A read-only empty project directory was rejected after it prevented stock bwrap
+from creating its protection paths; do not maintain a copy of that upstream list.
+
+Retain the outer stock process's `0022` umask for its public CA materialization.
+After the reviewed CA handoff, set the native adapter's umask to `0077` before
+publishing readiness or executing Claude. The root observer checks the actual
+adapter value; the log exporter still verifies actual private directory/file
+permissions rather than trusting the default. Applying `0077` to the entire
+service was rejected by the unchanged public-CA checks in the composed trial.
+
+The successful dummy pre-release trial deliberately sent no release byte and
+executed no Claude process. It qualifies only the observed pre-exec composition;
+actual native settings, file/tool behavior, log creation and end-to-end provenance
+remain required. Exact subjects, failures and receipts are maintained in #1773,
+not duplicated here as current completion claims. Scoped revocation remains a
+pre-auth prerequisite; no decision here activates R0 or consumer deployment.
+
 ### Accepted provider-response trust assumption — 2026-09-14
 
 The user approved "ok trust it" after comparing stock provider trust with custom
