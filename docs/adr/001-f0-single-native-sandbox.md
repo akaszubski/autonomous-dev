@@ -169,6 +169,36 @@ to compensate for a composition failure.
 
 ## Scope and recovery
 
+### Accepted provider-response trust assumption — 2026-09-14
+
+The user approved "ok trust it" after comparing stock provider trust with custom
+response filtering. For F0, Anthropic's authenticated provider response handling
+is explicitly trusted not to return the injected authentication credential to
+Claude. This is an accepted assumption, NOT a measured credential-free-log
+guarantee. It resolves the specific response-echo admission question recorded in
+[#1773](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5660467611).
+Do not build a custom response-filtering proxy for this contingency.
+
+The inspected stock SRT0.0.76 TLS proxy forwards response headers and body
+without reverse credential filtering. If the provider unexpectedly echoes a
+credential, native debug/transcript files may contain it before evidence export;
+this residual risk is accepted, not hidden by post-hoc scrubbing. An observed
+leak still fails the run and requires scoped revocation and incident handling.
+
+This narrow addendum supersedes only a reading of the earlier secret-safe-log
+prerequisite that demands proof against provider response echo. Preserve the
+frozen plan/amendment bytes as history; this decision does not rewrite them.
+It does not authorize trusting model reports, other destinations or consumer
+repositories by default. Credential isolation, restricted provider destinations,
+protected native logs, fail-closed declared-secret filtering before evidence
+export, and supported scoped token revocation remain mandatory. Never put the
+real token in chat, prompts, command arguments or tool-visible state.
+
+Native persistence and independent read/tool/hook/effect provenance remain
+required. Native path confinement, final service/provider bindings, lifecycle
+qualification and Stage B cases are still unpassed; this decision alone does
+not admit authentication, close F0 or authorize R0 or deployment.
+
 No production libraries, hooks, consumer settings or installer are changed by
 this proposal. Private candidate files live under `adev-os-probe.knaJ5c` in the
 local Codex artifact store; exact paths and digests belong in #1773's result
