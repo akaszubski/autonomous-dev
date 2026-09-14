@@ -97,6 +97,21 @@ to create internal IPC. Its exact scope and required opposite/mutant controls
 live in that decision; earlier outer-layer refusals cannot be relabelled as
 proof of the changed composition. All other admission gates remain in force.
 
+The trial's [single-owner composition and dummy evidence](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5656390207)
+keep credential masking and TLS termination in one outer stock runtime; the
+inner sandbox forwards the masked value using ordinary CONNECT. This is a
+tested alternative to two competing TLS owners, not a qualified native adapter.
+Its public CA handoff does not grant access to private keys. Actual tool-visible
+mounts must be observed separately from the trusted parent's view: the same
+pathname can identify a different object in the two namespaces.
+
+The [execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5656436394)
+identifies the retained receipts, prepared but unexecuted checks, and reported
+platform restriction. Neither a usage-limit reset nor another general approval
+constitutes successful qualification or permission to evade that restriction.
+Resume at the missing evidence once the restriction is legitimately resolved;
+do not restart adoption, login, or unchanged proofs merely because work paused.
+
 ### Native adapter compatibility is a separate boundary
 
 The standalone runtime's accepted configuration is not automatically accepted
