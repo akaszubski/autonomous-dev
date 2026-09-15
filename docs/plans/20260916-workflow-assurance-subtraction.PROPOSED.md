@@ -1,0 +1,344 @@
+# Design update: workflow assurance with subtraction
+
+Date: 2026-09-16. Status: updated at the user's direction; maintenance-first
+design intent approved, existing implementation and promotion gates unchanged.
+The original proposal filename is retained for stable links, not as a second copy.
+Parent: [control-tool v12](20260909-control-tool-v12.md), SHA-256
+`05a3efafecb2099ff8f9d1efdb9601577fdf071072e9b945690cbdbc252fab7d`.
+Preserve its frozen cases, current F0 authority, separately authorized R0 and
+[sandbox amendment](20260913-f0-native-sandbox-amendment.md). Do not rewrite adopted bytes.
+
+## WHY + SCOPE
+
+Deliver a small retrofit toolkit that enforces SDLC policy and independently
+demonstrates actual outcomes. Dogfooding is one consumer, never portability proof.
+Reduce maintenance across code, tests, prompts, settings, delivery paths and docs;
+test counts, line counts and agent agreement are not product outcomes.
+
+Priority: accurate, consistent outcomes first; minimum ongoing maintenance next;
+speed and cost within those constraints. Less is more only when required behavior
+and independent evidence survive. Prefer deleting duplicate ownership to extracting
+more wrappers, libraries or configuration. Keep valuable unit tests alongside real
+installed-workflow evaluation; neither test volume nor agent count is a target.
+
+This amendment changes the emphasis and removal criteria within the existing
+F0/R0/D0/W0/T0/M0 sequence, not its order or security gates. It does not create a
+new agent framework, policy DSL, hosted gate, dashboard, evaluator service or
+universal dependency graph. Planning output: one canonical document in the existing
+plan directory, rather than another copied plan in .Codex/plans.
+
+### Evidence at planning base
+
+Checkout `autonomous-dev-1779`, HEAD `87232a2981e3f9d1772d8d979f592a711c748333`.
+Tracked Python files excluding any `archived` path: libraries 243 / 125,390 physical
+lines; hooks 28 / 24,031 lines; tests 1,001 / 388,686 lines. AST parsing found
+16,475 test-function definitions and no syntax errors in that test population.
+Method: git ls-files, path/suffix filters, splitlines, ast FunctionDef/AsyncFunctionDef
+names beginning test_. This is not pytest collection, runtime coverage or proof of
+redundancy. Helpers/conftest files are included in test-file totals.
+
+## Existing Solutions
+
+- `lib/test_pruning_analyzer.py` exists; `commands/sweep.md` invokes it and
+  `hooks/enforce_prunable_threshold.py` consumes it. #674 closed, but its original
+  report-only description predates the current prune_tests deletion API. Use
+  analyze/report only for triage; never infer deletion safety from its label.
+- `lib/eval_metrics.py` (#1453) supplies pure metrics; its own source explicitly
+  defers trajectory/judge/holdout integration. Reuse needed metrics, not all the
+  originally proposed framework. A closed issue is not evidence of full delivery.
+- `scripts/proof_of_block.py`, `scripts/integration_ceiling.py` and
+  `tests/unit/lib/test_vacuous_test_ratchet.py` are existing proof/ratchet owners.
+  V12 already defines their disposition; do not add competing authorities.
+- CHANGELOG #1762 records removal of a redundant test after showing its mutants
+  were already detected elsewhere: reuse that method, not age or naming heuristics.
+- `skills/architecture-patterns/SKILL.md:117` still claims hooks are "100% reliable";
+  correct this during protected-infrastructure implementation, not by editing an
+  installed mirror. False guarantees in guidance are part of the product defect.
+- [Anthropic agent evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+  (2026-01-09): outcomes plus trajectories, repeated trials, mixed graders.
+- [OPA decision logs](https://www.openpolicyagent.org/docs/management-decision-logs)
+  and [LangChain eval lifecycle](https://docs.langchain.com/langsmith/evaluation-concepts)
+  (consulted 2026-09-16): decision/version identity and offline/live feedback.
+  Borrow patterns; no dependency on these products or hosted services is proposed.
+
+## Design and options
+
+Keep v12's four concepts: case, observation, decision, receipt. A workflow is a
+case with an environment profile, stimuli and expected effects, not another runtime
+taxonomy. Reuse one policy decision owner and one evidence path per control.
+
+Shared toolkit: policy functions, thin harness adapters, evidence verification,
+install/update behavior. Consumer inputs: project intent, declared policy,
+paths/toolchain and acceptance tasks. No source-root, personal HOME or private
+preparation artifact may be required by a released consumer.
+
+Two loops:
+1. Execution: enforce before protected actions and validate required receipts
+   before subsequent transitions. Reconcile expected invocations from an
+   independently observed tool stream with hook decisions/effects. Missing events
+   are UNMEASURED/ERROR, never silent success; an identifier is not invented by
+   timestamp matching. Post-hoc checks do not undo an already-permitted effect.
+2. Assurance: run realistic tasks and seeded faults in disposable installed
+   consumers; evaluate final state and mandatory process obligations. Agents can
+   draft scenarios and give calibrated semantic feedback, not grant hard PASS.
+
+Options: (A) add tests to every existing module, low initial disruption but preserves
+duplicate owners; (B) rewrite everything/use a new eval platform, high cost and
+unproven replacement; (C) complete existing vertical slices with evidence-backed
+subtraction, recommended, medium effort with a temporary compatibility burden.
+
+## Minimal Path
+
+1. Finish F0's existing native cases and independent evidence; do not restart the
+   sandbox or expand the frozen denominator implicitly. Map those cases to the
+   first workflow below. Any new acceptance obligation is separately reviewed.
+2. After the existing R0 authorization, connect the smallest verifier; after D0,
+   exercise the same cases against installed bytes. Reuse pure metrics only when
+   repeated runs exist; report sample size and uncertainty, not an unsupported
+   all-runs reliability claim.
+3. Release W0's sensitive-write workflow with permitted/refused/fault arms in a
+   clean consumer; remove the superseded shell decision owner in its activation.
+   If a live consumer cannot migrate safely, do not activate or claim completion;
+   keep the last-known-good owner, record that consumer and seek the existing
+   explicit scope/exception decision rather than delete around it.
+4. In T0/M0, extend the same route to one requested code change with documentation
+   impact and preserved consumer settings; add other control families only through
+   the same acceptance/removal procedure. No parallel rewrite of the whole library.
+5. For each migrated family, prune its now-redundant tests and retire old config,
+   imports, registrations and documentation in the activation changeset. Do not
+   postpone removal to an unowned final cleanup project.
+
+### Workflow acceptance, not a new suite per module
+
+Use existing frozen cases wherever they cover the obligation; proposed additions
+below require freeze before use as gates. Each case has an ordinary valid arm,
+a prohibited-effect arm and a seeded detection fault. No mandatory exact agent
+trajectory except explicitly required reads/order; valid alternative solutions pass.
+
+| Obligation | Evidence | Fault that must be detected |
+|---|---|---|
+| Installed sensitive write policy | Actual tool/hook identity and allowed/denied file effects | Disconnected hook, wrong MCP path key, duplicate execution |
+| Required examination | Input/version-bound read records, not final narrative | Missing required read despite a plausible report |
+| Code/docs consistency | Working behavior and affected docs; deterministic known-impact fixtures plus advisory semantic review | Stale docs or always-NO_DOC_IMPACT rule |
+| Retrofit preservation | Existing settings unchanged except owned deltas; conflict reported before mutation | Overwrite unrelated config or source-checkout fallback |
+| Evidence integrity | Exact invocation and subject joins, current digests and actual process exit | Wrong-run receipt, missing event, stale subject or wrapper-only success |
+| Recovery/update | Interrupted/repeated update and declared rollback outcome | Partial activation, stale copied executable or duplicated hook |
+
+Known-impact doc cases have frozen expected classifications compared by code;
+an always-NO_DOC_IMPACT mutant must mechanically fail these cases. Semantic review
+of open-ended documentation remains advisory and cannot override that result;
+unresolved mandatory semantic requirements need human disposition, never auto-PASS.
+
+A clean consumer must launch installed entrypoints with isolated HOME/config/cache,
+no source fallback and distinct fixture intent/settings. Dogfood runs separately.
+Windows/Linux/macOS and other harnesses are separate measured profiles; no platform
+claim follows from the Linux worker. Destructive fault injection runs only in
+disposable fixtures, never consumers' real repositories.
+
+## Subtraction contract
+
+For each family, put the following table in its EXISTING issue, not a new registry:
+old owner/path; actual callers/installed registrations; retained replacement;
+distinct failure coverage; removal proof; rollback source; status/reason retained.
+
+### Completion criteria: smaller and easier to maintain
+
+- Compare a pinned pre-migration baseline with the final release: active maintained
+  runtime lines, test lines/files, decision owners, stores and manual maintenance
+  steps must show net reduction across the migrated scope. A useful capability may
+  grow during construction, but additions cannot disappear from the final accounting.
+- Count moved/generated/archived code separately; moving complexity into templates,
+  fixtures, dependencies or another repository is not subtraction. Do not compress
+  formatting or remove explanations merely to lower line counts.
+- Each retained test protects a distinct requirement, failure mode, boundary or
+  necessary diagnostic. Consolidate overlapping cases into shared fixtures and
+  parameterized tests where that improves clarity without weakening independence.
+- Every activated change has one canonical edit location per fact, an affected-test
+  command and an update/rollback procedure exercised in a clean consumer. No manual
+  synchronization of copied settings, skill rules, baselines or installed code.
+- Record these deltas with existing receipts/issues, not a new metrics service.
+  Preserve existing v12 exceptions; any newly necessary final net growth requires
+  explicit scoped acceptance with its rationale and cost, never a hidden waiver.
+
+- Delete a test only after comparing its requirement, fixture, assertions and
+  failure modes with retained coverage. Use selected seeded mutants to demonstrate
+  redundancy; mutant equivalence alone is not full semantic equivalence.
+  The independent verifier/reviewer, not the deletion author, freezes and checks
+  that mapping and runs the retained checks on the pinned base and candidate;
+  model narrative is not evidence of a mutant being applied or detected.
+- No deletion based only on age, test tier, line count, no literal assert, or no
+  static import. Dynamic entrypoints and shell/markdown/plugin routes require checks.
+- Preserve distinct unit checks for parsers, serialization, permissions and fault
+  handling; expensive end-to-end coverage is not automatically a better substitute.
+- Do not delete failing tests to make green. Classify defect versus obsolete
+  requirement, preserve historical evidence, and use the retained frozen suite on
+  both baseline and candidate. No new silent skips or baseline resets.
+- A retirement is complete only when source, installer/manifest, settings,
+  executing copies and docs no longer invoke the retired owner. Historical Git
+  evidence stays available; packaging excludes inactive code.
+- Existing v12 budgets/exceptions remain. Report net runtime/proof/config/doc size,
+  decision owners, stores, entrypoints and maintenance steps per activation. First
+  migration must remove a named owner; later families must reduce active mechanism
+  count, not merely exchange one duplicate for another. Essential growth needs an
+  explicit bounded reason, not an arbitrary percentage deletion target.
+
+## Skill quality and consolidation — same workflow, not another framework
+
+User explicitly included current skill quality, external alternatives and revisions.
+Priority pilot: testing-guide, architecture-patterns and documentation-guide;
+planning-workflow follows where its obligations affect the pilot. Other skills
+remain unchanged until measured need, rather than a speculative all-skill rewrite.
+
+Observed existing routes: `commands/skill-eval.md` calls root
+`scripts/skill-effectiveness-check.sh`, which requires OPENROUTER_API_KEY and invokes
+`tests/genai/skills/test_skill_effectiveness.py`. That suite compares with/without
+skill generation for five named skills, truncates skill injection to4000 characters
+and judged outputs to3000, and grades generated text. `lib/skill_evaluator.py`
+instead judges skill content. Neither route by itself demonstrates installed
+discovery, complete loading, tool execution or outcome correctness. Do not run
+the paid harness implicitly or treat its current green as runtime assurance.
+
+Borrow [Anthropic's skill-creator comparison pattern](https://github.com/anthropics/skills/tree/main/skills/skill-creator)
+and [Agent Skills evaluation guidance](https://agentskills.io/skill-creation/evaluating-skills)
+(consulted2026-09-16), not their entire tooling. These are candidate methods, not
+proof that an external skill is superior. Their exploratory advice to refine
+assertions after seeing outputs applies only to development; our promotion cases
+and holdout expectations remain frozen before scored runs.
+
+For each pilot skill:
+1. Inspect canonical and installed bytes, activation description, linked resources,
+   tool requirements, stale guarantees, duplicated policy and consumer-specific paths.
+2. Check positive AND negative triggering in the actual installed harness: missing
+   activation and unrelated activation both matter. Explicitly supplying a skill
+   tests content influence, not discovery; report these as different evidence.
+3. Compare no optional skill, current skill and one proposed revision/external
+   candidate on the SAME isolated tasks/model/settings/tool access. Keep mandatory
+   security/SDLC controls in every arm. Start with three varied development tasks
+   per pilot, then freeze a separate held-out task set before promotion; repeat
+   trials with frozen run budget and order variation. Small samples are diagnostic,
+   not statistical proof of universal benefit.
+4. Grade real artifacts and effects mechanically, required actual reads separately,
+   and nuanced quality using blinded advisory review. Record skill/resource digests,
+   harness/model versions, task IDs, success/failure, latency, tokens, false triggers
+   and operator corrections. No silent truncation: a missing required resource is
+   non-pass, not permission to grade an excerpt as the full skill.
+5. Retain when useful; revise when flawed; merge only overlapping guidance proven
+   equivalent under combined-skill conflict tests; retire only optional guidance
+   whose removal preserves required outcomes and reduces burden. Null measured
+   benefit in a small sample is not proof of no benefit; inconclusive stays retained
+  pending targeted evidence, with no forced automatic retirement.
+   Bound pilot iteration to two candidate revisions before a recorded disposition
+   in the existing family issue: retain with specific value/risk rationale, revise,
+   merge or retire. An unresolved measurement is explicitly UNMEASURED with owner
+   and next release review point, not a forever-pending success or proof of waste.
+   Retention does not satisfy that family's required subtraction of duplicate owners.
+
+External candidates: inspect license, source revision, dependencies, scripts,
+network/secret access and policy compatibility before execution. Pin the exact
+reviewed bytes; no automatic marketplace updates or unreviewed remote execution.
+Prefer adopting a useful pattern over importing another dependency. Test conflicts
+when the relevant skills load together, not just isolated winners.
+
+Consolidation must end with one execution-evaluation owner using the existing
+workflow receipt path. Existing prose-only evaluators may remain explicitly
+advisory if distinct value is shown; they cannot confer product trust. Before
+retiring any route, enumerate its command/pipeline/CI consumers and replace those
+routes in the same activation. Avoid a third baseline store: bind results to the
+existing case/receipt identities and make baseline promotion explicit, never an
+unattended --update operation. Native Max/local execution only within existing
+authority; hosted evaluation never becomes a required product gate.
+
+## Files to Create/Modify
+
+This planning change creates only this document; no runtime modification/deletion.
+Future changes are bounded per family, through /implement and its required review:
+
+| Existing path | Proposed action and verification |
+|---|---|
+| `plugins/autonomous-dev/scripts/proof_of_block.py` | REUSE existing block evidence, no second block verifier |
+| `plugins/autonomous-dev/lib/eval_metrics.py` | REUSE only needed metrics, independently validate statistical assumptions |
+| `plugins/autonomous-dev/lib/test_pruning_analyzer.py` | REUSE report mode; change only a reproduced triage defect |
+| `plugins/autonomous-dev/commands/skill-eval.md`, `lib/skill_evaluator.py`, `scripts/skill-effectiveness-check.sh`, `tests/genai/skills/test_skill_effectiveness.py` | Inspect all consumers; adapt/reconcile into existing workflow evaluation, retire duplicate authority only after replacement evidence |
+| `plugins/autonomous-dev/commands/implement.md` STEP11.5 | Preserve required pipeline order; replace the selected eval call only when its installed replacement is proven |
+| `plugins/autonomous-dev/hooks/PreToolUseWrite-protect-sensitive.sh` and `lib/tool_intent.py` | W0 migration per v12; inspect actual consumers before removing old owner |
+| `plugins/autonomous-dev/skills/architecture-patterns/SKILL.md` and `skills/testing-guide/SKILL.md` | MODIFY false guarantees/test-value guidance through pipeline, preserve hard gates |
+| `tests/e2e/`, existing frozen F0 cases and family tests | REUSE/EXTEND installed workflow cases; exact files frozen in family issue before build |
+| `scripts/integration_ceiling.py`, `tests/unit/lib/test_vacuous_test_ratchet.py` | Preserve independent ratchets; do not reset them to hide deletions |
+| `docs/TESTING-STRATEGY.md`, `docs/ARCHITECTURE-OVERVIEW.md`, `docs/RUNBOOK.md`, `CHANGELOG.md` | Update only activated behavior and link canonical case ownership |
+
+Integration point: existing /implement validation consumes receipts at the T0
+stage; agents/skills describe obligations, adapters normalize actual harness
+payloads, policy decides once. No generic runner API is invented in this amendment.
+Exact implementation paths/size estimates are a prerequisite of each family freeze,
+not an invitation to start an unbounded cross-repository refactor.
+
+## Execution and cost control
+
+Claude Max: bounded implementation/drafting, real /implement only within adopted
+security/pipeline authority. Codex: independent evidence/integration checks. Neither
+model can certify itself. Use no paid-API fallback.
+
+Execution refinements directed by the user on2026-09-16:
+
+- One active delivery slice; parallel workers own disjoint implementation, isolated
+  verification and documentation inside that slice. Serialize shared native state,
+  integration and promotion. Do not start another capability to avoid a blocker.
+- Next slice is the current native end-to-end workflow, not a framework comparison,
+  full skill audit or whole-test-suite cleanup. Skill comparisons may run alongside
+  it only when independent and must not delay it or silently alter its frozen inputs.
+- Each slice uses a short contract in its existing issue: outcome, affected files,
+  exact acceptance command, removal targets, owner, time estimate and rollback.
+- Before another probe, name the unresolved acceptance obligation and the decision
+  its result will change. Reuse unchanged digest-bound evidence; repeat only affected
+  cases plus required end-to-end proof. Do not add a gate to check an advisory report.
+- Bound each investigation to one evidence-producing attempt or60minutes, whichever
+  comes first; at that point revise the concrete next action or report the real
+  blocker. This never extends native attempt budgets or permits skipping a gate.
+- Use the existing verification entrypoint for short deterministic feedback; run
+  full relevant installed-workflow acceptance before promotion. Keep full raw evidence
+  available while giving the implementation agent concise actionable failures.
+- No new framework dependency now. Reconsider an external component only when it
+  removes a named internal owner, preserves required outcomes and reduces total
+  maintenance including dependency updates. Compare individual skills before stacks.
+- At each slice boundary record delivered behavior, removed owners, actual effort,
+  rework and proof latency in the existing ledger. A plan or report alone is not a
+  delivery milestone. Replan an overrun narrowly; do not restart the overall audit.
+
+Planning remains one document with two completed critique rounds, not a recurring
+review cycle. First family scope/removal mapping target: half an engineering day;
+freeze its measured implementation estimate before build. No whole-plan ETA is
+claimed from v12's historical estimates. The refinements above are execution rules,
+not measured speed improvements; judge their benefit by completed slices and rework.
+
+## Risks and Unknowns
+
+An independent event source may not expose a usable join key: retain UNMEASURED,
+do not invent completeness. Frozen fixtures can miss real behavior: include a
+separate held-out task and production-derived scenarios after review; no optimizer
+access to holdout answers. Model judgments can be biased: advisory/calibrated only.
+Legacy integration baselines may be unhealthy: name failures, do not make all repo
+cleanup a prerequisite for one protected slice. Exact deletion candidates remain
+unproven until family-level inspection and fault comparison; no mass deletion now.
+
+Rollback: retain the last-known-good release/profile before activation; prove
+consumer-config restoration and owner/registration restoration in the disposable
+consumer. Git source revert alone is not installed rollback. Failed candidate stays
+inactive; no claim of reversing external effects or restoring modified user data.
+
+## Critique History
+
+Round1: Claude Max, tool-disabled, session a3a1b9be-2f5b-4454-9145-ef4814df0fc8,
+25691ms, REVISE. Clarified blocking-consumer activation refusal, deterministic
+known-impact doc grading, independent deletion-proof ownership, bounded skill
+pilot disposition. Critique called conditional removal contradictory; resolution
+clarifies the existing safety precondition, not permission to force deletion.
+Round2: fresh tool-disabled Claude Max session d89499f2-e2b5-4dcf-96cc-75df38a4cbde,
+3767ms, PROCEED for the bounded proposed design; no runtime/source-verification
+claim. Root checked referenced source findings, relative plan links and whitespace.
+These critiques do not authorize implementation, adoption or promotion. On2026-09-16
+the user directed updating plan and goal with easy maintenance, less code and fewer
+but valuable tests; the completion criteria above record that refinement. Exact
+family scopes, case freezes and existing authority remain prerequisites.
+GitHub reconciliation uses #1757/#1773 and existing D0/W0
+owners, plus #674/#1453 historical evidence. No issue closed or acceptance text
+silently replaced during this planning task.
