@@ -274,6 +274,134 @@ not an invitation to start an unbounded cross-repository refactor.
 
 ## Execution and cost control
 
+### Current execution checkpoint — 2026-09-17
+
+The user subsequently approved the narrow doc-master task/role correction through
+actual `/implement`, the one-field plugin-manifest bootstrap repair, and one
+additional EX-1 attempt: **ordinal5, completed NONPASS**. Ordinals1–4 remain
+consumed and NONPASS; no automatic retry or R0/deployment authority is added.
+Native authoring session `9769df90-e7dc-4a02-8b5d-2c7581ae385f` has produced the
+contract/test repair committed as `f4019ce856f0334ecac801a67840dac8be973d32`,
+with actual specialist validation and scoped `/improve` completed. A proposed new
+self-reported evidence-block mechanism was rejected; the chosen repair changes
+existing markdown contracts and focused tests, not runtime libraries or hooks.
+Independent source review corrections were returned through the implementer.
+Source/read/parser checks do not prove actual examinations or installed behavior.
+
+The private ordinal5 draft uses the corrected role/template, reviewed task-to-Agent
+identity joins and explicit disclosure of the existing literal Bash-command file.
+Its new full-file read duty is included in read verification; permissions and
+denial witnesses are unchanged. Independent offline checks: 44 binding/stream
+tests plus nine loader/settings checks passed. A fresh offline package is now
+prepared for SID `5784e4bd-7214-47d5-b070-1e52c5670a9c`; its fixture, public inputs
+and driver are digest-bound. Reviewed private worker configuration was installed
+after authoring, credential-free preflight passed, and the single authorized
+native call was dispatched. Ordinal5 is consumed; no automatic retry. The earlier
+unadmitted package was preserved after a further factual
+role correction; the new role digest is `86f8a71620bce0fac20946a2936a18408d042d45b26c7a662c0fb8a82aefce38`.
+Root rechecked all53 offline cases and exact driver control-flow equivalence.
+Preparation was parallelized with final authoring reviews, not promoted
+past them. Final source hashes matched, quiescent focused verification passed
+47 tests in0.26s with exit0, and the native admission receipt was recorded.
+One earlier concurrent source test run
+had 47 passing assertions but exited1 after detecting live pipeline state changes;
+it remains failed evidence, not counted green; the later quiescent run did not weaken the guard.
+
+Actual documentation review found and corrected a stale HARD GATE claim in
+`docs/AGENTS.md`. Independent tool-record examination rejected both the original
+six-document report (missed most of the seven affected docs) and the next report's
+overstated full-file/section-read claims. The actual specialist subsequently returned
+the missing sections and corrected a second misleading claim in `docs/PIPELINE-MODES.md`;
+root narrowed its batch-scope wording before commit. Prior failed reports remain.
+A reported PASS is not evidence of completed examination. CIA and scoped improve
+completed transcript/prompt-overhead analysis; their findings belong to existing
+doc-examination, command parsing, prompt lifecycle and observability owners,
+not a new prerequisite framework or self-reported-list-only certificate.
+Follow-ups #1792–#1797 now distinguish observed behavior from hypotheses, share
+existing plan owners and have closure criteria; they add no new current F0 gate.
+
+**Ordinal5 outcome:** native leader/wrapper exited0, but frozen stream comparison
+refused coordinator tool calls before the exact Agent dispatch. Independently,
+the child declined three required public reads and both native protected-nonce
+witnesses, omitted covers-first and tried only non-allowlisted Bash commands.
+Its claim that Bash was universally unavailable is unsupported. Current-file
+examination happened, but diff/history/net-count and changelog-provenance duties
+did not. Child returned `FAIL(1)` rather than PASS, but did not account for all
+unmet requirements. Parser compatibility cannot turn this run into acceptance.
+Root checked all61 prepared files unchanged and service/runtime/cgroup/actor
+absence. Normal separate child-carrier export was not reached; the coordinator
+failure transcript is not substituted for it. Result digest
+`7bc37405eb2c993718e0cb4e735e70cb4a96a5846048de7a848a11bc0c9c6690`;
+raw stream digest `c62edab4f9442d81811006018b0a44ac88e2347f74a4b4858eee67d5f82ca4d9`.
+
+**Bounded amendment direction, not adopted execution authority:** stop repeating
+the combined documentation/access-control task. Review whether ordinary doc
+examination should use the native role/layout while the existing actual boundary
+probes run as an explicitly separate native boundary case, bound to the same
+execution subject. Preserve all security outcomes and required examination
+evidence, but do not claim the doc agent performed a different case's probes.
+This changes frozen case attribution and requires review/adoption before another
+native attempt; no retry, permission widening, persuasion around refusal, new
+framework or silent denominator change is authorized here. The failed run stays
+NONPASS. Remaining F0 rows are not advanced around it.
+
+After EX-1, the remaining native ledger still requires EX-2, RC-2 and PR-3–7/9;
+their omission from a progress update never means PASS. Retained PR-8 evidence
+has a reviewed comparison and is not rerun merely because older status text says
+pending. The full four-carrier identifier join, final trust proof/CI, cleanup and
+explicit F0 freeze remain separate obligations. This is not F0 completion.
+Progress and limitations: [#1773 comment5706042400](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5706042400).
+
+### Historical checkpoints — superseded authority/status, preserved evidence
+
+**2026-09-17 ordinal4 outcome: NONPASS.** The amended case dispatched the exact
+foreground Agent payload, but actual tool records show omitted required reads,
+missing covers-first/diff duties and no native nonce-denial witnesses; two
+unapproved Bash commands were hook-denied. The child still reported PASS. This
+is retained negative evidence of false agent assurance, not completion. Additional
+task-lifecycle metadata also exceeded the comparator's qualified formats; parser
+compatibility alone cannot repair the missing behavior. The one extra attempt
+is consumed, with no automatic retry. Runtime/cgroup/actor absence was verified.
+Evidence: [#1773 comment5701523238](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5701523238).
+
+**2026-09-17 authority update:** the user explicitly authorized fixing EX-1's test
+design while preserving failed evidence and all security requirements, followed
+by one additional attempt, without restarting the plan. This is ordinal4 only;
+the earlier three attempts remain consumed. Preparation is limited to explicit
+synthetic-fixture context and reviewed stream-format compatibility, followed by
+independent review, new digest freeze and per-run admission. No denial witness,
+required examination, semantic, provenance, effect or cleanup gate is removed.
+The 600-second limit and separate R0 authority remain unchanged. The failure
+record below is historical evidence, not a claim that ordinal4 has run.
+Authority: [#1773 comment5701424894](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5701424894).
+
+EX-1 ordinal3 is NONPASS; all three originally authorized attempts are consumed.
+The native Claude process and wrapper exited zero, but the complete stream contains
+no tool calls: Claude declined to dispatch the frozen documentation task containing
+protected-file denial probes. Therefore required agent execution, examination and
+denial witnesses are absent. A successful SDK result is not acceptance.
+
+Independent offline replay also identified unsupported `rate_limit_event` and
+`system/thinking_tokens` records in the stream comparator. Correcting that format
+compatibility cannot recover the missing behavior or turn this attempt green.
+The runtime, cgroup and recorded actor are absent; the original NONPASS receipt
+and exported failure logs remain intact. Evidence and receipt digests are recorded
+in [#1773 comment5690256356](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5690256356).
+
+Next decision is narrow, not a plan reset: review the case's combined documentation
+and isolation obligations before authorizing any further native attempt. Keep the
+original failed case and expectations immutable. Any proposed separation of OS
+boundary verification from agent examination is a change to the frozen case and
+requires explicit review; neither deterministic-only tests nor a model's refusal
+may stand in for the existing required native witnesses. Do not rewrite prompts
+to bypass the refusal, silently remove the denial arm, or reset the attempt count.
+
+Permitted preparation is offline compatibility diagnosis and a requirement-by-
+requirement amendment proposal, with no credential access or native dispatch.
+The execution lock below still applies: do not start another capability to avoid
+this blocker. F0 remains incomplete; no R0 implementation or promotion is authorized
+by this checkpoint, and no whole-plan completion date follows from process exit0.
+
 Claude Max: bounded implementation/drafting, real /implement only within adopted
 security/pipeline authority. Codex: independent evidence/integration checks. Neither
 model can certify itself. Use no paid-API fallback.
