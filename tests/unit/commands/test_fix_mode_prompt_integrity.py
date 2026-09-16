@@ -31,6 +31,10 @@ FIX_CMD_PATH = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "imple
 # Minimum word count for critical agent prompts, matching prompt_integrity.py
 MIN_CRITICAL_AGENT_PROMPT_WORDS = 80
 
+# Issue #1773: verdict tokens the fix-mode dispatch template used to request.
+# None of them is matched by the regex in lib/doc_verdict_validator.py.
+RETIRED_VERDICT_TOKENS = ("DOCS-UPDATED", "NO-UPDATE-NEEDED", "DOCS-DRIFT-FOUND")
+
 
 def _extract_prompt_template_words(content: str, agent_type: str) -> list[str]:
     """Extract template words from a prompt block, excluding placeholder markers.
@@ -208,17 +212,76 @@ class TestFixModeDocMasterPromptMinimum:
         )
 
     def test_doc_master_prompt_requires_doc_drift_verdict(self, fix_content: str) -> None:
-        """Doc-master prompt must require DOC-DRIFT-VERDICT as a mandatory output.
+        """Doc-master prompt must name the canonical DOC-DRIFT-VERDICT field.
 
-        Issue #693 fix requires structured output with an explicit verdict
-        (DOCS-UPDATED, NO-UPDATE-NEEDED, or DOCS-DRIFT-FOUND).
+        Issue #693 required a structured verdict step. Issue #1773 corrects WHICH
+        verdict: the canonical vocabulary is declared once in agents/doc-master.md
+        section 'Step 5: Output Verdict' and implemented by
+        lib/doc_verdict_validator.py. The retired DOCS-* tokens this docstring
+        previously listed are rejected by that parser and are not part of the
+        canonical contract.
+
+        The former ``or "DOCS-DRIFT" in template_text`` alternative is removed: it
+        passed under both vocabularies, so it could not detect the mismatch.
         """
         words = _extract_prompt_template_words(fix_content, "doc-master")
         template_text = " ".join(words).upper()
 
-        assert "DOC-DRIFT-VERDICT" in template_text or "DOCS-DRIFT" in template_text, (
-            "Doc-master prompt must require DOC-DRIFT-VERDICT as a mandatory step. "
-            "Without this, the agent produces vague, under-100-word responses (Issue #693)."
+        assert "DOC-DRIFT-VERDICT" in template_text, (
+            "Doc-master prompt must name DOC-DRIFT-VERDICT as its verdict field. "
+            "Issue #1773: the retired DOCS-* tokens are not an accepted substitute."
+        )
+
+        present = [tok for tok in RETIRED_VERDICT_TOKENS if tok in template_text]
+        assert not present, (
+            f"Fix-mode doc-master template requests retired verdict token(s) "
+            f"{present}. Issue #1773: those labels are rejected by "
+            f"lib/doc_verdict_validator.py and are not part of the canonical "
+            f"verdict contract declared in agents/doc-master.md section "
+            f"'Step 5: Output Verdict', so a template requesting them conflicts "
+            f"with the canonical role. Use DOC-DRIFT-VERDICT as declared there."
+        )
+
+    def test_fix_mode_collection_blocks_on_canonical_fail(self, fix_content: str) -> None:
+        """The fix-mode collection point must block on the canonical FAIL verdict.
+
+        Issue #1773: the blocking branch keyed on DOCS-DRIFT-FOUND, which is not
+        part of the canonical verdict contract declared in agents/doc-master.md
+        section 'Step 5: Output Verdict' and is rejected by
+        lib/doc_verdict_validator.py. The dispatch templates and the canonical
+        role therefore conflicted, leaving the blocking condition dependent on a
+        label outside the canonical contract. It must key on the canonical FAIL
+        verdict instead.
+
+        Scope of the claim: no capture establishes what the old branch did or did
+        not do at runtime. The pre-change coordinator prose read the agent's raw
+        response text directly rather than calling validate_doc_verdict, so a
+        coordinator could have recognised the legacy label in raw output. This
+        test asserts the source contract, not a runtime outcome.
+        """
+        section_start = fix_content.find("#### Doc-master Verdict Collection")
+        assert section_start != -1, (
+            "implement-fix.md must contain a 'Doc-master Verdict Collection' section."
+        )
+        section_end = fix_content.find("## Step F4.7", section_start)
+        assert section_end != -1, "Section after Doc-master Verdict Collection not found."
+        section = fix_content[section_start:section_end]
+
+        assert "DOC-DRIFT-VERDICT: FAIL" in section, (
+            "The Doc-master Verdict Collection section must contain a canonical "
+            "DOC-DRIFT-VERDICT: FAIL blocking branch (Issue #1773)."
+        )
+        assert "BLOCK" in section, (
+            "The Doc-master Verdict Collection section must still BLOCK on failure."
+        )
+
+        present = [tok for tok in RETIRED_VERDICT_TOKENS if tok in section.upper()]
+        assert not present, (
+            f"The Doc-master Verdict Collection section still keys on retired "
+            f"verdict token(s) {present}. Issue #1773: those labels are rejected "
+            f"by lib/doc_verdict_validator.py and are outside the canonical "
+            f"contract in agents/doc-master.md section 'Step 5: Output Verdict', "
+            f"so the branch condition must be the canonical DOC-DRIFT-VERDICT."
         )
 
     def test_doc_master_prompt_requires_scan_step(self, fix_content: str) -> None:

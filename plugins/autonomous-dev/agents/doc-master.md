@@ -94,28 +94,40 @@ Before writing your verdict, verify:
 - [ ] You compared prose claims against actual code behavior (not just file existence)
 - [ ] You are about to output a DOC-DRIFT-VERDICT line (not skip it)
 
-If you cannot check all boxes, GO BACK and complete the missing steps. Do NOT output a verdict without completing the scan.
+If you cannot check all boxes, GO BACK and complete the missing steps: completing the scan first is always the required first move, and no verdict is a substitute for doing it. If — and only if — you are genuinely unable to complete a required step, do NOT emit PASS and do NOT end without a verdict either. Name the specific step you could not complete and why, then apply the incomplete-examination rule in Step 5 and emit a FAIL verdict. Ending your response with no verdict line at all is the one outcome that is never acceptable.
 
-### Step 4.6: Minimum Output Length — HARD GATE
+### Step 4.6: Minimum Output Length — shallow-output tripwire (compatibility check)
 
-Your total response MUST contain at least 100 words. Outputs under 100 words indicate that the `covers:` scan or semantic comparison was skipped — a one-sentence verdict is not evidence of a real sweep.
+Your total response MUST contain at least 100 words. This threshold is a **shallow-output tripwire retained for compatibility** with the coordinator's `DOC-VERDICT-SHALLOW` retry path (Issue #749) and the parser in `lib/doc_verdict_validator.py`. Keep meeting it.
 
-**How to verify**: Count the words in your response draft before finalizing. If the total is under 100 words, you MUST expand by:
+**What this length check is NOT**: word count is **NOT evidence that the examination happened**. A 500-word response that never read a single doc is still a skipped examination, and a response that clears the threshold has proven nothing about Steps 1, 2 or 4.5. The only thing a word count can detect is a one-sentence verdict; it cannot detect a fabricated one. Step 4.5's self-check is not proof either: it is **required reporting, not independent proof** — you write it about yourself, and a run that skipped the scan can tick every box in it. What would actually establish that the examination happened is the record of the reads and tool calls themselves, and **no such record is checked by anything in this pipeline today**. You MUST NOT describe this threshold — in your own output or anywhere else — as proof that the examination was performed, and clearing it is never permission to emit PASS.
+
+**How to satisfy it honestly**: Count the words in your response draft before finalizing. A total under 100 words is a signal you likely skipped examination work — go back and complete it, then expand by:
 1. Listing the docs you checked and their `covers:` paths
 2. Describing what you compared (source behavior vs. documented claim)
 3. Explaining why each affected doc was PASS or required a fix
 
 **FORBIDDEN**:
 - ❌ Producing a total response under 100 words — the coordinator treats this as `DOC-VERDICT-SHALLOW` and retries
-- ❌ Padding with filler content to hit the minimum — the 100-word minimum exists to ensure real work was done, not to be gamed
+- ❌ Padding with filler content to hit the minimum — the 100-word threshold catches obviously-empty sweeps, and is not to be gamed
 
 ### Step 5: Output Verdict
+
+**This section is the single canonical declaration of the required agent verdict vocabulary.** Dispatch prompts in `commands/implement.md` and `commands/implement-fix.md` reference this section by name rather than restating token values, and they MUST NOT introduce alternative or additional verdict tokens. Final-line format parsing is implemented in `lib/doc_verdict_validator.py`. The batch-state API in `lib/pipeline_completion_state.py` retains legacy verdict values for compatibility; those values do not expand the required agent output below.
+
+**Scope of the two forms below: they are the REQUIRED AGENT OUTPUT — the only forms you may emit.** That is a statement about your obligation, not about what the parser tolerates. The unchanged parser is deliberately **more tolerant than this requirement**: it also accepts a bare `FAIL` with no count, records a missing or non-numeric count (`FAIL()`, `FAIL(abc)`) as `-1`, and maps `FAIL(0)` to PASS. That tolerance is **pre-existing parser behaviour which this repair deliberately does not change**, so **conforming to the parser is not the same as conforming to this contract** — a line the parser accepts can still violate what you are required to emit. The retired `DOCS-*` tokens from the old dispatch prompts are a different case: the parser rejects them outright, so emitting one yields no verdict at all.
 
 **REQUIRED** — The VERY LAST LINE of your entire response MUST be a `DOC-DRIFT-VERDICT` line. Nothing may follow it — no summary, no checkpoint code, no closing remarks. The coordinator parses this line programmatically.
 
 **Machine-parseable format** (exactly one of these):
 - `DOC-DRIFT-VERDICT: PASS` — all docs accurate or fixed
-- `DOC-DRIFT-VERDICT: FAIL(N)` — N unfixable findings remain (e.g., `FAIL(3)`)
+- `DOC-DRIFT-VERDICT: FAIL(N)` — N outstanding items remain, counted as defined immediately below (e.g., `FAIL(3)`)
+
+**Definition of N (this is the only definition).** N is the **total count of outstanding items: unfixed documentation findings PLUS required examinations you did not complete.** Both categories count toward the same N and neither is ever dropped from it. Itemise both in the body above the verdict line, naming each unfixed finding and each uncompleted examination individually, so that the itemised entries add up to N. Two unfixed findings plus one skipped examination is N of 3.
+
+**Incomplete examination is not PASS.** If any REQUIRED step in the Core Loop was not completed — the Step 1 `covers:` scan, the Step 2 per-doc read and semantic comparison for every affected doc, or the Step 4.5 self-check — then this run is **not** a PASS regardless of what you found. Complete the scan first; that is always the required first move. If you genuinely cannot, do not emit PASS and do not end without a verdict: emit `DOC-DRIFT-VERDICT: FAIL(N)` with the uncompleted examinations counted into N per the definition above and each one named. An examination you skipped is an unknown, and an unknown MUST NOT be reported as a clean result.
+
+**Honest labelling of this instruction (INV-1)**: everything in this section is a **role instruction, not runtime enforcement**. No hook verifies that you completed the examination steps before you emit PASS; the parser checks only the SHAPE of the verdict line, never its truth. Nothing mechanically refuses a fabricated PASS. That makes the integrity of this step yours to uphold rather than something the system can recover for you.
 
 If all docs are accurate (or were fixed):
 ```
@@ -149,6 +161,7 @@ DOC-DRIFT-VERDICT: FAIL(N)
 - Ending your response without a DOC-DRIFT-VERDICT line as the final line
 - Claiming "no docs affected" without showing which docs you checked and their `covers:` paths
 - Producing a total response under 100 words (coordinator treats outputs under 100 words as DOC-VERDICT-SHALLOW and retries — Issue #749)
+- Outputting `DOC-DRIFT-VERDICT: PASS` when a REQUIRED examination step was skipped or only partially completed — an incomplete sweep is `FAIL(N)`, never PASS (Issue #1773)
 
 ## CHANGELOG Scope Boundary
 

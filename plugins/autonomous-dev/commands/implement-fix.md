@@ -519,10 +519,7 @@ REQUIRED STEPS — you MUST complete all three:
 
 2. SEMANTIC COMPARISON: For each documentation reference found in step 1, compare the documented behavior against the new behavior after the fix. Flag any mismatch where the documentation describes the old (buggy) behavior, missing parameters, changed defaults, or removed functionality.
 
-3. DOC-DRIFT-VERDICT: State one of the following verdicts explicitly:
-   (a) DOCS-UPDATED: List each file updated and what changed.
-   (b) NO-UPDATE-NEEDED: Explain why the fix is purely internal with no user-facing behavior change.
-   (c) DOCS-DRIFT-FOUND: List each documentation file that is now stale and what needs changing, but was not updated (this is a BLOCKING finding).
+3. DOC-DRIFT-VERDICT: End your response with the canonical verdict line defined in agents/doc-master.md, section 'Step 5: Output Verdict'. That section is the single source of truth for the permitted verdict values and for the final-line requirement. Do not invent or substitute any other verdict token, and do not emit any text after the verdict line. In the body above that line, report each documentation file you updated and what changed, and each documentation file that is now stale and was left unfixed — a stale file left unfixed is a BLOCKING finding and must be named individually. If the fix is purely internal with no user-facing behavior change, say so and explain why. If any REQUIRED examination step above was not completed, this run is not a pass: report it as a failure rather than a clean result, and include those uncompleted examinations in the failure count exactly as the role definition in agents/doc-master.md section 'Step 5: Output Verdict' defines that count — that section is the only place the count is defined.
 
 **Implementer output (VERBATIM — do not skip any section)**:
 [paste FULL implementer output from STEP F3 here — do NOT summarize]
@@ -564,9 +561,9 @@ Report BLOCKING findings (must fix before merge) and WARNING findings (improveme
 
 After the parallel agents complete, parse the doc-master output:
 
-1. Parse output for `DOC-DRIFT-VERDICT: PASS`, `DOC-DRIFT-VERDICT: FAIL`, or one of the fix-mode verdicts (`DOCS-UPDATED`, `NO-UPDATE-NEEDED`, `DOCS-DRIFT-FOUND`)
+1. Parse output for `DOC-DRIFT-VERDICT: PASS` or `DOC-DRIFT-VERDICT: FAIL(N)`, per the canonical vocabulary declared in `agents/doc-master.md` section 'Step 5: Output Verdict' and implemented by `lib/doc_verdict_validator.py`. These are the ONLY accepted verdict tokens. Any other verdict token is a contract violation: treat it as no verdict at all (`MISSING`) and follow the existing retry path below. FORBIDDEN: treating an unrecognised verdict token as PASS. **Residual gap, named not fixed**: if that retry also yields no verdict, the existing behaviour in item 2 below logs `[DOC-VERDICT-SHALLOW-RETRY-FAILED]` and PROCEEDS with a warning — so a missing verdict is not currently refused in fix mode. Do not describe this path as failing closed; it does not. This limitation is recorded here deliberately and the behaviour is left unchanged.
 2. **Shallow Verdict Detection**: Count the words in the doc-master output. If the output is fewer than 100 words, treat it as `DOC-VERDICT-SHALLOW` — the output is too short to confirm a real semantic sweep occurred. Log `[DOC-VERDICT-SHALLOW] doc-master produced N words (minimum: 100)` and retry once with reduced context (same as empty-output retry logic above). If retry also produces fewer than 100 words or no verdict, log `[DOC-VERDICT-SHALLOW-RETRY-FAILED] doc-master still shallow after retry — proceeding with warning`.
-3. If `DOCS-DRIFT-FOUND`: BLOCK. Display the stale documentation files. User must address before proceeding.
+3. If the verdict is `DOC-DRIFT-VERDICT: FAIL` or `DOC-DRIFT-VERDICT: FAIL(N)` with N greater than zero: BLOCK. Display the stale documentation files and the finding count. User must address before proceeding.
 4. If doc-master made fixes: stage them with `git add`
 
 ## Step F4.7: PROD Verification Checklist (conditional)

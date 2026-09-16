@@ -31,6 +31,20 @@ BATCH_CMD_PATH = PROJECT_ROOT / "plugins" / "autonomous-dev" / "commands" / "imp
 
 MIN_CRITICAL_AGENT_PROMPT_WORDS = 80
 
+# Issue #1773: verdict tokens the dispatch templates used to request. The parser at
+# lib/doc_verdict_validator.py rejects all three (measured: found=False), so a
+# doc-master run that obeyed the old templates emitted a label outside the canonical
+# contract declared in agents/doc-master.md section 'Step 5: Output Verdict'.
+RETIRED_VERDICT_TOKENS = ("DOCS-UPDATED", "NO-UPDATE-NEEDED", "DOCS-DRIFT-FOUND")
+
+# A verdict DECLARATION is the field name immediately followed by a token value.
+# See test_no_template_declares_verdict_values for why this differs from a bare
+# mention of the word PASS in explanatory prose.
+VERDICT_DECLARATION_RE = re.compile(r"DOC-DRIFT-VERDICT:\s*(PASS|FAIL)", re.IGNORECASE)
+
+# Path to the canonical role definition the templates must point at.
+DOC_MASTER_AGENT_REL = "agents/doc-master.md"
+
 
 def _extract_doc_master_prompt_blocks(content: str) -> list[str]:
     """Extract all doc-master prompt template blocks from a file.
@@ -114,19 +128,101 @@ class TestImplementDocMasterPromptMinimum:
             )
 
     def test_all_doc_master_prompts_contain_doc_drift_verdict(self, implement_content: str) -> None:
-        """All doc-master prompt templates must require DOC-DRIFT-VERDICT as mandatory output.
+        """All doc-master prompt templates must name the canonical DOC-DRIFT-VERDICT field.
 
-        Without this structured requirement, doc-master produces vague responses.
+        Issue #1773: this assertion previously read
+        ``"DOC-DRIFT-VERDICT" in block_upper or "DOCS-DRIFT" in block_upper``,
+        which passed under BOTH the canonical vocabulary and the retired
+        ``DOCS-*`` vocabulary. That ``or`` is why the contract mismatch survived.
+        The alternative is removed: only the canonical field name satisfies this.
         """
         blocks = _extract_doc_master_prompt_blocks(implement_content)
         assert blocks, "No doc-master prompt template blocks found in implement.md."
 
         for i, block in enumerate(blocks):
             block_upper = block.upper()
-            assert "DOC-DRIFT-VERDICT" in block_upper or "DOCS-DRIFT" in block_upper, (
-                f"Doc-master prompt template #{i + 1} does not require DOC-DRIFT-VERDICT. "
-                f"Issue #725: all doc-master prompts must require an explicit verdict "
-                f"(DOCS-UPDATED, NO-UPDATE-NEEDED, or DOCS-DRIFT-FOUND)."
+            assert "DOC-DRIFT-VERDICT" in block_upper, (
+                f"Doc-master prompt template #{i + 1} does not name DOC-DRIFT-VERDICT. "
+                f"Issue #1773: the canonical field name is the only accepted form; "
+                f"the retired DOCS-* tokens are not a substitute."
+            )
+
+    def test_no_template_requests_retired_verdict_tokens(self, implement_content: str) -> None:
+        """No doc-master template may request a verdict token the parser rejects.
+
+        Issue #1773 root cause: the templates instructed doc-master to emit
+        DOCS-UPDATED / NO-UPDATE-NEEDED / DOCS-DRIFT-FOUND, none of which the
+        regex in lib/doc_verdict_validator.py matches. An agent that obeyed the
+        dispatched contract would emit a label outside the canonical contract
+        declared in agents/doc-master.md section 'Step 5: Output Verdict' — the
+        dispatched contract and the canonical contract disagreed. This test
+        asserts the source contract, not any runtime outcome.
+        """
+        blocks = _extract_doc_master_prompt_blocks(implement_content)
+        assert blocks, "No doc-master prompt template blocks found in implement.md."
+
+        for i, block in enumerate(blocks):
+            block_upper = block.upper()
+            present = [tok for tok in RETIRED_VERDICT_TOKENS if tok in block_upper]
+            assert not present, (
+                f"Doc-master prompt template #{i + 1} requests retired verdict "
+                f"token(s) {present}. Issue #1773: those labels are rejected by "
+                f"lib/doc_verdict_validator.py and are not part of the canonical "
+                f"verdict contract declared in agents/doc-master.md section "
+                f"'Step 5: Output Verdict', so a template requesting them "
+                f"conflicts with the canonical role. Use DOC-DRIFT-VERDICT as "
+                f"declared there."
+            )
+
+    def test_templates_reference_canonical_role(self, implement_content: str) -> None:
+        """Every doc-master template must point at the canonical role definition.
+
+        The templates carry no token values of their own (Decision 3). That is
+        only safe if each one names the file where the vocabulary IS defined, so
+        a reader of the dispatch prompt can resolve the contract.
+        """
+        blocks = _extract_doc_master_prompt_blocks(implement_content)
+        assert blocks, "No doc-master prompt template blocks found in implement.md."
+
+        for i, block in enumerate(blocks):
+            assert DOC_MASTER_AGENT_REL in block, (
+                f"Doc-master prompt template #{i + 1} does not reference "
+                f"{DOC_MASTER_AGENT_REL}. Issue #1773: templates declare no token "
+                f"values, so each MUST name the canonical role definition."
+            )
+
+    def test_no_template_declares_verdict_values(self, implement_content: str) -> None:
+        """No template may DECLARE verdict values; only the role definition may.
+
+        Disambiguation rule (documented deliberately — Issue #1773):
+
+        * A verdict DECLARATION is the field name immediately followed by a token
+          value, e.g. ``DOC-DRIFT-VERDICT: PASS`` or ``DOC-DRIFT-VERDICT: FAIL(2)``.
+          This is FORBIDDEN in a dispatch template because it would create a third
+          source of truth alongside agents/doc-master.md Step 5 and the parser in
+          lib/doc_verdict_validator.py — the exact divergence that caused #1773.
+        * An explanatory MENTION of the bare word ``PASS`` or ``FAIL`` in running
+          prose (for example, "this run is not a pass") is PERMITTED. It states no
+          token value and cannot drift from the parser, so forbidding it would only
+          push authors toward vaguer wording.
+
+        The rule is therefore positional, not lexical: what matters is whether a
+        token follows the field name, not whether the word appears anywhere.
+        """
+        blocks = _extract_doc_master_prompt_blocks(implement_content)
+        assert blocks, "No doc-master prompt template blocks found in implement.md."
+
+        for i, block in enumerate(blocks):
+            declaration = VERDICT_DECLARATION_RE.search(block)
+            assert declaration is None, (
+                f"Doc-master prompt template #{i + 1} DECLARES a verdict value: "
+                f"{declaration.group(0)!r}. Issue #1773: templates MUST point at "
+                f"agents/doc-master.md Step 5 rather than restating token values."
+            )
+            assert "FAIL(" not in block.upper(), (
+                f"Doc-master prompt template #{i + 1} declares the FAIL(N) literal. "
+                f"Issue #1773: the FAIL(N) form is declared only in "
+                f"agents/doc-master.md Step 5 and lib/doc_verdict_validator.py."
             )
 
     def test_all_doc_master_prompts_contain_scan_step(self, implement_content: str) -> None:
@@ -167,8 +263,15 @@ class TestImplementDocMasterPromptMinimum:
             "STEP 10 parallel mode section does not contain a doc-master prompt template. "
             "Issue #725: STEP 10 parallel doc-master invocation must use structured template."
         )
-        assert "DOC-DRIFT-VERDICT" in parallel_section.upper() or "docs-drift" in parallel_section.lower(), (
+        assert "DOC-DRIFT-VERDICT" in parallel_section.upper(), (
             "STEP 10 parallel doc-master template must contain DOC-DRIFT-VERDICT."
+        )
+        retired_present = [
+            tok for tok in RETIRED_VERDICT_TOKENS if tok in parallel_section.upper()
+        ]
+        assert not retired_present, (
+            f"STEP 10 parallel section still carries retired verdict token(s) "
+            f"{retired_present}. Issue #1773: the parser rejects all of them."
         )
 
     def test_step10c_sequential_has_doc_master_template(self, implement_content: str) -> None:

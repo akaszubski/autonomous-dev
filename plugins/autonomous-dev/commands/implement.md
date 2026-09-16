@@ -1945,10 +1945,7 @@ REQUIRED STEPS — you MUST complete all three:
 
 2. SEMANTIC COMPARISON: For each documentation reference found in step 1, compare the documented behavior against the new behavior after the implementation. Flag any mismatch where the documentation describes the old behavior, missing parameters, changed defaults, or removed functionality.
 
-3. DOC-DRIFT-VERDICT: State one of the following verdicts explicitly:
-   - DOCS-UPDATED: List each file updated and what changed.
-   - NO-UPDATE-NEEDED: Explain why the change is purely internal with no user-facing behavior change.
-   - DOCS-DRIFT-FOUND: List each documentation file that is now stale and what needs changing (this is a BLOCKING finding).
+3. DOC-DRIFT-VERDICT: End your response with the canonical verdict line defined in agents/doc-master.md, section 'Step 5: Output Verdict'. That section is the single source of truth for the permitted verdict values and for the final-line requirement. Do not invent or substitute any other verdict token, and do not emit any text after the verdict line. In the body above that line, report each documentation file you updated and what changed, and each documentation file that is now stale and was left unfixed — a stale file left unfixed is a BLOCKING finding and must be named individually. If the change is purely internal with no user-facing behavior change, say so and explain why. If any REQUIRED examination step above was not completed, this run is not a pass: report it as a failure rather than a clean result, and include those uncompleted examinations in the failure count exactly as the role definition in agents/doc-master.md section 'Step 5: Output Verdict' defines that count — that section is the only place the count is defined.
 
 **Changed files**:
 [changed file list]
@@ -2024,10 +2021,7 @@ REQUIRED STEPS — you MUST complete all three:
 
 2. SEMANTIC COMPARISON: For each documentation reference found in step 1, compare the documented behavior against the new behavior after the implementation. Flag any mismatch where the documentation describes the old behavior, missing parameters, changed defaults, or removed functionality.
 
-3. DOC-DRIFT-VERDICT: State one of the following verdicts explicitly:
-   - DOCS-UPDATED: List each file updated and what changed.
-   - NO-UPDATE-NEEDED: Explain why the change is purely internal with no user-facing behavior change.
-   - DOCS-DRIFT-FOUND: List each documentation file that is now stale and what needs changing (this is a BLOCKING finding).
+3. DOC-DRIFT-VERDICT: End your response with the canonical verdict line defined in agents/doc-master.md, section 'Step 5: Output Verdict'. That section is the single source of truth for the permitted verdict values and for the final-line requirement. Do not invent or substitute any other verdict token, and do not emit any text after the verdict line. In the body above that line, report each documentation file you updated and what changed, and each documentation file that is now stale and was left unfixed — a stale file left unfixed is a BLOCKING finding and must be named individually. If the change is purely internal with no user-facing behavior change, say so and explain why. If any REQUIRED examination step above was not completed, this run is not a pass: report it as a failure rather than a clean result, and include those uncompleted examinations in the failure count exactly as the role definition in agents/doc-master.md section 'Step 5: Output Verdict' defines that count — that section is the only place the count is defined.
 
 **Changed files**:
 [changed file list]
@@ -2828,10 +2822,7 @@ REQUIRED STEPS — you MUST complete all three:
 
 2. SEMANTIC COMPARISON: For each documentation reference found in step 1, compare the documented behavior against the new behavior after the implementation. Flag any mismatch where the documentation describes the old behavior, missing parameters, changed defaults, or removed functionality.
 
-3. DOC-DRIFT-VERDICT: State one of the following verdicts explicitly:
-   - DOCS-UPDATED: List each file updated and what changed.
-   - NO-UPDATE-NEEDED: Explain why the change is purely internal with no user-facing behavior change.
-   - DOCS-DRIFT-FOUND: List each documentation file that is now stale and what needs changing (this is a BLOCKING finding).
+3. DOC-DRIFT-VERDICT: End your response with the canonical verdict line defined in agents/doc-master.md, section 'Step 5: Output Verdict'. That section is the single source of truth for the permitted verdict values and for the final-line requirement. Do not invent or substitute any other verdict token, and do not emit any text after the verdict line. In the body above that line, report each documentation file you updated and what changed, and each documentation file that is now stale and was left unfixed — a stale file left unfixed is a BLOCKING finding and must be named individually. If the change is purely internal with no user-facing behavior change, say so and explain why. If any REQUIRED examination step above was not completed, this run is not a pass: report it as a failure rather than a clean result, and include those uncompleted examinations in the failure count exactly as the role definition in agents/doc-master.md section 'Step 5: Output Verdict' defines that count — that section is the only place the count is defined.
 
 **Changed files**:
 [changed file list]

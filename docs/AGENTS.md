@@ -83,7 +83,7 @@ Deep reasoning for complex synthesis:
 
 | Status | Agent | Tokens | Notes |
 |--------|-------|--------|-------|
-| ✅ | doc-master | 2,517 | OK (updated: Issue #744 added Step 4.6 minimum output HARD GATE) |
+| ✅ | doc-master | 2,517 | OK (Issue #1773 relabeled Step 4.6 from HARD GATE to a shallow-output tripwire — word count is a compatibility check, not proof the examination happened) |
 | ✅ | security-auditor | 1,231 | OK |
 | ✅ | issue-creator | 1,113 | OK |
 | ✅ | researcher-local | 1,104 | OK |

@@ -139,7 +139,7 @@ Gates in order of appearance:
 10. Agent count gate (minimum agents ran) — STEP 9.5
 11. Remediation gate (validators APPROVE / PASS) — STEP 11
 12. Skill effectiveness gate (delta > -0.10 if skills modified) — STEP 11.5
-13. Doc-drift gate (doc-master PASS, no stale docs) — STEP 12
+13. Doc-drift review — STEP 12 requires a reported PASS with no stale docs. Where the batch-completion hook check is reached, it checks recorded verdict values, not whether the examination happened; this is not universal examination enforcement (agents/doc-master.md Step 5, Issues #1773 and #1797).
 14. Documentation congruence (counts match reality) — STEP 14
 
 ## How to Resume
