@@ -418,6 +418,24 @@ and missing/malformed IDs produce unusable evidence, never invented identities.
 No loader, exporter, native execution or active configuration change is admitted
 by that review; those require their own concrete reviewed composition.
 
+**Collector preparation review (2026-09-18):** reuse the already qualified stock
+local collector and held-network-namespace supervision; do not install another
+collector or create another supervisor. Independent boundary review permits a
+fresh private copy of the existing supervisor made import-safe, with one focused
+offline test. Retain the original proof bytes, cleanup identity bindings and
+invocation-relative deadline. This is preparation, not admission of a dummy or
+native run. Full composition still needs frozen mount/profile bindings, fixed
+probes, view-correct target identities, deadlines and owned cleanup reviewed.
+
+The current EX settings differ from base settings by three writable document
+leaves; the older standalone dummy inner profile is not native-equivalent.
+Claude's effective sandbox also depends on runtime CWD, permissions and protected
+paths. Do not create a parallel policy translator or count a standalone profile
+as native proof. Any such composition evidence is limited to its exact frozen
+profile; native isolation and telemetry must subsequently be observed through
+the real CLI/tool path. Existing collector component passes do not prove that
+connection or the four-carrier provenance join.
+
 **2026-09-17 renewed authority:** the user approved the native-plugin binding
 repair and one additional600-second EX-1 attempt after independent review, with
 all existing acceptance/security gates unchanged. This is ordinal6 only; ordinals1–5
