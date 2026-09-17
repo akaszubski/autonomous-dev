@@ -715,3 +715,31 @@ family scopes, case freezes and existing authority remain prerequisites.
 GitHub reconciliation uses #1757/#1773 and existing D0/W0
 owners, plus #674/#1453 historical evidence. No issue closed or acceptance text
 silently replaced during this planning task.
+
+## Measured checkpoint — 2026-09-18 (not F0 completion)
+
+The credential-free composition attempt 08 measured allowed HTTPS 200, collector
+HTTP 403 through the same current inner proxy, exactly one outer telemetry record,
+both-layer protected-directory refusals and permitted-writer controls. Cleanup
+passed with retained before/after network snapshots and independent owned-object
+absence checks; elapsed 1.624 seconds. The active native loader/profile stayed
+unchanged. [Evidence and limitations](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5722404233).
+Earlier failed attempts remain failures, not retrospectively repaired proofs.
+
+Remaining composition work is distinct CONNECT/SOCKS and actual process/FD/private
+file routes, not repetition merely to clear stale labels. The private process-view
+test may reuse the existing pipes for one bounded inner-ready acknowledgment and
+phase-bound public metadata; it must preserve the outer readiness gate, absolute
+deadlines, independent identity checks and every security outcome. This is test
+implementation preparation, not native admission or a new product runtime.
+
+The fresh bootstrap trust run at `5b4ba903` returned 125 pass/1 fail in 188.82 seconds:
+the original categorical F0 perimeter rejects later prerequisite infrastructure
+changes. Historical bootstrap CI is component evidence, not current integrated
+acceptance. [Recorded refusal](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5722299084).
+Reconciliation must bind prerequisite authority and exact reviewed changes outside
+candidate-controlled declarations, preserve the original base/cumulative accounting
+and negative controls, and apply only specifically adopted exceptions. No such
+gate change is adopted or implemented by this checkpoint. Native cases, carrier
+evidence, final trust/CI and explicit F0 freeze remain outstanding; R0 authority
+is unchanged.
