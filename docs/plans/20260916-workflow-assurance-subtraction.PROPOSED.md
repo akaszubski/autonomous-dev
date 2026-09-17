@@ -354,6 +354,70 @@ Progress and limitations: [#1773 comment5706268588](https://github.com/akaszubsk
 
 ### EX amendment review — native fidelity before another attempt
 
+**2026-09-18 standing authority:** the user approved the reviewed test-design
+amendment and additional work needed that does not affect the overall intent.
+This supersedes the exhausted single-attempt approval barrier below for in-scope
+F0 repairs and reviewed qualification attempts. It does not turn any previous
+NONPASS into PASS, authorize unchanged retries, or relax security or evidence.
+Each native attempt retains the600-second maximum, exact subject/case freeze,
+independent pre-admission review, private expectations, complete capture and
+verified cleanup. Before a subsequent attempt, identify a concrete changed cause
+and offline evidence that the correction addresses it; otherwise stop that route
+and replan rather than spend another attempt. No parallel native runs against
+shared state. Preserve all attempts, including failures, with monotonically
+increasing ordinals and their configuration identities.
+
+Routine in-scope repairs no longer require another user approval. Changes to
+security outcomes, evidence sufficiency, product intent, paid-action authority,
+or separately required release/promotion authority still do. No prompt work
+around a model refusal is authorized. Case attribution changes must be explicit,
+reviewed and preserve every underlying outcome; evidence from a different actor
+must never be represented as the original actor's behavior. R0 remains subject
+to its separate frozen-F0 authorization. Next work is the smallest reviewed
+amendment for incomplete-examination detection and operating provenance carriers,
+reusing existing owners rather than adding a new assurance framework.
+
+**Reviewed amendment preparation (not a native admission):** distinguish the doc
+child's examination, native boundary probes and provenance as separately attributed
+observations; final acceptance still requires every applicable outcome. Existing
+`compare_required_reads` already rejects ordinal6's actual child capture, so reuse
+it rather than build another read checker. Retain covers-first, three full-file
+Reads, affected source/docs, successful baseline/diff/history/net-count examination
+and changelog provenance. A boundary actor never supplies the doc child's reads.
+Native protected Read and literal Bash denials remain required and must reach the
+intended routes; model refusal, hook preemption and ENOENT are not substitutes.
+If boundary observations use another actor, freeze explicit attribution and verify
+live equivalence of CLI/settings/plugin, credentials-of-process (UID/groups and
+capabilities, not secret values), CWD, mounts/namespaces, DAC and relevant environment.
+Separate execution is not same-process proof; unobserved dimensions stay unproven.
+
+For provenance, evaluate a bounded ID/decision receipt from the existing hook
+decision owner on stderr, carried inside native hook_response and joined to its
+enclosing hook_id. Do not claim the native envelope has gained a tool ID or that
+actor-origin instrumentation independently authenticates itself. Prove unchanged
+allow/deny decision bytes, malformed/missing IDs and duplicate/conflicting receipts
+offline. The pinned stream-json console exporter was previously observed disabled;
+investigate existing local OTLP transport before choosing any new component or
+changing namespace/network policy. No external telemetry endpoint or raw secret
+logging. Carrier operation and exact joins require separate live proof afterward.
+
+Product transition enforcement is outside F0 and remains governed by the adopted
+later-rung sequence (R0 runner trust, T0 workflow receipt consumption): the existing
+completion-state owner and its existing hook consumer must eventually consume the
+verified examination receipt, including ordinary/non-issue runs, rather than trust
+the report parser. Preserve the real failed capture as its negative case. Do not
+install a second gate now. First implementation scope is the existing public hook
+receipt helper and its existing boundary tests only (two files); loader/exporter
+changes require a concrete reviewed transport design before expanding that scope.
+Round1 independent boundary review accepted these outcome boundaries and flagged
+historical no-retry wording below; those statements describe ordinal6 authority,
+superseded only as specified by the2026-09-18 paragraph above.
+Round2 PROCEED is limited to the two-file offline receipt prototype: unchanged
+stdout bytes/exit behavior, bounded distinctly framed receipt without raw input,
+and missing/malformed IDs produce unusable evidence, never invented identities.
+No loader, exporter, native execution or active configuration change is admitted
+by that review; those require their own concrete reviewed composition.
+
 **2026-09-17 renewed authority:** the user approved the native-plugin binding
 repair and one additional600-second EX-1 attempt after independent review, with
 all existing acceptance/security gates unchanged. This is ordinal6 only; ordinals1–5
