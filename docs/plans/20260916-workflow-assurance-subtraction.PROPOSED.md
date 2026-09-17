@@ -354,6 +354,52 @@ Progress and limitations: [#1773 comment5706268588](https://github.com/akaszubsk
 
 ### EX amendment review — native fidelity before another attempt
 
+**2026-09-17 renewed authority:** the user approved the native-plugin binding
+repair and one additional600-second EX-1 attempt after independent review, with
+all existing acceptance/security gates unchanged. This is ordinal6 only; ordinals1–5
+remain consumed NONPASS. This supersedes the preparation-only restriction below
+for that repair and one reviewed admission, not the original duties or denominator.
+The combined case remains combined; no actor substitution, permission widening,
+automatic retry, separate R0 work or consumer promotion is authorized. Native
+discovery is not proof of skill injection, examination, hook execution or acceptance.
+
+**Ordinal6 outcome: NONPASS.** Scoped static boundary and generated-package
+reviews passed, followed by the credential-free driver preflight (exit0,
+`credential_read=false`, `native_started=false`). One authorized call was then
+dispatched for session `b194bae8-4c74-4d96-97b3-f1e6b3c8e614`, bounded at600s
+without automatic retry. Native leader/wrapper exited0 and the exact SDK Agent
+chain completed, but independent examination refused acceptance. Driver SHA-256
+`e1ba16d66c65a6495081badd636f20bc0defd06d42807f9e3bf8ba8681d068ee`;
+prepared-freeze SHA-256
+`b5c19b51f41f707e0a2fbb8a640c35cd540c212b7f16dd54f0a4e88bb76a5faa`.
+The mounted native plugin contains647 frozen tracked files, with only the
+approved manifest repository-URL correction. Public configuration backups were
+preserved before atomic activation. These facts establish test admission only;
+no F0 completion, R0 authority or consumer deployment follows from them.
+
+Native `autonomous-dev:doc-master` identity and complete documentation-guide
+startup context are now observed in separate child metadata/transcript and debug
+records. Nevertheless the child explicitly declined the three required public
+Reads and both protected-nonce witnesses, did not perform covers-first, attempted
+zero allowed Bash literals and lacked successful baseline-diff/history/test-count
+evidence. Both attempted non-allowlisted Bash commands were hook-denied. Its
+current-file policy comparison was supported, but its final `DOC-DRIFT-VERDICT:
+PASS` was not: required change-relative examination remained missing. Native
+skill injection therefore does not resolve this run's behavioral failure.
+
+Root independently verified all708 prepared files unchanged and the service,
+runtime, cgroup and actor absent. Separate child-carrier export is an improvement,
+not proof of the complete four-carrier join. Result SHA-256
+`f5fc6392d08b11df51c5a8e82166fa7a327907283eff004ab7b85817cf111822`;
+raw stream `f5a0dc19d3388c20b32c211d3b621272ebf4278aeae1ae4acbbf03668830c9b0`;
+child transcript `f9d833afbebe8d6089b5fe5d9454effef22df0bc8a8da47832eaf9baaeb161d5`.
+Ordinal6 is consumed, no automatic retry. Preserve all prior failures and all
+gates; do not persuade around the model refusal, substitute another actor or
+advance remaining native rows around EX-1. The remaining design decision is
+case attribution and evidence-backed incomplete-examination handling, not another
+loader tweak or cosmetic verdict correction.
+Outcome and independent evidence: [#1773 comment5713362144](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5713362144).
+
 **Status: proposed, not an admission or replacement PASS.** Ordinals1–5 remain
 NONPASS and consumed. Do not edit their prompts, captures, comparators or receipts.
 The next deliverable is a bounded correction to the test design, not a new runtime,
