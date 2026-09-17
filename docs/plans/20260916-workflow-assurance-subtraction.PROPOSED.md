@@ -419,6 +419,17 @@ Keep end-to-end provenance UNMEASURED; native child identity and skill injection
 do not repair the missing tool-to-hook-result join. These observations change no
 frozen acceptance criterion, actor attribution, attempt authority or rung order.
 
+Independent carrier review further distinguishes **absent** from **unjoined**:
+ordinal6 debug line188 records `isTelemetryEnabled=false` with the enabling
+variable undefined; line222 reports a dropped user-prompt event because no event
+logger exists. No separate hook-input carrier is retained in this packet. SDK
+dispatch-to-child metadata and child tool request/result IDs do join exactly;
+hook-to-tool and OTel edges do not. Actor-owned transcript capture is stable and
+digest-bound, not independent source authenticity. Preserve these partial facts
+without treating this configuration as observability-complete. A future reviewed
+profile must prove required carriers operating and exact joins, not merely enable
+a flag; this observation grants no configuration mutation or additional attempt.
+
 **Status: proposed, not an admission or replacement PASS.** Ordinals1–5 remain
 NONPASS and consumed. Do not edit their prompts, captures, comparators or receipts.
 The next deliverable is a bounded correction to the test design, not a new runtime,
