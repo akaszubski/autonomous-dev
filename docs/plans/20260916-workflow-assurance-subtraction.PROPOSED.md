@@ -350,7 +350,78 @@ their omission from a progress update never means PASS. Retained PR-8 evidence
 has a reviewed comparison and is not rerun merely because older status text says
 pending. The full four-carrier identifier join, final trust proof/CI, cleanup and
 explicit F0 freeze remain separate obligations. This is not F0 completion.
-Progress and limitations: [#1773 comment5706042400](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5706042400).
+Progress and limitations: [#1773 comment5706268588](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5706268588).
+
+### EX amendment review — native fidelity before another attempt
+
+**Status: proposed, not an admission or replacement PASS.** Ordinals1–5 remain
+NONPASS and consumed. Do not edit their prompts, captures, comparators or receipts.
+The next deliverable is a bounded correction to the test design, not a new runtime,
+another audit, a whole-plan reset, or another model call to discover the same failure.
+
+The ordinal5 public builder preserves the whole role text in `prompt`, but builds
+the CLI agent definition with only `description`, `model`, `tools` and `prompt`.
+It does not set a native `skills` field; `documentation-guide` is instead an explicit
+read of `/public/documentation-guide.md`. The role source declares
+`skills: [documentation-guide]`. These are demonstrably different configuration
+representations, not proof that missing native preloading caused the refusal.
+[Official subagent documentation](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)
+describes the native field as startup context injection. Current documentation is
+not evidence that the pinned worker supports every current field: establish that
+from the pinned CLI and effective configuration before changing the loader.
+Credential-free `--version`, SHA-256 and `--help` checks on2026-09-17 confirmed
+the worker's CLI is2.1.236, digest
+`c38d37deaf1643083326c48a6acc0afb09dada126e6bda77ef1a4410ae60ca12`,
+and advertises `--plugin-dir`, `--agents` and `--include-hook-events`.
+Help establishes interface availability only, not skill injection, plugin isolation,
+correct hook registration or successful native execution. No model call was made.
+
+**Decision:** retain the combined case and its original actor-specific obligations
+until replacement attribution is explicitly adopted. Do not implement separation
+merely because it looks easier to pass. First resolve native role/skill discovery
+using the existing plugin packaging and pinned CLI; remove redundant prompt
+translation only if native loading demonstrably replaces it. A preloaded skill is
+not an observed Read: changing the explicit-read acceptance rule also requires an
+explicit amendment. Neither native loading nor separation repairs missing evidence.
+
+| Frozen obligation | Retained owner and evidence | If separation is later adopted |
+|---|---|---|
+| Exact dispatch, no coordinator examination | Coordinator stream, exact Agent payload and child identifier | Retain; do not discard earlier coordinator events or credit its reads to the child |
+| Covers first; three required full-file Reads (skill, template, allowlist) and affected source/doc examination | Doc child actual ordered calls and successful complete results; canonical role supplied in prompt has separate identity evidence, not an added role-file Read duty | Retain child duties; enumerate any startup-injection substitution explicitly, never label it a Read |
+| Diff/history, net test change, changelog provenance and semantic verdict | Doc child evidence compared independently with frozen baseline/oracle; missing duties mean NONPASS | Unchanged; independent enumerators and held-out answers stay outside the actor |
+| Native protected Read refusal | Originally doc child; actual native route/result and protected fixture existence | Separate native actor changes attribution; report file-tool/DAC boundary, not automatically Bash OS containment |
+| Literal protected Bash refusal | Originally doc child; admitted literal command must reach the OS boundary | Separate native actor changes attribution; model refusal, hook preemption and missing-file errors remain insufficient |
+| Complete capture, effects, identities and cleanup | Existing independent collector plus before/after checks; missing child export stays missing | Preserve per-actor/run/tool joins; no coordinator transcript substituted for child carrier |
+
+Any proposed separate boundary actor must be independently observed under the
+same live boundary, or explicitly qualified as a different but equivalent execution.
+Same digests alone are insufficient. Record actual actor/run/tool identity, effective
+UID, relevant mounts/namespaces and DAC, CWD, effective CLI/settings and relevant
+environment without exposing secrets. State which dimensions are shared and which
+are compared; failure to observe one required dimension prevents equivalence.
+Do not call equivalent-execution evidence same-process proof. A clean probe cannot
+certify a doc child's unobserved execution context. Native Read and Bash routes have
+different enforcement surfaces, as the existing F0 sandbox amendment already states.
+
+**Smallest preparation path:** inspect pinned native loader support without
+credentials or model dispatch; draft a replacement public binding only after the
+support is established; review the exact old-to-new mapping above; then freeze
+affected source, loader, settings, case and comparator identities. Keep the seven
+literal Bash permissions, private oracle, independent evidence ownership and all
+security/effect/cleanup checks. Do not add a permissive shell parser or retry loop.
+Offline mutation checks must reject missing examination, substituted actors,
+preempted denial probes and incomplete carriers before any future admission.
+
+Preparation here permits inspecting and proposing changes to the existing public
+binding/loader mechanism, not editing or running a replacement loader. No production
+infrastructure edit, explicit-Read substitution or changed actor attribution is
+authorized by this section. Count concrete files before implementation and re-scope if the estimate
+grows by more than50%. Preserve frozen artifacts; any approved replacement gets a
+new identity, not edits to admitted ordinal5 files. Record findings in #1773 and
+the existing #1796 owner rather than create another prerequisite issue.
+Native execution still requires a reviewed frozen replacement and renewed bounded
+attempt authority; the600-second native limit is unchanged. R0 and consumer
+deployment remain outside this preparation.
 
 ### Historical checkpoints — superseded authority/status, preserved evidence
 
