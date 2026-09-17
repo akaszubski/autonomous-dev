@@ -743,3 +743,24 @@ and negative controls, and apply only specifically adopted exceptions. No such
 gate change is adopted or implemented by this checkpoint. Native cases, carrier
 evidence, final trust/CI and explicit F0 freeze remain outstanding; R0 authority
 is unchanged.
+
+### Follow-up measured checkpoint — composition attempt 13
+
+The next bounded credential-free composition run passed its current subset in
+1.685 seconds: current HTTP/CONNECT/SOCKS positive and negative controls, three
+inner direct connection refusals, independently joined process/FD exclusions and
+namespace ownership, protected writes with permitted controls, exactly one outer
+telemetry record, and verified cleanup. Root independently reran 56 offline checks
+before the reviewed attempt. Native loader/profile bytes remained unchanged.
+[Evidence and limits](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5722760129).
+This is not native-Claude fidelity, IPv6 policy proof or full F0 acceptance.
+
+Independent review identified the remaining frozen composition cases: inherited
+outer-proxy/socket bypass visibility; actual collector unit-file access; fixed
+poisoned configuration inputs and dummy-header spoofing on applicable routes.
+Combine these in the existing fixture with one final sink/cleanup assessment;
+reuse pinned component malformed/size/stopped-receiver evidence only at its
+component scope. Do not rerun completed cases solely to clear stale actor labels.
+Independent dynamic-value checks, actual native policy translation and native
+cross-carrier provenance remain separate requirements. Earlier failed attempts
+remain failures, and the current bootstrap accounting refusal remains unresolved.
