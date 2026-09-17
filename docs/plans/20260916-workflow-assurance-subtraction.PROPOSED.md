@@ -400,6 +400,25 @@ case attribution and evidence-backed incomplete-examination handling, not anothe
 loader tweak or cosmetic verdict correction.
 Outcome and independent evidence: [#1773 comment5713362144](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5713362144).
 
+**Post-run offline replay, no additional attempt:** the actual427-word final
+child response passed the existing `doc_verdict_validator.validate_doc_verdict`
+with `verdict=PASS`, zero findings, `is_shallow=false` and no position warning.
+This proves a parser-level acceptance only, not a live pipeline/commit permit.
+The existing `implement.md` Doc-Drift Collection Point instructs PASS to proceed
+and persists the reported verdict; neither that text nor the parser establishes
+examination. Preserve the real false-PASS transcript as the negative arm for the
+already-planned evidence-consuming transition, rather than adding a fabricated
+report fixture, raising the word threshold or changing the verdict vocabulary.
+Its ordinary valid and missing-evidence arms must still be frozen and proven at
+the real consumer under the adopted sequence; replay alone does not deliver it.
+
+The captured stream has two hook-start/result pairs sharing `hook_id`; neither
+hook result supplies `tool_use_id` or `parent_tool_use_id`, including its nested
+deny output. This is a concrete missing edge, not a timing-correlation problem.
+Keep end-to-end provenance UNMEASURED; native child identity and skill injection
+do not repair the missing tool-to-hook-result join. These observations change no
+frozen acceptance criterion, actor attribution, attempt authority or rung order.
+
 **Status: proposed, not an admission or replacement PASS.** Ordinals1–5 remain
 NONPASS and consumed. Do not edit their prompts, captures, comparators or receipts.
 The next deliverable is a bounded correction to the test design, not a new runtime,
