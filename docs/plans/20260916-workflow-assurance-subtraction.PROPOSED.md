@@ -376,6 +376,22 @@ and advertises `--plugin-dir`, `--agents` and `--include-hook-events`.
 Help establishes interface availability only, not skill injection, plugin isolation,
 correct hook registration or successful native execution. No model call was made.
 
+Follow-up native discovery comparison used archived commit13381756 in disposable
+worker directories, with networking disabled and empty ambient settings sources.
+The committed plugin manifest failed validation (`repository` expected string,
+received object), and explicit `--plugin-dir` discovery reported plugin not found.
+With only the already-pending repository-URL correction, directory comparison
+confirmed no other file difference and native discovery listed doc-master and
+documentation-guide (46 skill/command entries,17 agents,0 plugin hooks).
+This qualifies discovery, not startup skill injection, exact runtime Agent identity
+or hook execution. Keep explicit frozen hook settings; do not replace them with
+the plugin inventory. Directory validation separately selected marketplace.json
+and rejected missing owner/plugins fields; plugin and marketplace validation are
+different checks. The pending manifest correction is not committed by this report.
+Next binding proposal uses the immutable native plugin directory instead of the
+custom `--agents` wrapper, subject to runtime-identity/skill-context qualification
+and unchanged explicit Read duties, permissions, capture and admission requirements.
+
 **Decision:** retain the combined case and its original actor-specific obligations
 until replacement attribution is explicitly adopted. Do not implement separation
 merely because it looks easier to pass. First resolve native role/skill discovery
