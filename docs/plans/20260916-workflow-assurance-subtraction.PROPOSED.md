@@ -907,3 +907,24 @@ independent pre-admission review of the exact combined package, changed cause,
 case freeze and remaining native evidence obligations, not another blanket
 approval. Native execution, full provenance/effect acceptance, F0 freeze and
 separately authorized R0/product migration remain incomplete.
+
+### Ordinal7 — retained setup failure, not native qualification
+
+One independently admitted attempt used session
+`94bd4bc9-4242-487f-af3e-75860693b0f5` and driver SHA-256
+`240aecaa9045d0e5f5848de3ba1a93ef6d5c97b7fe406461e440d0245b327ccd`.
+The frozen worker package and credential-free preflight passed after backed-up
+activation of the public test inputs. The bounded call produced NONPASS; result
+SHA-256 is `a3a0cce770505c618d36bb8c067b079715b3ecd3851592075c4736364a5cec61`.
+No release/native-exec observation was recorded: the collector setup assertion
+compared systemd's human-readable `9min` with literal `540s`. The durations are
+equal; the failed comparison is a runtime integration defect, not a timeout.
+
+Collector cleanup succeeded; both services were independently observed absent
+and inactive with MainPID0. Parent runtime remains retained after a pre-release
+failure-export FileNotFoundError, so full cleanup is not claimed. Do not discard
+that runtime or retry unchanged. Correct the duration comparison in the existing
+adapter, reproduce the captured mismatch offline, review the repair and resolve
+retained-runtime handling before any further admission. Preserve the unchanged
+native deadlines and all examination, provenance, boundary and effect gates.
+[Attempt evidence](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723838675).
