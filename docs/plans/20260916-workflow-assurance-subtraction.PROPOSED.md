@@ -852,3 +852,25 @@ secret encodings, native exporter routing, genuine native identifier joins or F0
 completion. Next is canonical private package integration of the reviewed
 capture, exporter and hook-receipt comparison, followed by native qualification
 under the existing gates; no product deployment or R0 authorization follows.
+
+### Follow-up integration checkpoint — comparison must be callable
+
+The private native capture integration passed 17 focused tests and 16 existing
+transport/result tests in independent coordinator runs. Review found and fixed
+unintended PR8 changes, pending-start cleanup races, and late EOF finalization;
+the rejected drafts remain preserved. The combined offline package then passed
+six generation tests and 58 unchanged workflow regressions with exact imported
+source paths/hashes verified. These are offline checks, not native qualification.
+
+Connectivity review found a remaining gap: required-read and hook-receipt
+comparators had no operational external caller, and the emitted-telemetry join
+was still a written contract. Complete that bounded post-capture path in the
+existing comparison owner, linking actual SDK/child/tool identities to emitted
+telemetry without timestamp or command-text inference. Keep evidence binding,
+comparison results and remaining semantic/effect acceptance distinct; a caller's
+assertion that a file is finalized or authentic is not proof.
+
+In parallel, exercise the extracted collector adapter itself on Linux using
+fixed dummy20/25/29-second limits, not the previous supervisor or a backdated
+native clock. Native540/545/600 limits remain unchanged. Neither this preparation
+nor a dummy pass authorizes a native attempt, release promotion or deployment.
