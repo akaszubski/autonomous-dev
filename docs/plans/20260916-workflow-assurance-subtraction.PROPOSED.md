@@ -787,3 +787,23 @@ authenticated provenance. Independent dynamic metadata verification, actual
 native policy translation, native cross-carrier joins and the bootstrap accounting
 refusal remain unresolved; F0 is not complete. Continue those obligations rather
 than repeat measured cases merely to clear stale diagnostic labels.
+
+### Follow-up measured checkpoint — metadata and native preparation
+
+Attempt16 checked all required dummy metadata fields in 1.717 seconds with
+independently verified cleanup: environment, public CA and temporary-directory
+facts were independently observed; the parent-relative maps used an exact-source,
+bounded in-namespace witness joined and compared by the parent. Evidence retains
+that mixed-method distinction and does not claim all fields were root-read.
+[Measured result](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723030423).
+Native equivalence and F0 acceptance do not follow from this preparation result.
+
+A private native exporter overlay passed 12 independently rerun offline tests;
+it has not been installed or executed natively. Keep the existing core collector
+and full protected evidence rather than discard trace links for broad redaction.
+The remaining capture change must route actual collector output through the
+existing secret scanner **before persistence**, including diagnostics, under the
+existing aggregate size/time and cleanup limits. A private FIFO candidate is in
+preparation; neither private file permissions nor posthoc scanning prove secret
+exclusion. Native routing, real policy behavior, carrier joins and the bootstrap
+accounting refusal remain outstanding.
