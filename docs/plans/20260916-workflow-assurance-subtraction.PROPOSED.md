@@ -764,3 +764,26 @@ component scope. Do not rerun completed cases solely to clear stale actor labels
 Independent dynamic-value checks, actual native policy translation and native
 cross-carrier provenance remain separate requirements. Earlier failed attempts
 remain failures, and the current bootstrap accounting refusal remains unresolved.
+
+### Follow-up measured checkpoint — composition attempt 14
+
+The reviewed credential-free residual run completed in 1.632 seconds with cleanup
+verified independently. Before execution, the coordinator reran all 58 offline
+checks and verified the staged hashes and root-owned read-only files. The actual
+outer proxy listening socket was bound to its owning process and descriptor:
+OUTER connected; INNER saw the same socket but socket creation returned EPERM.
+Collector config, sink and both actual unit-file targets were excluded from both
+actor views, including direct and self-root read/nontruncating-write attempts.
+
+The fixed dummy poison/spoof request returned 200, with collector configuration
+and source checks unchanged; policy refusal 403 remained distinct from invalid
+proxy authentication 407. The previously measured HTTP/CONNECT/SOCKS controls
+remained expected, and the sink contained exactly one 254-byte record. Independent
+cleanup found no owned services/processes or temporary namespace; native loader
+and profile hashes were unchanged. [Evidence and limits](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5722905659).
+
+These are fixed-client composition results, not native exporter sanitization or
+authenticated provenance. Independent dynamic metadata verification, actual
+native policy translation, native cross-carrier joins and the bootstrap accounting
+refusal remain unresolved; F0 is not complete. Continue those obligations rather
+than repeat measured cases merely to clear stale diagnostic labels.
