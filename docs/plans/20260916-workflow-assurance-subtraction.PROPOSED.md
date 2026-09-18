@@ -807,3 +807,31 @@ existing aggregate size/time and cleanup limits. A private FIFO candidate is in
 preparation; neither private file permissions nor posthoc scanning prove secret
 exclusion. Native routing, real policy behavior, carrier joins and the bootstrap
 accounting refusal remain outstanding.
+
+### Follow-up preparation checkpoint — capture lifecycle and receipt comparison
+
+The private FIFO attachment reuses the unchanged secret scanner. Independent
+review found and corrected three integration gaps before live execution:
+diagnostic routing must bind both actual producer descriptors to the scanned
+pipe; an owned shutdown must permit draining a held, unlinked FIFO before final
+quiescence; the fixed runtime pathname must be rechecked against the held
+directory to reject replacement. Seven offline checks passed in the coordinator
+rerun (0.015 seconds). Stock collector flush/backpressure behavior, queued bytes
+after unlink and complete owner cleanup still require lifecycle qualification.
+
+An additive private hook-receipt comparator now joins native hook start/response
+pairs to actual selected-child Bash request IDs and checks the frozen command
+decision against both receipt and hook stdout. It does not grant authenticity,
+execution or acceptance from a receipt. Independent review corrected canonical
+session and conflicting message-role validation. Eleven receipt/comparator tests
+passed (2.109 seconds); the original 36 binding tests also passed against the
+private candidate. The retained ordinal6 run is explicitly rejected for missing
+receipt envelopes; synthetic positive fixtures are not native evidence.
+
+Keep this comparison in the external post-capture validation stage beside the
+required-read comparison, after binding the exported child to SDK completion.
+The native parent deliberately does not perform that external examination.
+Next: finish the existing-owner dummy collector lifecycle integration, then
+repin the reviewed capture/comparator/exporter preparation before any admitted
+native qualification. No new native run, credentials, promotion or product
+deployment occurred in this checkpoint; F0 and the broader plan remain open.
