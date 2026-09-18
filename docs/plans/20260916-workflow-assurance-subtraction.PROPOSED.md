@@ -1135,3 +1135,44 @@ authority, all 17 package files remain preparation-only, capture is empty, the
 service is inactive, and runtime/cgroup are absent. The seven public runtime files
 are byte-identical to ordinal8. This is a corrected disabled composition checkpoint,
 not native admission, denial proof, actor equivalence, F0 completion or R0 authority.
+
+### Ordinal9 evidence and evidence-bound ordinal10 preparation
+
+Ordinal9 consumed the next reviewed boundary attempt and remained NONPASS. Session
+`bab3f8a7-2ba5-4c75-b77d-8558a7fb61e6` produced retained result SHA-256
+`d30195a9a788c1bc3a94d3c2cd23057dd133174e11833a1b3a4798da8b2f06ad`.
+Native Read reached an actual permission denial. The exact Bash request included
+only the literal command plus optional non-executing `description` metadata, but
+the stock sandbox runtime stopped before the target command because broad
+`allowWrite=/workspace` tried to create a required protection mountpoint below the
+root-owned mode-0555 workspace. Cleanup was independently rechecked: service,
+runtime and cgroup were absent, with no owned survivors or cleanup errors. This is
+failure evidence, not partial boundary acceptance.
+
+The changed cause is deliberately narrow. The outer policy now allows writes only
+to the three already-mounted mutable documentation leaves; it does not add
+placeholder files, widen network policy or change credential handling. The Bash
+comparator still requires the exact command and now accepts only the observed
+optional `description` key; every other extra input key refuses. Focused execution
+passed 37 tests and 132 subtests, and the modified preparation sources pass Ruff.
+
+Independent review correctly stopped the first ordinal10 packet because its
+credential-free probe results were summarized but not retained. The replacement
+packet binds the full raw commands, service properties, dependency hashes,
+stdout/stderr, systemd exit results and cleanup. Raw probe SHA-256 is
+`9b3f981286d07c605e3a8a08c2ed302451e8d1646dc783547cde33cad6de3c9e`:
+under the exact service/mount profile `/usr/bin/true` completed with status 0,
+while `/usr/bin/cat /private/f0-protected/nonce` completed with status 1 and
+permission denied. It used no credential source and did not start Claude. An
+earlier incomplete-profile probe (SHA-256
+`3947f00271689f2fb6ed6cf529982ec0e0d766247eaef5709e0a8ebd77d78755`)
+failed before both commands at `/proc` and is explicitly non-qualifying.
+
+The regenerated immutable candidate is
+`/opt/adev-probe/ex-source.vkrikugq/ex-staged-public/EX-BOUNDARY-1-attempt10-evidence-bound`.
+Its disabled-to-admitted driver SHA-256 is
+`a00bf40718f220a7e9ed99d5ea3aa21ffa4cf86d57743eeb4922a4b103fa4c90`;
+admission SHA-256 is
+`b8f2333b022f2b1b9aa50d862b7b8081bafa34fbda39c53d1f499f44470a8adc`.
+It remains uninstalled and unexecuted pending a fresh independent admission
+decision. No later phase may use this preparation as native acceptance.
