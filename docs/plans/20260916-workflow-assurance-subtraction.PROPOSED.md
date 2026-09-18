@@ -1016,3 +1016,40 @@ emit a typed OTel error category; Bash uses ShellError with formatted exit text.
 The next bounded comparator must use actual joined tool/error records, distinguish
 runtime-reported denial from independent OS proof, and never invent missing
 typed fields. Both native denial witnesses remain unobserved.
+
+### Boundary comparison and wiring scope
+
+Independent review permits an offline structural comparator in the existing
+binding owner and tests: exact top-level Read then literal Bash, actual
+session/tool/error-result/OTel joins, and the existing Bash allow-hook receipt.
+Reuse the receipt parser rather than manufacture child records. Structural success
+must still report `UNPROVEN_DENIAL` and `NOT_NATIVE_ACCEPTANCE`; source-derived
+synthetic failure examples are not measured permission-denial witnesses. Summaries
+retain only bounded categories and text hashes/lengths, not new raw-error exports.
+
+The full executable change is separately scoped to four existing owners
+(loader, parent, binding/comparator and preparation generator), approximately
+17 function touch points plus tests and refreshed freezes. This is not hidden
+inside the two-file preparation approval. Preserve identical enabled tools,
+settings, plugin, mounts, collectors, scanner and native540/545/600 limits.
+Only an explicit boundary case may use top-level comparison and omit child export;
+ordinary EX cases still require child evidence. Keep parent fixture/effect checks
+outside that branch, and require every boundary-case fixture byte unchanged,
+including documentation leaves writable during the separate doc examination.
+No new runner/service, broad permission change, native admission or completed
+equivalence claim follows from this scope. Review the concrete wiring before use.
+
+The offline structural comparator is now implemented in that private owner. It
+requires exactly two ordered top-level requests, exact error-result IDs, actual
+OTel tool-result records and the Bash allow-receipt join. Known hook refusal,
+ENOENT, timeout/interruption, extra-tool, child-attribution, success, foreign-ID,
+missing and duplicate-carrier mutations refuse. It emits only error text hashes
+and lengths and always returns `UNPROVEN_DENIAL` / `NOT_NATIVE_ACCEPTANCE`.
+Source SHA-256 is
+`07870eceb88d9005e2acf708bf309fea297e0e4d31d0321ec76f12f6fbe0aaca`;
+test SHA-256 is
+`e6ca10507dff943619c568e9c86c45340f28230fc4577c89221a9754ff742c3d`.
+Refreeze both with the wiring review. Twelve focused,36 retained binding/comparator and five original
+hook-receipt regressions passed. The existing25 lint findings remain unchanged.
+Applying the comparator to retained ordinal8 safely refused its31 SDK records
+and12 telemetry rows; that failure cannot be repurposed as boundary evidence.
