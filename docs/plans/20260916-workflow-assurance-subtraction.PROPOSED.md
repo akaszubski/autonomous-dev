@@ -835,3 +835,20 @@ Next: finish the existing-owner dummy collector lifecycle integration, then
 repin the reviewed capture/comparator/exporter preparation before any admitted
 native qualification. No new native run, credentials, promotion or product
 deployment occurred in this checkpoint; F0 and the broader plan remain open.
+
+### Follow-up live checkpoint — stock collector capture
+
+The corrected, independently reviewed safe-data arm passed in 2.437 seconds;
+independent parsing confirmed one log, one span, matching trace ID and the
+expected link in the retained 584 bytes. The separately reviewed dummy-secret
+arm passed in 0.426 seconds with an actual pre-write scanner refusal; both saved
+channels were independently measured as empty. Processes, unit, runtime,
+qualification drop-in and cgroup were independently confirmed absent after each.
+Earlier failed attempts remain NONPASS, not retrospectively converted to passes.
+[Evidence checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723396184).
+
+These results qualify the two frozen stock-collector arms only, not arbitrary
+secret encodings, native exporter routing, genuine native identifier joins or F0
+completion. Next is canonical private package integration of the reviewed
+capture, exporter and hook-receipt comparison, followed by native qualification
+under the existing gates; no product deployment or R0 authorization follows.
