@@ -975,3 +975,44 @@ to the same execution subject, with no deleted denominator rows, permission
 widening or persuasion around refusal. Define the attribution and evidence joins
 before editing the candidate or admitting another native attempt. Ordinal8 stays
 NONPASS; this diagnosis does not promote any acceptance row.
+
+### Reviewed split preparation — no executable admission
+
+Independent review permits a two-file private preparation delta in the existing
+binding owner and its tests. Preserve the original combined constructor and all
+admitted packets; a separate pure preparation constructor transfers only the two
+nonce-execution instructions and combined-purpose framing into an explicit boundary
+observation descriptor. Boundary actor remains UNASSIGNED and live equivalence
+UNMEASURED. The output must not enter the executable generator, loader or driver;
+`launch_authorized=false` is metadata, not a sufficient execution guard.
+
+Retain exact doc-master dispatch, canonical task, covers-first, all three complete
+public Reads, affected-file examination, diff/history/net-count/changelog duties,
+seven literal Bash permissions and all existing provenance/effect/cleanup gates.
+Both native denial obligations remain: Read of the protected nonce and literal
+Bash cat, with actual permission denial rather than model refusal, hook preemption
+or ENOENT. A doc-only result cannot satisfy the combined EX outcome.
+
+Existing service mounts, live fixture identity/DAC checks, settings and capture
+owners are the reuse path. Retained synthetic OS-read checks do not supply native
+Read evidence, and the existing finalized comparator explicitly leaves external
+boundary/effect/oracle acceptance unproven. Native boundary execution/comparison
+and live actor-equivalence design must be reviewed before integration or another
+attempt. Separation also does not establish that the coordinator's other stated
+objections are repaired; those unchanged doc requirements can still fail.
+
+The private draft now exists in `adev-ex-verifier.Ctjrw5/build_binding.py`
+(SHA-256 `56a4069ba4fcaa2c9119c8713cb4a80c3eb5272deea1d5e2a959a738c42ff9f9`),
+with original bytes preserved in `historical-pre-split`. Coordinator reruns passed
+10 focused tests and 36 retained binding/comparator regressions. Review caught
+and corrected boolean/integer equality in draft validation; malformed types and
+NaN now refuse. Default binding and all existing acceptance comparators remain
+unchanged. These tests prove preparation invariants, not native boundary success.
+
+Pinned CLI source investigation is retained in
+`adev-native-package.offline.QWiyAy/attempt8/NATIVE-DENIAL-SHAPES.md`:
+native failure SDK records use text, not a typed errno/exit-code object. Read can
+emit a typed OTel error category; Bash uses ShellError with formatted exit text.
+The next bounded comparator must use actual joined tool/error records, distinguish
+runtime-reported denial from independent OS proof, and never invent missing
+typed fields. Both native denial witnesses remain unobserved.
