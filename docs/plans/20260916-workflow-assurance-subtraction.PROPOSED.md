@@ -1099,3 +1099,39 @@ byte-identical to ordinal8. This proves disabled package composition only. Befor
 any attempt, independently review the four-owner delta, add the external finalized
 boundary wrapper/equivalence checks, freeze a fresh admitted driver and recheck all
 existing attempt conditions. Do not activate this disabled driver in place.
+
+The external finalization/equivalence review initially stopped that progression:
+the draft profile reused pre-exec adapter status and environment, proxy redaction
+hid bypass/route differences, namespace IDs were discarded without retaining
+topology, `public/case.json` was omitted unconditionally, and finalized hashes
+incorrectly upgraded generic Bash failure text to a denial claim. The corrected
+private closure now samples the exact live CLI after `exec` and before prompt
+delivery, bracketed by stable actor/executable/argv checks and a second mounted-tree
+and DAC verification. It records effective capabilities only, exact non-secret
+NO_PROXY policy, credential-free loopback proxy route semantics and within-run
+actor/outer/observer namespace relations. The comparator preserves those relations,
+requires both externally frozen prepared maps and permits only the explicit
+EX-1-to-boundary case-receipt difference; every other prepared byte must match.
+Denial remains `UNPROVEN_DENIAL`, OS syscall proof remains `UNPROVEN`, and separate
+execution remains explicitly not same-process proof. Exact stock proxy ports are
+compared and therefore fail closed if independently allocated ports differ.
+
+Independent re-review returned PROCEED for disabled preparation only at loader
+`fac00b72d16d0fd7261898ed5ab19719b4da5a8c6c27d00503238d5f7ff0bbb7`,
+parent `8d3c2da01512e7d11a69d955b4ff42800a4af7f9949e0c87796ef7f037083133`,
+binding/comparator
+`fe6f46ed2ad1f0a362ce981677bcefbaff2dc39ccc7035660ccad48c2b4edf8b`
+and generator
+`e69fd8ac874953a5e32f8fb4679b3d2d03e17ce52872e2d9cb76ad47cfad4376`.
+Twenty-six focused and 13 retained native-preparation tests pass; new/modified
+product files and focused wiring tests pass Ruff, while the retained finalization
+test keeps its exact previous 24 findings. Fresh Linux package session
+`f3d7b5f2-0a38-4d93-8799-4979cbecebd3` is at
+`/opt/adev-probe/ex-source.zecm9itt/ex-staged-public/EX-BOUNDARY-1-offline-candidate`
+with disabled driver SHA-256
+`6e6f503d5830c628ce7e72fa26d6ec349b7272c75a532d6d00075e0d8a206cf7`.
+Its first AST node is unconditional Raise, registration assigns no ordinal or
+authority, all 17 package files remain preparation-only, capture is empty, the
+service is inactive, and runtime/cgroup are absent. The seven public runtime files
+are byte-identical to ordinal8. This is a corrected disabled composition checkpoint,
+not native admission, denial proof, actor equivalence, F0 completion or R0 authority.
