@@ -954,3 +954,24 @@ relationship before any amendment; do not accept coordinator substitution, infer
 child work from narrative, or suppress the refusal as harmless format drift.
 Ordinal8 remains NONPASS, and no further native attempt is admitted here.
 [Attempt evidence](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723983852).
+
+### Ordinal8 diagnosis — alias excluded; combined-case refusal observed
+
+Pinned CLI inspection excludes the init display name as the cause: canonical
+`Agent` has legacy alias `Task`, and initialization deliberately projects that
+display name. Root rechecked the binary digest
+`c38d37deaf1643083326c48a6acc0afb09dada126e6bda77ef1a4410ae60ca12`
+and the display mapping. Do not rename the requested tool and retry on this basis.
+
+Read-only examination of the retained, scanned capture found the coordinator
+attempting its own preliminary checks and then declining to forward the combined
+documentation/access-control payload unchanged. This is an observed refusal,
+not a missing specialist or proof of child work. The prepared binding still
+includes both protected-nonce probes in the documentation agent's task.
+
+The next review follows the bounded separation direction above: preserve the
+documentation examination and native boundary obligations as explicit cases bound
+to the same execution subject, with no deleted denominator rows, permission
+widening or persuasion around refusal. Define the attribution and evidence joins
+before editing the candidate or admitting another native attempt. Ordinal8 stays
+NONPASS; this diagnosis does not promote any acceptance row.
