@@ -1073,3 +1073,29 @@ lint remains at the pre-existing25 findings. This branch has no generator or
 driver path yet and cannot run. It is preparation, not native admission, observed
 actor equivalence, denial proof or F0 progress. Next review the exact delta, then
 extend the existing offline generator as a disabled package—do not add a runner.
+
+The existing generator is now extended privately rather than duplicated. Generator
+SHA-256 is
+`29b1f12c016c099e8f889ba74e968a6bb14078d4b7d0ce49c0ba6651094005e7`;
+focused-test SHA-256 is
+`2e55d514e5e5780058d0d7170b89c779c06dfed298f0ca1d860223acbc92f862`.
+Twenty-one focused and 16 unchanged loader/settings/parent tests pass. The default
+driver, public settings, argv and case receipt remain byte-identical to the prior
+generator after normalizing only the three deliberately updated source pins. A
+full Linux default preparation also passed: session
+`c81f748a-ac78-410b-a3e6-fe24c223a5f0` remained preparation-only, produced the
+same seven public bytes as ordinal8 and left capture/service/runtime/cgroup empty.
+A disconnected copied legacy test was removed from this private branch; its
+authoritative original remains retained with the prior generator. Linux generated
+session `10db9353-6e72-496b-9903-0dfa8761e538`, package
+`/opt/adev-probe/ex-source.m3wlal63/ex-staged-public/EX-BOUNDARY-1-offline-candidate`
+and disabled driver SHA-256
+`e3b887c6f4e301c77e077bdab52f6ef79921730abef59e808ead691735a042ef`.
+The first driver AST node is unconditional Raise; registration is preparation-only,
+native authorization false and no ordinal assigned. Executing it stopped at that
+guard, left its capture empty, and left the service absent/inactive with no runtime
+or cgroup. Seven public configuration/plugin/role/skill/template/capture files are
+byte-identical to ordinal8. This proves disabled package composition only. Before
+any attempt, independently review the four-owner delta, add the external finalized
+boundary wrapper/equivalence checks, freeze a fresh admitted driver and recheck all
+existing attempt conditions. Do not activate this disabled driver in place.
