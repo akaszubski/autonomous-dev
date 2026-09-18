@@ -1053,3 +1053,23 @@ Refreeze both with the wiring review. Twelve focused,36 retained binding/compara
 hook-receipt regressions passed. The existing25 lint findings remain unchanged.
 Applying the comparator to retained ordinal8 safely refused its31 SDK records
 and12 telemetry rows; that failure cannot be repurposed as boundary evidence.
+
+A disabled private runtime branch is now prepared under
+`adev-boundary-wiring.KXz82zi4`. It adds one fixed boundary case while preserving
+byte-equivalent enabled tools, settings, plugin, mounts and Bash allowlist from
+EX-1. The existing parent lifecycle supplies prompt delivery, capture, deadlines,
+credential handling, service isolation, log export, effect verification and
+cleanup. Only the explicit boundary case uses top-level SDK comparison and omits
+child export; doc EX still requires the doc-master child. Boundary post-effects
+require every prepared byte unchanged, including doc-writable fixture leaves.
+
+Frozen private sources: loader
+`d167eb4cb1b8e0b8c7d7352e1485f39bf1da3abcccdc09a6ef94c463f82bb590`,
+parent `58282469ab9cf5b7c083a1952dad2b7a16b50ae9bda37e091e0356c84e0acb6d`,
+binding/comparator
+`ea6d0389bf5e80ceee23ebe1a9abbda53d94fb57a02539aa8a85bb2c4194ac25`.
+Eighteen focused tests and16 unchanged loader/settings/parent regressions passed;
+lint remains at the pre-existing25 findings. This branch has no generator or
+driver path yet and cannot run. It is preparation, not native admission, observed
+actor equivalence, denial proof or F0 progress. Next review the exact delta, then
+extend the existing offline generator as a disabled package—do not add a runner.
