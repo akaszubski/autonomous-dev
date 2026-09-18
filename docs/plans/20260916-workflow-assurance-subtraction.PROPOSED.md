@@ -928,3 +928,29 @@ adapter, reproduce the captured mismatch offline, review the repair and resolve
 retained-runtime handling before any further admission. Preserve the unchanged
 native deadlines and all examination, provenance, boundary and effect gates.
 [Attempt evidence](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723838675).
+
+### Ordinal8 — native capture observed; required dispatch absent
+
+The reviewed typed-duration repair preserves the same limits; ordinal7 remains
+NONPASS. Its runtime was separately quarantined by same-device rename into a
+root-only `/run` directory, with no content export or deletion. This recovery is
+not original-attempt cleanup success and is not reboot-durable.
+
+One reviewed fresh attempt used session `6e611172-6591-443d-b05a-298f8714f95b`.
+Result SHA-256 is `bffd6cdbd3d551ef7fcefdfacb9514bbdc58da945428dbfcf8dfd9617e18da35`.
+Native executable observation and zero leader/wrapper exits were recorded;
+57,595 telemetry bytes contain 22 spans and 25 log records. Actual typed limits
+were 540,000,000 and 2,000,000 microseconds. This establishes native capture, not
+end-to-end provenance or semantic acceptance. Independent checks confirmed the
+actor, outer process, observer and collector absent, along with both runtime and
+cgroup paths; no cleanup errors were reported.
+
+The exact frozen comparator refused the coordinator dispatch: the coordinator
+used Bash and Glob, with no specialist dispatch or child examination. Root
+independently inspected initialization metadata: available tools were Task, Bash,
+Edit, Glob, Grep, Read and Write; `autonomous-dev:doc-master` was available.
+The frozen request instead names Agent. Verify this pinned CLI's naming/schema
+relationship before any amendment; do not accept coordinator substitution, infer
+child work from narrative, or suppress the refusal as harmless format drift.
+Ordinal8 remains NONPASS, and no further native attempt is admitted here.
+[Attempt evidence](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5723983852).
