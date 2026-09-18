@@ -874,3 +874,36 @@ In parallel, exercise the extracted collector adapter itself on Linux using
 fixed dummy20/25/29-second limits, not the previous supervisor or a backdated
 native clock. Native540/545/600 limits remain unchanged. Neither this preparation
 nor a dummy pass authorizes a native attempt, release promotion or deployment.
+
+### Current checkpoint — integrated verifier and prepared Linux package
+
+2026-09-18: the pending integration work described above is now implemented in
+the private candidate, not released product code. The actual extracted adapter
+passed its separately reviewed safe-data and dummy-secret Linux arms (2.513s
+and 0.437s); independent checks confirmed retained safe bytes, zero persisted
+dummy-secret bytes and absent owned processes/runtime after cleanup. These are
+fixed-case results, not universal redaction or native fidelity claims.
+
+The existing comparison owner now has an operational external caller for frozen
+capture inputs, required-read coverage, hook receipts and actual tool/telemetry
+identifier joins. The integrated candidate passed 66 tests on a coordinator
+rerun (0.187s, zero failures/errors/skips), with source hashes and actual import
+paths checked. Historical native missing-receipt evidence remains NONPASS.
+
+Canonical preparation produced a Linux package with status
+`OFFLINE_PACKAGE_PREPARED_NOT_ADMITTED`, session
+`94bd4bc9-4242-487f-af3e-75860693b0f5`, and driver SHA-256
+`1c55373b5aaa25db0cf144a21c1d6c88db2a8d1ca29503e623bb5b7339cc3b0a`.
+Generator SHA-256 is
+`dc2a39fbc1fc3b35362b4c3ef1e83539e3f06ba7634342d72b05ae75099b9f12`.
+The driver remains unconditionally disabled, no attempt ordinal assigned, and
+`native_started` is false. Preparation is not execution or acceptance.
+
+Evidence: private `adev-native-package.offline.QWiyAy/WORKER-PREPARE-01-RESULT.json`
+and `REGRESSION-RESULT.md`, plus the actual-adapter result and independent-check
+receipts in `adev-native-capture.QiFcIu`, under the Codex artifacts directory.
+Standing F0 authority above permits reviewed qualification; the next gate is
+independent pre-admission review of the exact combined package, changed cause,
+case freeze and remaining native evidence obligations, not another blanket
+approval. Native execution, full provenance/effect acceptance, F0 freeze and
+separately authorized R0/product migration remain incomplete.
