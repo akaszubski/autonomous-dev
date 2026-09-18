@@ -1174,5 +1174,57 @@ Its disabled-to-admitted driver SHA-256 is
 `a00bf40718f220a7e9ed99d5ea3aa21ffa4cf86d57743eeb4922a4b103fa4c90`;
 admission SHA-256 is
 `b8f2333b022f2b1b9aa50d862b7b8081bafa34fbda39c53d1f499f44470a8adc`.
-It remains uninstalled and unexecuted pending a fresh independent admission
-decision. No later phase may use this preparation as native acceptance.
+Independent review admitted exactly one changed-cause attempt. It was installed
+transactionally, executed once and rolled back to all four baseline hashes. No
+later phase may use the preparation or process exit as native acceptance.
+
+### Ordinal10 live boundary result — retained evidence, not F0 acceptance
+
+Ordinal10 used session `dbbfb33a-d438-4601-a73f-46d9aaada2ab`. Credential-free
+preflight reported `credential_read=false` and `native_started=false`; the single
+native call then completed in 25.9 seconds. Driver-result SHA-256 is
+`a24e3d67c3a28513a4affa787d390489827f9dd86f23d78e35d8ac99b9e17ccd`.
+The finalized SDK stream SHA-256 is
+`a1c98b05ddde0f19abbab87a1587cda1793653a178cd7a63b393fda786511a4e`;
+the telemetry stream SHA-256 is
+`6bad8acf2095cd9c339aa0463a7ba70ed473f5d2c09c54218dfd39966c9dd5ae`.
+
+The real top-level actor made exactly the required Read and literal Bash requests.
+Both returned errors; joined telemetry reported `Error:EACCES` for Read and
+`ShellError` for Bash, and the exact Bash hook receipt remained allow. There were
+no cleanup errors or owned survivors; runtime and cgroup were absent. These
+carriers prove execution and correlation, not the kernel cause or fixture identity:
+denial remains `UNPROVEN_DENIAL`, OS-syscall proof remains `UNPROVEN`, actor
+equivalence remains `UNMEASURED`, and native acceptance remains blocked on the
+documentation and equivalence gates. The separately retained credential-free SRT
+probe provides actual permission-denied evidence under the exact service/mount
+profile but is not silently substituted for the Claude actor.
+
+The capture was externally frozen by binding SHA-256
+`a507f79286fda3bb1de86b0d621c42a669301615aa51bc7fbfe7cb1ffea25862`.
+Live evidence exposed two false-refusal defects in the synthetic verifier: it
+rejected the intentional empty value of `--setting-sources ""`, and its fixture
+incorrectly made the runtime SDK-only report equal the later SDK-plus-telemetry
+join. The corrected separate offline verifier admits an empty argument only in
+that exact frozen position, compares the runtime report to recomputed SDK output,
+then independently requires the richer telemetry join. Verifier SHA-256 is
+`02f9fb052c5d1bec7b1814293780243ddaf1914708aa19b536a45f285a3b6d9a`;
+its retained result SHA-256 is
+`ca00fbb8b27cd6bb8463afa80bf7aba5e35b7d073d450fabb7c3141407f59b4c`.
+Fifteen focused tests pass. The broader private preparation suite now has 37
+passes and nine intentional pin failures because its admitted runtime still pins
+the pre-correction verifier; that closure must be refreshed before any later
+package reuses the corrected verifier.
+
+Rollback receipt restored loader `55567be0b51fcf795d46571fd4e83cf75d014d9ead4df793043e0c4d564e8d73`,
+settings `7ddf23ae8e71ac9d33ebc9f294c61c5f6b84368c20cc43f51b91f8206aa871c5`,
+outer policy `fe01e4739b3af4b57aae12525866de35e65f94269a7ab83739d1ee50baef3ea8`
+and service drop-in `ae1ab4b146534dcdafec551b261044d47f5e2e3c9490345d5dbd1d22ebabff08`.
+Both services are again not-found/inactive with no live PID. The capture and
+frozen binding remain retained.
+
+Next qualify the ordinary documentation EX case under the same reviewed actor
+profile, prove its required child reads/examination and effects, and compare the
+two live actor profiles. Only the explicit case receipt may differ. No boundary
+carrier, direct SRT result or agent prose may substitute for that documentation
+evidence, and separate executions remain separate rather than same-process proof.
