@@ -1228,3 +1228,49 @@ profile, prove its required child reads/examination and effects, and compare the
 two live actor profiles. Only the explicit case receipt may differ. No boundary
 carrier, direct SRT result or agent prose may substitute for that documentation
 evidence, and separate executions remain separate rather than same-process proof.
+
+### Disabled ordinal11 documentation preparation — not admission
+
+The reviewed ordinary-documentation path now consumes the doc-only member of the
+previously frozen split preparation. It preserves the exact foreground
+`autonomous-dev:doc-master` dispatch, all three complete public Reads, covers-first,
+seven literal Bash forms, affected-file/diff/history/net-count/changelog duties and
+the existing provenance/effect/cleanup comparisons. The protected-nonce requests
+remain solely in the separately observed boundary case. The original combined
+constructor and default generator bytes remain available; a new explicit `doc`
+selector owns derived serialization, so it cannot silently freeze the old combined
+prompt. Consumed ordinal10 validation uses a separate historical pin map.
+
+Review found and the offline candidate corrected one false actor-equivalence
+mismatch: the CLI's exact `--debug-file` value embeds the fresh session ID. The
+comparator now first requires the exact fixed session-derived path and only then
+normalizes that one positional value. A foreign path or duplicated/missing flag
+refuses. Current comparator SHA-256 is
+`d1aef854c2c41605e4874d19b238d58ba236f1b6898782293eaa8c2572ed12dc`;
+generator SHA-256 is
+`359a0978bbf2eae691f011870912509ea32bdf99d17016bac0b726cc1d828f26`.
+Focused verification passed 39 tests and 135 subtests with Ruff clean. Branch
+coverage was 73% for the comparator and 39% for the historical multi-mode generator;
+every changed selector, serialization and actor-normalization statement executed.
+Independent review returned PROCEED for disabled preparation only.
+
+The fresh Linux package is
+`/opt/adev-probe/ex-source.13hgty1n/ex-staged-public/EX-1-doc-offline-candidate`,
+session `2f4882f6-11b7-47ff-a6ed-56e1fd9bb3ea`. Its binding SHA-256 is
+`b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`;
+disabled driver SHA-256 is
+`7c62bedce46b1e360735714e64ab0988b0b1d32806feddc1e54dff40a8eb77b2`;
+source/prepared/linkage freeze SHA-256 values are respectively
+`baa762c8a21611b1fdc7ba3e7e87134a2ef18ed00e0efaeba2b559e8ea9ce607`,
+`6d0911e1c92ad48cfd27cb41bfb38d79bab5232ff822337c293c3e4716f60746`
+and `13e41a1bb9facb21a119077e084310fda2d390d022f3b2bf7bb9bcc98ee80504`.
+All 708 prepared-file hashes match ordinal10 except the required
+`public/case.json` receipt. Registration has no ordinal or native authority, the
+driver begins with an unconditional refusal, the capture is empty, and both native
+services remain not-found/inactive with no PID. No Claude invocation occurred.
+
+Next derive a new evidence-bound ordinal11 admission from this exact disabled
+package, independently review its ledger/expectations/preflight, and only then run
+one native documentation attempt. A passing run must independently freeze and
+verify the child carrier, required Read contents, telemetry/hook joins, semantic
+disposition, effects and cleanup before the two actor profiles are compared.
