@@ -1481,7 +1481,17 @@ def _library_paths(project_root: Path, globs: "tuple[str, ...]") -> "list[Path]"
         for path in project_root.glob(pattern):
             if not path.is_file():
                 continue
-            if LIBRARY_EXCLUDED_PATH_PARTS.intersection(path.parts):
+            # #1757: exclude on the PROJECT-RELATIVE parts, not the
+            # absolute ``path.parts``. Glob results retain project_root's
+            # absolute prefix, so an ancestor outside the project named
+            # like an excluded part (``.codex``, ``tests`` ...) would
+            # otherwise intersect the set for every file and empty the
+            # corpus. ``project_root.glob`` only yields paths lexically
+            # under project_root, so ``relative_to`` cannot raise; it is
+            # purely lexical, so symlink semantics are unchanged.
+            if LIBRARY_EXCLUDED_PATH_PARTS.intersection(
+                path.relative_to(project_root).parts
+            ):
                 continue
             found.add(path)
     return sorted(found)
@@ -6544,6 +6554,82 @@ class TestLibraryCorpusCrossReference:
             f"the sole voucher, so the cross-reference above could never "
             f"produce a finding and its empty result means nothing. "
             f"Reached: {result.reached}"
+        )
+
+
+class TestLibraryCheckoutLocationPortability:
+    """#1757: exclusions are PROJECT-RELATIVE, not absolute.
+
+    ``_library_paths`` filtered ``LIBRARY_EXCLUDED_PATH_PARTS`` against the
+    absolute ``path.parts``; a checkout whose ANCESTOR — or whose own
+    basename — was named like an excluded part emptied the corpus. Every
+    location in the table below reuses the existing synthetic-tree builders
+    and drives ``library_reachability`` (the SAME function the live rule
+    uses); all must yield the identical nonempty identities. ``neutral`` is
+    the positive control (it passes buggy or fixed); the excluded-name
+    ancestor and root-basename rows are RED against the pre-fix code.
+    """
+
+    _b = TestLibraryBothArmsOnSyntheticCorpora
+
+    _LOCATIONS = [pytest.param(("neutral", "checkout"), id="neutral")] + [
+        param
+        for name in sorted(LIBRARY_EXCLUDED_PATH_PARTS)
+        for param in (
+            pytest.param((name, "checkout"), id=f"ancestor-{name}"),
+            pytest.param(("parent", name), id=f"root-basename-{name}"),
+        )
+    ]
+
+    @pytest.mark.parametrize("subdirs", _LOCATIONS)
+    def test_location_yields_identical_nonempty_identities(self, tmp_path, subdirs):
+        base = tmp_path.joinpath(*subdirs)
+        base.mkdir(parents=True, exist_ok=True)
+        root, lib = self._b._repo(base)
+        self._b._module(lib, "sample_reached.py")
+        self._b._module(lib, "sample_orphan.py")
+        self._b._command(
+            root,
+            "sample.md",
+            "# Sample\n\n```bash\n"
+            "python3 plugins/autonomous-dev/lib/sample_reached.py --check\n```\n",
+        )
+        result = library_reachability(root, use_cache=False)
+        assert result.corpus, (
+            "corpus collapsed to EMPTY — the #1757 defect: exclusions "
+            "applied to absolute path.parts. A required-nonempty case must "
+            "not pass by going empty."
+        )
+        assert set(result.corpus) == {"sample_reached.py", "sample_orphan.py"}
+        assert set(result.reached) == {"sample_reached.py"}
+        assert result.unknown == ["sample_orphan.py"]
+
+    def test_internal_excluded_directory_is_still_excluded(self, tmp_path):
+        """A distinct property: in-project exclusion still excludes.
+
+        ``archived/`` and ``__pycache__/`` sit INSIDE the matched
+        ``lib/**/*.py`` glob, so dropping them is a real decision; an
+        ordinary nested neighbour in the same glob is retained, proving the
+        check is doing work rather than the glob simply not matching.
+        """
+        base = tmp_path / "neutral"
+        base.mkdir()
+        root, lib = self._b._repo(base)
+        self._b._module(lib, "sample_orphan.py")
+        for sub, mod in (
+            ("archived", "excluded_mod.py"),
+            ("__pycache__", "cached_mod.py"),
+            ("ordinary", "normal_mod.py"),
+        ):
+            (lib / sub).mkdir()
+            self._b._module(lib / sub, mod)
+
+        corpus = set(library_reachability(root, use_cache=False).corpus)
+        assert "archived/excluded_mod.py" not in corpus
+        assert "__pycache__/cached_mod.py" not in corpus
+        assert "ordinary/normal_mod.py" in corpus, (
+            "an ordinary nested neighbour was dropped — the exclusion cannot "
+            "be passing merely because the glob failed to match nested files."
         )
 
 
