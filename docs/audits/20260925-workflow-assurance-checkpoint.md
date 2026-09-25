@@ -118,12 +118,15 @@ The mode-accounting clarification in the release census passed final independent
 review after distinguishing authorized research reuse from authorized omission.
 It adds no runtime state vocabulary or gate and does not waive frozen F0 roles.
 
-Latest checkpoint commit attempt was refused by the normal state-change guard:
+An earlier checkpoint commit attempt was refused by the normal state-change guard:
 documentation assertions passed (14 passed, one skipped, 7.13 seconds), but the
 activity log and `active_agent_dispatch.json` changed during that test window.
 The guard establishes concurrent changes, not which process made them. Changes
-remain local/staged; do not bypass or repeat the test against a live writer merely
-to obtain a quiet window. Retry normal commit checks after the writer is terminal.
+remained local/staged at that time. After the canonical writer became terminal,
+normal commit checks passed (14 passed, one skipped, 7.86 seconds), and the
+checkpoint/plan/census were committed and remote-verified at
+`1ce667ae49f8a8796d416713e6f3823607e6d4f3`. Do not bypass or repeatedly run
+commit checks against a live writer merely to obtain a quiet window.
 Independent review progress is also preserved at
 https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5826962346.
 
