@@ -129,6 +129,50 @@ an always-NO_DOC_IMPACT mutant must mechanically fail these cases. Semantic revi
 of open-ended documentation remains advisory and cannot override that result;
 unresolved mandatory semantic requirements need human disposition, never auto-PASS.
 
+### Minimal evidence kernel and bounded semantic lane
+
+Implement workflow assurance as one schema-driven evidence kernel, not a growing
+collection of case-specific Python frameworks. Python may own capture normalization,
+content identities, actor/run/tool joins, deterministic comparisons, immutable
+receipts and fail-closed decision tables. It must not duplicate sandboxing, native
+permissions, hook execution or provider clients already owned elsewhere. New case
+behavior belongs in versioned data/contracts unless executable logic is unavoidable.
+
+The kernel remains authoritative for facts that can be observed directly: required
+reads and their complete results, actor identity, order, hook/telemetry correlation,
+process outcome, file effects, current digests and cleanup. No model judgment may
+repair, substitute for or override missing deterministic evidence.
+
+A typed semantic provider such as Jev may be evaluated behind one optional adapter
+for narrow `yes/no`, bounded-choice or score questions over a redacted normalized
+evidence packet. It may classify claim support, code/documentation contradiction,
+`NO_DOC_IMPACT` rationale and review urgency; it may only return advisory
+`CLEAR`, `REVIEW` or `UNAVAILABLE`. Before adoption it must pass a frozen labelled
+set containing prior positive, NONPASS and mutation cases, record provider/model,
+request identity, question-set digest, probabilities, latency and cost, fail closed
+on schema/network/provider errors, and demonstrate that removing it leaves all hard
+gates unchanged. No live or paid request is authorized by this plan text.
+
+At each family migration, report evidence-kernel production lines/files, executable
+case-specific lines, semantic-adapter lines, tests and decision owners against the
+pinned baseline. Growth is provisional until the same phase retires more superseded
+runtime/test burden than it adds; otherwise re-scope before promotion.
+
+Portability is a later adapter obligation, not a new F0 dependency. The retained
+kernel must consume provider-neutral evidence records; a harness profile owns launch,
+event normalization, hook/control mapping, sandbox observations and installation for
+Claude Code, Codex, OpenCode, Pi or another runner. Unsupported native evidence is an
+explicit capability result, never inferred parity. A portability claim requires the
+same frozen case and unchanged kernel to run through Claude plus at least one
+non-Claude adapter, with differences confined to the declared profiles/adapters.
+
+The current private F0 proof apparatus is a construction baseline, not the product:
+13 selected implementation/test files total 11,218 lines (8,211 implementation and
+3,007 test), excluding imported collector modules. It is neither small nor presently
+portable. Record a complete dependency-closed baseline before product extraction and
+use the phase subtraction rule above to prevent this prototype from becoming the
+maintained runtime.
+
 A clean consumer must launch installed entrypoints with isolated HOME/config/cache,
 no source fallback and distinct fixture intent/settings. Dogfood runs separately.
 Windows/Linux/macOS and other harnesses are separate measured profiles; no platform
@@ -1274,3 +1318,62 @@ package, independently review its ledger/expectations/preflight, and only then r
 one native documentation attempt. A passing run must independently freeze and
 verify the child carrier, required Read contents, telemetry/hook joins, semantic
 disposition, effects and cleanup before the two actor profiles are compared.
+
+### Ordinal11 live documentation result — retained NONPASS
+
+Ordinal11 used session `78a455fb-3994-487b-9e86-120aad478fd6` under combined
+admission SHA-256
+`31cf659ef6073b665792c8db9c7b9c0e87ba7c0ddf498cb33fc12ce4e3ce0ed0`.
+Credential-free preflight passed and the one admitted native attempt completed with
+driver exit 0; driver-result SHA-256 is
+`0bf4a1bc4ff3886397f88bc90f02e6e5e720638ed2f3c6c6d1c714cd7b99d59b`.
+The driver status is `OBSERVATIONS_RECORDED_NOT_ACCEPTANCE`, not workflow success.
+
+The externally frozen capture binding SHA-256 is
+`637e54e2ace17a620f44d17258b9d7ec2cc2d4b6cf0a408b7130d614df6ce742`.
+Independent structural and semantic verification both returned NONPASS. The child
+read `CHANGELOG.md`, `docs/POLICY.md`, `src/policy.py` and the test file, but omitted
+all three required public policy-source reads and required `README.md`; covers-first
+was false and the first observed action was a non-allowlisted Bash history/status
+request. This is direct evidence that a completed process and plausible agent report
+do not prove required examination. No unchanged retry is allowed.
+
+All non-case prepared bytes matched the ordinal10 boundary profile, establishing
+`EQUIVALENT_EXECUTION_PROFILE_NOT_SAME_PROCESS`; it does not establish native
+acceptance. Transactional rollback restored all four baseline hashes, both services
+are inactive, no owned process/runtime/cgroup remains, and the capture is retained.
+Result-receipt SHA-256 is
+`11320aebdcee7011935918d29cbfbcfa4bd8e61ffd499374cb7a41a13b9be471`.
+
+Next diagnose the omitted examination from the frozen prompt, effective native
+role/skill context and child chronology. Do not weaken explicit-read acceptance or
+retry unchanged. Any next attempt requires one evidenced changed cause, a new frozen
+identity, independent review and bounded authority. Reuse issue #1796 for the
+disclosed-read obligation; do not create a duplicate prerequisite.
+
+### Ordinal11 changed-cause decision — single output authority
+
+Offline chronology proves the child received the complete frozen prompt and the
+three public files existed at their frozen identities. The runtime reported the
+`documentation-guide` skill preloaded. Exact role-prompt bytes are not exposed in
+the native transcript, so role-byte injection remains a provenance gap rather than
+a proved join.
+
+The captured child explicitly rejected both appended EX blocks as conflicting with
+its canonical role. The concrete conflict is the test-only closed semantic protocol:
+it requires exactly four lines, while the canonical role requires a substantive
+100-word body and declares its verdict contract canonical. Stronger prompt wording
+would repeat the split-authority defect.
+
+The smallest next candidate removes only the competing closed semantic-output
+overlay. It retains covers-first and every required public/fixture read, but expresses
+them in one task contract compatible with the canonical role and requires only the
+canonical role verdict. The independent verifier derives the typed semantic result
+from frozen tool evidence, final role report, effects and private oracle; the acting
+agent does not self-certify with a second evaluator-specific response protocol.
+
+This paragraph authorizes offline replacement preparation and mutation testing only.
+It does not authorize native execution, weaken #1796, accept preloaded skill identity
+as a Read, close the role-byte provenance gap, or introduce Jev as an F0 dependency.
+Any live attempt still requires a new frozen identity, independent review and fresh
+bounded authority.
