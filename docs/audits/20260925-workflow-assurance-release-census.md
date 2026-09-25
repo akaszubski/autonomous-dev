@@ -211,11 +211,18 @@ claims that the installed owner has already been chosen or qualified.
 
 | Actual owner in `unified_pre_tool.py` | Required outcome | Current gap / proposed subtraction |
 |---|---|---|
-| Protected non-Bash infrastructure (`2004–2140`, `8798–8823`) | Applicable protected writes require actual dispatched implementer authority; hard floor survives bypass | Checks any active dispatch, not its agent identity; stored dispatch authority is unsigned. Wrong-agent and corrupt/missing authority are required negative cases, not valid permits |
-| Protected Bash infrastructure (`7839–8024`, `9352–9360`) | Same implementer-only outcome for applicable mutations | Active pipeline permits before actor validation; conservative string parsing has false negatives. Enumerated command cases alone cannot qualify arbitrary Bash or satisfy containment |
-| Nested plugin-source `.claude` (`2504–2608`) | Refuse nested source configuration while allowing legitimate root/installed layouts | Resolution faults permit; Bash is excluded. Preserve actual policy scope, but do not label unresolved applicable paths safe |
-| General production writes (`3399–3579`, `8860–8938`) | Applicable production writes require the selected workflow authority; legitimate non-code/test/profile exclusions remain distinct | Only native Write/Edit enters this gate; ordinary NotebookEdit/MultiEdit/MCP writes do not. Empty paths and plugin-only consumer recognition are gaps |
-| Bash production detector (`9143–9195`) | No enforcement credit for advisory-only output | Explicitly downgraded to advisory; retire the claimed guard/duplicate machinery unless a distinct required advisory outcome is demonstrated |
+| WA-W1a — Protected non-Bash infrastructure (`2004–2140`, `8798–8823`) | Applicable protected writes require actual dispatched implementer authority; hard floor survives bypass | Checks any active dispatch, not its agent identity; stored dispatch authority is unsigned. Wrong-agent and corrupt/missing authority are required negative cases, not valid permits |
+| WA-W1b — Protected Bash infrastructure (`7839–8024`, `9352–9360`) | Same implementer-only outcome for applicable mutations | Active pipeline permits before actor validation; conservative string parsing has false negatives. Enumerated command cases alone cannot qualify arbitrary Bash or satisfy containment |
+| WA-W1c — Nested plugin-source `.claude` (`2504–2608`) | Refuse nested source configuration while allowing legitimate root/installed layouts | Resolution faults permit; Bash is excluded. Preserve actual policy scope, but do not label unresolved applicable paths safe |
+| WA-W1d — General production writes (`3399–3579`, `8860–8938`) | Applicable production writes require the selected workflow authority; legitimate non-code/test/profile exclusions remain distinct | Only native Write/Edit enters this gate; ordinary NotebookEdit/MultiEdit/MCP writes do not. Empty paths and plugin-only consumer recognition are gaps |
+| WA-W1e — Bash production detector (`9143–9195`) | No enforcement credit for advisory-only output | Explicitly downgraded to advisory; retire the claimed guard/duplicate machinery unless a distinct required advisory outcome is demonstrated |
+
+Candidate disposition for #1757: migrate WA-W1a–d to one installed, signed
+authority/intent decision route before retiring their old branches; retire
+WA-W1e's *enforcement* claim now, while preserving any independently justified
+advisory value. This is a source-row mapping, not a claim that dynamic Bash or
+the omitted MCP transports are qualified. Freeze exact profile and case joins
+only after the effective consumer registrations are reconciled.
 
 Reuse the existing classification/hard-floor responsibilities and signed-state
 owner; this does not require preserving the present large files unchanged.
