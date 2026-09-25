@@ -788,6 +788,16 @@ interruption points freeze only when those subjects exist, before acceptance.
 The observed credential-free `--init-only` SessionStart fixture is reusable;
 do not restart authentication to repeat it. It does not establish product
 exactly-once joins or replace a qualifying real workflow.
+Profile correction from verified fixture commands: the retained precedence and
+source-free path probes invoke `/usr/bin/python3 -I`, which is Python 3.9.6 on
+the current Darwin arm64 host. PROJECT.md and the native plugin manifest require
+Python 3.11+. Therefore these probes remain historical fixture evidence, not
+the supported product or populated-consumer profile. The available
+`/opt/homebrew/bin/python3` is 3.14.3; using it is a new candidate profile that
+requires its own pinned executable/fixture identity and rerun, not a relabeling
+of the 3.9.6 result. The retained v1 installed manifest is fixture-only, not
+an accepted last-known-good product artifact. Isolated Linux qualification is
+still separate and UNMEASURED.
 Since the retained private proposal, disposable preflight observed scalar order
 explicit > local > project > user, plugin-default env non-participation and five
 physical layer-canary processes per session. These supersede its unobserved-field

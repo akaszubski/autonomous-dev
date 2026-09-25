@@ -31,6 +31,14 @@ source-fixture instrument control, not native extension activation, whole-census
 freeze or maintenance subtraction. The release denominator, runtime denial
 behavior and F0 remain unaccepted.
 
+Consumer-profile correction: the retained Darwin credential-free precedence and
+source-free path fixtures call `/usr/bin/python3 -I`; the current executable is
+Python 3.9.6, below PROJECT.md's and the native manifest's Python 3.11+ floor.
+The available Homebrew Python is 3.14.3, but substituting it defines a new
+candidate profile requiring a pinned rerun. The retained v1 installed manifest
+is fixture-only, not a last-known-good product release. No isolated Linux or
+populated installed-consumer profile is accepted from these observations.
+
 F0 native run `b685fe360589b185` remains paused at the cumulative prompt-history
 hook deadlock. No history reset, bypass, worker deployment or native launch was
 performed. The proposed recovery is to archive the existing observations,
