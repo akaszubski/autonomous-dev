@@ -101,6 +101,18 @@ any changed members and ratchet pin require explicit reviewed attribution.
 This is a proposed instrument correction, not a passing repair or installed
 workflow proof. The failed +233/-6 source diff and Bash receipts are preserved
 in the clean worktree for review, not committed.
+The attempted same-run #1805 restart is **invalid for continuation**: F1
+initially wrote run ID `f56b5d9db2313942`, mode, issue and base commit, but
+about a minute later a recovery sentinel held only session ID and recovery
+fields. Alignment was then signed onto that identity-less record. The
+coordinator later hand-reconstructed the missing fields; supervisor rejected
+that HMAC-valid rewrite as unproven authority and stopped before another
+implementer dispatch. The exact recovery writer was not captured; the
+completion ledger still naming the run cannot authorize re-binding the signed
+sentinel. [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+requires fail-closed behavior and an independently authenticated recovery
+path, or a fresh run. Evidence is retained under the worktree's ignored
+`.claude/local/1805-evidence/`; no #1805 source repair was accepted.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
