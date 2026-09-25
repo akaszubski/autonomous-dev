@@ -6,6 +6,26 @@ not acceptance evidence. Canonical scope remains the
 
 ## Latest verified handoff — 2026-09-25
 
+Most recent continuation: canonical HEAD `16c210a6` was pushed on
+`fix/1779-pipeline-evidence-integrity` before the present WA-O3 note. Source
+`/improve --auto-file` finished; it filed #1800 by the documented error
+fast-path (severity error and frequency at least two), **not** by the ordinary
+two-session breadth threshold. Its initial narrative conflated those routes;
+the issue comment corrects that claim. F0 remains paused at the separate
+cumulative-history hook deadlock; no archive/clear approval or F0 acceptance
+is implied. A real Claude 2.1.236 disposable-project WA-O3 Read observation
+now supports bounded allow/refuse and missing/disabled behavior with session,
+debug and marker records; independent review narrowed the proof because the
+first arms lacked pre-run case-file freeze and intervention receipts were not
+all preserved. The private result is
+`/Users/akaszubski/.codex/artifacts/adev-o3-native.heCDz1/evidence/RESULT.md`,
+SHA-256 `fe31ac64343a71248bd14bba167850e2dcb855cd207ea12d769732c3a1875cbf`.
+It is not a frozen release row, D0 installed-plugin proof or F0 provenance.
+The present census/checkpoint edit must be committed before citing a new HEAD.
+The unrelated modified plugin manifest and untracked `.Codex/` remain user-owned.
+Next: finish the WA-O3 freeze/intervention receipts and remaining effective
+registration reconciliation; only then freeze #1757's finite denominator.
+
 The last pushed source-inventory commit on `fix/1757-census-carriers` is
 `379fd6734d212933b117d7417831317c4d0d81ad`. Its four corrections are
 `01a13368` (source routes/operand boundary), `21090df0` (checkout location),

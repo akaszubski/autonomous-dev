@@ -509,7 +509,22 @@ declared valid-empty remains distinct; (4) unchanged files/behavior with one omi
 census entry yields independent denominator failure. The source-fixture arm of
 row 4 passed at `9fd2cbb9` (16 owner tests, raw exit 0), with separately authored
 fixture and claim lists, one real hook call and the same acceptance predicate in
-both arms. No native row has passed yet.
+both arms. A separate real Claude 2.1.236 disposable-project observation is saved
+privately at `/Users/akaszubski/.codex/artifacts/adev-o3-native.heCDz1/evidence/RESULT.md`
+(SHA-256 `fe31ac64343a71248bd14bba167850e2dcb855cd207ea12d769732c3a1875cbf`).
+Its registered PreToolUse:Read hook allowed an ordinary target and refused a
+denied target, with actual Claude tool results, hook debug decisions and paired
+extension-process markers. An omitted inventory claim failed the independent
+eligible-`*.py` comparison while a full claim matched. Disabled and missing
+extension runs exposed the denied target and therefore cannot be counted as
+qualified enforcement. Independent review found that the case file postdates the
+first allow/refuse runs, the top-level CLI exit/permission-denial output was not
+preserved in the artifact, between-run hash stability was not separately receipted,
+and the disabled-env/missing-file interventions lack independent pre/post receipts.
+Thus these are bounded native observations, not a pre-frozen or accepted WA-O3
+qualification row; repeat only the affected arms with complete freeze and
+intervention receipts before promotion. Native merge, cross-layer exactly-once,
+all-tools coverage, F0 provenance, D0 lifecycle and Linux remain unproven here.
 Mutation between census/load and fail-open exceptions also remain unresolved.
 Reuse the existing extension marker/order/dedup fixture patterns for these rows;
 the independent omitted-entry comparison must leave files, registration and actual
