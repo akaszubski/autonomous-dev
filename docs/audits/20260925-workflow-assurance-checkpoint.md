@@ -10,16 +10,64 @@ Observed after the detached-session recovery; recheck liveness before use.
 
 | Workstream | Current transport | Verified execution / acceptance |
 |---|---|---|
-| F0 correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Offline review disposition complete, including the validator's disclosed context impurity and separate structural evidence. Native Edit `toolu_01UXTxiS93QF3ez9GdDLUpF5` is awaiting one-time permission to append the CIA report; do not use an alternate writer or select session-settings permission. F6.5 and native F0 qualification remain incomplete. |
-| Source correction `8bf6bb224a9fe6ca` | Same server, session `census`, coordinator `39011` | Remediated subject independently passed 261 tests with exit 0 (exact hashes below). Fresh post-remediation spec-validator is running; subsequent required reviews remain. Earlier false REACHED and integrity failures are preserved, and checkout-location/refusal-inventory gaps remain open. |
+| F0 correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Fresh `a1400c43275ddf258` returned behavioral PASS; supervisor observed required PROJECT read, direct pytest output/status, test-body/interface inspection, no authored files or production-body reads. Three invalid prior attempts remain rejected. Structural/security obligations retain separate reviewer evidence, not this validator's certification. Truthful normal closure, F6.5 and native F0 qualification remain incomplete. |
+| Source correction `8bf6bb224a9fe6ca` | Same server, session `census`, coordinator `39011` | Remediated subject independently passed 261 tests with exit 0; fresh validator `abbc667eea14f44bf` returned clean PASS with supervisor tool audit. Fresh reviewer APPROVE and security re-audit PASS returned; CIA, /improve and normal closure remain. Earlier false REACHED and integrity failures are preserved, and checkout-location/refusal-inventory gaps remain open. |
 
-Next: complete the exact native report edit only through its normal one-time
-permission flow, then cleanup; meanwhile audit fresh source specialist evidence.
+Next: both native coordinators have saved their local CIA reports after user
+authorization through native option 1; cleanup and /improve remain. Census Write
+`toolu_01NaaEbK2MQ6wALXb4utHJRC` preserves the current report as an exact prefix
+(supervisor comparison returned true); F0 Edit
+`toolu_01Wo6cS87T5PevuMi6TrVEE1` preserves the old verdict text and appends the
+corrected four-attempt record and explicit structural-evidence limitations.
+Both target their own worktree's `.claude/local/cia-2026-09-25-issue-0-fix.md`.
+Supervisor verified the saved census content matches the approved Write exactly
+and the saved F0 report contains the approved append. No alternate Bash writer or
+settings change was used. The user subsequently authorized routine equivalent
+local report saves on their behalf after scope verification; this is not release,
+paid-action, settings-change or gate-bypass authority. Required cleanup and
+/improve are still outstanding.
+F0 subsequently reported normal run-scoped sentinel cleanup for
+`5bdca182e329bd9c`; /improve remains to verify. Census invoked /improve report-only
+(GitHub mutations were excluded from that native run); root retains GitHub updates.
+Queued next work, conditional on normal run closure: census commits only its two
+owned reviewed files with ordinary guards, then starts fresh aligned `/implement
+--fix` for the existing project-relative checkout-location correction; F0 produces
+a read-only native-admission readiness handoff. That handoff does not authorize
+new authentication, credential access, admission-pin edits or a native launch.
 The separate checkout-location defect
 remains open for its own aligned correction after this handoff; it was not folded
 into the candidate under review. Both coordinator processes were re-observed live
 with their tmux panes (dead=0); do not restart them.
 No release/promotion or whole-plan completion is implied.
+
+Latest F0 rejection is bound to validator `a95136274a2624370`, Bash
+`toolu_014WaPgWmWcD9oQFqCWeFriJ`: its command used `>` to create
+`scratchpad/pytest_full.txt`. This captured pytest's real status but contradicts
+`plugins/autonomous-dev/agents/spec-validator.md`'s explicit no-redirection rule;
+the amended report's "0 file/dir-authoring" assertion is false. Supervisor
+cancelled the pending native report Edit and observed the coordinator processing
+the correction. Preserve the attempt and its test evidence as supporting only;
+do not weaken the charter or repeat implementation to repair a validation-method
+failure. Both coordinator PIDs were observed live at approximately 1h36m elapsed.
+The F0 coordinator subsequently acknowledged the missed redirection, withdrew its
+clean-pass claim and preflighted direct pytest-to-tool output for fresh validation.
+Fresh validator `a1400c43275ddf258` subsequently returned behavioral PASS with
+`7 failed, 180 passed, 192 subtests passed in 4.11s`, `PYTEST_RC=1` directly in tool
+output. Supervisor inspected its actual command/read list: no authored files or
+production-body reads; PROJECT read present. Read-only grep pipelines occurred,
+so "zero pipes" would be false, but pytest was not piped or redirected. Missing
+worker-fixture failures remain non-pass evidence; attribution does not convert the
+whole suite to green. Its structural/docstring/completeness limitations must stay
+mapped to separate existing reviewer/security evidence; source grep alone is not
+an exhaustive dependency proof. No native/F0/product qualification is granted.
+
+Source security re-audit `a91533e598540f6b9` returned PASS: prior malformed-operand
+over-credit closed, no blocking findings. Its own 261-passing-test run still exited
+1 under the activity-log integrity guard; this is not interchangeable with the
+supervisor's isolated exit-0 run. Preserve both. An advisory for adjacent shell
+redirection remains conservative UNKNOWN; do not extend recognition based solely
+on this advisory (backtick substitution may append to an operand). Sampled regex
+stress timings support those tested inputs, not a universal absence-of-ReDoS claim.
 
 Source operand-remediation handoff: scanner SHA-256
 `b08913620aa824101744c2123111fdc90b65b6c29c6c5c55ffd8675a98ae1a8a`, CHANGELOG
@@ -33,6 +81,18 @@ earlier exit-1 integrity-guard result remains preserved. Fresh native reviews an
 the separate checkout-location correction remain outstanding; this is not whole-
 census acceptance or proof of a complete release denominator.
 
+Clean source F3.5 completion: dispatch `toolu_01Kppx1tGZmBa9gGn9kG9KCT`, agent
+`abbc667eea14f44bf`, returned PASS. Supervisor inspected the full Bash list and
+Read ranges: interface introspection/exact declarations, test-body-only ranges
+6809–8166, no authored custom files or parser-body range reads. The seven live
+carrier pairs were observed; focused 120-case and 25/57-row runs used explicit
+pytest exit capture. Doc-master's later CHANGELOG-only correction updates 36→37
+new functions and 248→261 collected IDs plus the verification note; supervisor
+word-diff confirmed that scope. Latest CHANGELOG SHA-256 is
+`57e59a939d8e4f7d8b64e01a52743ac5d65db3af3ba920d1c629aca43e0bf86f`;
+scanner remains `b0891362…`. Historical CHANGELOG hashes above remain valid for
+their snapshots. Fresh code/security review and normal closure remain required.
+
 F0 validator returned an amended mixed behavioral PASS, explicitly not a fully
 context-pure certificate because its reader-docstring inspection included body
 lines 1245–1264. Deferred structural and baseline claims must map to actual existing
@@ -40,6 +100,27 @@ reviewer/security evidence before offline correction closure; this is not native
 acceptance. Supervisor rechecked frozen parent/owner and corrected loader/successor
 hashes unchanged from their recorded subjects. GitHub checkpoint:
 https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5828730629
+
+Subsequent authoritative gate audit: `plugins/autonomous-dev/commands/implement-fix.md`
+lines 362–401 explicitly require spec-blind F3.5 as a HARD GATE. Earlier suggestions
+that mixed behavioral plus reviewer evidence could close the offline pipeline were
+too broad and are withdrawn; that evidence remains supporting, not a replacement
+for required context-pure validation. The latest source validator also read past
+`LibraryReachability` at offset 1449/limit 60 into `_library_paths`; its context-purity
+claim must be corrected too. Both require only the missing valid validation, not
+rebuilding working code or restarting the full pipeline. Existing interface
+introspection and exact declaration/test-body reads suffice; no new framework is
+authorized by this finding.
+
+Read-only recovery finding after the cancelled report: the F0 session-hashed
+completion file `/tmp/pipeline_agent_completions_db1447b1.json` has neither
+`current_run_id` nor `completion_run_ids`. Canonical completion-state documentation
+defines that as legacy permissive state; a listed completion alone therefore does
+not prove current-run ownership. Coordinator notified to reconcile actual module
+resolution and exact run/tool evidence, not stamp every legacy completion as current
+or bypass ordering. No state repair is claimed by this observation. Related
+validation-presence/quality evidence is attached to existing issue #1538:
+https://github.com/akaszubski/autonomous-dev/issues/1538#issuecomment-5828820022
 
 CIA evidence caution: its hook-suite command piped pytest to `tail -35` without
 explicit pytest exit capture. Its reported 18 failures establish non-pass, not a
