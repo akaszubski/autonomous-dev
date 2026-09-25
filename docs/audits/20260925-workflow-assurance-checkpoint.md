@@ -121,6 +121,23 @@ requires fix-mode owner parity and fail-closed recovery, or a fresh run.
 Evidence is retained under the worktree's ignored
 `.claude/local/1805-evidence/`; no #1805 source repair was accepted.
 
+Next #1807 bootstrap observation, 2026-09-26: a fresh full `/implement`
+session in `/Users/akaszubski/Dev/autonomous-dev-1807` ran STEP-0 stale GC
+with zero state, sentinel or lock paths removed. The literal STEP-0 recipe
+then hit the live #557 spoofing guard on its own inline
+`PIPELINE_STATE_FILE=` assignment. The denial was preserved. A one-process
+same-semantics activation using `get_legacy_sentinel_path()` as an explicit
+path argument, without setting a protected variable, produced run
+`d018197a07f074cc` under actual Claude session
+`9146ab59-e61e-4ba6-9340-b35b31e296af`; the source verifier accepted the
+HMAC and rejected a changed run ID. But independent negative controls showed
+`verify_state_hmac` also accepts a changed/removed embedded `session_id` and a
+wrong session argument, because `_compute_state_hmac` does not include owner.
+This is a distinct owner-binding defect now included in #1807. The current
+run is bootstrap evidence under Codex supervision, not accepted product
+authentication or proof that STEP-0 works unmodified. No specialist had
+edited code when these controls were recorded, and no F0 state was changed.
+
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
