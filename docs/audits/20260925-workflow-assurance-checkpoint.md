@@ -78,6 +78,18 @@ records the counterexample. Next: execute the bounded structural redesign in
 [#1805](https://github.com/akaszubski/autonomous-dev/issues/1805) with frozen
 negative and genuine interpreter-in-substitution positive cases, then
 independently review before another implementation attempt.
+The clean replacement worktree `/Users/akaszubski/Dev/autonomous-dev-1805`
+started native Claude `/implement --fix #1805` in detached tmux session
+`adev-assurance:redesign` from base `e8d875e7`, run
+`f56b5d9db2313942`; it is a candidate, not an accepted source repair.
+Its STEP-0 age-only stale-state GC reported removal of 88 lockfiles. A
+read-only check then found the paused F0 holder PID 15350 still holding an
+open fd for `/private/tmp/pipeline_b685fe360589b185.lock` while that pathname
+no longer exists. The exact deletion time of this particular file was not
+captured, but the live-holder/missing-path state defeats the intended
+same-run exclusion. [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806)
+owns the durable repair and two-process proof. Do not resume F0 on the
+assumption its lifetime lock is sound; no F0 observation history was changed.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
