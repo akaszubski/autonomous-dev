@@ -372,3 +372,78 @@ class TestRunExtensions:
 
         assert decision == "allow"
         assert reason == ""
+
+
+def _census_reconciles(claim, executed, disk):
+    """SINGLE acceptance predicate: the frozen census claim must equal BOTH
+    independently observed surfaces (executed markers, files on disk).
+
+    Used by BOTH arms of the completeness control below. It is EQUALITY, so an
+    incomplete claim (a dropped inventory row) makes this identical predicate
+    RAISE -- that raise is the omitted-entry counterexample.
+    """
+    assert set(claim) == set(executed) == set(disk)
+
+
+class TestExtensionCensusCompleteness:
+    """WA-O3 row 4: extension census-completeness (omitted-entry) control.
+
+    ONE real _run_extensions run yields two observed surfaces -- EXECUTED
+    (markers the hook wrote) and DISK (files on disk) -- reconciled against an
+    INDEPENDENTLY authored census claim. Native activation stays UNMEASURED (no
+    claim here); runtime-selection omission (symlink/dedup/order) is a DISTINCT
+    concern owned by the existing symlink/dedup/order tests, not touched here.
+    """
+
+    # Two INDEPENDENT literals: the fixture files actually written, and the
+    # census claim. Equal by intent, authored separately -- so DISK/EXECUTED
+    # (from the run + filesystem) never mirror a mutation of the claim.
+    FIXTURE_EXTENSIONS = ("aaa_ext.py", "bbb_ext.py", "ccc_ext.py")
+    CLAIMED_SELECTED = ["aaa_ext.py", "bbb_ext.py", "ccc_ext.py"]
+
+    def test_census_completeness_is_load_bearing(self, tmp_path: Path) -> None:
+        """Dropping one claimed row makes the SAME equality predicate raise,
+        with the single run's markers/decision/files unchanged (never re-run).
+        """
+        fake_hook = tmp_path / "hooks" / "unified_pre_tool.py"
+        fake_hook.parent.mkdir(parents=True)
+        fake_hook.touch()
+        ext_dir = fake_hook.parent / "extensions"
+        ext_dir.mkdir()
+        markers_dir = tmp_path / "markers"
+        markers_dir.mkdir()
+
+        # Fixture population is authored from FIXTURE_EXTENSIONS, NOT the claim.
+        for name in self.FIXTURE_EXTENSIONS:
+            marker = markers_dir / (name + ".ran")
+            (ext_dir / name).write_text(
+                "from pathlib import Path\n"
+                "def check(tool_name, tool_input):\n"
+                f"    Path({str(marker)!r}).write_text('ran')\n"
+                "    return ('allow', '')\n"
+            )
+
+        # ONE real run over the hook-adjacent extensions/ dir only. Bind the
+        # enabled state explicitly so ambient HOOK_EXTENSIONS_ENABLED=false
+        # cannot short-circuit discovery and starve the positive arm.
+        with patch.dict(os.environ, {"HOOK_EXTENSIONS_ENABLED": "true"}), \
+             patch.object(upt, "__file__", str(fake_hook)), \
+             patch("os.getcwd", return_value=str(tmp_path / "nonexistent_project")):
+            decision, reason = upt._run_extensions("Bash", {"command": "ls"})
+
+        # EXECUTED from the real run's markers; DISK from the filesystem.
+        executed = {p.name[:-4] for p in markers_dir.glob("*.ran")}
+        disk = {p.name for p in ext_dir.glob("*.py")}
+
+        # POSITIVE: full claim satisfies the acceptance predicate; run permits.
+        _census_reconciles(self.CLAIMED_SELECTED, executed, disk)
+        assert decision == "allow"
+        assert reason == ""
+
+        # NEGATIVE: SAME snapshot -- runtime is structurally unchanged because
+        # we never re-run and never touch files/markers/env; drop exactly one
+        # claimed row and require the IDENTICAL predicate that just passed to
+        # RAISE. This is the omitted-entry counterexample (not a bespoke !=).
+        reduced = [n for n in self.CLAIMED_SELECTED if n != "bbb_ext.py"]
+        with pytest.raises(AssertionError):
+            _census_reconciles(reduced, executed, disk)
