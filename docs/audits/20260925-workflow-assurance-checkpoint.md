@@ -24,6 +24,12 @@ not acceptance evidence. Canonical scope remains the
   Latest program update: https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5826825307
 - **Scoped access limit:** both configured Mac Studio SSH endpoints timed out;
   remote installed populations remain UNMEASURED. Local work continues.
+- **Next bounded source change:** the census now contains an independently
+  reviewed source-connectivity correction contract for seven known missed
+  routes, reusing the existing ratchet only. Consumer-profile definitions also
+  passed independent review; concrete subject digests and release acceptance
+  remain unfrozen. Execute code changes through a real `/implement` route without
+  interfering with the ongoing private correction or its frozen evidence.
 - **Still required:** independent corrected F0 acceptance, reusable runtime and
   plugin qualification, control migration with actual retirement, and clean plus
   populated consumer release proof. No net maintenance reduction is claimed.
@@ -35,7 +41,9 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current execution and recovery
 
-Latest durable docs commit: `692c1f1f` (pushed). Handles `57665`, `95777` and
+Earlier durable docs commit: `692c1f1f` (pushed); the completed library census was
+subsequently committed and remote-verified at `d2c053f5a3fc4062dab1e9102303672b0bca250d`
+after normal checks (14 documentation tests passed, one skipped). Handles `57665`, `95777` and
 interactive `94567` are terminal. Native one-time approval of the exact CIA report
 write succeeded; the supervisor used standing routine-work authority, not a new
 user message or blanket settings permission. Report SHA-256:
@@ -179,7 +187,8 @@ the F0 worker, credentials or shared installed settings.
 Historical commit coordination: an earlier checkpoint commit attempt ran documentation
 checks (14 passed, 1 skipped), but the outer test guard refused because the real
 activity log changed during the active Claude run. The update was left staged
-and later committed as `692c1f1f`; current checkpoint/census edits are
-unstaged. Do not disable the state guard or
+and later committed as `692c1f1f`; the next census/checkpoint snapshot was committed
+as `d2c053f5`. Consult `git status` for later working-copy edits rather than inferring
+them from this historical record. Do not disable the state guard or
 claim its change-detection alone identifies the writer. This checkout's live-log
 watch means commit-time tests and native pipeline activity can share mutable state.

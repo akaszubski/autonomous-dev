@@ -313,7 +313,8 @@ timeout establishes neither absence nor drift.
 
 Required release profiles remain: isolated Linux Claude worker; standalone verifier;
 dogfood; distinct clean and populated consumer; real Claude/Codex portability case.
-Exact disposable consumer IDs and effective-profile digests remain to freeze.
+Disposable IDs are selected as CLEAN-0 and POPULATED-3; their concrete fixture and
+effective-profile digests remain to freeze.
 Local command probes on 2026-09-25 returned Claude 2.1.236 and codex-cli 0.44.0
 from `/opt/homebrew/bin`; version output is not compatibility qualification or a
 decision to upgrade. Windows, WSL, other OS/harness profiles are not implied green;
@@ -322,6 +323,100 @@ Runtime requirements also disagree: the native manifest declares Python >=3.11,
 while marketplace/legacy plugin metadata declare >=3.9; PROJECT.md requires >=3.11.
 
 ## Reconciliation and omitted-route controls before freeze
+
+### Bounded source-connectivity correction contract (proposed)
+
+WHY/SCOPE: seven inspected executable source routes are missed by the existing
+ratchet. Correct that instrument before treating its output as the release
+denominator; do not build a second scanner or claim runtime qualification.
+Existing owner: `tests/unit/hooks/test_hook_reachability_ratchet.py`. Proposed
+implementation scope is that file plus this census/checkpoint and changelog; no runtime module,
+store, schema, general shell evaluator or additional root directory is needed.
+
+| Existing source root/carrier | Target | Observed defect family |
+|---|---|---|
+| `P/templates/settings.autonomous-dev.json` → `P/hooks/SessionStart-batch-recovery.sh:142–172` | `batch_resume_helper` | Same-file computed helper path followed by interpreter invocation |
+| `.github/workflows/ci.yml:253–267` | `test_routing` | Indented multiline Python carrier |
+| `install.sh:2255–2268` | `claude_md_updater` | Exact root missing, and heredoc interpreter arguments unsupported |
+| `.github/workflows/drain-watchdog.yml:175–206,233–236` | `daily_aggregate_manager`, `selector_stall_detector` | Indented multiline Python carriers |
+| `P/commands/implement.md:1380–1442` | `flaky_tests` | Indented multiline Python carrier |
+| `P/commands/retrospective.md:54–120` | `retrospective_analyzer` | Indented multiline Python carriers |
+
+Minimal path: extend the existing carrier extraction using common-indent removal
+only at the recovered Python boundary (preserving relative indentation), the
+evidenced simple `python3 - "$VAR" "$VAR" <<'WORD'` heredoc argument class,
+and exact `install.sh` root inclusion. Do not widen all shell/Python files into
+entry roots or execute source to discover imports.
+
+The helper rule is an ordered same-file recognizer, not shell evaluation: in
+non-narrative program text or a fenced program block, a POSIX identifier must be
+assigned before its supported Python interpreter invocation as script operand.
+The assignment RHS permits at most one leading simple `$name`/`${name}` prefix
+plus a literal path ending `/plugins/autonomous-dev/lib/<valid-stem>.py`; extract
+only that terminal stem, never evaluate the prefix. No intervening reassignment.
+Reject command/backtick/arithmetic/default/indirect expansion, extra variables,
+dynamic suffixes, invocation-before-assignment, comments, echo/test/print/existence
+checks without execution, and unresolved reassignment. Heredoc arguments likewise
+reject metacharacters and substitutions outside the evidenced simple token class.
+
+Reuse one parameterized case table through `library_reachability(use_cache=False)`:
+each listed live source pair must become REACHED; assignment/import text without
+its actual invocation stays UNKNOWN; omitted invocation/carrier/root makes that
+same positive route UNKNOWN. Include invocation-before-assignment, intervening
+reassignment and a same-shaped non-root negative, and preserve
+existing parser anti-overcredit controls. Refusal output names source, carrier
+family and target. Change UNKNOWN pins/ceilings only from observed post-fix output,
+never predicted subtraction or a hand-maintained second inventory.
+These checks establish source connectivity only. Installed/executing evidence and
+the independent omitted-entry/observer controls below remain required.
+Round 1 identified these three defect families; round 2 required the bounded
+helper grammar and ordering mutants now specified above. Final independent
+plan-critic review returned PROCEED on this bounded source-only contract.
+
+### Consumer-profile selection (proposed, not frozen digests)
+
+Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
+`CLEAN-0` and `POPULATED-3` as disposable fixture IDs, with separate standalone,
+dogfood, isolated-Linux and Claude/Codex process-result profiles; OS/tool versions
+belong in each digest-bound profile rather than implying cross-platform parity.
+Clean/populated are distinct repositories and isolated homes, not two names for
+dogfood. The populated baseline includes user/project/local/explicit settings,
+unrelated permission/env/hook sentinels and an exact owned projection.
+Darwin lifecycle fixtures cannot satisfy isolated-Linux product qualification:
+Linux retains its own result and exact worker/tool/profile digest.
+
+Before implementation freeze supported harness/profile, source baseline and
+dependency closure, fixture recipe, last-known-good artifact/profile digest,
+intended execution/security semantics, expected D0 lifecycle rows, settings-layer
+expectations, zero-mutation conflict inventory, allowed changes, timeout and
+legacy route dispositions. Preserve consumer data by default on uninstall;
+automatic destructive data removal is not promised by this profile. Candidate
+package/closure digests, verifier identity, exact native join keys and observed
+interruption points freeze only when those subjects exist, before acceptance.
+The observed credential-free `--init-only` SessionStart fixture is reusable;
+do not restart authentication to repeat it. It does not establish product
+exactly-once joins or replace a qualifying real workflow.
+Since the retained private proposal, disposable preflight observed scalar order
+explicit > local > project > user, plugin-default env non-participation and five
+physical layer-canary processes per session. These supersede its unobserved-field
+claims only for that fixture, not installed-product composition or exactly-once.
+D0-01 retains source-unavailable plus counterfeit source module/executable faults;
+D0-04 requires one physical process joined to one native event and result/decision,
+with duplicate registration producing two physical rows and failure. D0-08 still
+removes owned registration/executable routes as promised, explicitly dispositions
+retained native cache, preserves unrelated settings/data and proves standalone
+and subtraction; update/rollback/uninstall cases remain. Only an automatic
+destructive remove-data mode is outside this profile.
+
+Remote deployed-population inspection is a separate obligation, not another
+disposable profile. An unreachable machine stays UNMEASURED; it neither replaces
+clean/populated qualification nor disappears from the migration inventory.
+R0 still requires the actual accepted F0 commit/digest authorization, and promotion
+remains explicit. No profile proposal grants either authority.
+Independent profile review returned PROCEED after checking these separations;
+this approves the planning definition, not a future candidate or its receipts.
+
+### Remaining release reconciliation
 
 1. Preserve all 23 JSON route shapes, nine legacy declarations, source refusers,
    CLI/Markdown/root-shell routes, archived invocations and consumer extension slots.
