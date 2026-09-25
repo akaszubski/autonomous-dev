@@ -90,6 +90,17 @@ captured, but the live-holder/missing-path state defeats the intended
 same-run exclusion. [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806)
 owns the durable repair and two-process proof. Do not resume F0 on the
 assumption its lifetime lock is sound; no F0 observation history was changed.
+The first clean #1805 candidate also hard-stopped uncommitted: its bounded
+lexer credited a path after a semicolon inside a double-quoted assignment,
+although Bash executed only `pwd`. [#1805](https://github.com/akaszubski/autonomous-dev/issues/1805)
+now specifies a smaller conservative support boundary: unsupported
+backtick-bearing PROGRAM lines remain `UNKNOWN`, including real shell commands,
+while plain and seven independently inspected live source routes retain their
+positive evidence. The historical 238/148/90 split is not a release target;
+any changed members and ratchet pin require explicit reviewed attribution.
+This is a proposed instrument correction, not a passing repair or installed
+workflow proof. The failed +233/-6 source diff and Bash receipts are preserved
+in the clean worktree for review, not committed.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
