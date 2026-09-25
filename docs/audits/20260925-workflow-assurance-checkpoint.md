@@ -148,8 +148,20 @@ not green. A subsequent research file initially failed structured persistence
 with empty findings, then was written as prose. Independent JSONL tool records
 show the local researcher did read the relevant source files and tests; the web
 researcher fetched RFC 8725 only. RFC 7507/etcd were search-result analogies,
-not fetched sources, and cannot authorize the repair. The planner is still
-running; no implementation source file has changed as of this checkpoint.
+not fetched sources, and cannot authorize the repair. At that observation
+point the planner was still running and no implementation source file had
+changed.
+The planner later proposed roughly 340 production and 500 test lines plus a
+mutable completion-ledger cross-check. The independently dispatched plan
+critic returned **REVISE**: heartbeat recreation can turn a corrupt/0-byte
+sentinel into a parseable recovery dict, erasing #1779's ordering-gate refusal;
+and a coordinator can call both `sign_state` and `record_run_start`, so a
+matching ledger cannot prove a reconstructed run's origin. The supervisor
+therefore rejected the full plan, did not narrow #1807 AC7, and directed only
+a smaller, explicitly partial fail-closed safety patch under `/implement`.
+#1807 remains open until an independent trust boundary proves the deliberate
+complete-replay negative. No release, deployment or F0 acceptance follows
+from a partial patch. See the #1807 critic comment for the exact disposition.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
