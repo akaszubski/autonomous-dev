@@ -1,6 +1,6 @@
 # Project Context — Autonomous Development Plugin
 
-**Last Updated**: 2026-09-13 (Issue #204)
+**Last Updated**: 2026-09-25 (workflow-assurance intent, #1757)
 **Version**: v3.51.0
 
 > **This is a gate input, not documentation.** The alignment gate reads it on every
@@ -12,7 +12,14 @@
 > content — keep it short and portable. Hard ceiling 225 lines, target 150; it loads every
 > turn. Contract added 2026-08-30, #1708.
 
-🎯 **ACTIVE GOAL**: [Enforcement Proven Everywhere, and Smaller](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md) — every shipped guard proven refusing AND permitting in every repo it reaches, while the system gets smaller. Baseline MEASURED 2026-08-24: 4 of 8 guards fail open silently; 0 proof artifacts in realign/spektiv; rework-per-fix 86.8%. **Current execution authority is control-tool v12, adopted at #1757 from base commit `5fa26e86`**. Its minimal-vertical-proof amendment shipped with #1779 at commit `15f89ca6`; the resulting [`docs/plans/20260909-control-tool-v12.md`](docs/plans/20260909-control-tool-v12.md) bytes have SHA-256 `05a3efafecb2099ff8f9d1efdb9601577fdf071072e9b945690cbdbc252fab7d`. **F0 alone is authorized (#1773)**, and R0 requires a separate authorization naming the frozen F0 commit and digest. The v3/v4/v5 goal revisions, their abort clauses, and the dated measurements that motivated them are preserved in the goal document as historical evidence and no longer co-govern this work: where they and the adopted plan differ, the plan wins. **Read those figures there rather than re-copying them here** — a metric copied into a gate input is read as current, and none of them has been re-measured. Standing rule (§2): a finding that can refuse becomes **a guard, not an issue**, and extending an existing mechanism beats adding one.
+🎯 **ACTIVE GOAL**: deliver a smaller, reusable workflow-assurance toolkit, with
+independently verified execution and proven installed-consumer behavior.
+The [revised execution plan](docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md)
+owns sequencing, the finite release inventory and evidence checkpoints; the adopted
+[control-tool v12](docs/plans/20260909-control-tool-v12.md) and its approved amendments
+retain frozen acceptance/security authority. No intent update waives a failed gate
+or the separate R0 authorization naming the frozen F0 commit and digest.
+Prior goal revisions and measurements remain [historical evidence](docs/experiments/GOAL_2026-08-24_enforcement-proven-everywhere.md), not current status or competing execution instructions.
 
 For behaviour rules see [`CLAUDE.md`](CLAUDE.md). For operational sequences see [`docs/RUNBOOK.md`](docs/RUNBOOK.md). For content placement see [`docs/development/CONTENT_ALLOCATION.md`](docs/development/CONTENT_ALLOCATION.md).
 
@@ -20,11 +27,14 @@ For behaviour rules see [`CLAUDE.md`](CLAUDE.md). For operational sequences see 
 
 ## GOALS
 
-**Mission**: Make Claude Code CLI follow the full software development lifecycle — requirements,
-architecture, coding, testing, review, security, documentation, deployment — **consistently**,
-and prove **continuously** that each control is working. Following the steps is not the goal; a
-control that ran, refused when it should have, permitted when it should have, and left a receipt
-saying so — that is the goal.
+**Mission**: Ship a small, reusable policy execution and assurance toolkit that makes
+AI-assisted development follow each repository's agreed software development lifecycle
+and independently verifies that its controls work. Accurate, consistent outcomes come
+first; reducing ongoing maintenance comes next. Autonomous-dev is a dogfood consumer,
+not the product boundary. Claude Code is the first execution harness; other harnesses
+and platforms qualify only through their own observed capabilities and acceptance cases.
+Following steps or producing a report is insufficient: prove correct refusal AND permit,
+the intended effects, and evidence linking the requirement to actual execution.
 
 **Why controls and not instructions**: adherence cannot be assumed. The operator forgets between
 sessions, rationalises around prose in both directions, and asserts what it has not verified. So
@@ -44,12 +54,6 @@ before it is trusted.
 ## SCOPE
 
 **IN Scope:**
-*Compressed 2026-08-30 from 17 bullets to 9. "enforcement" appeared in 5, "alignment" in 4,
-"improvement" in 2, "benchmark" in 2 — the list had become an inventory of what was built
-rather than a boundary. A permission list refuses only by omission, and this one had grown to
-permit nearly everything: when the gate refused on 2026-08-30 it cited the Mission, not any
-of these.*
-
 - The 8-step pipeline — alignment → research → plan → test → implement → validate → verify →
   git — including feature detection, batch modes, and crash recovery
 - PROJECT.md alignment validation, and the enforcement that makes it non-advisory rather than
@@ -65,6 +69,8 @@ of these.*
 - Automated git operations (commit, push, PR creation)
 - Brownfield support (`/align --retrofit`, `--content`) and the content allocation pattern —
   one topic, one home
+- Native plugin delivery of runtime libraries and thin harness adapters, with consumer
+  requirements/configuration kept outside the reusable core; no source-checkout fallback
 
 **OUT of Scope:**
 - Replacing human developers — AI augments, doesn't replace
@@ -92,6 +98,12 @@ of these.*
 2. **Constraint** — does it respect boundaries?
 3. **Minimalism** — is this the simplest solution?
 4. **Value** — does benefit outweigh complexity?
+
+**Subtraction requirement**: every migration names the existing owner and preserves its
+required outcomes before retiring superseded code, tests, settings or documentation.
+Measure dependency-inclusive before/after burden (code, tests, dependencies and operator
+steps); relocated complexity is not reduction. Retain tests for distinct failure detection,
+not counts, and require measured net maintenance reduction across the completed release.
 
 **Red flags** (immediate bloat indicators): "This will be useful in the future", "We should also handle X, Y, Z", "Let's create a framework for…".
 
@@ -143,12 +155,8 @@ These are the load-bearing properties of the harness. A proposed change that con
 
 *Added 2026-08-28. Stated here, not in a runbook, because it changes what may SHIP.*
 
-Every gate this repo runs inspects **the artifact**. None asks whether it is **connected**, and
-one narrow mechanism asks whether it **behaves as designed**. An unwired artifact is
-byte-for-byte indistinguishable from a wired one — file present, tests green, manifest entry,
-deployed. Six such artifacts shipped in one session on 2026-08-28; a guard dead four ways
-shipped to five repos and its own suite agreed with it on 2026-08-30. Cases:
-[`docs/MAINTAINING-PHILOSOPHY.md`](docs/MAINTAINING-PHILOSOPHY.md).
+An artifact's presence, registration or green tests do not establish a working execution
+route. Historical failures: [`docs/MAINTAINING-PHILOSOPHY.md`](docs/MAINTAINING-PHILOSOPHY.md).
 
 **Every artifact must answer both questions, and the answer must be mechanical.**
 
@@ -158,22 +166,20 @@ Something must invoke it, and that route must be verifiable by a machine. Prose 
 is not a route (INV-1). Presence in a manifest is not a route. A test that mocks the call site
 is not a route.
 
-Covered today by the reachability ratchets (#1612, #1698). **Uncovered: `scripts/`, `config/`,
-`commands/`, `agents/`, and — the one that keeps biting — the DEPLOYED copy.** Every mechanism
-validates SOURCE; source and runtime diverged three times in the two days to 2026-08-30.
+Check the actual installed route, including non-Python entrypoints and dynamic registrations;
+source reachability alone cannot establish deployed connectivity.
 
 ### Q2 — Is this work WORKING AS DESIGNED?
 
 Watched doing its job, and watched *not* doing it when it shouldn't — both arms, on the real
 thing, not a fixture. A guard observed only green is unproven.
 
-Covered today by `proof_of_block.py` for block-capable hooks. **Uncovered: hooks that cannot
-refuse, `lib/` modules, `commands/`, `agents/`, and the tests themselves** — the mutation
-witness (#1660) is built and wired to nothing.
-
-*Per-artifact status counts live in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md),
-not here: they drift, and this file must stay refusable rather than current. The 2026-08-28
-table this replaced asserted `249 lib modules` — three counting methods give 229 / 249 / 254.*
+Freeze acceptance cases before execution and independently check native requests/results,
+hook decisions, required telemetry and observable effects. Required reads prove exposure,
+not understanding. Missing, stale, conflicting or unjoined evidence is not a pass;
+timestamps and an agent's report cannot substitute for actual identity links.
+Require a broken-instrument control: disabling a required hook or evidence carrier must
+prevent acceptance. Detailed case matrices and current results belong in the execution plan.
 
 ### The rule
 
@@ -195,6 +201,11 @@ claim. Evidence gathered from `source` bytes, or from this repo hosting itself, 
 establish that a clean installed consumer is protected. An `installed` or `executing` claim
 requires evidence from THOSE bytes; a consumer that was not reached is named `UNMEASURED` and
 is never implied green.
+
+**Safe delivery**: qualify plugin install, update, interruption recovery, rollback and
+uninstall in clean AND populated consumers. Preserve unrelated settings, expose conflicts
+before activation, and prove one active runtime/registration without ambient source fallback.
+No platform or harness inherits another's passing result.
 
 **A model may propose and explain; it may never certify.** A model MAY draft code, propose cases,
 and explain what an observation means — that work is real and is how most of this repo was
