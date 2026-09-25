@@ -897,7 +897,17 @@ The fixture *contract* can be selected now from the retained matrix: separate
 disposable Git roots and isolated HOME/CLAUDE_CONFIG_DIR/TMPDIR, `env -i` and
 Python `-I`, no source fallback, clean/populated sentinels, zero-mutation
 conflict refusal, D0-01…D0-08 fault families and keep-data uninstall default.
-This selects cases, not a passing or frozen product profile. The local Darwin
+This selects cases, not a passing or frozen product profile. The Darwin
+startup fixture can remain credential-free, but a real isolated PreToolUse
+inference case needs its own auth boundary: [Anthropic's authentication docs](https://code.claude.com/docs/en/authentication)
+state that a different `CLAUDE_CONFIG_DIR` reads a different macOS Keychain
+entry. No credential-free reuse of the host Max login is documented. Do not
+copy host credentials or pass a token through the case artifact to make the
+isolated consumer look qualified; use a separate, private interactive login
+for that exact profile when the serial native trial is ready. This is a
+documentation-supported design constraint, not an empirical qualification of
+Claude 2.1.236 or permission to relabel the earlier host-auth fixture.
+The local Darwin
 startup-only envelope currently has Claude 2.1.236 executable SHA-256
 `6bc4ba992d2786cbf0237c4453ca53c1fdf0c3b3d83ffa0025c0d8190ed27848`
 and Python 3.14.3 executable SHA-256
