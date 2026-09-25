@@ -107,11 +107,18 @@ about a minute later a recovery sentinel held only session ID and recovery
 fields. Alignment was then signed onto that identity-less record. The
 coordinator later hand-reconstructed the missing fields; supervisor rejected
 that HMAC-valid rewrite as unproven authority and stopped before another
-implementer dispatch. The exact recovery writer was not captured; the
-completion ledger still naming the run cannot authorize re-binding the signed
-sentinel. [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
-requires fail-closed behavior and an independently authenticated recovery
-path, or a fresh run. Evidence is retained under the worktree's ignored
+implementer dispatch. The failure class is now reproduced at the function
+boundary: fix-mode F1 in `implement-fix.md` omits `session_id`, unlike full
+mode. `unified_session_tracker.py` calls `ensure_sentinel_heartbeat` after
+SubagentStop; for an existing parseable sentinel without an owner, that
+function replaces the whole run-bearing state with a minimal recovery record.
+A local replay using the shipped atomic writer and heartbeat produced the same
+key loss and diagnostic. The exact write receipt in the original run was not
+captured, and pre-loss bytes were not hashed; do not overclaim attribution.
+The completion ledger still naming the run cannot authorize re-binding the
+signed sentinel. [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+requires fix-mode owner parity and fail-closed recovery, or a fresh run.
+Evidence is retained under the worktree's ignored
 `.claude/local/1805-evidence/`; no #1805 source repair was accepted.
 
 The separate `f0`
