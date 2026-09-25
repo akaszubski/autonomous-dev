@@ -88,6 +88,17 @@ receipts remain historical when no longer valid for a current transition.
 | Commands | 26 Markdown files, 23 marked user-facing | Required execution of their embedded state transitions |
 | Plugin scripts | 22 Python main-guard CLI candidates | Invocation or consumer availability |
 
+Current integrated refusal-instrument reconciliation at `e615974f`:
+`refusal_candidates()` returns 11 files. Ten have known syntactic refusal
+evidence (the original count is retained); four have unresolved computed
+decision envelopes. Three of those four are mixed known+unresolved
+(`plan_gate.py`, `unified_pre_tool.py`, `validate_claude_md_size.py`), while
+`validate_paid_dependency.py` is unresolved-only in this source instrument.
+Thus the union adds one visible file without converting its computed decision
+into a verified denial. These are source classifications; the installed/native
+event and actual permit/refuse outcomes remain unmeasured. The counts come from
+the integrated owner functions on this checkout, not the older table snapshot.
+
 JSON census inputs: `plugins/autonomous-dev/config/global_settings_template.json`,
 `templates/settings.{autonomous-dev,default,granular-bash,local,permission-batching,strict-mode}.json`
 under that plugin, and `.claude-plugin/default-settings.json`.
