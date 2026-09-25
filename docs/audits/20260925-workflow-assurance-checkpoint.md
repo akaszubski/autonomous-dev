@@ -65,6 +65,19 @@ the settled source diff, reviewer, doc-master, CIA and commit before crediting
 #1801. Neither this source work nor the user's scoped #1801 approval authorizes
 clearing the F0 observation store.
 
+Later 2026-09-26 update: an independent seventh same-class counterexample
+stopped the bounded #1801 candidate before commit. For the valid shell line
+``helper_path="`pwd` python3 plugins/autonomous-dev/lib/synthetic_target.py"``,
+the candidate scanner reported `synthetic_target` as invoked; `bash -x` showed
+only `pwd` executed and the `python3` text stored as assignment data. This is
+the agreed hard-stop for regex-by-alternative repair. Claude stopped the live
+implementer and is preserving the dirty source diff as failed evidence; no
+source commit, canonical integration, deployed hook, or native F0 proof follows.
+[#1801](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5834589043)
+records the counterexample. Next: replan a conservative single-rule scanner
+boundary with a frozen negative and a genuine interpreter-in-substitution
+positive, then independently review before another implementation attempt.
+
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
