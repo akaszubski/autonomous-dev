@@ -30,6 +30,23 @@ Coordinator cleanup ran, but its attempted substitution of CIA deduplication for
 `/improve` was rejected; actual report-only `/improve` is now running before the
 next refusal-inventory correction. No F0 reset authority is implied.
 
+Subsequent close-out correction: initial report-only `/improve` skipped its due
+weekly analysis despite no recent log; supervisor rejected that omission. The
+existing analyzer then ran and persisted `sweep-tests-20260925.log`:
+`prunable=2810 total=4561 files=1010 ms=11244`. These are unreviewed pruning
+candidates, not deletion authority or measured redundancy removal. The next
+refusal-inventory run is `bfe7b4009d4aa95a`, mode `fix`, base
+`21090df0239436b4923fc668e2ab8c2c97eebe28`; fresh alignment is pending. Supervisor
+verified this run/base from current state and observed the coordinator live;
+no implementation or new alignment PASS is inferred from initialization alone.
+
+Subsequent refusal-run observation: fresh alignment returned auto_pass and the
+pre-staged check passed. Supervisor independently reproduced the baseline at
+`21090df0`: actual `validate_paid_dependency.py` evidence is `[]`, a literal
+`permissionDecision='deny'` control is recognized, and a variable-valued envelope
+also returns `[]`. This proves the bounded inventory omission; it does not prove
+the hook's native decision. Implementation and its validation remain ahead.
+
 Subsequent location-review evidence: doc-master corrected only the CHANGELOG's
 function count and obsolete fallback description; its new hash is
 `474beb248992827657b3ec7ba1337c45fef2ad2ae34133739e8ad08e54aa60c4`.
@@ -60,7 +77,7 @@ the observation history and follow the explicit hook-deadlock approval rule.
 | Workstream | Current transport | Verified execution / acceptance |
 |---|---|---|
 | F0 staging correction `b685fe360589b185` after terminal correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Prior correction closed; fresh alignment passed. Implementer dispatch blocked by stale cumulative prompt state; reset awaits explicit deadlock approval. No worker deployment, credentials or native launch; no native F0 qualification yet. |
-| Checkout-location correction `42d35d2b7c0ba77f` | Same server, session `census`, coordinator `39011` | Prior correction committed/pushed as `01a13368`. Settled two-file candidate independently passed 281 tests under a real `.codex` ancestor, exit 0. Specialist reviews continue. Refusal-inventory and denominator freeze remain open. |
+| Refusal-inventory correction `bfe7b4009d4aa95a` | Same server, session `census`, coordinator `39011` | Base `21090df0` committed/pushed; location correction closed, including due weekly analysis. Fresh alignment auto_pass and clean pre-staged check; source omission independently reproduced with literal-denial control. Native implementer `af526734` is running on the three existing test-instrument owners. No replacement acceptance or denominator freeze yet. |
 
 Both native coordinators saved their local CIA reports after user
 authorization through native option 1. Census Write
