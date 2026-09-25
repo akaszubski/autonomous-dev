@@ -101,6 +101,33 @@ decision. Runtime permit/refuse proof remains separate. Complete this bounded ow
 correction after the in-flight reachability handoff, not by changing its dependency
 under a running proof. No complete denominator is claimed in the meantime.
 
+Bounded implementation contract (independent owner review): change the existing
+`test_refusal_sink_ratchet.py` dictionary arm and evidence vocabulary, then adapt
+its `out_of_sink_refusers` consumer, `test_refusal_recording_guard.py`'s
+`unrecorded_refusers`, and `test_hook_reachability_ratchet.py`'s
+`unreachable_refusers`, observer premises and orphan-voucher filtering. Keep the
+existing evidence containers and one shared known-versus-unresolved distinction;
+do not copy classification logic between these three owners. Retain unknown sites
+even when the same file also contains known literal refusals. Existing pins retain
+their original known-refuser meaning; unresolved inventory remains explicit rather
+than being silently dropped or converted to verified refusal.
+
+Reuse existing synthetic fixtures and parameterized both-arm tables to establish:
+
+- The actual paid-dependency source retains its variable-valued envelope as UNKNOWN.
+- Both decision keys with variable/call/expression values remain UNKNOWN, including
+  helpers called with literal allow versus deny when no binding analysis exists.
+- Literal refusal and literal allow/comment/docstring controls retain their existing
+  meanings; parse failures stay loud.
+- Adding a sink, recorder or lifecycle registration does not resolve the UNKNOWN
+  site; mixed literal and unresolved evidence retains both obligations.
+- Removing the unknown-evidence arm or filtering its entries fails the inventory
+  completeness control while the source and its behavior remain unchanged.
+
+A green regression result may prove honest UNKNOWN reporting, not complete denial
+coverage. This correction adds no runtime hook, scanner, binding engine, store or
+per-emitter special case, and does not require performing the later migrations.
+
 Checkout-location correction (proposed; independent review returned GO): the exact
 source candidate produced an empty corpus under a `.codex` ancestor and a nonempty
 corpus after moving the unchanged checkout to a neutral parent. `_library_paths`

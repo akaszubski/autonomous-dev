@@ -18,6 +18,20 @@ base `01a13368`, under a real `.codex` ancestor with ordinary guards intact:
 The source-session 281 passing tests with exit 1 remain distinct evidence;
 remaining specialist acceptance and whole-census reconciliation are not implied.
 
+Subsequent location-review evidence: doc-master corrected only the CHANGELOG's
+function count and obsolete fallback description; its new hash is
+`474beb248992827657b3ec7ba1337c45fef2ad2ae34133739e8ad08e54aa60c4`.
+Ratchet hash remains unchanged. Validator `acf5b1b2d35753a3a` supplied bounded
+behavioral evidence; supervisor verified its test-only reads and supplied PROJECT
+scope. Its broader structural-invariance claim was excluded from that evidence.
+Reviewer `ae3591701e314b172` returned APPROVE; supervisor inspected actual tool
+records showing the full diff, shared path owner and corpus/consumer/entry/binding
+call sites were read. That separate code-level evidence owns the unchanged
+globbing/is-file/collected-path/symlink claim. Security, CIA and normal closure
+remain outstanding. Next, after closure, is the independently scoped three-owner
+refusal-envelope correction recorded in the release census; no runtime hook or
+parallel scanner is authorized by that correction.
+
 F0 staging run `b685fe360589b185` is currently blocked at implementer dispatch,
 not implementing. Canonical template reconstruction still produced cumulative
 drift denial (41.7%). Supervisor verified the actual cumulative store contains
