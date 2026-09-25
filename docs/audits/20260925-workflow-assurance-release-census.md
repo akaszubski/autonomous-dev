@@ -808,6 +808,16 @@ belong in each digest-bound profile rather than implying cross-platform parity.
 Clean/populated are distinct repositories and isolated homes, not two names for
 dogfood. The populated baseline includes user/project/local/explicit settings,
 unrelated permission/env/hook sentinels and an exact owned projection.
+The fixture *contract* can be selected now from the retained matrix: separate
+disposable Git roots and isolated HOME/CLAUDE_CONFIG_DIR/TMPDIR, `env -i` and
+Python `-I`, no source fallback, clean/populated sentinels, zero-mutation
+conflict refusal, D0-01…D0-08 fault families and keep-data uninstall default.
+This selects cases, not a passing or frozen product profile. The local Darwin
+startup-only envelope currently has Claude 2.1.236 executable SHA-256
+`6bc4ba992d2786cbf0237c4453ca53c1fdf0c3b3d83ffa0025c0d8190ed27848`
+and Python 3.14.3 executable SHA-256
+`cbf84109626aa1013bbe408fbb9590bd0f1c1548f038b2221c6b8b87de26ca43`;
+these do not pin Linux, a product artifact or its dependency closure.
 Darwin lifecycle fixtures cannot satisfy isolated-Linux product qualification:
 Linux retains its own result and exact worker/tool/profile digest.
 
