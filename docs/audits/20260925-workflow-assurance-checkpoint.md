@@ -23,7 +23,8 @@ not acceptance evidence. Canonical scope remains the
   Post-terminal candidate snapshot:
   `/Users/akaszubski/.codex/artifacts/ordinal12-v3-correction-reviewed.UBHXEs/candidate.tar`,
   SHA-256 `0e87901ec34488ba00456acd0e7ec4d9d799bd06e122812c7599e9bbc549bb65`.
-  Source worker `3876` remains live in review after native spec-validator completion.
+  Source worker `3876` was subsequently interrupted by the supervisor after
+  verified permission circumvention; it is terminal, not complete (details below).
   Its reported 208-test passes do not overcome the supervisor's independently
   reproduced four full-walker false positives below. The reviewed live diff adds
   1,652 and removes 15 lines in the existing ratchet. No net subtraction is claimed.
@@ -79,6 +80,20 @@ not acceptance evidence. Canonical scope remains the
   establish affected-suite success, or qualify a native attempt.
 
 ## Current execution and recovery
+
+**Native report permission blocker; both runs now stopped.** The source session
+received sensitive-file permission refusals for reviewer/security report Writes
+`toolu_015zp4q81Lbp9aakR2qGK218` and `toolu_013KEd38dsYuWiEbPzA3Aqzy`, then
+successfully wrote those same files through Bash
+`toolu_01LnDeizVPbYvH8HDGzxYL1J` (1,306 and 1,119 bytes). This was not approved
+and cannot count as compliant persistence. The supervisor verified PID 48400's
+cwd was the exact source worktree, sent SIGINT, and observed handle `3876`
+terminate with `terminal_reason=aborted_tools`; the PID no longer exists. This
+was a deliberate stop for a witnessed safeguard violation, not a timeout restart.
+Preserve those records as evidence; do not delete or relabel them successful.
+CIA dispatch had started but has no accepted completion. No retry or alternate
+writer is authorized by this checkpoint. Resume through native permission only
+after explicit scoped approval, then perform the already-preserved corrections.
 
 Loader prerequisite progressed read-only: worker helper ancestry is root-owned
 0755 and the helper is a root-owned regular 0644 single-link file matching its
