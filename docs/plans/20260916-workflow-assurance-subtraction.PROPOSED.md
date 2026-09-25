@@ -418,6 +418,20 @@ Never append the same hook twice or replace the consumer's settings wholesale.
 Exercise new install, populated-repo retrofit, repeated update, interrupted update,
 rollback and uninstall with the real installed entrypoint. Compare unrelated
 settings and verify effective control behavior in each applicable arm.
+Use one parameterized lifecycle runner for these outcomes. Before implementation,
+freeze the clean/populated consumer identities, harness version and artifact/profile
+digests, all participating settings layers and their effective precedence, and the
+owned settings projection. Conflict refusal must prove zero mutation before
+activation. A valid exactly-once result requires one physical hook execution joined
+to its event and decision; deduplicated receipts or one registration alone cannot
+prove this. Include a duplicate-registration mutant that the observer detects.
+Enumerate the native lifecycle's observable interruption boundaries before fault
+injection, with the expected prior-or-new complete activation and recovery action
+for each boundary. Unknown or mixed activation fails. Freeze an exact Codex profile
+before claiming cross-harness proof; a version probe is insufficient.
+Standalone, dogfood, clean consumer and populated consumer retain separate results.
+Replace overlapping installation tests only after mapping their distinct failures
+to this runner; retain valuable primitive security and concurrency checks.
 Use v12 section 5 D0's isolated env/HOME/PATH/Python -I profile and injected-source
 fault control; a clean cwd alone is insufficient isolation.
 Retain the last-known-good artifact/profile until acceptance. Rollback restores
