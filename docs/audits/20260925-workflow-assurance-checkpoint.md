@@ -21,6 +21,19 @@ all preserved. The private result is
 `/Users/akaszubski/.codex/artifacts/adev-o3-native.heCDz1/evidence/RESULT.md`,
 SHA-256 `fe31ac64343a71248bd14bba167850e2dcb855cd207ea12d769732c3a1875cbf`.
 It is not a frozen release row, D0 installed-plugin proof or F0 provenance.
+Subsequent FR1 replay on the same disposable project preregistered the case
+before native execution and saved top-level CLI JSON, session JSONL and hook
+debug for five calls. Independent review corroborated ordinary allow/refuse,
+one INVALID disabled-switch setup (flag absent), a correctly disabled retry,
+and a missing-carrier run with explicit remove/restore receipts. Disabled or
+missing extension allowed the denied Read, so required-carrier qualification
+is NONPASS. The full/omitted inventory equality check remains external. Its
+private `evidence/FR1-RESULT.md` SHA-256 is
+`2528cfe838148981587527e4ec85dc9d93f08283b3df85ab1c6d4496d789795c`.
+The selected isolated POPULATED-3 installed-consumer arm, complete per-arm
+hash/command receipts, common provenance ID and denominator freeze are still
+open. Next available Stage 1 action is that exact populated-consumer proof,
+not another source-only test.
 The present census/checkpoint edit must be committed before citing a new HEAD.
 The unrelated modified plugin manifest and untracked `.Codex/` remain user-owned.
 Next: finish the WA-O3 freeze/intervention receipts and remaining effective

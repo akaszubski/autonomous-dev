@@ -522,8 +522,20 @@ first allow/refuse runs, the top-level CLI exit/permission-denial output was not
 preserved in the artifact, between-run hash stability was not separately receipted,
 and the disabled-env/missing-file interventions lack independent pre/post receipts.
 Thus these are bounded native observations, not a pre-frozen or accepted WA-O3
-qualification row; repeat only the affected arms with complete freeze and
-intervention receipts before promotion. Native merge, cross-layer exactly-once,
+qualification row. A later preregistered FR1 replay of the same disposable
+project saved five CLI JSONs and session JSONLs, debug decisions and complete
+8/6 extension marker snapshots. Its case file predates the first native call;
+allow and refuse reproduced, and a failed disabled-switch setup was preserved
+as INVALID before a correctly flagged retry exposed the denied target with no
+extension executions. A missing-extension run saved before/intervention/after
+filesystem receipts, exposed the target and restored the exact extension hash.
+Full versus omitted inventory claims still diverged under one external equality
+predicate. Independent review confirmed these bounded observations and their
+limits; see private `evidence/FR1-RESULT.md` under the same artifact root
+(SHA-256 `2528cfe838148981587527e4ec85dc9d93f08283b3df85ab1c6d4496d789795c`).
+Per-arm hash snapshots and exact command/exit receipts are not all preserved in
+that artifact; no common event ID or product gate is established. The required
+isolated POPULATED-3 installed-consumer omission arm, native merge, cross-layer exactly-once,
 all-tools coverage, F0 provenance, D0 lifecycle and Linux remain unproven here.
 Mutation between census/load and fail-open exceptions also remain unresolved.
 Reuse the existing extension marker/order/dedup fixture patterns for these rows;
