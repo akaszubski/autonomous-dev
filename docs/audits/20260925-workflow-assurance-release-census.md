@@ -11,6 +11,43 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+Instrument progress since the population snapshot: source-route correction
+`01a13368ab068536493a45299ca8c46b6adad910` is committed and pushed on
+`fix/1757-census-carriers`, not yet integrated into this canonical checkout.
+Its corrected walk reports 238 modules, 148 REACHED and 90 UNKNOWN; the original
+141/97 figures below remain historical snapshot results, not current verdicts
+from that corrected instrument. No module was thereby proved to execute.
+The follow-on checkout-location correction is still in specialist review:
+ratchet SHA `7818342b3b38b2d9340cdf1a1e3ecc819d04db2bed160916968406b255a99faf`
+passed all 281 tests with process exit 0 in an isolated checkout under `.codex`
+(93.40 seconds). This establishes that tested location behavior, not a frozen
+denominator. Refusal-envelope omissions, consumer reconciliation and inventory
+omission controls remain open; see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
+
+### Remaining inventory-freeze work
+
+Independent read-only review separates inventory closure from later product proof:
+
+1. Close the known route/envelope omissions through the existing scanner owners,
+   finish location review, and reconcile corrected lists without dropping UNKNOWNs.
+2. Expand the family rows into exact control/path/caller/profile obligations,
+   intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
+   resolve the context-size transition, legacy registrations and commit validators.
+3. Freeze CLEAN-0/POPULATED-3 recipes and supported consumer boundaries, baseline
+   and last-known-good identities. Discover or explicitly disposition remaining
+   remote/older transport populations; a named slot does not prove its contents.
+4. Demonstrate an omitted inventory entry fails with carrier/behavior unchanged,
+   using the existing populated extension fixture and census owners, then publish
+   the finite table on #1757.
+
+All 97 original UNKNOWN members already received bounded source inspection and
+the five declared local consumer checkouts were inspected below; do not restart
+those audits merely because their historical snapshot counts remain in this file.
+Native control acceptance, installation/lifecycle proof and actual retirement
+follow the freeze in dependency order; they are not prerequisites to specifying
+their obligations. Unknown remote contents and the omitted-entry fault control
+remain inventory blockers, not permission to claim completeness prematurely.
+
 Before freezing a row, add its claim-specific evidence contract: governing intent,
 required direct observation/effect, observation method and authority, subject/run,
 limitations and missing-evidence outcome. For each time-sensitive row, declare its
