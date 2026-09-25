@@ -3195,7 +3195,7 @@ def ensure_sentinel_heartbeat(
 
 
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
-    """Garbage-collect stale state files and orphaned lockfiles in /tmp.
+    """Garbage-collect stale state and sentinel files in /tmp.
 
     Deletes files older than ``max_age_seconds``:
 
@@ -3204,7 +3204,17 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     - ``/tmp/pipeline_agent_completions_*.json.*.tmp`` (orphaned ``os.replace``
       staging files left by a process killed mid-write, #1544)
     - ``/tmp/implement_pipeline_*.json`` (per-run sentinel files)
-    - ``/tmp/pipeline_*.lock`` (orphaned lockfiles)
+
+    Lockfiles are NEVER deleted (#1806).  ``/tmp/pipeline_*.lock`` paths are the
+    pathnames ``acquire_run_lock()`` and ``_locked_rmw()`` open and ``flock``.
+    Unlinking a *held* lock's pathname leaves the holder on an orphan inode
+    while the next process creates and locks a new inode under the same
+    pathname — two processes each believing they own the run.  An mtime is no
+    evidence of liveness (``flock`` never touches mtime, so a lock held for
+    hours looks stale), and a nonblocking-flock probe before the unlink does not
+    close the hole either: another process can open the old inode between the
+    probe and the unlink (TOCTOU).  A few empty lockfiles left in /tmp is the
+    cheaper failure, so no lockfile deletion happens here at all.
 
     Default is 2× the existing ``STALE_UNKNOWN_TTL_SECONDS`` (3600 → 7200).
 
@@ -3218,11 +3228,14 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
             {
                 'state_files_removed': int,
                 'sentinels_removed': int,
-                'lockfiles_removed': int,
+                'lockfiles_removed': int,  # always 0 since #1806
                 'errors': list[str],
             }
 
-    Issues: #1041 #1048
+        ``lockfiles_removed`` is retained at a constant 0 for callers that sum
+        the counts (``commands/implement.md`` STEP 0).
+
+    Issues: #1041 #1048 #1806
     """
     now = time.time()
     cutoff = now - max_age_seconds
@@ -3230,6 +3243,8 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     counts: dict = {
         "state_files_removed": 0,
         "sentinels_removed": 0,
+        # #1806: kept at 0 permanently so callers that sum the counts keep
+        # working. No lockfile pattern is scanned — see the docstring.
         "lockfiles_removed": 0,
         "errors": [],
     }
@@ -3241,11 +3256,11 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
         # above does not match it, so reap it on the same cadence.
         ("/tmp/pipeline_agent_completions_*.json.*.tmp", "state_files_removed"),
         ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
-        # The "pipeline_*.lock" glob also matches the per-session R-M-W
-        # lockfiles introduced in #1170
-        # (/tmp/pipeline_agent_completions_*.lock), so orphaned R-M-W
-        # locks are reaped on the same cadence as state files.
-        ("/tmp/pipeline_*.lock", "lockfiles_removed"),
+        # #1806: "/tmp/pipeline_*.lock" deliberately absent. It matched both the
+        # run lockfiles (acquire_run_lock) and the #1170 per-session R-M-W
+        # lockfiles (_locked_rmw); unlinking either while held splits lock
+        # authority across two inodes. Do NOT re-add it, and do not "fix" it
+        # with a pre-unlink flock probe (TOCTOU).
     ]
 
     for pattern, key in patterns:
