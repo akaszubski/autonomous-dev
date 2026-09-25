@@ -6,7 +6,7 @@ not acceptance evidence. Canonical scope remains the
 
 ## Latest verified handoff — 2026-09-25
 
-The source-inventory branch `fix/1757-census-carriers` is clean and pushed at
+The last pushed source-inventory commit on `fix/1757-census-carriers` is
 `379fd6734d212933b117d7417831317c4d0d81ad`. Its four corrections are
 `01a13368` (source routes/operand boundary), `21090df0` (checkout location),
 `a4650e63` (computed decision envelopes retained as UNKNOWN across the
@@ -58,6 +58,16 @@ work is to reconcile the four integrated source corrections, settle exact
 control/consumer dispositions, and prove the native populated extension route
 before freezing #1757's finite table. Historical entries below retain their
 as-observed state and must not override this latest handoff.
+
+Current continuation: the canonical release census now has candidate per-control
+WA-O1a/b/c rows with known JSON declarations, disposition proposals, owners and
+remaining native proof; this is not a denominator freeze. Its former #1639
+family pointer was wrong (#1639 is the alignment-gate issue), so #1757 owns
+this reconciliation and #1648 is historical context-size work. The detached
+source `census` session is alive with an uncommitted four-file #1789 serial
+prompt-lifecycle candidate on top of `379fd673`; F3.5 and doc-master passed
+independent checks, while reviewer, security, CIA and `/improve` still precede
+commit. It does not resolve F0's authorization wait or qualify native execution.
 
 ## Current delivery status
 
