@@ -798,6 +798,15 @@ requires its own pinned executable/fixture identity and rerun, not a relabeling
 of the 3.9.6 result. The retained v1 installed manifest is fixture-only, not
 an accepted last-known-good product artifact. Isolated Linux qualification is
 still separate and UNMEASURED.
+A fresh, isolated Darwin Python 3.14.3 **startup-only** probe subsequently used
+that interpreter with Claude Code 2.1.236 and a source-free local plugin fixture.
+Strict validation and two credential-free `--init-only` runs exited 0; each run
+recorded five distinct physical SessionStart hook processes from the five
+settings sources. Input hashes remained unchanged. The retained private
+`/Users/akaszubski/.codex/artifacts/d0-darwin-python314.n5cR45/RESULT.md`
+has SHA-256 `dfb1d5ba7a98dff3a639d02f719144840c7ff254c34150ffe12cf7c369662449`.
+This supports only that pinned local startup fixture, not installed-product,
+PreToolUse, full settings composition, Linux, F0 or D0 acceptance.
 Since the retained private proposal, disposable preflight observed scalar order
 explicit > local > project > user, plugin-default env non-participation and five
 physical layer-canary processes per session. These supersede its unobserved-field

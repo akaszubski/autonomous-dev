@@ -38,6 +38,15 @@ The available Homebrew Python is 3.14.3, but substituting it defines a new
 candidate profile requiring a pinned rerun. The retained v1 installed manifest
 is fixture-only, not a last-known-good product release. No isolated Linux or
 populated installed-consumer profile is accepted from these observations.
+A fresh source-free local-plugin startup probe using Claude 2.1.236 and
+`/opt/homebrew/bin/python3 -I` (3.14.3) passed strict validation and two
+credential-free `--init-only` runs, each with five distinct physical SessionStart
+records and unchanged fixture input hashes. Independent readback verified raw
+exits 0/0/0 and the ten event rows. Evidence is
+`/Users/akaszubski/.codex/artifacts/d0-darwin-python314.n5cR45/RESULT.md`,
+SHA-256 `dfb1d5ba7a98dff3a639d02f719144840c7ff254c34150ffe12cf7c369662449`.
+It is a Darwin startup fixture result only; PreToolUse, installed-product,
+Linux, populated-consumer and F0/D0 acceptance remain open.
 
 F0 native run `b685fe360589b185` remains paused at the cumulative prompt-history
 hook deadlock. No history reset, bypass, worker deployment or native launch was
