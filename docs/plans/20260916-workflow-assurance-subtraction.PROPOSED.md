@@ -1372,6 +1372,33 @@ canonical role verdict. The independent verifier derives the typed semantic resu
 from frozen tool evidence, final role report, effects and private oracle; the acting
 agent does not self-certify with a second evaluator-specific response protocol.
 
+The ordinal12 offline candidate must reuse the existing no-overlay split binding,
+SHA-256 `b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`,
+and the existing finalized-capture verifier. Extend its data contract to the union
+of the three public and four fixture reads, the ordered documentation commands and
+their successful output hashes, covers-first/result-before-later-request chronology,
+allowed tools, mutable post-effect hashes, binding/oracle identities and the canonical
+role report constraints. The comparator owns only generic request/result pairing,
+order, declared output/effect comparisons and final-report chronology/shape; fixture
+meaning remains in pinned data.
+
+This replacement has a hard subtraction budget: no more than 110 nonblank Python
+lines for the comparator and call-site integration, 40 for preparation changes,
+180 for one table-driven test module and 90 JSON lines for the pinned outcome
+contract. Retire the 522-line case-specific semantic verifier, its 515-line test,
+the semantic prompt overlay and overlay-only wiring. Net executable/test reduction
+must be at least 700 lines before native admission. Mutation evidence must include
+the positive packet and failures for each missing/changed read, covers order/result
+chronology, missing/extra/reordered/changed commands or outputs, forbidden/unknown
+tools, unpaired/duplicate tool IDs, each effect, final chronology/count/verdict/word
+floor, changed binding/oracle digests and the retained ordinal11 NONPASS capture.
+
+Measure efficiency separately from model time: record capture/export, deterministic
+verification and total native wall time on the same frozen packet. The replacement
+may not add a model call or network dependency to the hard path, and its deterministic
+verification must be no slower than the retired verifier on repeated local runs.
+These size and latency checks are admission criteria, not later cleanup goals.
+
 This paragraph authorizes offline replacement preparation and mutation testing only.
 It does not authorize native execution, weaken #1796, accept preloaded skill identity
 as a Read, close the role-byte provenance gap, or introduce Jev as an F0 dependency.
