@@ -220,6 +220,7 @@ from test_refusal_sink_ratchet import (  # noqa: E402  (path set up above)
     _refusal_evidence,
     _SHELL_COMMENT,
     _shell_refusal_evidence,
+    has_known_refusal,
     refusal_candidates,
 )
 
@@ -1057,7 +1058,16 @@ def unreachable_refusers(
     flagged: "dict[str, list[str]]" = {}
 
     for path in _iter_hook_files(hooks_dir):
-        if not _refusal_evidence(path):
+        # KNOWN refusers only. A hook whose sole refusal evidence is an
+        # UNRESOLVED (UNKNOWN) candidate — a computed decision envelope — is not
+        # a verified refuser: source cannot tell it refuses, so it cannot be an
+        # unreachable-refuser OFFENDER and it cannot ground or be grounded as
+        # one. It is an observer for THIS rule, and is carried on the shared
+        # unresolved inventory (``test_refusal_sink_ratchet.unresolved_refusers``)
+        # rather than dropped. The ``has_known_refusal`` predicate is IMPORTED
+        # from the sink ratchet, never re-derived. A MIXED hook (literal refusal
+        # + computed sibling) is a known refuser and is judged exactly as before.
+        if not has_known_refusal(_refusal_evidence(path)):
             continue
         if registrations.get(path.name):
             continue
@@ -3268,6 +3278,7 @@ class TestInstrumentPremises:
             _shell_refusal_evidence,
             _refusal_evidence,
             refusal_candidates,
+            has_known_refusal,
         ):
             assert fn.__module__.endswith("test_refusal_sink_ratchet"), (
                 f"{fn.__name__} resolves to module {fn.__module__!r}, not the "
@@ -3286,6 +3297,7 @@ class TestInstrumentPremises:
             "_shell_refusal_evidence",
             "_refusal_evidence",
             "refusal_candidates",
+            "has_known_refusal",
         }
         collision = sorted(local_defs & borrowed)
         assert not collision, (
@@ -3665,9 +3677,12 @@ class TestRatchet:
             "enforce_file_organization.py",
             "PreToolUseWrite-protect-sensitive.sh",
         ):
-            assert name in candidates, (
-                f"premise: {name} is detected as refusal-capable, so its "
-                f"permission below is meaningful rather than vacuous"
+            assert has_known_refusal(candidates.get(name, [])), (
+                f"premise: {name} is detected as a KNOWN refuser, so its "
+                f"permission below is meaningful rather than vacuous. Bare "
+                f"union membership is insufficient — several of these hooks "
+                f"also carry an UNKNOWN computed envelope, which must not mask "
+                f"a regression of the known refusal instruments."
             )
             assert name not in live, (
                 f"{name} is registered on a lifecycle event but the rule "
@@ -3684,8 +3699,12 @@ class TestRatchet:
         """
         path = HOOKS_DIR / "validate_session_quality.py"
         assert path.exists(), "premise: the observer still exists"
-        assert not _refusal_evidence(path), (
-            "premise: validate_session_quality.py still has no refusal "
+        # An observer is a hook that does not KNOWN-refuse. Since the UNKNOWN arm
+        # landed, ``_refusal_evidence`` can be nonempty for an unknown-only hook,
+        # which is ALSO an observer for this rule; the precise premise is
+        # therefore "no KNOWN refusal", via the shared predicate.
+        assert not has_known_refusal(_refusal_evidence(path)), (
+            "premise: validate_session_quality.py still has no KNOWN refusal "
             "evidence. If it started refusing, this is no longer an observer "
             "and the control needs another instance."
         )
@@ -6482,7 +6501,15 @@ class TestLibraryCorpusCrossReference:
 
         vouched_by_an_orphan: "dict[str, list[str]]" = {}
         for path in _iter_hook_files(HOOKS_DIR):
-            if not _refusal_evidence(path) or registrations.get(path.name):
+            # KNOWN refusers only: this is a refuser voucher census, and an
+            # UNKNOWN-only site (a computed decision envelope) is not a verified
+            # refuser. Since the UNKNOWN arm landed, ``_refusal_evidence`` is
+            # nonempty for such sites too, so an any-evidence premise here would
+            # silently fold them into a KNOWN-refuser census. The shared
+            # ``has_known_refusal`` predicate keeps the census known-only.
+            if not has_known_refusal(_refusal_evidence(path)) or registrations.get(
+                path.name
+            ):
                 continue
             if _sidecar_type(path) != UTILITY_TYPE:
                 continue
@@ -8567,6 +8594,69 @@ class TestSourceConnectivityCorrectionIsWatchedFiringLive:
             f"capability carries, or the ablation is removing more than "
             f"the capability."
         )
+
+
+class TestUnresolvedCandidatesAreObservers:
+    """The UNKNOWN arm, as it lands on the reachability rule.
+
+    A hook whose only refusal evidence is an UNRESOLVED (UNKNOWN) candidate — a
+    computed decision envelope — is not a verified refuser, so it is an OBSERVER
+    for this rule: not flagged as unreachable. A MIXED hook keeps its
+    reachability obligation via its literal refusal. The shared distinction's
+    no-copy guarantee lives in
+    ``TestInstrumentPremises::test_refusal_instruments_are_imported_not_reimplemented``,
+    and the single live pin of the actual omission lives in the SINK owner's
+    inventory — not triplicated here. These arms test THIS owner's RULE on
+    synthetic corpora.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> "tuple[Path, Path]":
+        hooks = tmp_path / "plugins" / "autonomous-dev" / "hooks"
+        surfaces = tmp_path / "plugins" / "autonomous-dev" / "templates"
+        hooks.mkdir(parents=True)
+        surfaces.mkdir(parents=True)
+        (surfaces / "settings.json").write_text(
+            json.dumps({"hooks": {}}), encoding="utf-8"
+        )
+        return tmp_path, hooks
+
+    def test_unknown_only_unregistered_hook_is_ignored(self, tmp_path):
+        """An UNKNOWN-only unregistered hook is an observer, not an offender."""
+        root, hooks = self._repo(tmp_path)
+        (hooks / "synthetic_unknown_only.py").write_text(
+            "import json\n"
+            "def _emit(decision):\n"
+            '    print(json.dumps({"permissionDecision": decision}))\n',
+            encoding="utf-8",
+        )
+        flagged = unreachable_refusers(hooks_dir=hooks, project_root=root)
+        assert "synthetic_unknown_only.py" not in flagged, (
+            "an UNKNOWN-only, unregistered hook was flagged as an unreachable "
+            "refuser; source cannot tell it refuses, so it is an observer"
+        )
+
+    def test_mixed_hook_retains_its_reachability_obligation(self, tmp_path):
+        """A MIXED hook (literal refusal + computed sibling), unregistered, is flagged.
+
+        The literal refusal makes it a known refuser; being registered nowhere
+        and declaring no utility route, it must be flagged exactly as a
+        literal-only refuser would be. The computed sibling does not exempt it.
+        """
+        root, hooks = self._repo(tmp_path)
+        (hooks / "synthetic_mixed.py").write_text(
+            "import json\n"
+            "def main(verdict):\n"
+            '    print(json.dumps({"decision": "deny"}))\n'
+            '    print(json.dumps({"permissionDecision": verdict}))\n',
+            encoding="utf-8",
+        )
+        flagged = unreachable_refusers(hooks_dir=hooks, project_root=root)
+        assert "synthetic_mixed.py" in flagged, (
+            "a MIXED hook lost its reachability obligation; the computed "
+            "sibling wrongly turned a known refuser into an observer"
+        )
+        assert "no-lifecycle-registration" in flagged["synthetic_mixed.py"]
 
 
 if __name__ == "__main__":
