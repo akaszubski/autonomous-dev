@@ -185,10 +185,12 @@ detect: a correct check that nothing invoked.
 
 import ast
 import contextlib
+import functools
 import json
 import re
 import subprocess
 import sys
+import textwrap
 import warnings
 from pathlib import Path
 from typing import NamedTuple
@@ -1184,6 +1186,18 @@ LIBRARY_CONSUMER_GLOBS = (
 #: file that does not exist) — a stale verifier must not vouch for
 #: anything. Do NOT confuse this tuple with ``INVOKER_CORPUS_GLOBS``: that
 #: one serves the HOOK rule and its scripts globs are unrelated to this.
+#:
+#: ``install.sh`` is an EXACT FILENAME, deliberately NOT ``*.sh`` and not
+#: ``**/*.sh``. It is the repository's operator-invoked installer and it
+#: carries the ONLY route to ``claude_md_updater.py`` (``install.sh:2255``,
+#: a ``python3 - "$a" "$b" <<'INJECT_SCRIPT'`` heredoc). A root-level
+#: ``*.sh`` glob would additionally enrol every other shell file that
+#: happens to sit at the top of the tree — including future ones nobody
+#: reviewed as an authority to ground library code — so the exact name is
+#: named and the category is not widened. MEASURED 2026-09-25: removing
+#: this one entry takes ``claude_md_updater.py`` back to UNKNOWN and
+#: changes no other verdict, so the entry is load-bearing and not
+#: decorative.
 LIBRARY_ENTRY_SURFACE_GLOBS = (
     "plugins/autonomous-dev/commands/*.md",
     "plugins/autonomous-dev/agents/*.md",
@@ -1191,6 +1205,7 @@ LIBRARY_ENTRY_SURFACE_GLOBS = (
     "scripts/**/*.sh",
     "scripts/hooks/*",
     "scripts/*.py",
+    "install.sh",
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
 )
@@ -1320,9 +1335,114 @@ _INLINE_PYTHON_C = re.compile(
     r"python3?\s+(?:-\w+\s+)*-c\s+('|\")(.*?)(?<!\\)\1", re.DOTALL
 )
 
+#: One heredoc INTERPRETER ARGUMENT, in the evidenced simple token class.
+#:
+#: ``install.sh:2255`` is ``python3 - "$project_claude_md" "$STAGING_DIR"
+#: <<'INJECT_SCRIPT'``: the script operand is ``-`` (stdin) and the two
+#: ``sys.argv`` values are passed as ordinary arguments before the
+#: redirection. The previous pattern allowed NOTHING between ``-`` and
+#: ``<<``, so that whole heredoc — the sole route to
+#: ``claude_md_updater.py`` — was invisible.
+#:
+#: Only the evidenced shape is accepted: a bare or double-quoted simple
+#: parameter reference. Everything richer is REFUSED rather than parsed —
+#: command substitution ``$(...)``, backticks, arithmetic ``$((...))``,
+#: default/indirect expansion ``${x:-y}``/``${!x}``, globs, and any token
+#: carrying a shell metacharacter. A refused argument list means the
+#: heredoc is not recognised at all, which fails toward UNKNOWN.
+#:
+#: PAIRED BRACES AND MATCHED QUOTES, for the same reason the script operand
+#: needs them: the earlier ``\"\$\{?\w+\}?\"`` treated brace and quote as
+#: independently optional, so ``"$name}"`` matched the quoted alternative.
+#: This token is inert for over-credit — the module a recognised heredoc
+#: credits comes from ``ast`` reading the BODY, not from this argument — but
+#: it is tightened here so the whole grammar class refuses brace asymmetry
+#: consistently. Each alternative now closes exactly what it opened: a
+#: double-quoted ``"$name"``/``"${name}"`` or an unquoted ``$name``/
+#: ``${name}``, and the trailing ``[ \t]+`` in :data:`_PYTHON_HEREDOC`
+#: supplies the word boundary.
+_HEREDOC_ARGUMENT = r"(?:\"\$(?:\{\w+\}|\w+)\"|\$(?:\{\w+\}|\w+))"
+
 #: ``python3 - <<'PY' ... PY`` — the heredoc carrier.
+#:
+#: Two extensions over the original, each MEASURED load-bearing:
+#:
+#: * The ARGUMENT CLASS above (``install.sh`` -> ``claude_md_updater``).
+#: * An INDENTED TERMINATOR. ``.github/workflows/drain-watchdog.yml``
+#:   holds both of its heredocs inside a YAML ``run: |`` block scalar, so
+#:   the whole program — opener, body AND closing word — is indented by
+#:   the block's common indent. The shell never sees that indent (YAML
+#:   strips it), but this instrument reads the YAML bytes, so requiring
+#:   ``\n`` immediately followed by the word recovered ZERO sources from
+#:   that file and lost ``daily_aggregate_manager`` and
+#:   ``selector_stall_detector``.
+#:
+#: Group 1 is the DELIMITER QUOTE (empty when unquoted), group 2 the
+#: delimiter word, group 3 the body. The quote is captured because it
+#: decides whether the body is literal: with ``<<'PY'`` or ``<<"PY"`` the
+#: shell performs no expansion and no backslash processing, and only a
+#: bare ``<<PY`` is dequoted. See ``_normalized_embedded_python``.
 _PYTHON_HEREDOC = re.compile(
-    r"python3?\s+(?:-\s+)?<<-?\s*[\"']?(\w+)[\"']?\r?\n(.*?)\r?\n\1", re.DOTALL
+    r"python3?\s+(?:-\s+)?(?:" + _HEREDOC_ARGUMENT + r"[ \t]+)*"
+    r"<<-?[ \t]*([\"']?)(\w+)\1[ \t]*\r?\n(.*?)\r?\n[ \t]*\2[ \t]*(?:\r?\n|$)",
+    re.DOTALL,
+)
+
+#: A POSIX shell variable name. Defined HERE, above its first use, and
+#: shared by the payload boundary below and the same-file helper
+#: recogniser further down: two spellings of "identifier" is how the two
+#: halves of one grammar drift apart.
+_POSIX_IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
+
+#: The five characters a backslash ESCAPES inside a DOUBLE-QUOTED word.
+#: Inside ``"..."`` the shell keeps ``\`` literal EXCEPT before ``"``,
+#: ``\``, ``$``, a backtick, or a newline — those five it consumes. The
+#: bytes the interpreter receives are therefore NOT the bytes on disk, and
+#: the difference is not cosmetic: ``.github/workflows/ci.yml:265`` carries
+#: ``r.get(\"categories\", [])`` and ``commands/implement.md:1439`` carries
+#: ``result[\"fixed\"]``. Both are ``SyntaxError: unexpected character
+#: after line continuation character`` if read raw, which dropped the WHOLE
+#: snippet — and with it the only routes to ``test_routing.py`` and
+#: ``flaky_tests.py``.
+#:
+#: ``\$`` is in this set and that is the load-bearing entry: a backslash
+#: before a dollar means the shell expands NOTHING there, so the
+#: interpreter receives a literal ``${A}``. Erasing the escape without
+#: recording that the dollar was escaped destroys the distinction, and a
+#: later expansion pass then resolves a reference the shell never
+#: resolved. See :func:`_shell_double_quoted_bytes`, which is one pass
+#: precisely so the two steps cannot be separated again.
+_SHELL_DOUBLE_QUOTE_ESCAPES = "\"\\$`\n"
+
+#: THE ONLY parameter expansion this instrument resolves: an UNESCAPED
+#: ``${NAME:-<decimal>}``, replaced by ITS OWN decimal default.
+#:
+#: ``commands/retrospective.md`` writes
+#: ``RetrospectiveConfig(max_sessions=${MAX_SESSIONS:-20})`` inside a
+#: ``python3 -c`` payload. With ``MAX_SESSIONS`` unset — the default path,
+#: and the only path a static reader can know — the interpreter receives
+#: ``20``. The bytes on disk are not Python, so the snippet raised
+#: ``SyntaxError`` and the only two routes to ``retrospective_analyzer.py``
+#: were lost.
+#:
+#: DELIBERATELY SINGULAR. ``$NAME``, ``${NAME}``, ``${NAME:=y}``,
+#: ``${NAME:-nondecimal}``, ``${NAME:-20;q}``, ``${!NAME}``,
+#: ``${NAME[0]}``, ``${NAME%y}``, ``$(...)``, backticks and ``$((...))``
+#: all fail to match and are EMITTED UNCHANGED — unresolved, exactly as
+#: written. If that leaves the payload unparseable the route stays
+#: UNKNOWN, which is the only acceptable direction.
+#:
+#: WHAT WAS REMOVED, and why it can never come back: an earlier cut
+#: replaced EVERY simple-looking expansion with the literal ``None`` as a
+#: post-parse-failure fallback. That manufactures parseability. Four
+#: distinct false REACHED families followed from it directly — an escaped
+#: ``\${A}``, a ``${MAX:-20;q}`` whose default is not a number, a bare
+#: ``${PRELUDE}`` standing for arbitrary text, and any of them inside a
+#: LITERAL single-quoted payload the shell never touches. Substituting a
+#: value the shell would not produce is evaluation with the answer made
+#: up; leaving it unresolved is the instrument declining to guess.
+_DECIMAL_DEFAULT_EXPANSION = re.compile(
+    rf"\$\{{{_POSIX_IDENTIFIER}:-([0-9]+)\}}"
 )
 
 
@@ -1467,6 +1587,259 @@ def _shell_invoked_stems(
     return found
 
 
+#: A shell assignment at the start of a line, with its raw right-hand
+#: side. ``export`` is tolerated because it changes nothing about the
+#: binding. The RHS stops at the first shell word boundary, so a value
+#: carrying a space, ``;``, ``|`` or ``&`` is truncated — and a truncated
+#: value fails :data:`_HELPER_PATH_RHS` and is REFUSED, never guessed.
+_HELPER_ASSIGNMENT = re.compile(
+    rf"^[ \t]*(?:export[ \t]+)?({_POSIX_IDENTIFIER})=([^\s;|&]*)", re.MULTILINE
+)
+
+#: The ONE right-hand side shape this recogniser will resolve.
+#:
+#: At most ONE leading simple parameter reference (``$name`` or
+#: ``${name}``), then a LITERAL path whose final components are
+#: ``/plugins/autonomous-dev/lib/<stem>.py`` with ``<stem>`` a Python
+#: identifier. ``fullmatch`` only: a trailing or leading character outside
+#: this grammar refuses the whole value.
+#:
+#: What the character classes REFUSE, and why each matters:
+#:
+#: * ``$(cmd)`` / ```cmd``` / ``$((1+1))`` — a second ``$``, a backtick or
+#:   a parenthesis is outside ``[\w.\-/]``, so command substitution,
+#:   backticks and arithmetic cannot appear anywhere in the literal part.
+#: * ``${x:-y}`` / ``${x%y}`` / ``${!x}`` — the leading alternative is
+#:   ``\$\{\w+\}`` exactly, so default, pattern and indirect expansion all
+#:   fail.
+#: * A SECOND variable (``$a/$b/lib/x.py``) — only one prefix is allowed,
+#:   and the literal part admits no ``$``.
+#: * A DYNAMIC SUFFIX (``.../lib/$name.py``, ``.../lib/${n}_helper.py``) —
+#:   the stem must be a literal identifier, so the terminal filename can
+#:   never be computed.
+#:
+#: Only the TERMINAL STEM is extracted. The prefix is never evaluated,
+#: looked up or joined: whatever ``$project_root`` holds, the file it
+#: addresses is named ``<stem>.py`` under ``plugins/autonomous-dev/lib``,
+#: and that is the only fact taken.
+_HELPER_PATH_RHS = re.compile(
+    r"(?:\$\w+|\$\{\w+\})?"
+    r"[\w.\-/]*"
+    rf"/plugins/autonomous-dev/lib/({_POSIX_IDENTIFIER})\.py"
+)
+
+#: The value of a BOUNDED SIMPLE POSIX environment assignment — the one
+#: thing permitted to stand between a command position and the interpreter
+#: token. Bare, double-quoted or single-quoted, and in every case carrying
+#: no whitespace and none of ``; | & ( )`` or a backtick, so no second
+#: command can hide inside a prefix. The live carrier needs exactly this
+#: much and no more: ``CHECKPOINT_DIR="$CHECKPOINT_DIR"``.
+_ENV_ASSIGNMENT_VALUE = r"(?:\"[^\"\s;|&()`]*\"|'[^'\s;|&()`]*'|[^\s;|&()\"'`]*)"
+
+#: Where a COMMAND begins: the start of a line, or immediately after a
+#: separator that ends the previous command. ``$(`` is covered by the
+#: ``(`` in the class, and ``&&``/``||`` by their final character.
+_HELPER_COMMAND_START = r"(?:^|[;&|(`])[ \t]*"
+
+#: A supported Python interpreter command, IN ACTUAL COMMAND POSITION,
+#: whose SCRIPT OPERAND is a variable. Built from :data:`_NAMED_INTERPRETER`
+#: — the #1612 constant — so this recogniser and every other invocation arm
+#: in this file agree on what an interpreter is and cannot drift apart.
+#:
+#: An EXPLICIT INTERPRETER TOKEN is required, which is what separates
+#: execution from mention: ``[ ! -f "$helper_path" ]`` (an existence
+#: check), ``echo "$helper_path"``, ``printf``, ``test`` and a comment all
+#: fail here, because none of them puts the variable after an interpreter.
+#:
+#: COMMAND POSITION is the second half of that separation, and the half an
+#: earlier cut left out. Requiring only "an interpreter token somewhere
+#: before the variable" credits ``echo python3 "$helper_path"`` — which
+#: PRINTS the two words and runs nothing — and
+#: ``arbitrary --prelude python3 "$helper_path"``, where ``python3`` is an
+#: ARGUMENT to some other program. Both were measured REACHED through the
+#: full walker. The interpreter must therefore open a command: at a line
+#: start, or after ``;``, ``&``, ``|``, ``(``/``$(`` or a backtick.
+#:
+#: The ONE tolerated prelude is a run of bounded simple environment
+#: assignments, because the live carrier has one —
+#: ``checkpoint_json=$(CHECKPOINT_DIR="$CHECKPOINT_DIR" python3 "$helper_path" "$batch_id")``
+#: — and dropping it would lose ``batch_resume_helper`` entirely. An
+#: assignment prefix cannot introduce a different program; ``echo``,
+#: ``printf`` and ``arbitrary --prelude`` are not assignments and get no
+#: such tolerance. Nothing here is evaluated: the assignment is matched and
+#: skipped, never read.
+#:
+#: THE SCRIPT OPERAND is the part this recogniser was corrected twice for.
+#: It must be a COMPLETE SHELL WORD equal to exactly ``$name``,
+#: ``${name}``, ``"$name"`` or ``"${name}"`` — nothing concatenated before
+#: or after. The earlier operand ``[\"']?\$\{?(IDENT)\}?[\"']?`` treated
+#: the open brace, close brace and quotes as four INDEPENDENTLY optional
+#: tokens with no trailing boundary, so it credited a variable that names a
+#: DIFFERENT file:
+#:
+#: * ``"$helper_path}"`` — a stray close brace after the value.
+#: * ``"${helper_path"`` — an unclosed brace.
+#: * ``"${helper_path}.backup"`` / ``"$helper_path".backup`` /
+#:   ``${helper_path}.backup`` — a dynamic suffix; the shell addresses
+#:   ``<value>.backup``, a different path, and crediting the ORIGINAL stem
+#:   masks a disconnected module as connected.
+#: * ``"$helper_path"".backup"`` — adjacent string concatenation, one word.
+#: * ``'$helper_path'`` — SINGLE quotes; the shell expands nothing inside
+#:   them, so this is the literal string ``$helper_path`` and no reference
+#:   at all.
+#:
+#: Three rules encode "complete word", mirroring the ``.fullmatch()``
+#: rigour of the sibling :data:`_HELPER_PATH_RHS`:
+#:
+#: 1. MATCHED QUOTING. ``(?P<dq>")?`` opens an optional DOUBLE quote and
+#:    ``(?(dq)")`` requires the same quote to close it. A single quote is
+#:    not in the class at all, so ``'...'`` can never open an operand.
+#: 2. PAIRED BRACES. ``(?P<ob>\{)?`` opens an optional brace and
+#:    ``(?(ob)\})`` requires the close iff the open matched — neither a
+#:    stray close nor an unclosed open can survive.
+#: 3. A TRAILING WORD BOUNDARY. After the (optional) closing quote the next
+#:    character must END the word — whitespace, end of line, or one of
+#:    ``; | & )``. Any suffix (``.backup``), any adjacent quote (``""``
+#:    concatenation) or any stray ``}`` falls outside that set and refuses
+#:    the match. A genuinely separate following argument is preceded by
+#:    whitespace and so is permitted (``"${name}" --check``).
+_HELPER_OPERAND = (
+    r'(?P<dq>")?'
+    rf"\$(?P<ob>\{{)?(?P<name>{_POSIX_IDENTIFIER})(?(ob)\}})"
+    r'(?(dq)")'
+    r"(?=[\s;|&)]|$)"
+)
+_HELPER_INVOCATION = re.compile(
+    rf"{_HELPER_COMMAND_START}"
+    rf"(?:{_POSIX_IDENTIFIER}={_ENV_ASSIGNMENT_VALUE}[ \t]+)*"
+    rf"{_NAMED_INTERPRETER}(?:-\w+[ \t]+)*"
+    rf"{_HELPER_OPERAND}",
+    re.MULTILINE,
+)
+
+#: A line that CLOSES a brace group, function body or subshell: ``}`` or
+#: ``)`` standing alone. Used ONLY as a scope-lifetime boundary — see
+#: :func:`_same_file_helper_stems`. This is a textual boundary check of the
+#: same kind as ``_strip_shell_comments``, not a parser: nothing is
+#: balanced, counted or evaluated.
+_SCOPE_TERMINATOR = re.compile(r"^[ \t]*[})][ \t]*$", re.MULTILINE)
+
+
+def _helper_assignment_stem(raw_value: str) -> "str | None":
+    """The library stem a supported assignment right-hand side names.
+
+    Args:
+        raw_value: The RHS exactly as written, quotes included.
+
+    Returns:
+        The terminal module stem, or ``None`` when the value is outside
+        :data:`_HELPER_PATH_RHS`. ``None`` is the REFUSING answer and the
+        default for everything unrecognised.
+    """
+    value = raw_value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    elif '"' in value or "'" in value:
+        # A half-quoted value is a word this recogniser cannot delimit.
+        return None
+    match = _HELPER_PATH_RHS.fullmatch(value)
+    return match.group(1) if match else None
+
+
+def _same_file_helper_stems(text: str) -> "set[str]":
+    """Stems run via a variable ASSIGNED IN THE SAME PROGRAM TEXT.
+
+    THE FOURTH EDGE, and an ORDERED TEXTUAL RECOGNISER — emphatically NOT
+    a shell evaluator. Nothing here is executed, expanded or looked up;
+    two shapes are matched and one ordering relation between them is
+    checked.
+
+    The live instance is ``hooks/SessionStart-batch-recovery.sh``, the
+    hook ``templates/settings.autonomous-dev.json`` binds on
+    ``SessionStart``::
+
+        helper_path="$project_root/plugins/autonomous-dev/lib/batch_resume_helper.py"
+        ...
+        checkpoint_json=$(CHECKPOINT_DIR="$CHECKPOINT_DIR" python3 "$helper_path" "$batch_id")
+
+    Every existing arm reads that as two unrelated facts: a string that
+    mentions a path, and an interpreter running an opaque variable. The
+    module was the single largest pinned entry with a fully visible route.
+    Note the command CONTEXT that had to be tolerated and is: the
+    invocation sits inside ``$( ... )`` and behind an environment
+    assignment. Neither is evaluated — the interpreter token is simply
+    found where it is.
+
+    THE RULE, in order:
+
+    1. Comments are stripped first (``_strip_shell_comments``), so a
+       commented assignment or invocation binds and runs nothing.
+    2. Every line-leading assignment is recorded with its OFFSET and the
+       stem its RHS resolves to — ``None`` when the RHS is outside
+       :data:`_HELPER_PATH_RHS`.
+    3. For each interpreter invocation of a variable, the EFFECTIVE
+       binding is the LAST assignment to that name before the invocation.
+       That single choice gives three refusals for free:
+
+       * INVOCATION BEFORE ASSIGNMENT — no prior assignment, no credit.
+       * INTERVENING REASSIGNMENT — the later binding wins, exactly as the
+         shell would, so a path overwritten before use credits nothing.
+       * UNRESOLVED REASSIGNMENT — an effective binding whose RHS is not a
+         supported literal resolves to ``None`` and is refused.
+
+    4. LIFETIME. The binding must still be in force where the invocation
+       sits. The evidenced shape is straight-line: ``helper_path=...`` at
+       the top level of ``SessionStart-batch-recovery.sh``, used at the
+       top level of the same file. An assignment made inside a function
+       body or a brace group does NOT outlive it — the shell only applies
+       it when that group runs — so a SCOPE TERMINATOR (a line that is
+       just ``}`` or ``)``) between the binding and the invocation refuses
+       the credit. A subshell written inline, ``( helper_path=... )``, is
+       already refused a step earlier: :data:`_HELPER_ASSIGNMENT` anchors
+       at line start and ``(`` is not indentation.
+
+       This REFUSES MORE than the shell would — an unrelated function
+       defined between a live top-level binding and its use also ends in
+       ``}`` — and that is the chosen direction. Over-refusal costs an
+       UNKNOWN, which is loud; under-refusal credits a route that cannot
+       run, which is silent.
+
+    Args:
+        text: PROGRAM text — a ``.sh``/``.yml`` file, or the inside of one
+            fenced block. NEVER markdown narrative: a prose sentence is
+            not a command position, and the caller
+            (:func:`_references_in`) enforces that split.
+
+    Returns:
+        Terminal library stems with a resolved binding and a later
+        interpreter invocation. Empty is the default.
+    """
+    stripped = _strip_shell_comments(text)
+    bindings: "dict[str, list[tuple[int, str | None]]]" = {}
+    for match in _HELPER_ASSIGNMENT.finditer(stripped):
+        bindings.setdefault(match.group(1), []).append(
+            (match.start(), _helper_assignment_stem(match.group(2)))
+        )
+    closures = [match.start() for match in _SCOPE_TERMINATOR.finditer(stripped)]
+    found: "set[str]" = set()
+    for match in _HELPER_INVOCATION.finditer(stripped):
+        prior = [
+            binding
+            for binding in bindings.get(match.group("name"), ())
+            if binding[0] < match.start()
+        ]
+        if not prior:
+            continue
+        offset, stem = prior[-1]
+        if stem is None:
+            continue
+        if any(offset < closure < match.start() for closure in closures):
+            # The binding's group closed before the invocation: rule 4.
+            continue
+        found.add(stem)
+    return found
+
+
 def _fenced_code_blocks(text: str) -> "list[tuple[str, str]]":
     """Split ``text`` into its fenced code blocks.
 
@@ -1501,6 +1874,117 @@ def _fenced_code_blocks(text: str) -> "list[tuple[str, str]]":
     return blocks
 
 
+def _shell_double_quoted_bytes(text: str) -> str:
+    """The bytes a DOUBLE-QUOTED shell word delivers to the interpreter.
+
+    ONE left-to-right pass, because the two things the shell does inside
+    ``"..."`` are not independent and must not be run as two regex
+    substitutions. Backslash removal decides whether a ``$`` is an
+    expansion AT ALL: ``\\${A}`` is a literal dollar the shell never
+    expands, ``${A}`` is a reference it does. Dequoting first and scanning
+    for expansions second erases exactly that distinction — the escaped
+    form arrives at the second pass indistinguishable from the unescaped
+    one — and that is one of the four measured over-credits. A character
+    produced BY an escape is emitted and passed over, never re-examined,
+    so here the distinction cannot be lost.
+
+    Two rules, and nothing else:
+
+    * ESCAPE REMOVAL, for the five characters in
+      :data:`_SHELL_DOUBLE_QUOTE_ESCAPES`. ``\\<newline>`` is a line
+      continuation and yields nothing; the other four yield themselves. A
+      backslash before anything else is literal and is kept.
+    * DECIMAL-DEFAULT SUBSTITUTION, for the single form
+      :data:`_DECIMAL_DEFAULT_EXPANSION` recognises, replaced by ITS OWN
+      decimal default — ``${MAX_SESSIONS:-20}`` becomes ``20``, not a
+      placeholder and not ``None``. Every other ``$`` is emitted UNCHANGED
+      and stays unresolved.
+
+    NOTHING is looked up, executed, or invented. An unresolved expansion
+    usually leaves the payload unparseable, and the route then stays
+    UNKNOWN — the direction this instrument must always fail in.
+
+    Args:
+        text: The word's contents, without its surrounding quotes.
+
+    Returns:
+        The interpreter's bytes on the DEFAULT (unset-variable) path. That
+        is a source edge, not a claim about any particular environment.
+    """
+    out: "list[str]" = []
+    index = 0
+    end = len(text)
+    while index < end:
+        char = text[index]
+        if char == "\\" and index + 1 < end and text[index + 1] in (
+            _SHELL_DOUBLE_QUOTE_ESCAPES
+        ):
+            escaped = text[index + 1]
+            if escaped != "\n":
+                out.append(escaped)
+            index += 2
+            continue
+        if char == "$":
+            match = _DECIMAL_DEFAULT_EXPANSION.match(text, index)
+            if match is not None:
+                out.append(match.group(1))
+                index = match.end()
+                continue
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _normalized_embedded_python(raw: str, *, dequote: bool) -> str:
+    """The bytes the INTERPRETER would receive, from the bytes on disk.
+
+    A recovered payload is not yet Python: it is a shell WORD, or a YAML
+    block-scalar line, and the carrier imposed transformations on it that
+    this instrument has to undo before ``ast`` can read it. Each was
+    MEASURED load-bearing on 2026-09-25 by removing it and re-walking the
+    live tree; the module each step alone recovers is named beside it.
+
+    1. COMMON-INDENT REMOVAL (``textwrap.dedent``), always. A YAML ``run:
+       |`` block scalar indents every line of the program it holds, and
+       the shell never sees that indent. RELATIVE indentation is preserved,
+       which is the whole point — a ``dedent`` keeps the ``if``/``for``
+       structure that a per-line ``lstrip`` would destroy. Recovers
+       ``test_routing``, ``daily_aggregate_manager``,
+       ``selector_stall_detector``.
+    2. DOUBLE-QUOTED WORD PROCESSING, only when ``dequote``, and in ONE
+       pass — see :func:`_shell_double_quoted_bytes`. Escape removal
+       recovers ``test_routing`` and ``flaky_tests``; the single decimal-
+       default substitution recovers ``retrospective_analyzer``.
+
+    WHAT THIS IS NOT, and what it STOPPED being. There is no parse-failure
+    fallback and no second attempt. An earlier cut ran a blanket
+    "neutralise every expansion to ``None``" pass whenever the payload did
+    not parse, gated on the failure so it "could not regress" anything
+    already credited. The gate was real and the reasoning was still wrong:
+    a payload that does not parse is exactly the case where credit is
+    decided, and substituting ``None`` for text the shell would never
+    produce MANUFACTURES parseability. It credited an escaped ``\\${A}``,
+    a ``${MAX:-20;q}`` whose default is not a number, a bare ``${PRELUDE}``
+    standing for arbitrary statements, and all of them inside a literal
+    single-quoted payload the shell does not touch at all. Unresolved now
+    stays unresolved, in every context, on the first and only pass.
+
+    Args:
+        raw: The payload exactly as it appears in the carrier file.
+        dequote: Whether the shell would process this word. Only a
+            double-quoted word and an UNQUOTED heredoc delimiter are
+            processed; ``'...'``, ``<<'W'`` and ``<<"W"`` are LITERAL and
+            get step 2 skipped entirely — no escape removal and no
+            substitution, because the shell performs neither there.
+
+    Returns:
+        The normalised source. ``ast`` — in the caller — decides whether
+        what came out is Python; this function never asks.
+    """
+    text = textwrap.dedent(raw)
+    return _shell_double_quoted_bytes(text) if dequote else text
+
+
 def _embedded_python_sources(text: str) -> "list[str]":
     """Recover Python source EMBEDDED in a non-Python carrier.
 
@@ -1515,20 +1999,39 @@ def _embedded_python_sources(text: str) -> "list[str]":
       markdown fence.
     * A ``python3 - <<'PY'`` heredoc.
 
+    Every recovered payload passes through
+    :func:`_normalized_embedded_python` — THE recovered-Python boundary,
+    and the only place in this file where carrier-level quoting and
+    indentation are undone. Before that existed, seven independently
+    verified live routes read UNKNOWN because their payloads raised
+    ``SyntaxError`` on bytes the interpreter never sees.
+
     Args:
         text: Markdown, shell or workflow text.
 
     Returns:
         Candidate Python sources. ``ast`` decides which really parse;
-        this only locates the carriers.
+        this only locates the carriers and normalises the boundary.
     """
     sources: "list[str]" = [
-        contents
+        # A fenced block is already the interpreter's own bytes: markdown
+        # imposes no quoting. It IS indented when the fence sits inside a
+        # list item, so the dedent applies; dequoting does not.
+        _normalized_embedded_python(contents, dequote=False)
         for language, contents in _fenced_code_blocks(text)
         if language in _PYTHON_FENCE_LANGUAGES
     ]
-    sources.extend(m.group(2) for m in _INLINE_PYTHON_C.finditer(text))
-    sources.extend(m.group(2) for m in _PYTHON_HEREDOC.finditer(text))
+    sources.extend(
+        _normalized_embedded_python(m.group(2), dequote=m.group(1) == '"')
+        for m in _INLINE_PYTHON_C.finditer(text)
+    )
+    sources.extend(
+        # Group 1 is the delimiter quote. An UNQUOTED delimiter (``<<PY``)
+        # is the only heredoc form the shell expands and dequotes; both
+        # ``<<'PY'`` and ``<<"PY"`` are literal.
+        _normalized_embedded_python(m.group(3), dequote=m.group(1) == "")
+        for m in _PYTHON_HEREDOC.finditer(text)
+    )
     return sources
 
 
@@ -1743,6 +2246,13 @@ def _references_in(path: Path) -> "set[str]":
     Embedded Python is recovered from all three (a ``python3 -c`` payload
     can appear in any of them).
 
+    The SAME-FILE HELPER recogniser (:func:`_same_file_helper_stems`) runs
+    over PROGRAM TEXT ONLY: the whole file when the file is a program, and
+    each fenced block when it is narrative. Aiming it at markdown prose
+    would make a sentence that happens to contain ``x=.../lib/y.py`` a
+    binding, which is the exact category ``_SHELL_INVOCATION_INTERPRETED``
+    was introduced to remove.
+
     Args:
         path: A consumer or entry-surface file.
 
@@ -1761,8 +2271,10 @@ def _references_in(path: Path) -> "set[str]":
         found = _shell_invoked_stems(text, _SHELL_INVOCATION_INTERPRETED)
         for _language, contents in _fenced_code_blocks(text):
             found |= _shell_invoked_stems(contents, _SHELL_INVOCATION_ANY)
+            found |= _same_file_helper_stems(contents)
     else:
         found = _shell_invoked_stems(text, _SHELL_INVOCATION_ANY)
+        found |= _same_file_helper_stems(text)
     for source in _embedded_python_sources(text):
         found |= _python_referenced_stems(source)
     return found
@@ -1858,6 +2370,39 @@ _LIBRARY_REACHABILITY_CACHE: "dict[Path, LibraryReachability]" = {}
 def _clear_library_reachability_cache() -> None:
     """Drop every memoised walk. Call after mutating a module global."""
     _LIBRARY_REACHABILITY_CACHE.clear()
+
+
+@functools.lru_cache(maxsize=1)
+def _unmutated_live_reachability() -> "LibraryReachability":
+    """THE full live graph, walked ONCE for the whole session.
+
+    Every arm that reads the UNMUTATED live tree reads the same object
+    from here. The tree does not change between them, so walking it once
+    per test was buying nothing: the seven-route table alone re-walked it
+    seven times, and four more arms took a baseline each.
+
+    WHAT THIS DOES NOT COLLAPSE. The result is the whole
+    :class:`LibraryReachability`, not a summary, so per-carrier
+    attribution — ``grounded``, ``reached`` and each route's own witness —
+    is still available to every caller and every arm still asserts on its
+    OWN carrier. Memoising the input is not merging the assertions.
+
+    STALENESS IS THE RISK, and it is handled where it is created:
+    ``TestLibraryGuardIsWatchedFiring._without`` clears this on entry AND
+    on exit, so no arm can be handed a graph from before its mutation or
+    from during someone else's.
+    ``test_the_memoised_live_graph_is_not_served_across_a_mutation`` is
+    the positive control for that clearing, and it fails if this memo is
+    ever allowed to answer inside a ``_without`` block.
+
+    Returns:
+        The live :func:`library_reachability` result for
+        :data:`PROJECT_ROOT`, computed with the walk's own cache bypassed.
+    """
+    _clear_library_reachability_cache()
+    result = library_reachability(PROJECT_ROOT, use_cache=False)
+    _clear_library_reachability_cache()
+    return result
 
 
 def library_reachability(
@@ -2041,12 +2586,10 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "batch_agent_verifier.py",
     "batch_git_finalize.py",
     "batch_mode_detector.py",
-    "batch_resume_helper.py",
     "blocking_signal_classifier.py",
     "brownfield_retrofit.py",
     "checkpoint.py",
     "cia_promotion_filter.py",
-    "claude_md_updater.py",
     "code_patcher.py",
     "code_path_analyzer.py",
     "completion_verifier.py",
@@ -2055,7 +2598,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "context_budget_monitor.py",
     "coordinator_log.py",
     "copy_system.py",
-    "daily_aggregate_manager.py",
     "distributed_training_validator.py",
     "doc_master_auto_apply.py",
     "doc_update_risk_classifier.py",
@@ -2066,7 +2608,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "failure_analyzer.py",
     "feature_completion_detector.py",
     "feature_dependency_analyzer.py",
-    "flaky_tests.py",
     "github_issue_fetcher.py",
     "hardware_calibrator.py",
     "headless_mode.py",
@@ -2107,11 +2648,9 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "ralph_loop_manager.py",
     "realign_orchestrator.py",
     "retrofit_verifier.py",
-    "retrospective_analyzer.py",
     "runtime_verification_classifier.py",
     "scope_detector.py",
     "search_utils.py",
-    "selector_stall_detector.py",
     "session_resource_manager.py",
     "session_state_manager.py",
     "session_telemetry_reader.py",
@@ -2121,7 +2660,6 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
     "step5_quality_gate.py",
     "stuck_detector.py",
     "success_criteria_validator.py",
-    "test_routing.py",
     "test_runner.py",
     "token_tracker.py",
     "tool_validator.py",
@@ -2298,7 +2836,50 @@ PINNED_UNREACHED_LIBRARY: "frozenset[str]" = frozenset({
 #        NOTHING moved REACHED -> UNKNOWN and nothing moved the other
 #        way: both measured difference sets, ``live - pin`` and
 #        ``pin - live``, are EMPTY.
-LIBRARY_REACHABILITY_CEILING = 97
+#    90  Issue #1757, the source-connectivity correction. A LOWER of -7,
+#        all REPAIR: nothing was deleted and no module changed. SEVEN
+#        executable source routes were independently READ BY A HUMAN in
+#        the release census
+#        (``docs/audits/20260925-workflow-assurance-release-census.md``)
+#        and this instrument called all seven UNKNOWN. The census is the
+#        SECOND instrument, and the disagreement was the finding.
+#        Attributed BY SET, each route being the string the walk itself
+#        PRINTED, and each paired with the ONE normalisation whose
+#        removal was MEASURED to take it back to UNKNOWN (the ablation
+#        was run; no step here is decorative):
+#          batch_resume_helper.py ``referenced by SessionStart-batch-
+#            recovery.sh`` — the same-file helper recogniser
+#            (``_same_file_helper_stems``).
+#          test_routing.py ``referenced by ci.yml`` — needs BOTH the
+#            dedent AND the double-quote dequoting.
+#          claude_md_updater.py ``referenced by install.sh`` — needs BOTH
+#            the heredoc argument class AND the exact ``install.sh`` root.
+#          daily_aggregate_manager.py, selector_stall_detector.py
+#            ``referenced by drain-watchdog.yml`` — need BOTH the dedent
+#            AND the indented heredoc terminator.
+#          flaky_tests.py ``referenced by implement.md`` — the
+#            double-quote dequoting.
+#          retrospective_analyzer.py ``referenced by retrospective.md`` —
+#            the expansion-neutralisation fallback.
+#        NOT DERIVED BY SUBTRACTION. 97 - 7 = 90 and the measurement also
+#        says 90, but the two are independent: fixing a carrier can ground
+#        a transitive tail (that is what #1725 did, +5 beyond the
+#        packages), so the post-fix set was RE-WALKED and pasted rather
+#        than predicted. It happens to have no tail because all seven are
+#        leaf consumers of nothing else pinned.
+#        NOTHING moved REACHED -> UNKNOWN and nothing moved the other way:
+#        both measured difference sets, ``live - pin`` and ``pin - live``,
+#        are EMPTY. Every remaining member stays UNKNOWN and NONE of them
+#        is thereby called dead — the seven that moved had a route a
+#        person could read and this instrument could not, which is
+#        precisely the reason membership here is never authority to
+#        delete.
+#        SCOPE, stated because the temptation to overclaim is the failure
+#        mode here: this is SOURCE CONNECTIVITY only. REACHED means a
+#        tracked source route exists and is machine-checkable. It does NOT
+#        mean the route ran, that the installed bytes carry it, or that
+#        any consumer repository is correct.
+LIBRARY_REACHABILITY_CEILING = 90
 
 # The highest library ceiling ever REVIEWED. Its only job is to make a
 # RAISE cost a second, visible constant edit — tying the ceiling only to
@@ -2307,7 +2888,7 @@ LIBRARY_REACHABILITY_CEILING = 97
 # together and nothing fires. Same residual-headroom contract as
 # ``CEILING_HIGH_WATER_MARK``: lower it in the same diff and the residual
 # is zero.
-LIBRARY_CEILING_HIGH_WATER_MARK = 97
+LIBRARY_CEILING_HIGH_WATER_MARK = 90
 
 
 #: The functions ``_references_in`` DISPATCHES TO for a non-Python file.
@@ -2320,7 +2901,16 @@ LIBRARY_CEILING_HIGH_WATER_MARK = 97
 #: (``test_positive_control_the_reference_extractor_resolves_a_real_import``)
 #: is not making a claim about markdown grounding.
 MARKDOWN_CARRIER_HELPERS = frozenset(
-    {"_embedded_python_sources", "_shell_invoked_stems", "_fenced_code_blocks"}
+    {
+        "_embedded_python_sources",
+        "_shell_invoked_stems",
+        "_fenced_code_blocks",
+        # The fourth edge, dispatched from ``_references_in`` for a fenced
+        # block. Listed for the SAME reason as the other three: it sees
+        # only the assignment-plus-invocation shape, so a control aimed at
+        # it alone can be green while the walk is loud.
+        "_same_file_helper_stems",
+    }
 )
 
 #: Entry points that see EVERYTHING the walk sees. Consulting any one of
@@ -5104,11 +5694,16 @@ class TestLibraryGuardIsWatchedFiring:
         original = getattr(module, attribute)
         setattr(module, attribute, replacement)
         _clear_library_reachability_cache()
+        # AND the once-per-session live graph. A memo that survived a
+        # mutation would hand the next arm a pre-mutation answer and every
+        # ablation in this file would pass for the wrong reason.
+        _unmutated_live_reachability.cache_clear()
         try:
             yield original
         finally:
             setattr(module, attribute, original)
             _clear_library_reachability_cache()
+            _unmutated_live_reachability.cache_clear()
 
     def test_removing_the_markdown_carrier_flips_prior_art_search_to_unknown(self):
         """THE WORKED EXAMPLE, watched FIRING on the live corpus.
@@ -6155,6 +6750,1736 @@ class TestLibraryCeilingIsNotATautology:
             f"refused it. Lowering is the ratchet advancing; blocking it "
             f"creates pressure to leave orphans pinned.\n"
             f"{result.stdout}\n{result.stderr}"
+        )
+
+
+#: The seven live SOURCE routes the 2026-09-25 release census read by
+#: hand and this instrument called UNKNOWN. Issue #1757.
+#:
+#: Each row is ``(carrier, target, family)``. The carrier path is EXACT
+#: and relative to the repository root; the family names the recogniser
+#: that had to be corrected. This table is the acceptance the whole
+#: correction exists to satisfy, and it is driven through
+#: ``library_reachability(use_cache=False)`` over the REAL tree — not a
+#: fixture, not a helper, and not a recorded answer.
+#:
+#: SCOPE. A row proves SOURCE CONNECTIVITY: a tracked file executes the
+#: module by a route a machine can follow. It proves nothing about
+#: whether the route ran, what the installed bytes contain, or whether any
+#: consumer repository behaves correctly.
+LIVE_SOURCE_ROUTES = (
+    (
+        "plugins/autonomous-dev/hooks/SessionStart-batch-recovery.sh",
+        "batch_resume_helper.py",
+        "same-file computed helper path",
+    ),
+    (
+        ".github/workflows/ci.yml",
+        "test_routing.py",
+        "YAML-indented python3 -c with shell-escaped quotes",
+    ),
+    (
+        "install.sh",
+        "claude_md_updater.py",
+        "heredoc with interpreter arguments, from an exact root",
+    ),
+    (
+        ".github/workflows/drain-watchdog.yml",
+        "daily_aggregate_manager.py",
+        "YAML-indented heredoc with an indented terminator",
+    ),
+    (
+        ".github/workflows/drain-watchdog.yml",
+        "selector_stall_detector.py",
+        "YAML-indented heredoc with an indented terminator",
+    ),
+    (
+        "plugins/autonomous-dev/commands/implement.md",
+        "flaky_tests.py",
+        "python3 -c with shell-escaped quotes, in a fence",
+    ),
+    (
+        "plugins/autonomous-dev/commands/retrospective.md",
+        "retrospective_analyzer.py",
+        "python3 -c carrying an unexpanded parameter reference",
+    ),
+)
+
+
+class TestLiveSourceRoutes:
+    """Issue #1757: the seven routes a person read and the walk missed.
+
+    THE RED-BEFORE PROOF, kept as a permanent arm. Before the correction
+    every row here returned UNKNOWN from
+    ``library_reachability(PROJECT_ROOT, use_cache=False)``; the census
+    that found them is a SECOND, independent instrument, and the
+    disagreement between a human reading the carrier and this walk
+    reading it was the finding.
+
+    Driven over the LIVE tree deliberately. A synthetic reproduction of
+    each shape is also present (``TestSourceConnectivityCorrection``), but
+    a synthetic fixture cannot notice that the real carrier moved,
+    changed quoting, or stopped existing — and a correction that only
+    satisfies its own fixtures is the defect this repository keeps
+    finding.
+    """
+
+    @pytest.mark.parametrize(
+        ("carrier", "target", "family"),
+        LIVE_SOURCE_ROUTES,
+        ids=[f"{row[1]}" for row in LIVE_SOURCE_ROUTES],
+    )
+    def test_the_live_route_resolves(self, carrier, target, family):
+        """One real carrier, one real target, through the full walk."""
+        carrier_path = PROJECT_ROOT / carrier
+        assert carrier_path.is_file(), (
+            f"PREMISE FAILED: the carrier {carrier} no longer exists, so "
+            f"this row asserts nothing about {target}. Either the route "
+            f"moved — find it and update the row — or it was removed, in "
+            f"which case {target} belongs back in the pin with the "
+            f"removal named."
+        )
+
+        # ONE walk for all seven rows. Each row still asserts on its OWN
+        # carrier below, against this row's own target — the graph is
+        # shared, the attribution is not.
+        result = _unmutated_live_reachability()
+
+        assert target in result.corpus, (
+            f"PREMISE FAILED: {target} is not in the library corpus, so "
+            f"its verdict is vacuous."
+        )
+        assert library_verdict(target, result) == "REACHED", (
+            f"{target} is UNKNOWN. Its route is {carrier} "
+            f"({family}).\n"
+            f"That route was read by hand in "
+            f"docs/audits/20260925-workflow-assurance-release-census.md "
+            f"and it is the reason the recogniser was corrected. A red "
+            f"here means either the carrier changed shape or a "
+            f"normalisation step was removed — do NOT re-pin the module "
+            f"to clear it.\n"
+            f"Route recorded for it: {result.reached.get(target)!r}"
+        )
+
+        # AND the pairing, not merely the verdict. ``reached`` records ONE
+        # witness and frontier order decides which, so asserting on that
+        # string would be flaky where several true routes exist. Asking
+        # the carrier directly is stable and is the stronger claim: THIS
+        # file names THIS module.
+        assert carrier_path in result.grounded, (
+            f"the carrier {carrier} is not itself grounded, so whatever "
+            f"reached {target} was something else and this row is not "
+            f"testing the route it names."
+        )
+        assert Path(target).stem in _references_in(carrier_path), (
+            f"the walk reached {target}, but {carrier} does not name it. "
+            f"The verdict is right for the wrong reason and this row no "
+            f"longer covers the {family} family."
+        )
+
+    def test_every_live_route_target_is_out_of_the_pin(self):
+        """The table and the pin must not both claim these modules.
+
+        A row above asserting REACHED while the same key sits in
+        ``PINNED_UNREACHED_LIBRARY`` would be two instruments disagreeing
+        inside one file. ``test_pinned_library_entries_are_still_unreached``
+        would also fail, but it names the pin; this names the table, so
+        the reason is visible from either end.
+        """
+        targets = {row[1] for row in LIVE_SOURCE_ROUTES}
+        overlap = sorted(targets & PINNED_UNREACHED_LIBRARY)
+        assert not overlap, (
+            f"{overlap} are asserted REACHED by LIVE_SOURCE_ROUTES and "
+            f"pinned UNREACHED at the same time."
+        )
+
+
+class TestSourceConnectivityCorrection:
+    """Both arms for every syntax family added by Issue #1757.
+
+    THE RULE this class applies to itself: a recogniser watched only
+    PERMITTING is indistinguishable from one that permits everything.
+    Every family below therefore gets three arms —
+
+    * PERMIT — the evidenced shape resolves.
+    * OPPOSITE — a DIFFERENT shape, chosen so that a recogniser which
+      merely matched text would accept it, must stay UNKNOWN.
+    * OMITTED ROUTE — the same positive fixture with its invocation,
+      carrier or root removed must go back to UNKNOWN, so the permit arm
+      is known to be caused by the route rather than by the tree.
+
+    Every arm drives ``library_reachability`` over a synthetic repository
+    — the SAME entry point the live rule uses. None of them asserts on a
+    carrier helper alone: a helper sees one half of the dispatch, and a
+    control aimed at one half is the round-1 defect
+    ``controls_bypassing_the_live_call_path`` exists to flag.
+    """
+
+    TARGET = "synthetic_target.py"
+    STEM = "synthetic_target"
+
+    # ------------------------------------------------------------------
+    # fixtures
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> Path:
+        """A synthetic repository holding exactly one library module."""
+        plugin = tmp_path / "plugins" / "autonomous-dev"
+        lib = plugin / "lib"
+        lib.mkdir(parents=True)
+        (plugin / "hooks").mkdir(parents=True)
+        (plugin / "commands").mkdir(parents=True)
+        templates = plugin / "templates"
+        templates.mkdir(parents=True)
+        (templates / "settings.default.json").write_text(
+            json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+        )
+        (tmp_path / ".github" / "workflows").mkdir(parents=True)
+        (lib / "synthetic_target.py").write_text(
+            "def run(limit=None):\n    return {'k': limit}\n", encoding="utf-8"
+        )
+        return tmp_path
+
+    @classmethod
+    def _verdict(cls, tmp_path: Path, carrier: str, text: str) -> str:
+        """Write ONE carrier into a fresh tree and walk it.
+
+        Args:
+            tmp_path: pytest's per-test directory.
+            carrier: Root-relative path to write the carrier at.
+            text: The carrier's contents.
+
+        Returns:
+            ``"REACHED"`` or ``"UNKNOWN"`` for the single library module,
+            through ``library_reachability`` — the live entry point.
+        """
+        root = cls._repo(tmp_path)
+        path = root / carrier
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        _clear_library_reachability_cache()
+        result = library_reachability(root, use_cache=False)
+        _clear_library_reachability_cache()
+        return library_verdict(cls.TARGET, result)
+
+    #: A ``run: |`` workflow step wrapping ``body`` at the block scalar's
+    #: common indent — the shape YAML imposes and the shell never sees.
+    _WORKFLOW = (
+        "name: Synthetic\n"
+        "on: [push]\n"
+        "jobs:\n"
+        "  build:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        "      - name: Step\n"
+        "        run: |\n"
+        "{body}\n"
+    )
+
+    @classmethod
+    def _workflow(cls, body: str) -> str:
+        """Indent ``body`` by ten spaces and wrap it in a workflow step."""
+        indented = "\n".join(
+            f"          {line}" if line else "" for line in body.splitlines()
+        )
+        return cls._WORKFLOW.format(body=indented)
+
+    @staticmethod
+    def _fence(body: str) -> str:
+        """Wrap ``body`` in a ```bash fence inside a command file."""
+        return f"# Synthetic\n\nSome prose.\n\n```bash\n{body}\n```\n"
+
+    # ------------------------------------------------------------------
+    # FAMILY 1 — common-indent removal at the recovered-Python boundary
+    # ------------------------------------------------------------------
+
+    _INDENTED_PAYLOAD = (
+        'python3 -c "\n'
+        "import os\n"
+        "from synthetic_target import run\n"
+        "print(run())\n"
+        '"'
+    )
+
+    def test_permit_yaml_indented_python_c_payload(self, tmp_path):
+        """PERMIT. The ``ci.yml`` shape: every payload line YAML-indented.
+
+        Read raw this is ``IndentationError: unexpected indent`` on line
+        2, and the whole snippet is dropped.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            ".github/workflows/synthetic.yml",
+            self._workflow(self._INDENTED_PAYLOAD),
+        )
+        assert verdict == "REACHED", (
+            "a module imported by a YAML-indented `python3 -c` payload "
+            "was classified UNKNOWN. That is the ci.yml shape and the "
+            "only route to test_routing.py."
+        )
+
+    def test_permit_dedent_preserves_relative_indentation(self, tmp_path):
+        """PERMIT, and the DISCRIMINATOR against a per-line strip.
+
+        The import sits inside an ``if`` block. A ``dedent`` keeps the
+        block structure; stripping each line individually flattens it to
+        column 0 and raises ``IndentationError: expected an indented
+        block``. Both normalisations make the FIRST fixture pass, so
+        without this one "we remove indentation" would be unfalsifiable
+        between the two.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            ".github/workflows/synthetic.yml",
+            self._workflow(
+                'python3 -c "\n'
+                "import os\n"
+                "if os.environ.get('SYNTHETIC'):\n"
+                "    from synthetic_target import run\n"
+                "    print(run())\n"
+                '"'
+            ),
+        )
+        assert verdict == "REACHED", (
+            "a payload whose import is nested inside an `if` block was "
+            "classified UNKNOWN. The boundary normaliser is flattening "
+            "relative indentation instead of removing the COMMON indent."
+        )
+
+    def test_opposite_a_per_line_strip_loses_the_nested_import(self, tmp_path):
+        """OPPOSITE, by MUTATING the normaliser on the live call path.
+
+        Swap ``dedent`` for a per-line ``lstrip`` and the nested fixture
+        above must go UNKNOWN. This is what makes the previous arm a
+        measurement rather than a hope: the two normalisations are
+        actually run against the same tree and they disagree.
+        """
+        nested = self._workflow(
+            'python3 -c "\n'
+            "import os\n"
+            "if os.environ.get('SYNTHETIC'):\n"
+            "    from synthetic_target import run\n"
+            "    print(run())\n"
+            '"'
+        )
+
+        def _flattening(raw: str, *, dequote: bool) -> str:
+            return "\n".join(line.lstrip() for line in raw.splitlines())
+
+        with TestLibraryGuardIsWatchedFiring._without(
+            "_normalized_embedded_python", _flattening
+        ):
+            verdict = self._verdict(
+                tmp_path, ".github/workflows/synthetic.yml", nested
+            )
+        assert verdict == "UNKNOWN", (
+            "a per-line strip still resolved the nested import, so the "
+            "previous arm does not distinguish dedent from lstrip and "
+            "proves nothing about preserving relative indentation."
+        )
+
+    def test_omitted_route_the_workflow_is_not_an_entry_surface(self, tmp_path):
+        """OMITTED ROUTE. Same bytes, outside the workflow directory.
+
+        ``.github/workflows/*.yml`` is the root; a YAML file anywhere else
+        runs on nobody's authority.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            ".github/other/synthetic.yml",
+            self._workflow(self._INDENTED_PAYLOAD),
+        )
+        assert verdict == "UNKNOWN", (
+            "a YAML file outside .github/workflows/ grounded a module. "
+            "The entry-root population has widened."
+        )
+
+    # ------------------------------------------------------------------
+    # FAMILY 2 — shell double-quote dequoting
+    # ------------------------------------------------------------------
+
+    #: A payload carrying the escapes the shell removes inside ``"..."``.
+    #: No bare single quote anywhere, so the SAME bytes can be wrapped in
+    #: either quote character and the pair differs ONLY in that character.
+    _ESCAPED_BODY = (
+        "\nimport sys\n"
+        "from synthetic_target import run\n"
+        'values = {\\"k\\": run()}\n'
+        "sys.stdout.write(str(values))\n"
+    )
+
+    def test_permit_double_quoted_payload_with_shell_escapes(self, tmp_path):
+        """PERMIT. The ``implement.md``/``ci.yml`` shape.
+
+        ``{\\"k\\": ...}`` is what is ON DISK; ``{"k": ...}`` is what the
+        interpreter receives. Read raw it is ``SyntaxError: unexpected
+        character after line continuation character`` and the snippet —
+        including its import — is dropped whole.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._fence(f'python3 -c "{self._ESCAPED_BODY}"'),
+        )
+        assert verdict == "REACHED", (
+            "a double-quoted `python3 -c` payload carrying the shell's "
+            "own backslash escapes was classified UNKNOWN. That is the "
+            "flaky_tests.py and test_routing.py shape."
+        )
+
+    def test_omitted_route_the_payload_without_its_interpreter(self, tmp_path):
+        """OMITTED ROUTE. The same lines, no ``python3 -c`` around them.
+
+        A bash fence full of Python-looking text is text.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._fence(self._ESCAPED_BODY),
+        )
+        assert verdict == "UNKNOWN", (
+            "Python-shaped lines in a bash fence were credited without "
+            "any interpreter running them."
+        )
+
+    # ------------------------------------------------------------------
+    # FAMILY 3 — parameter expansion: ONE resolved form, nothing else
+    # ------------------------------------------------------------------
+    #
+    # Every arm here is driven through ``library_reachability`` on a tree
+    # holding exactly one module, so a verdict can only come from the
+    # payload. ``_payload`` builds the carrier, because eight near-identical
+    # fence bodies differing in one line is how a table stops being read.
+
+    @classmethod
+    def _payload(cls, line: str, *, quote: str = '"') -> str:
+        """A ``python3 -c`` fence whose body imports the target, then ``line``.
+
+        Args:
+            line: The single varying statement, placed AFTER the import so
+                a payload that fails to parse loses the import with it.
+            quote: ``'"'`` for a shell-processed word, ``"'"`` for a
+                LITERAL one. The two differ by one character on disk and
+                by everything in what the interpreter receives.
+
+        Returns:
+            Markdown carrier text ready for :meth:`_verdict`.
+        """
+        return cls._fence(
+            f"python3 -c {quote}\n"
+            "import sys\n"
+            "from synthetic_target import run\n"
+            f"{line}\n"
+            f"{quote}"
+        )
+
+    def test_permit_the_decimal_default_substitutes_its_own_decimal(
+        self, tmp_path
+    ):
+        """PERMIT. The ``retrospective.md`` shape, and ONLY by its own value.
+
+        ``max_sessions=${MAX_SESSIONS:-20}`` is a number by the time the
+        interpreter sees it and a ``SyntaxError`` on disk.
+
+        The line is chosen so the ACTUAL decimal is load-bearing:
+        ``limit=1${MAX_ITEMS:-20}`` reads as ``limit=120`` once the default
+        is substituted, and as ``1<anything-not-a-number>`` otherwise. The
+        rejected cut replaced the expansion with the literal ``None``,
+        which yields ``1None`` — a ``SyntaxError`` — so this arm is RED
+        against it and cannot be satisfied by any placeholder.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._payload("print(run(limit=1${MAX_ITEMS:-20}))"),
+        )
+        assert verdict == "REACHED", (
+            "a payload carrying `${MAX_ITEMS:-20}` was classified "
+            "UNKNOWN, or was substituted with something that is not its "
+            "decimal default. That is the only shape "
+            "retrospective_analyzer.py is reached by, and the value has to "
+            "be the one the shell would produce."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "line"),
+        [
+            # Constructs whose value cannot be known without RUNNING
+            # something. These were refused by the rejected cut too.
+            ("command-substitution", "print(run(limit=$(date +%s)))"),
+            ("backticks", "print(run(limit=`date +%s`))"),
+            ("arithmetic", "print(run(limit=$((2 + 3))))"),
+            ("indirect-expansion", "print(run(limit=${!NAME}))"),
+            ("subscript", "print(run(limit=${ARR[0]}))"),
+            ("pattern-operator", "print(run(limit=${NAME%%x}))"),
+            # MEASURED FALSE REACHED under the rejected cut, each closed by
+            # narrowing substitution to ONE form. A blanket
+            # neutralise-to-``None`` fallback credits every one of these.
+            ("nondecimal-default", "print(run(limit=${MAX_ITEMS:-20;q}))"),
+            ("alphabetic-default", "print(run(limit=${MAX_ITEMS:-many}))"),
+            ("empty-default", "print(run(limit=${MAX_ITEMS:-}))"),
+            ("assigning-default", "print(run(limit=${MAX_ITEMS:=20}))"),
+            ("plain-assign-default", "print(run(limit=${MAX_ITEMS=20}))"),
+            ("alternate-value", "print(run(limit=${MAX_ITEMS:+20}))"),
+            ("braced-no-default", "print(run(limit=${MAX_ITEMS}))"),
+            ("bare-reference", "print(run(limit=$MAX_ITEMS))"),
+            ("arbitrary-statement-prelude", "${PRELUDE}\nprint(run())"),
+            ("bare-arbitrary-prelude", "$PRELUDE\nprint(run())"),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_every_other_expansion_form_stays_unresolved(
+        self, tmp_path, label, line
+    ):
+        """OPPOSITE. Exactly one form resolves; everything else does not.
+
+        Each of these is left EXACTLY as written. The payload then does not
+        parse, the import goes with it, and the route stays UNKNOWN — the
+        failing-safe direction. Substituting a placeholder here would
+        MANUFACTURE parseability for text the shell never produces, which
+        is what credited four false routes in the rejected cut.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._payload(line),
+        )
+        assert verdict == "UNKNOWN", (
+            f"a payload carrying {label} was normalised into something "
+            f"parseable. Substitution has widened past the single "
+            f"evidenced `${{NAME:-<decimal>}}` form and is approximating "
+            f"shell evaluation with an invented value."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "line"),
+        [
+            ("escaped-decimal-default", r"print(run(limit=\${MAX_ITEMS:-20}))"),
+            ("escaped-braced", r"print(run(limit=\${MAX_ITEMS}))"),
+            ("escaped-bare", r"print(run(limit=\$MAX_ITEMS))"),
+            ("escaped-prelude", "\\${PRELUDE}\nprint(run())"),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_an_escaped_dollar_is_never_an_expansion(
+        self, tmp_path, label, line
+    ):
+        """OPPOSITE. ``\\$`` is a LITERAL dollar the shell never expands.
+
+        MEASURED FALSE REACHED. The rejected cut ran dequoting and
+        expansion as two passes: the first turned ``\\${MAX:-20}`` into
+        ``${MAX:-20}``, and the second could no longer tell it from a real
+        reference and substituted it. The interpreter actually receives a
+        literal ``${MAX:-20}``, which is not Python, so the route is
+        UNKNOWN.
+
+        A DIFFERENT SHAPE from the reproducer on purpose: the escaped form
+        of the ONE expansion that does resolve. If escape tracking were
+        dropped again, this is the arm that catches it — the unescaped
+        twin one test above must stay REACHED at the same time, so no
+        blanket refusal can satisfy both.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._payload(line),
+        )
+        assert verdict == "UNKNOWN", (
+            f"a payload carrying {label} was credited. A backslash before "
+            f"a dollar means the shell expands NOTHING there; treating it "
+            f"as a reference resolves something the interpreter never "
+            f"sees. Escape removal and substitution must stay ONE pass."
+        )
+
+    def test_opposite_a_module_name_from_an_expansion_is_never_invented(
+        self, tmp_path
+    ):
+        """OPPOSITE. No substitution may fabricate a target.
+
+        ``from ${SYNTHETIC_MODULE} import run`` is left exactly as written,
+        which is a syntax error, so the snippet is dropped. A placeholder
+        NAME would have credited whatever it was named — and a clever one
+        would credit the real module.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._fence(
+                'python3 -c "\n'
+                "import sys\n"
+                "from ${SYNTHETIC_MODULE} import run\n"
+                "print(run())\n"
+                '"'
+            ),
+        )
+        assert verdict == "UNKNOWN", (
+            "an import whose MODULE NAME comes from a shell expansion was "
+            "credited. The normaliser is inventing names."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "line", "expected"),
+        [
+            # A LITERAL word: the shell removes no escapes and expands
+            # nothing, so the resolvable form is NOT resolvable here.
+            ("literal-decimal-default", "print(run(limit=${MAX_ITEMS:-20}))",
+             "UNKNOWN"),
+            ("literal-escape", r'print(run(limit=len(\"ab\")))', "UNKNOWN"),
+            # ... and a dollar that is only ever inside a Python string
+            # leaves a payload that already reads completely alone.
+            ("dollar-inside-a-string", 'print("cost: $AMOUNT", run())',
+             "REACHED"),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_a_literal_payload_is_processed_by_nothing(
+        self, tmp_path, label, line, expected
+    ):
+        """OPPOSITE. ``'...'`` gets NO escape removal and NO substitution.
+
+        THE SAME BYTES as the permitting arms, one quote character
+        different. Inside ``'...'`` the shell does neither transformation,
+        so the resolvable ``${MAX_ITEMS:-20}`` is a syntax error here and
+        the route is UNKNOWN — while it is REACHED one test above.
+
+        MEASURED FALSE REACHED under the rejected cut for the first row:
+        its neutralisation fallback ran on EVERY payload regardless of
+        quoting, so a literal word was rewritten into something the shell
+        would never produce. The third row is the ceiling on this
+        correction: a payload that already reads must reach ``ast``
+        untouched.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._payload(line, quote="'"),
+        )
+        assert verdict == expected, (
+            f"a SINGLE-quoted payload carrying {label} returned "
+            f"{verdict}, wanted {expected}. The shell performs neither "
+            f"escape removal nor expansion inside `'...'`; an instrument "
+            f"that does either is reading source no interpreter receives."
+        )
+
+    # ------------------------------------------------------------------
+    # FAMILY 4 — heredoc: indented terminator and interpreter arguments
+    # ------------------------------------------------------------------
+
+    _HEREDOC_BODY = (
+        "import sys\n"
+        "from synthetic_target import run\n"
+        "print(run())\n"
+    )
+
+    def test_permit_yaml_indented_heredoc_with_an_indented_terminator(
+        self, tmp_path
+    ):
+        """PERMIT. The ``drain-watchdog.yml`` shape.
+
+        YAML indents the opener, the body AND the closing word. Requiring
+        the word immediately after a newline recovered ZERO sources from
+        that file — not a wrong answer, an absent one.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            ".github/workflows/synthetic.yml",
+            self._workflow(f"python3 - <<'PY'\n{self._HEREDOC_BODY}PY"),
+        )
+        assert verdict == "REACHED", (
+            "a heredoc whose terminator is indented by its YAML block "
+            "scalar was not recovered. Both drain-watchdog.yml routes "
+            "depend on this."
+        )
+
+    def test_permit_heredoc_with_simple_interpreter_arguments(self, tmp_path):
+        """PERMIT. The ``install.sh`` shape.
+
+        ``python3 - "$a" "${B}" <<'PY'`` — the script operand is stdin and
+        the ``sys.argv`` values precede the redirection.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            'python3 - "$claude_md" "${STAGING_DIR}" <<\'PY\'\n'
+            f"{self._HEREDOC_BODY}"
+            "PY\n",
+        )
+        assert verdict == "REACHED", (
+            "a heredoc carrying simple interpreter arguments was not "
+            "recovered. That is install.sh:2255 and the only route to "
+            "claude_md_updater.py."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "arguments"),
+        [
+            ("command-substitution", '"$(cat args.txt)"'),
+            ("backticks", '"`cat args.txt`"'),
+            ("arithmetic", '"$((1 + 1))"'),
+            ("default-expansion", '"${STAGING_DIR:-/tmp}"'),
+            ("indirect-expansion", '"${!STAGING_DIR}"'),
+            ("glob", '"$dir"/*.json'),
+            # Brace asymmetry, the same class the script operand was
+            # corrected for. Inert for over-credit here — a recognised
+            # heredoc credits the module named in its BODY via ``ast``, not
+            # this argument — but the token now refuses a stray close brace
+            # rather than matching it against the quoted alternative.
+            ("stray-close-brace", '"$STAGING_DIR}"'),
+            ("unclosed-brace", '"${STAGING_DIR"'),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_richer_heredoc_arguments_are_refused(
+        self, tmp_path, label, arguments
+    ):
+        """OPPOSITE. Only the evidenced token class is accepted.
+
+        An argument list this recogniser cannot read means the heredoc is
+        not recognised AT ALL, so the payload is never recovered and the
+        route stays UNKNOWN. Accepting these would be the first step
+        toward parsing shell words in general.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            f"python3 - {arguments} <<'PY'\n"
+            f"{self._HEREDOC_BODY}"
+            "PY\n",
+        )
+        assert verdict == "UNKNOWN", (
+            f"a heredoc with {label} in its argument list was accepted. "
+            f"The argument grammar has widened past the evidenced simple "
+            f"token class."
+        )
+
+    def test_omitted_route_an_unterminated_heredoc_recovers_nothing(
+        self, tmp_path
+    ):
+        """OMITTED ROUTE. No closing word, no known extent, no credit."""
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            "python3 - <<'PY'\n"
+            f"{self._HEREDOC_BODY}",
+        )
+        assert verdict == "UNKNOWN", (
+            "an unterminated heredoc was credited. Its extent is "
+            "unknowable and guessing it reads the rest of the file as "
+            "Python."
+        )
+
+    #: A body whose ONLY unparseable element is the one expansion the
+    #: normaliser resolves. Its verdict therefore reports, by itself,
+    #: whether the body was processed as a shell word or taken literally.
+    _HEREDOC_EXPANDING_BODY = (
+        "import sys\n"
+        "from synthetic_target import run\n"
+        "print(run(limit=1${MAX_ITEMS:-20}))\n"
+    )
+
+    @pytest.mark.parametrize(
+        ("label", "delimiter", "expected"),
+        [
+            ("single-quoted-delimiter", "'PY'", "UNKNOWN"),
+            ("double-quoted-delimiter", '"PY"', "UNKNOWN"),
+            ("unquoted-delimiter", "PY", "REACHED"),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_the_delimiter_quote_decides_whether_the_body_is_literal(
+        self, tmp_path, label, delimiter, expected
+    ):
+        """BOTH ARMS on the heredoc's quoting boundary, one shape apart.
+
+        ``<<'PY'`` and ``<<"PY"`` are LITERAL: the shell performs no
+        expansion and no backslash processing inside the body, so
+        ``1${MAX_ITEMS:-20}`` reaches the interpreter exactly as written
+        and is a ``SyntaxError``. Only a bare ``<<PY`` is processed, and
+        there the interpreter receives ``120``.
+
+        MEASURED FALSE REACHED for the first two rows under the rejected
+        cut, whose neutralisation fallback ignored quoting entirely and
+        rewrote literal bodies. The evidenced class — ``install.sh`` and
+        ``drain-watchdog.yml`` — is the single-quoted one, so the row that
+        matters most is the one that must REFUSE.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            f"python3 - <<{delimiter}\n"
+            f"{self._HEREDOC_EXPANDING_BODY}"
+            "PY\n",
+        )
+        assert verdict == expected, (
+            f"a heredoc with a {label} returned {verdict}, wanted "
+            f"{expected}. The delimiter's quoting is the whole of what "
+            f"decides whether the body is processed; getting it wrong "
+            f"either credits text no interpreter receives or drops a real "
+            f"route."
+        )
+
+    def test_opposite_the_delimiter_word_inside_the_body_does_not_terminate(
+        self, tmp_path
+    ):
+        """OPPOSITE. A heredoc ends at a LINE that is the word, not at the word.
+
+        The import is placed AFTER a line that merely CONTAINS ``PY``. If
+        the extent were taken to the first occurrence, the body would stop
+        before the import and the route would be UNKNOWN — so REACHED here
+        is the assertion that it did not.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            "python3 - <<'PY'\n"
+            'print("PY")\n'
+            "PYTHON_MARKER = 1\n"
+            f"{self._HEREDOC_BODY}"
+            "PY\n",
+        )
+        assert verdict == "REACHED", (
+            "a heredoc terminated on a line that merely CONTAINS its "
+            "delimiter word, truncating the body before its import. The "
+            "closing word must be the whole line."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "terminator"),
+        [
+            ("word-with-a-suffix", "PYTHON\n"),
+            ("word-with-a-prefix", "MYPY\n"),
+            ("word-with-trailing-text", "PY done\n"),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_omitted_route_a_near_miss_terminator_recovers_nothing(
+        self, tmp_path, label, terminator
+    ):
+        """OMITTED ROUTE. One character off the closing word is no closing word.
+
+        The permitting twin is the indented-terminator arm above: indent is
+        tolerated (YAML imposes it) and every other difference is not.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            "install.sh",
+            "#!/usr/bin/env bash\n"
+            "python3 - <<'PY'\n"
+            f"{self._HEREDOC_BODY}"
+            f"{terminator}",
+        )
+        assert verdict == "UNKNOWN", (
+            f"a heredoc closed by {label} was credited. Its extent is not "
+            f"known, and guessing it reads the rest of the file as Python."
+        )
+
+    # ------------------------------------------------------------------
+    # FAMILY 5 — the exact install.sh root
+    # ------------------------------------------------------------------
+
+    _ROOT_INSTALLER = (
+        "#!/usr/bin/env bash\n"
+        "python3 plugins/autonomous-dev/lib/synthetic_target.py --check\n"
+    )
+
+    def test_permit_the_repository_root_installer_is_an_entry_surface(
+        self, tmp_path
+    ):
+        """PERMIT. ``install.sh`` runs on the operator's authority."""
+        verdict = self._verdict(tmp_path, "install.sh", self._ROOT_INSTALLER)
+        assert verdict == "REACHED", (
+            "install.sh did not ground a module it invokes. It is the "
+            "repository's installer and the only route to "
+            "claude_md_updater.py."
+        )
+
+    @pytest.mark.parametrize(
+        "carrier",
+        [
+            "tools/install.sh",
+            "plugins/autonomous-dev/install.sh",
+            "install_extras.sh",
+            "scripts/setup/install.sh.bak",
+        ],
+        ids=["nested-same-name", "plugin-same-name", "root-other-name",
+             "nested-backup"],
+    )
+    def test_opposite_a_same_shaped_non_root_file_grounds_nothing(
+        self, tmp_path, carrier
+    ):
+        """OPPOSITE. The root is an EXACT NAME, not a category.
+
+        Identical bytes, four different locations/names. If any of these
+        grounds the module, ``install.sh`` was added as a glob and the
+        entry population has silently widened to "shell files that look
+        like installers".
+        """
+        verdict = self._verdict(tmp_path, carrier, self._ROOT_INSTALLER)
+        assert verdict == "UNKNOWN", (
+            f"{carrier} grounded a module. Only the repository-root "
+            f"install.sh is an entry surface; this is a glob, not an "
+            f"exact root."
+        )
+
+    def test_omitted_route_dropping_the_installer_root_loses_the_module(
+        self, tmp_path
+    ):
+        """OMITTED ROUTE, by removing the ROOT rather than the carrier.
+
+        Same file, same bytes, same invocation — only the entry-root
+        population is narrowed back to what it was before Issue #1757.
+        This is the arm that proves the root entry is load-bearing rather
+        than redundant with some other glob.
+        """
+        narrowed = tuple(
+            glob for glob in LIBRARY_ENTRY_SURFACE_GLOBS if glob != "install.sh"
+        )
+        assert len(narrowed) == len(LIBRARY_ENTRY_SURFACE_GLOBS) - 1, (
+            "PREMISE FAILED: 'install.sh' is not in "
+            "LIBRARY_ENTRY_SURFACE_GLOBS, so this arm removes nothing."
+        )
+        with TestLibraryGuardIsWatchedFiring._without(
+            "LIBRARY_ENTRY_SURFACE_GLOBS", narrowed
+        ):
+            verdict = self._verdict(tmp_path, "install.sh", self._ROOT_INSTALLER)
+        assert verdict == "UNKNOWN", (
+            "the module stayed REACHED with the installer root removed, "
+            "so some OTHER glob is already enrolling install.sh and the "
+            "new entry is redundant — or worse, a repo-root .sh glob "
+            "crept in."
+        )
+
+    # ------------------------------------------------------------------
+    # FAMILY 6 — the same-file computed helper path
+    # ------------------------------------------------------------------
+
+    _HELPER_ASSIGN_LINE = (
+        'helper_path="$project_root/plugins/autonomous-dev/lib/'
+        'synthetic_target.py"'
+    )
+    _HELPER_RUN_LINE = (
+        'out=$(CHECKPOINT_DIR="$CHECKPOINT_DIR" python3 "$helper_path" '
+        '"$batch_id" 2>/dev/null)'
+    )
+    _HOOK = "plugins/autonomous-dev/hooks/synthetic-recovery.sh"
+
+    def test_permit_a_same_file_computed_helper_path(self, tmp_path):
+        """PERMIT. The ``SessionStart-batch-recovery.sh`` shape, exactly.
+
+        Assignment, an existence check, then an invocation that sits
+        INSIDE a command substitution and BEHIND an environment
+        assignment. Neither of those is evaluated; the interpreter token
+        is simply found where it is.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            self._HOOK,
+            "#!/usr/bin/env bash\n"
+            'project_root="$(git rev-parse --show-toplevel)"\n'
+            f"{self._HELPER_ASSIGN_LINE}\n"
+            'if [ ! -f "$helper_path" ]; then\n'
+            "  exit 0\n"
+            "fi\n"
+            f"{self._HELPER_RUN_LINE}\n",
+        )
+        assert verdict == "REACHED", (
+            "a helper assigned to a variable and then run through that "
+            "variable was classified UNKNOWN. That is "
+            "batch_resume_helper.py, the largest pinned entry with a "
+            "fully visible route."
+        )
+
+    def test_permit_the_same_shape_inside_a_markdown_fence(self, tmp_path):
+        """PERMIT. Inside a fence, line-start IS command position again."""
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._fence(
+                f"{self._HELPER_ASSIGN_LINE}\n"
+                f'python3 "$helper_path" --check'
+            ),
+        )
+        assert verdict == "REACHED", (
+            "the assignment-then-invocation shape inside a ```bash fence "
+            "was refused, although a fence is program text."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "body"),
+        [
+            (
+                "assignment-only",
+                '{assign}\necho "configured"\n',
+            ),
+            (
+                "invocation-removed",
+                '{assign}\nif [ ! -f "$helper_path" ]; then exit 0; fi\n',
+            ),
+            (
+                "existence-and-echo-only",
+                '{assign}\n[ -f "$helper_path" ] && echo "$helper_path"\n',
+            ),
+            (
+                "intervening-reassignment",
+                '{assign}\nhelper_path="/tmp/other_tool.py"\n'
+                'python3 "$helper_path" --check\n',
+            ),
+            (
+                "unresolved-reassignment",
+                '{assign}\nhelper_path="$(resolve_helper)"\n'
+                'python3 "$helper_path" --check\n',
+            ),
+            (
+                "commented-out",
+                '# {assign}\n# python3 "$helper_path" --check\n'
+                'echo "nothing runs"\n',
+            ),
+            (
+                "printed-not-run",
+                '{assign}\nprintf \'%s\\n\' "$helper_path"\n',
+            ),
+            # COMMAND POSITION. Each of these puts a real interpreter token
+            # and a real bound variable on one line, and runs nothing.
+            # All were MEASURED REACHED through the full walker under the
+            # rejected cut, which required only that the interpreter appear
+            # SOMEWHERE before the variable.
+            (
+                "echoed-interpreter",
+                '{assign}\necho python3 "$helper_path"\n',
+            ),
+            (
+                "interpreter-as-an-argument",
+                '{assign}\narbitrary --prelude python3 "$helper_path"\n',
+            ),
+            (
+                "interpreter-inside-a-printf",
+                '{assign}\nprintf \'%s %s\\n\' python3 "$helper_path"\n',
+            ),
+            (
+                "interpreter-named-in-an-error-message",
+                '{assign}\n'
+                'command -v python3 || die "need python3 $helper_path"\n',
+            ),
+            (
+                "interpreter-in-a-non-assignment-prelude",
+                '{assign}\nxargs -I{{}} python3 "$helper_path"\n',
+            ),
+            # LIFETIME. The binding does not reach the invocation.
+            (
+                "binding-confined-to-a-function-body",
+                "configure() {{\n  {assign}\n}}\n"
+                'python3 "$helper_path" --check\n',
+            ),
+            (
+                "binding-confined-to-a-multiline-subshell",
+                "(\n  {assign}\n)\n"
+                'python3 "$helper_path" --check\n',
+            ),
+            (
+                "binding-confined-to-an-inline-subshell",
+                '( {assign} )\npython3 "$helper_path" --check\n',
+            ),
+            # OPERAND BOUNDARY. The variable is bound and the interpreter
+            # opens a command, but the SCRIPT OPERAND is not the complete
+            # word ``"$name"``/``"${name}"``/``$name``/``${name}`` — it
+            # names a DIFFERENT file, or is not an expansion at all. Each
+            # was MEASURED REACHED through the full walker before the
+            # operand was bounded, and crediting the original stem masks a
+            # disconnected module as connected.
+            # NOTE: these rows go through ``str.format(assign=...)``, so a
+            # literal brace destined for the shell text is doubled (``{{``/
+            # ``}}``), exactly as the lifetime rows above escape theirs.
+            (
+                "stray-close-brace",
+                '{assign}\npython3 "$helper_path}}"\n',
+            ),
+            (
+                "unclosed-brace",
+                '{assign}\npython3 "${{helper_path"\n',
+            ),
+            (
+                "dynamic-suffix-braced",
+                '{assign}\npython3 "${{helper_path}}.backup"\n',
+            ),
+            (
+                "quoted-close-then-suffix",
+                '{assign}\npython3 "$helper_path".backup\n',
+            ),
+            (
+                "adjacent-string-concatenation",
+                '{assign}\npython3 "$helper_path"".backup"\n',
+            ),
+            (
+                "unquoted-dynamic-suffix",
+                "{assign}\npython3 ${{helper_path}}.backup\n",
+            ),
+            (
+                "single-quoted-is-a-literal",
+                "{assign}\npython3 '$helper_path'\n",
+            ),
+            (
+                "single-quoted-braced-literal",
+                "{assign}\npython3 '${{helper_path}}'\n",
+            ),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_the_helper_recogniser_refuses_unbound_shapes(
+        self, tmp_path, label, body
+    ):
+        """OPPOSITE. Twenty-three ways the binding-plus-invocation fails.
+
+        Every one of these contains the FULL literal path to the module.
+        A recogniser that matched the path text would accept all of them;
+        the ORDERED rule — effective binding, in force, then a later
+        interpreter invocation IN COMMAND POSITION, taking a COMPLETE-WORD
+        operand — refuses each for its own reason.
+
+        Four groups: the first seven test the ordering relation, the next
+        five test that the interpreter OPENS a command rather than merely
+        appearing in one, the next three test that the binding is still in
+        force where the invocation sits, and the last eight test that the
+        script operand is the complete word ``$name``/``${name}`` and names
+        no other file — a stray or missing brace, any concatenated suffix,
+        and a single-quoted (literal, unexpanded) occurrence are all
+        refused, mirroring the ``.fullmatch()`` boundary of the sibling
+        ``_HELPER_PATH_RHS`` on the assignment side.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            self._HOOK,
+            "#!/usr/bin/env bash\n"
+            + body.format(assign=self._HELPER_ASSIGN_LINE),
+        )
+        assert verdict == "UNKNOWN", (
+            f"the '{label}' shape grounded a module. The recogniser is "
+            f"crediting the presence of a path rather than a binding that "
+            f"is actually run."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "invocation"),
+        [
+            ("line-start", 'python3 "$helper_path"'),
+            ("after-a-semicolon", 'cd /tmp; python3 "$helper_path"'),
+            ("after-and-and", 'test -f x && python3 "$helper_path"'),
+            ("after-a-pipe", 'cat x | python3 "$helper_path"'),
+            ("inside-a-command-substitution", 'out=$(python3 "$helper_path")'),
+            (
+                "behind-one-environment-assignment",
+                'CHECKPOINT_DIR="$CHECKPOINT_DIR" python3 "$helper_path"',
+            ),
+            (
+                "behind-two-environment-assignments",
+                'PYTHONPATH=lib TZ=UTC python3 "$helper_path"',
+            ),
+            (
+                "the-live-carrier-shape",
+                'out=$(CHECKPOINT_DIR="$CHECKPOINT_DIR" python3 '
+                '"$helper_path" "$batch_id" 2>/dev/null)',
+            ),
+            # OPERAND BOUNDARY, permitting arm: a complete-word operand
+            # followed by a genuinely separate argument. The boundary rule
+            # refuses concatenated suffixes; it must NOT refuse a real next
+            # argument, which is preceded by whitespace.
+            ("braced-operand-then-a-separate-argument",
+             'python3 "${helper_path}" --check'),
+            ("bare-operand-then-a-separate-argument",
+             'python3 $helper_path --check'),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_permit_the_command_positions_that_really_execute(
+        self, tmp_path, label, invocation
+    ):
+        """PERMIT. The other arm of the command-position rule.
+
+        A rule watched only REFUSING is indistinguishable from one that
+        refuses everything, and the refusing table above is now
+        twenty-three rows deep. These ten are the positions at which an
+        interpreter token really does open a command, including the two the
+        live carrier needs (inside ``$( ... )`` and behind an environment
+        assignment) and the two that prove the operand-boundary rule admits
+        a genuinely SEPARATE following argument. The live-carrier row is
+        ``SessionStart-batch-recovery.sh:172`` verbatim, with only the
+        module name changed — if the assignment prelude were dropped to
+        close the ``echo`` hole, this row goes red and
+        ``batch_resume_helper`` is lost.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            self._HOOK,
+            "#!/usr/bin/env bash\n"
+            f"{self._HELPER_ASSIGN_LINE}\n"
+            f"{invocation}\n",
+        )
+        assert verdict == "REACHED", (
+            f"an interpreter in the '{label}' position was refused. That "
+            f"position really does execute, and refusing it drops a live "
+            f"route rather than a fabricated one."
+        )
+
+    def test_permit_a_binding_that_outlives_an_unrelated_group(self, tmp_path):
+        """PERMIT. The lifetime rule's other arm, one shape from its twin.
+
+        The binding is top-level and so is the invocation; a function is
+        merely DEFINED between them. The refusing twin puts the binding
+        INSIDE that function. Both files contain the same four
+        constructs — the only difference is which side of the brace the
+        assignment sits on — so a rule that refused on the presence of a
+        ``}`` alone cannot satisfy both.
+
+        Scope note, stated rather than discovered: the refusal is keyed on
+        a scope terminator BETWEEN the binding and the invocation, so here
+        the function is defined BEFORE the binding. A helper defined
+        between a live binding and its use is refused, which over-refuses
+        relative to the shell and fails toward UNKNOWN by design.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            self._HOOK,
+            "#!/usr/bin/env bash\n"
+            "configure() {\n"
+            '  export PYTHONPATH="lib"\n'
+            "}\n"
+            "configure\n"
+            f"{self._HELPER_ASSIGN_LINE}\n"
+            'python3 "$helper_path" --check\n',
+        )
+        assert verdict == "REACHED", (
+            "a top-level binding was refused because an unrelated "
+            "function body closed earlier in the file. The lifetime rule "
+            "must look between the binding and the invocation, not "
+            "anywhere in the text."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "rhs"),
+        [
+            ("command-substitution",
+             '"$(pwd)/plugins/autonomous-dev/lib/synthetic_target.py"'),
+            ("backticks-in-the-stem",
+             '"$root/plugins/autonomous-dev/lib/synthetic`x`.py"'),
+            ("arithmetic",
+             '"$((1+1))/plugins/autonomous-dev/lib/synthetic_target.py"'),
+            ("default-expansion",
+             '"${ROOT:-/tmp}/plugins/autonomous-dev/lib/synthetic_target.py"'),
+            ("indirect-expansion",
+             '"${!ROOT}/plugins/autonomous-dev/lib/synthetic_target.py"'),
+            ("two-variables",
+             '"$a/$b/plugins/autonomous-dev/lib/synthetic_target.py"'),
+            ("dynamic-stem",
+             '"$root/plugins/autonomous-dev/lib/${name}_target.py"'),
+            ("trailing-expansion",
+             '"$root/plugins/autonomous-dev/lib/synthetic_target.py$suffix"'),
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    def test_opposite_unsupported_assignment_right_hand_sides(
+        self, tmp_path, label, rhs
+    ):
+        """OPPOSITE. The RHS grammar is one prefix plus a literal tail.
+
+        Each of these needs a shell to know what it addresses. The
+        recogniser refuses the binding outright rather than guessing, so
+        the invocation below it resolves to nothing.
+        """
+        verdict = self._verdict(
+            tmp_path,
+            self._HOOK,
+            "#!/usr/bin/env bash\n"
+            f"helper_path={rhs}\n"
+            'python3 "$helper_path" --check\n',
+        )
+        assert verdict == "UNKNOWN", (
+            f"a {label} right-hand side was resolved to a module stem. "
+            f"The recogniser is evaluating shell, or the literal-tail "
+            f"grammar has widened."
+        )
+
+    def test_a_backtick_prefix_is_credited_by_the_OLDER_arm_not_this_one(
+        self, tmp_path
+    ):
+        """TWO INSTRUMENTS DISAGREE, and the disagreement is the finding.
+
+        ``helper_path="`pwd`/plugins/.../synthetic_target.py"`` is
+        REACHED — and NOT by the recogniser added in #1757, which refuses
+        the right-hand side like every other substitution above. It is
+        credited by the PRE-EXISTING bare-path arm, because
+        ``_COMMAND_POSITION`` lists the backtick as a command position and
+        therefore reads ``` `pwd`/plugins/... ``` as a path being run.
+
+        MEASURED against the pre-#1757 module, not inferred: loading the
+        committed parent revision and calling ``_shell_invoked_stems`` on
+        this exact line already returns ``{'synthetic_target'}``, while
+        the ``$(pwd)`` and ``$root`` forms return nothing.
+
+        This is recorded rather than silently fixed. Narrowing
+        ``_COMMAND_POSITION`` is a change to #1612's grammar with its own
+        blast radius, it is outside the bounded source-connectivity
+        correction, and quietly "resolving" it in the direction that
+        makes a new test green is exactly how a real finding disappears.
+        The arm therefore asserts WHICH recogniser credits it, so that
+        fixing the older one later fails here and is noticed.
+        """
+        rhs = '"`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"'
+        carrier = (
+            "#!/usr/bin/env bash\n"
+            f"helper_path={rhs}\n"
+            'python3 "$helper_path" --check\n'
+        )
+        assert self._verdict(tmp_path, self._HOOK, carrier) == "REACHED", (
+            "the backtick shape is no longer credited at all. If "
+            "_COMMAND_POSITION was narrowed, that is an IMPROVEMENT — "
+            "delete this arm and say so; do not leave it asserting a "
+            "behaviour the instrument no longer has."
+        )
+        assert _same_file_helper_stems(carrier) == set(), (
+            "the #1757 same-file recogniser resolved a backtick "
+            "right-hand side. It must refuse every substitution form; "
+            "the credit above is supposed to come from the older "
+            "bare-path arm alone."
+        )
+        assert "synthetic_target" in _shell_invoked_stems(
+            carrier, _SHELL_INVOCATION_ANY
+        ), (
+            "the older bare-path arm no longer credits the backtick "
+            "line, so the attribution in this docstring is stale."
+        )
+
+    def test_omitted_route_the_hook_is_not_an_entry_surface(self, tmp_path):
+        """OMITTED ROUTE. Same carrier bytes, outside every entry root."""
+        verdict = self._verdict(
+            tmp_path,
+            "tools/synthetic-recovery.sh",
+            "#!/usr/bin/env bash\n"
+            f"{self._HELPER_ASSIGN_LINE}\n"
+            f"{self._HELPER_RUN_LINE}\n",
+        )
+        assert verdict == "UNKNOWN", (
+            "a shell file under tools/ grounded a module. Only the "
+            "declared entry roots run on their own authority."
+        )
+
+    # ------------------------------------------------------------------
+    # The controls, controlled
+    # ------------------------------------------------------------------
+
+    #: THE SHARED REFUSING FIXTURES, and the ONE place their carrier is
+    #: named. Each text CONTAINS the target's name, so a recogniser that
+    #: credited names on sight would flip every one to REACHED — which is
+    #: what makes them usable both as ordinary negatives and as the
+    #: mutant's reach. Two consumers, one definition: the parametrized
+    #: refusal arm below, and the blind-parser positive control after it.
+    #: A third field recording an expectation was deleted rather than left
+    #: unread — every row here expects UNKNOWN, and a field nothing
+    #: consults is a claim nothing checks.
+    _SHARED_REFUSALS = (
+        ("echoed-import-in-a-workflow", ".github/workflows/synthetic.yml"),
+        (
+            "single-quoted-escaped-payload",
+            "plugins/autonomous-dev/commands/synthetic.md",
+        ),
+        (
+            "prose-assignment-and-invocation",
+            "plugins/autonomous-dev/commands/synthetic.md",
+        ),
+        (
+            "invocation-before-assignment",
+            "plugins/autonomous-dev/hooks/synthetic-recovery.sh",
+        ),
+    )
+
+    @classmethod
+    def _shared_refusal_text(cls, label: str) -> str:
+        """THE ONE OWNER of these four carrier bodies.
+
+        Both consumers read the text from here, so a fixture cannot be
+        edited for the ordinary arm and left stale for the mutant arm —
+        the failure mode where a control and the thing it controls stop
+        describing the same input.
+
+        There is NO DEFAULT BRANCH. An unknown label raises instead of
+        silently returning the last body: a dispatch whose fallthrough
+        answers for anything would have made a typo'd label test the
+        wrong fixture and still pass.
+
+        Args:
+            label: A label from :data:`_SHARED_REFUSALS`.
+
+        Returns:
+            The carrier text for that row.
+
+        Raises:
+            AssertionError: If ``label`` owns no body here.
+        """
+        if label == "echoed-import-in-a-workflow":
+            return cls._workflow(
+                "# python3 -c would run the line below\n"
+                "echo 'from synthetic_target import run'"
+            )
+        if label == "single-quoted-escaped-payload":
+            return cls._fence(f"python3 -c '{cls._ESCAPED_BODY}'")
+        if label == "prose-assignment-and-invocation":
+            return (
+                "# Synthetic\n\nFirst set the path. "
+                f"{cls._HELPER_ASSIGN_LINE}\n\n"
+                'Then run it with `python3 "$helper_path" --check`.\n'
+            )
+        if label == "invocation-before-assignment":
+            return (
+                "#!/usr/bin/env bash\n"
+                'python3 "$helper_path" --check\n'
+                f"{cls._HELPER_ASSIGN_LINE}\n"
+            )
+        raise AssertionError(
+            f"no carrier body is owned for {label!r}. Add it here — this "
+            f"is the only place these fixtures are written."
+        )
+
+    @pytest.mark.parametrize(
+        ("label", "carrier"),
+        _SHARED_REFUSALS,
+        ids=[row[0] for row in _SHARED_REFUSALS],
+    )
+    def test_opposite_the_shared_refusing_fixtures_stay_unknown(
+        self, tmp_path, label, carrier
+    ):
+        """OPPOSITE, for each shared fixture, through the full walker.
+
+        One arm per defect family, and each carries the target's NAME in
+        its text while giving it no route:
+
+        * an import statement ECHOED rather than interpreted, inside a
+          workflow step indented exactly like a real payload;
+        * the escaped-quote payload in a SINGLE-quoted word, which the
+          shell does not dequote;
+        * an assignment and an invocation written in markdown PROSE, where
+          a sentence start is not a command position;
+        * an invocation written BEFORE the assignment that binds it.
+
+        The positive control below then shows all four are within reach of
+        a parser that credits text on sight, so none of these UNKNOWNs is
+        vacuous.
+        """
+        verdict = self._verdict(
+            tmp_path, carrier, self._shared_refusal_text(label)
+        )
+        assert verdict == "UNKNOWN", (
+            f"the '{label}' fixture grounded a module. Its text names the "
+            f"module and gives it no route; crediting it is presence-as-"
+            f"proof, which is the shape every family here was corrected "
+            f"WITHOUT becoming."
+        )
+
+    def test_positive_control_a_blindly_textual_parser_fails_every_refusal(
+        self, tmp_path
+    ):
+        """A PROBE THAT RETURNS ZERO IS NOT EVIDENCE OF ZERO.
+
+        Four arms above report UNKNOWN. That is only meaningful if an
+        over-crediting recogniser would have reported REACHED for them —
+        otherwise the fixtures might simply not mention the module and
+        every refusal would be vacuous.
+
+        So: install a MUTANT on the live call path that is
+        PRESENCE-AS-PROOF — it credits any ``import X``/``from X`` text
+        and any ``X.py`` token it finds, with no AST, no quoting rule, no
+        carrier discrimination and no ordering rule. That is the shape
+        every family here was corrected WITHOUT becoming, and all four
+        refusals must be within its reach. Each fixture is walked under
+        the mutant AND under the real rule in the same test, so the two
+        answers are compared rather than one being assumed.
+
+        The mutant needs BOTH halves: two of the four fixtures carry a
+        PATH and no import statement at all, so an import-only mutant
+        flips one of the four and would have reported the other three as
+        "proven refusals" on no evidence. That was measured on the first
+        run of this arm.
+        """
+        blind = re.compile(
+            r"(?:from|import)\s+([A-Za-z_]\w*)|([A-Za-z_]\w*)\.py\b"
+        )
+
+        def _credit_any_text(path: Path) -> "set[str]":
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return set()
+            return {
+                name
+                for match in blind.finditer(text)
+                for name in match.groups()
+                if name
+            }
+
+        flipped: "list[str]" = []
+        for label, carrier in self._SHARED_REFUSALS:
+            text = self._shared_refusal_text(label)
+            assert self.STEM in text, (
+                f"PREMISE FAILED: the '{label}' fixture does not mention "
+                f"{self.STEM}, so its UNKNOWN verdict is vacuous rather "
+                f"than a refusal."
+            )
+            honest = self._verdict(tmp_path / f"honest-{label}", carrier, text)
+            assert honest == "UNKNOWN", (
+                f"PREMISE FAILED: the real rule already credits the "
+                f"'{label}' fixture, so it is not a refusing control."
+            )
+            with TestLibraryGuardIsWatchedFiring._without(
+                "_references_in", _credit_any_text
+            ):
+                mutant = self._verdict(
+                    tmp_path / f"mutant-{label}", carrier, text
+                )
+            if mutant == "REACHED":
+                flipped.append(label)
+
+        assert sorted(flipped) == sorted(
+            label for label, _ in self._SHARED_REFUSALS
+        ), (
+            f"only {sorted(flipped)} flipped to REACHED under a parser "
+            f"that credits textual imports blindly. Every refusing "
+            f"control above must be within reach of that mutant, or it is "
+            f"passing because the fixture is inert rather than because "
+            f"the recogniser refuses."
+        )
+
+    def test_the_walker_never_executes_a_recovered_payload(self, tmp_path):
+        """THE CORE SAFETY PROPERTY, guarded directly for the first time.
+
+        Every recogniser in this file recovers source and hands it to
+        ``ast.parse`` — it must NEVER run it. That property was previously
+        only evidenced INDIRECTLY (an earlier handoff mentioned a transient
+        one-off `$(touch)` probe that was never committed); this is the
+        MAINTAINED regression test, driven through the same full-walker
+        fixture (:meth:`_verdict`) every other arm in this class uses.
+
+        The payload both IMPORTS the module — so it is genuinely recovered
+        and credited, REACHED, proving the walker DID process these bytes —
+        and carries a ``$(touch <unique>)`` command substitution inside a
+        Python string literal. Recovery hands those bytes to ``ast``; a
+        shell would run the ``touch``. The sentinel must not exist
+        afterwards. Both halves matter: REACHED alone could be reached by
+        another route, and an absent sentinel alone could mean the payload
+        was never looked at.
+        """
+        sentinel = tmp_path / "sentinel_never_created.marker"
+        assert not sentinel.exists(), "PREMISE: sentinel must start absent."
+        # ``$(touch ...)`` sits inside a Python string, so the recovered
+        # bytes PARSE and the import is credited. The dollar is not the
+        # decimal-default form, so the normaliser leaves it untouched.
+        payload = (
+            'python3 -c "\n'
+            "import sys\n"
+            "from synthetic_target import run\n"
+            f"marker = '$(touch {sentinel})'\n"
+            "print(run())\n"
+            '"'
+        )
+        verdict = self._verdict(
+            tmp_path,
+            "plugins/autonomous-dev/commands/synthetic.md",
+            self._fence(payload),
+        )
+        assert verdict == "REACHED", (
+            "the payload carrying the sentinel command substitution was "
+            "not credited, so this arm did not actually exercise the "
+            "recovery path and proves nothing about execution."
+        )
+        assert not sentinel.exists(), (
+            f"the sentinel {sentinel} was created: the walker EXECUTED a "
+            f"recovered payload instead of parsing it. That is the one "
+            f"thing this instrument must never do."
+        )
+
+    def test_the_synthetic_tree_is_not_vacuous(self, tmp_path):
+        """PREMISE for every arm in this class.
+
+        One module, no carrier: UNKNOWN. If the bare tree already reads
+        REACHED, every permit arm above passes for free.
+        """
+        root = self._repo(tmp_path)
+        _clear_library_reachability_cache()
+        result = library_reachability(root, use_cache=False)
+        _clear_library_reachability_cache()
+        assert result.unknown == [self.TARGET], (
+            f"the synthetic tree with NO carrier reports "
+            f"{result.unknown!r} unknown and {result.reached!r} reached. "
+            f"Expected exactly one unknown module and nothing reached."
+        )
+
+
+class TestSourceConnectivityCorrectionIsWatchedFiringLive:
+    """Each corrected recogniser, removed from the LIVE instrument.
+
+    ``TestSourceConnectivityCorrection`` proves each family on synthetic
+    trees. These arms prove the SAME families are what carry the REAL
+    routes: disable one capability on the live call path and the live
+    modules named in ``LIVE_SOURCE_ROUTES`` fall back to UNKNOWN. Without
+    them a family could be correct in a fixture and redundant in the tree.
+
+    Every arm restores through ``TestLibraryGuardIsWatchedFiring._without``
+    — the existing harness, reused rather than duplicated — so a failure
+    mid-arm cannot leave a stub installed.
+    """
+
+    @staticmethod
+    def _baseline_unknown() -> "set[str]":
+        """The UNMUTATED live UNKNOWN set, from the once-per-session graph.
+
+        Every arm below needs this same set as its premise. The tree has
+        not changed between them, so it is walked once.
+        """
+        return set(_unmutated_live_reachability().unknown)
+
+    @staticmethod
+    def _live_unknown() -> "set[str]":
+        """A FRESH walk, for use INSIDE a ``_without`` block.
+
+        Deliberately not memoised: the tree the walker sees here is the
+        mutated one, and caching that is how an ablation harness starts
+        reporting the answer it had before the ablation.
+        """
+        _clear_library_reachability_cache()
+        result = library_reachability(PROJECT_ROOT, use_cache=False)
+        _clear_library_reachability_cache()
+        return set(result.unknown)
+
+    def test_the_memoised_live_graph_is_not_served_across_a_mutation(self):
+        """POSITIVE CONTROL for the memo — the instrument's own instrument.
+
+        Every arm in this class compares a memoised baseline against a
+        fresh walk under mutation. If the memo answered inside a
+        ``_without`` block it would return the pre-mutation graph, the
+        comparison would be baseline-against-baseline, and all three
+        ablations would pass while proving nothing.
+
+        Both directions are checked, because only one of them can fail
+        silently: the memo REPEATS outside a mutation (otherwise it is not
+        a memo and the consolidation bought nothing), and it DIFFERS
+        inside one (otherwise it is stale).
+        """
+        first = _unmutated_live_reachability()
+        assert _unmutated_live_reachability() is first, (
+            "the live graph was recomputed on a second call, so it is not "
+            "memoised and the seven-row table is still walking the tree "
+            "seven times."
+        )
+
+        with TestLibraryGuardIsWatchedFiring._without(
+            "_same_file_helper_stems", lambda text: set()
+        ):
+            during = _unmutated_live_reachability()
+            assert during is not first, (
+                "the memo served its PRE-MUTATION result inside a "
+                "_without block. Every ablation arm in this class is then "
+                "comparing a baseline with itself."
+            )
+            assert "batch_resume_helper.py" in set(during.unknown), (
+                "the graph computed inside the mutation does not reflect "
+                "it, so the memo is being refreshed from somewhere that "
+                "bypasses the patched global."
+            )
+
+        after = _unmutated_live_reachability()
+        assert after is not during, (
+            "the mutated graph survived the _without block and is now the "
+            "memo every later arm will read."
+        )
+        assert set(after.unknown) == set(first.unknown), (
+            "the live UNKNOWN set differs before and after a restored "
+            "mutation, so _without did not restore what it patched."
+        )
+
+    #: ONE row per corrected capability: the module global to remove, the
+    #: replacement to install, and the live modules that must fall back to
+    #: UNKNOWN when it is gone. Attribution stays PER CARRIER — each row
+    #: names its OWN targets and is asserted as a SET, so a row cannot pass
+    #: because some other row's module moved.
+    _ABLATIONS = (
+        (
+            "payload-boundary-normaliser",
+            "_normalized_embedded_python",
+            # The pre-#1757 boundary: hand ``ast`` the bytes ON DISK.
+            lambda raw, *, dequote: raw,
+            frozenset(
+                {
+                    "test_routing.py",
+                    "daily_aggregate_manager.py",
+                    "selector_stall_detector.py",
+                    "flaky_tests.py",
+                    "retrospective_analyzer.py",
+                }
+            ),
+        ),
+        (
+            "same-file-helper-recogniser",
+            "_same_file_helper_stems",
+            lambda text: set(),
+            frozenset({"batch_resume_helper.py"}),
+        ),
+        (
+            "exact-installer-entry-root",
+            "LIBRARY_ENTRY_SURFACE_GLOBS",
+            tuple(
+                glob
+                for glob in LIBRARY_ENTRY_SURFACE_GLOBS
+                if glob != "install.sh"
+            ),
+            frozenset({"claude_md_updater.py"}),
+        ),
+    )
+
+    @pytest.mark.parametrize(
+        ("label", "attribute", "replacement", "carried"),
+        _ABLATIONS,
+        ids=[row[0] for row in _ABLATIONS],
+    )
+    def test_removing_one_corrected_capability_loses_exactly_its_modules(
+        self, label, attribute, replacement, carried
+    ):
+        """Each corrected capability, watched FIRING on the REAL tree.
+
+        Three assertions per row, and the middle one is the reason this is
+        a set rather than a count:
+
+        1. PREMISE — the row's modules are REACHED before the ablation, or
+           its UNKNOWN afterwards proves nothing.
+        2. EXACTLY this row's modules fall back. Fewer means something ELSE
+           already grounds them and this capability is decorative; the
+           attribution recorded against the ceiling would then be wrong.
+        3. Nothing outside the row moves, so the capability is not quietly
+           carrying routes credited to a different correction.
+        """
+        before = self._baseline_unknown()
+        assert not (carried & before), (
+            f"PREMISE FAILED: {sorted(carried & before)} are already "
+            f"UNKNOWN, so removing the {label} proves nothing about them."
+        )
+
+        with TestLibraryGuardIsWatchedFiring._without(attribute, replacement):
+            after = self._live_unknown()
+
+        lost = carried & after
+        assert lost == set(carried), (
+            f"with the {label} disabled, only {sorted(lost)} fell back to "
+            f"UNKNOWN. The others are reached by some OTHER route, so this "
+            f"capability is not what carries them and the attribution "
+            f"recorded against the ceiling is wrong."
+        )
+        collateral = sorted((after - before) - carried)
+        assert not collateral, (
+            f"removing the {label} also lost {collateral}, which this row "
+            f"does not claim. Either the row under-states what the "
+            f"capability carries, or the ablation is removing more than "
+            f"the capability."
         )
 
 
