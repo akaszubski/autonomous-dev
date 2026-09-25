@@ -6,8 +6,8 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current live pointer — 2026-09-25
 
-Canonical branch `fix/1779-pipeline-evidence-integrity` was last checked at
-`35e4971f` before this checkpoint update; verify its new HEAD with
+Canonical branch `fix/1779-pipeline-evidence-integrity` was last pushed at
+`6937d432` before this checkpoint update; verify its new HEAD with
 `git rev-parse HEAD` on resume. The only pre-existing local changes remain the user-modified
 `plugins/autonomous-dev/.claude-plugin/plugin.json` and untracked `.Codex/`.
 The census now distinguishes its immutable 97-UNKNOWN baseline from the
@@ -20,14 +20,20 @@ No release denominator, F0, installed POPULATED-3 or D0 proof is accepted.
 
 The detached source `census` Claude session (tmux socket `adev-assurance`,
 pane PID 39011 when last observed) finished a no-change audit of the bounded
-source-connectivity contract and is idle. Source and canonical ratchet owner
+source-connectivity contract. Source and canonical ratchet owner
 SHA-256 matched; an independent canonical run passed 283 tests with raw exit 0
 in 80.44 seconds. The source audit mapped the seven live routes and named
 negative classes to existing test lines and concluded that reimplementation
 would duplicate shipped work. No source edit, cherry-pick, new specialist
 review or `/improve` was warranted for the no-change audit. Native activation
-and the known backtick over-credit remain separate open evidence. Recheck source
-HEAD/status and pane before any new dispatch. The separate `f0`
+and the known backtick over-credit remain separate open evidence. The latter is
+now bounded in [#1801](https://github.com/akaszubski/autonomous-dev/issues/1801)
+and the release census: the focused historical test still demonstrates its false
+`REACHED`, while the corrected acceptance requires `UNKNOWN` plus positive and
+omitted-route controls. A new `/implement --fix #1801` prompt was dispatched to
+the clean separate source `census` session; it was thinking when last observed,
+not completed or reviewed. Recheck source HEAD/status and pane before any claim.
+The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
 of this source run. Next independent Stage 1 proof is the isolated populated
