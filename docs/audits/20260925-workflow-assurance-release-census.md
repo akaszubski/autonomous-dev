@@ -792,7 +792,21 @@ release. The user-modified native manifest remains untouched here.
 
 ## Reconciliation and omitted-route controls before freeze
 
-### Bounded source-connectivity correction contract (proposed)
+### Bounded source-connectivity correction contract (source implementation verified)
+
+Current disposition: source commits `d6e76665`, `261fbd43` and `e615974f`
+are already integrated in this checkout. The active ratchet owner has SHA-256
+`d3bd3225d277da1a398b4e2385c22cea9bcc5b9b61bb1b009a8c168a0e55e89f`
+and independently ran 283 tests with raw exit 0 on 2026-09-25. A line-level
+readback found the seven live-route table, command-position/ordering,
+escaped-dollar, invalid-default, arbitrary-prelude and omitted-carrier
+negatives in that owner; the source Claude `/implement --fix` audit found no
+new code delta and did not repeat already-shipped implementation. The
+future-tense contract below is retained as the historical acceptance design,
+not an unimplemented request. This establishes source connectivity only:
+REACHED does not mean installed, fired or consumer-correct. The separately
+recorded backtick over-credit remains a known source-instrument limit, and
+native/installed denominator and F0 acceptance remain open.
 
 WHY/SCOPE: seven inspected executable source routes are missed by the existing
 ratchet. Correct that instrument before treating its output as the release

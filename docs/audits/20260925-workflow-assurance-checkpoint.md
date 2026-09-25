@@ -6,8 +6,9 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current live pointer — 2026-09-25
 
-Canonical branch `fix/1779-pipeline-evidence-integrity` is pushed at
-`c764c8cb`; the only pre-existing local changes remain the user-modified
+Canonical branch `fix/1779-pipeline-evidence-integrity` was last checked at
+`35e4971f` before this checkpoint update; verify its new HEAD with
+`git rev-parse HEAD` on resume. The only pre-existing local changes remain the user-modified
 `plugins/autonomous-dev/.claude-plugin/plugin.json` and untracked `.Codex/`.
 The census now distinguishes its immutable 97-UNKNOWN baseline from the
 corrected 90-UNKNOWN walk (later source integrations not rerun), selects
@@ -18,16 +19,24 @@ The private FR1 evidence hash and its remaining limits are recorded below.
 No release denominator, F0, installed POPULATED-3 or D0 proof is accepted.
 
 The detached source `census` Claude session (tmux socket `adev-assurance`,
-pane PID 39011 when last observed) is running `/implement --fix #1757`
-against the bounded source-connectivity contract. Its first readback found
-the owner suite at 283 passed, raw exit 0, but it was still verifying whether
-all required negative classes and source routes—not just a green count—were
-actually covered. Recheck its pane and source HEAD/status before integration;
-do not restart merely because a polling interval expires. The separate `f0`
+pane PID 39011 when last observed) finished a no-change audit of the bounded
+source-connectivity contract and is idle. Source and canonical ratchet owner
+SHA-256 matched; an independent canonical run passed 283 tests with raw exit 0
+in 80.44 seconds. The source audit mapped the seven live routes and named
+negative classes to existing test lines and concluded that reimplementation
+would duplicate shipped work. No source edit, cherry-pick, new specialist
+review or `/improve` was warranted for the no-change audit. Native activation
+and the known backtick over-credit remain separate open evidence. Recheck source
+HEAD/status and pane before any new dispatch. The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
 of this source run. Next independent Stage 1 proof is the isolated populated
 consumer extension omission arm with a frozen effective four-layer profile.
+Official Anthropic authentication documentation says a fresh
+`CLAUDE_CONFIG_DIR` reads a different Keychain entry on macOS; credential-free
+startup may proceed, but the later real isolated inference arm requires its own
+private login, never a copied host token. This has not been empirically
+qualified on the pinned CLI and does not authorize starting another OAuth flow.
 
 ## Prior verified handoff — 2026-09-25
 
