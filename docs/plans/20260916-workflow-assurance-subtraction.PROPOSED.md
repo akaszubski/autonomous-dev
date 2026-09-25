@@ -1360,10 +1360,10 @@ the native transcript, so role-byte injection remains a provenance gap rather th
 a proved join.
 
 The captured child explicitly rejected both appended EX blocks as conflicting with
-its canonical role. The concrete conflict is the test-only closed semantic protocol:
-it requires exactly four lines, while the canonical role requires a substantive
-100-word body and declares its verdict contract canonical. Stronger prompt wording
-would repeat the split-authority defect.
+its canonical role. The concrete split-authority defect is the test-only body schema
+and exact four-line envelope alongside the role-defined substantive body, itemised
+incomplete-examination reporting and canonical verdict contract. Stronger prompt
+wording would repeat the same defect.
 
 The smallest next candidate removes only the competing closed semantic-output
 overlay. It retains covers-first and every required public/fixture read, but expresses
