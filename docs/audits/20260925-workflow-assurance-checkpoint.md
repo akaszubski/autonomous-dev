@@ -18,6 +18,18 @@ base `01a13368`, under a real `.codex` ancestor with ordinary guards intact:
 The source-session 281 passing tests with exit 1 remain distinct evidence;
 remaining specialist acceptance and whole-census reconciliation are not implied.
 
+Latest source delivery: checkout-location correction committed and pushed as
+`21090df0` on `fix/1757-census-carriers`; normal commit checks passed (14 documentation
+tests passed, 1 skipped), and supervisor verified reviewed hashes unchanged.
+Security PASS and CIA report are complete. Native Edit
+`toolu_01YHG8SzYV6FDEL6Q3EeR7cK` was approved with option 1 under standing local-report
+authority after checking it preserves the prior text; the approved append was
+verified saved (25,051 bytes). Security's tail-derived exit codes remain excluded;
+its Git-blob/SHA-256 confusion and temporary scratch writes are explicitly corrected.
+Coordinator cleanup ran, but its attempted substitution of CIA deduplication for
+`/improve` was rejected; actual report-only `/improve` is now running before the
+next refusal-inventory correction. No F0 reset authority is implied.
+
 Subsequent location-review evidence: doc-master corrected only the CHANGELOG's
 function count and obsolete fallback description; its new hash is
 `474beb248992827657b3ec7ba1337c45fef2ad2ae34133739e8ad08e54aa60c4`.
