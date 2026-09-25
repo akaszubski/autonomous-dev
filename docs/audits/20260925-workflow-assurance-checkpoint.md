@@ -6,6 +6,392 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current delivery status
 
+Observed after the detached-session recovery; recheck liveness before use.
+
+| Workstream | Current transport | Verified execution / acceptance |
+|---|---|---|
+| F0 correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Offline review disposition complete, including the validator's disclosed context impurity and separate structural evidence. Native Edit `toolu_01UXTxiS93QF3ez9GdDLUpF5` is awaiting one-time permission to append the CIA report; do not use an alternate writer or select session-settings permission. F6.5 and native F0 qualification remain incomplete. |
+| Source correction `8bf6bb224a9fe6ca` | Same server, session `census`, coordinator `39011` | Remediated subject independently passed 261 tests with exit 0 (exact hashes below). Fresh post-remediation spec-validator is running; subsequent required reviews remain. Earlier false REACHED and integrity failures are preserved, and checkout-location/refusal-inventory gaps remain open. |
+
+Next: complete the exact native report edit only through its normal one-time
+permission flow, then cleanup; meanwhile audit fresh source specialist evidence.
+The separate checkout-location defect
+remains open for its own aligned correction after this handoff; it was not folded
+into the candidate under review. Both coordinator processes were re-observed live
+with their tmux panes (dead=0); do not restart them.
+No release/promotion or whole-plan completion is implied.
+
+Source operand-remediation handoff: scanner SHA-256
+`b08913620aa824101744c2123111fdc90b65b6c29c6c5c55ffd8675a98ae1a8a`, CHANGELOG
+`874f996ec7fb0757d78c1be805faf86030de2f37eac227c533d686756bf7086e`.
+Supervisor matched both files into a new isolated verification checkout at
+`/private/tmp/adev-source-remediation.piXC9W/repo`, base `2ae033b8`, and started
+the unpiped 261-case suite with ordinary guards intact (tool session `47716`).
+That isolated run completed: **261 passed in 85.00s, tool exit code 0**.
+The worker separately reported 261 passed in 81.19s with explicit exit 0; its
+earlier exit-1 integrity-guard result remains preserved. Fresh native reviews and
+the separate checkout-location correction remain outstanding; this is not whole-
+census acceptance or proof of a complete release denominator.
+
+F0 validator returned an amended mixed behavioral PASS, explicitly not a fully
+context-pure certificate because its reader-docstring inspection included body
+lines 1245–1264. Deferred structural and baseline claims must map to actual existing
+reviewer/security evidence before offline correction closure; this is not native
+acceptance. Supervisor rechecked frozen parent/owner and corrected loader/successor
+hashes unchanged from their recorded subjects. GitHub checkpoint:
+https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5828730629
+
+CIA evidence caution: its hook-suite command piped pytest to `tail -35` without
+explicit pytest exit capture. Its reported 18 failures establish non-pass, not a
+successful suite; the claimed four beyond-baseline regressions require a
+comparable baseline before candidate attribution. Supervisor sent this correction
+to the live F0 coordinator, requesting preservation rather than a redundant broad
+rerun solely to recover exit status. This hook-suite result is distinct from the
+candidate's preserved seven-failure affected-proof result described below.
+
+Latest dispatch inspection: fresh source validator tool
+`toolu_01X43v4cjKfWibpZ8aKB2gMz` receives the governing contract, callable interface,
+changed paths and PROJECT scope, without prior outcomes or a ready-made repro.
+This establishes corrected dispatch inputs, not a passing validation result.
+Subsequent actual-tool audit invalidated the new run's spec-blind status too:
+`toolu_01CnvFPdibdTmwP5pXEQ3ivu` and `toolu_01WXUqGVqAg72bCmHqiaqH5Z`
+read parser implementation bodies; `toolu_01Xv9dMjjo2UzSiJhABFJG5p` wrote
+`scratchpad/chk_real.py`. The spec-validator role forbids both internal inspection
+and persisted scratch scripts. The coordinator's permission to construct temp
+files conflicted with that role. Supervisor notified the live coordinator to stop
+those prohibited actions, preserve useful results as supporting evidence only,
+and correct the dispatch boundary before any further validation attempt. A clean
+initial prompt alone is not evidence of a context-pure examination.
+The coordinator subsequently acknowledged both violations and its conflicting
+temp-file instruction, queued a stop message to the validator, and specified a
+corrected public-signature/existing-test/run-only procedure. No replacement was
+launched at that observation; the validator was still live with the message queued.
+GitHub progress: https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5828303705
+The stopped validator has since returned without an authoritative verdict. The
+next dispatch `toolu_01FeeWrzBzaJyNwqW5myrxNs` prohibited internal reads and script
+writes, but incorrectly advised treating integrity refusals as environmental and
+trying subsets; it also labelled condensed ACs verbatim. Supervisor immediately
+requested correction in the active run: preserve every nonzero/refused result,
+never use a subset to evade it, supply the original contract without review
+history, and inspect actual actions before accepting any verdict. The coordinator
+acknowledged; acceptance remains outstanding. No candidate restart or waiver was
+authorized by this correction.
+Status-capture correction within the same validator is now observed: tool
+`toolu_01QZeyq6Meapqt5o5EfZ1TVq` explicitly invoked Bash with pipefail and returned
+the pytest component's status: 107 passed, 141 deselected, 8.85s, `REAL_EXIT=0`.
+It used the existing no-cache/`--no-cov` bounded behavioral profile, not a coverage
+qualification. Earlier piped commands remain insufficient exit evidence, including
+`toolu_01Nx6jrCvjdin3J7SWt1GV1c` (65 passed, but `EXIT=` blank). Preserve both;
+the corrected focused result is not the whole verdict or whole-census acceptance.
+The corrected validator subsequently returned PASS. Supervisor inspected its
+tool-call list: public function signatures/docstrings and existing test bodies
+were inspected, with no parser implementation-body reads or authored scratch
+scripts observed. Earlier ambiguous piped runs remain separate from the explicit
+exit-0 result. The coordinator is performing its required audit before advancing.
+F0 remediation also returned; frozen parent and baseline owner hashes still match.
+Supervisor found the after-summary metadata citing 3.67s while its referenced raw
+file ends in 4.02s (both seven failed/180 passed), and notified the coordinator to
+bind one actual run's raw bytes, exit and exact summary rather than mix records.
+That correction is now directly observed: implementer tool
+`toolu_0132QLfc7PdAX3SMgzQpYqLE` captured pytest status immediately into `rc`,
+printed `captured_exit=1`, and passed that value to the one-time regeneration
+helper. The raw file SHA is
+`df500c411a92f4d566c695c7d228592b8ef260f689b828bacf23408def70bf9b`;
+supervisor recomputation matches the bound JSON and manifest entry. The bound tail
+matches the raw file: seven failed, 180 passed in 4.38s. This preserves the failed
+suite status; it proves the reported run linkage, not a green suite or native F0.
+Remaining metadata and candidate reviews are still outstanding.
+Source doc-master returned PASS after correcting the changelog's stale test counts.
+Supervisor word-diff against the isolated handoff confirms only `34` → `36` and
+`67 parameterised` → `141 → 248 collected`; scanner SHA remains `407ffe3832...`.
+The current changelog SHA is
+`7bfe51856e9d20bd4fc48787e54c969dffca7c04ab273579f9278535a74bbe4e`.
+The earlier `6de87c6f...` hash remains historical, not the final reviewed document.
+No scanner rerun is required solely for this documentation correction; remaining
+reviews must bind the current files and preserve earlier evidence separately.
+Source reviewer returned APPROVE with an invocation-brace warning. Supervisor
+then reproduced it through the existing full-walker fixture on exact scanner
+SHA `407ffe3832...`: `install.sh` assigns the synthetic helper, then invokes
+`python3` with each quoted operand. `$helper_path` correctly returned REACHED;
+`$helper_path}`, `${helper_path` and `${helper_path}.backup` also returned REACHED.
+The suffix case is valid shell selecting a different file, not merely malformed
+text. This is a false-connectivity result, so the reviewer warning cannot close
+acceptance. The coordinator was notified to preserve the candidate and route a
+narrow paired-variable/whole-operand correction through the original implementer,
+reusing the existing case table and preserving valid command/argument cases.
+No new parser owner, evaluator, runner or whole-plan restart is authorized.
+The source security audit independently returned FAIL for this defect. Additional
+supervisor full-walker probes on the same frozen candidate returned false REACHED
+for `"$helper_path".backup`, `"$helper_path"".backup"`, unquoted
+`${helper_path}.backup`, and the single-quoted literal `'$helper_path'`;
+the valid `"${helper_path}" --check` control remained REACHED. These were sent
+before correction so paired braces, quoting and complete shell-word boundaries
+can be handled in one pass, using distinct rows in the existing fixture table.
+The original implementer is now live on that consolidated remediation; no changed
+candidate is accepted yet. The no-source-execution witness, if retained, must reuse
+the same full-walker fixture rather than add another runner.
+F0 re-review returned APPROVE and security re-audit PASS. Doc-master's new PASS
+was explicitly limited to in-repo docs and did not certify its prior four private
+artifact findings. Supervisor independently read the full README/OFFLINE-RESULT,
+manifest metadata and dependency closure: all 13 manifest file digests and all 15
+active/retained closure digests plus physical line counts match current bytes;
+53 top-level test functions match the result. README names the generator retired
+and its only provenance-generation command is labelled one-time authoring.
+The result still declares NONQUALIFYING and native/semantic/reduction gaps.
+Together with the reviewer's actual semantic inspection, this addresses the
+specific artifact-consistency findings, not native F0 acceptance. The doc-master
+scope discrepancy remains required CIA input; its PASS is not relabelled broader.
+F0 remediation combines removal of the maintained diff interpreter with correction
+of stale README/manifest/dependency-closure/offline-result evidence. A one-time
+diff-application record must not become another maintained replay engine; renewed
+review must verify that distinction and preserve the existing fault detectors.
+
+Subsequent observation: source tool `toolu_01HFEeyZ7xL153QYaypm1Ktn`
+reported 249 passing assertions in 78.43 seconds, but its piped command printed
+`EXIT=` with no value (`PIPESTATUS[0]` was not established in the executing shell).
+This is not a verified successful pytest exit and does not supersede the earlier
+failed command. Supervisor requested explicit-shell reliable status capture with
+unchanged guards and stable subject digests. Source writer attribution also remains
+unproven: matching session IDs alone cannot exclude test-originated activity.
+F0 child records show receipt of the C3 feedback and work on actual caller/stale
+bytecode fault insertion; this is observed implementation activity, not acceptance.
+
+Further bounded review sent to the original implementers: make competing bytecode
+demonstrably executable by the old loader before claiming its rejection; assert
+reader/execution counts rather than describing them. Preserve historical admission
+pins while fixing old-fixture/current-loader digest mismatches, with separate
+before/after failure attribution. Source maintenance review identified duplicate
+pin/seven-target assertions, reconstructed negative fixtures and repeated live
+ablation scaffolding; consolidate those within existing owners while retaining
+every distinct negative and cache-restoration control. No line cap, weakened gate,
+historical pin rewrite or expanded framework was authorized. Both coordinators
+were live at this observation; stable accepted handoffs remain outstanding.
+
+The next source invocation `toolu_01PaVtYfFArEbWanPKVq4eft` used immediate
+exit capture without a pipe. Its observed output file `/tmp/ratchet_final_run.txt`
+reports 249 passing assertions in 77.18 seconds **and production pipeline-state
+contamination**: `active_agent_dispatch.json` changed. The completed tool result
+was subsequently inspected: **EXIT=1**, with both activity-log and dispatch-state
+integrity refusals. Supervisor requested preservation and read-only
+current-run/dispatch ownership reconciliation before further work; writer identity
+is not inferred from the guard message or concurrent native activity. No state
+cleanup, re-signing, guard suppression or acceptance is authorized by this failure.
+Existing `agent_dispatch_sentinel.py` documents the subprocess redirect for this
+class, while native `session_activity_logger.py` invokes timestamp refresh on
+PostToolUse. This is a possible concurrent writer, not attribution of the failed
+interval. Supervisor directed stable-subject verification in a digest-identical
+isolated checkout with unchanged tests/guards and no concurrent native writers;
+do not waive contamination or keep repeating it in the active pipeline tree.
+Supervisor subsequently verified the source state's present HMAC through the
+canonical verifier: true, run `8bf6bb224a9fe6ca`, mode `fix`, alignment true;
+this does not attribute the failed interval or sign the separate dispatch record.
+F0 tool `toolu_011xRfi4wt5dHMBptVzEv7RV` reports 7 failed / 180 passed /
+192 subtests passed, and `toolu_01Cw6dVC7KVJqynXVgNbrn8z` reports identical
+before/after FAILED IDs. Both commands filtered output; preserve full raw output,
+actual pytest statuses and collection/subtest errors for final C4 attribution.
+The inspected C3 source now contains a loadable competing-bytecode control,
+real-caller seam, read/exec counts and narrowed static claim; historical tests use
+preserved loader bytes. These address the specific draft objections, not whole
+candidate approval, native admission or proof of reduction.
+
+Isolated source verification checkout prepared (not yet a candidate or test run):
+`/Users/akaszubski/.codex/artifacts/source-census-verification.qHWCPr/repo`, detached
+at the source worker's exact base `2ae033b86d8eb5eb89e3cd840b05ad0607ae42d3`.
+Wait for stable two-file handoff, preserve its hashes, copy only those reviewed
+candidate bytes, verify all remaining tracked inputs and unchanged integrity
+guards, then run the bounded suite outside concurrent native writers. No worker
+was restarted and no live state was copied into this clean checkout.
+
+Independent source verification: exact handoff test SHA
+`407ffe3832c7c2d4b49949af21b041957112317c7546944ce24ac16d88c02a3d`,
+CHANGELOG SHA `6de87c6f85a8bba1b1a342598bbfb8190185b7e581de47ce7d076d7b7aac50d1`.
+Only those two tracked files differ from the base; conftest unchanged. First run
+exited 1: 24 failed / 224 passed in 67.51 seconds, with zero discovered corpus.
+The scanner excludes absolute path components, so the checkout's `.codex` ancestor
+excludes every file; the same expression exists at base line 1364. Physical source
+files were present. Preserve this location-dependent inventory failure, not a pass.
+The same worktree was moved intact to
+`/private/tmp/adev-source-verification.5kJScK/repo`; both hashes still match and
+the same unpiped suite is running in tool session `73430`. No guard/exclusion or
+test changes. The parent-path restriction remains an unresolved census limitation.
+That second run subsequently completed: **248 passed in 86.10s, exit 0**. Both
+post-run hashes match, only the two declared tracked files differ, and diff check
+passes. Result saved at
+`/Users/akaszubski/.codex/artifacts/source-census-verification.qHWCPr/RESULT.md`;
+native coordinator received the verified outcome for its unchanged specialist
+chain. This is not whole-census, installed-consumer or F0 acceptance.
+
+F0 implementer returned; coordinator is checking evidence before specialist review.
+The handoff still adds `_apply_unified_diff` plus diff-replay tests despite the
+plan's explicit no-diff-replay-gate rule. Supervisor asked the mandatory reviewer
+to reconcile this and the added attribution helper against minimalism, preserving
+the completed candidate before any remediation. C3 proof corrections alone do not
+approve those added mechanisms or establish net maintenance reduction.
+
+Source validation dispatch audit: `toolu_01FVNWdGNAgpTepkgSZdLNhT` included
+prior assertion/exit outcomes, an instruction not to treat a particular guard
+failure as spec failure, and an existing repro path. It therefore cannot establish
+the required requirements-only spec-blind judgment. Supervisor directed preservation
+as supporting evidence and a fresh native spec-validator after its return, supplied
+only approved ACs/feature description/changed paths/PROJECT scope, operating on the
+unchanged isolated subject. Do not erase the original dispatch or fabricate its
+qualification. Independent 248-test success remains valid bounded test evidence.
+
+Pre-remediation F0 snapshot is now preserved at
+`/Users/akaszubski/.codex/artifacts/ordinal12-v3-post-correction.tO1Gka/candidate.tar.gz`,
+SHA-256 `9b6f2a60f79c932fd48987b02bf2b7b8e40b9175667d19f65a00f94896495214`.
+All 42 regular source/evidence entries matched current files; cache and generated
+AppleDouble metadata entries were excluded from that byte comparison, not deleted.
+The first comparison encountered an AppleDouble entry absent as a filesystem file;
+the corrected comparison completed with zero mismatches. Snapshot availability was
+sent to the native coordinator so remediation needs no further snapshot approval.
+Reviewer has returned REQUEST_CHANGES on minimalism; security auditor has returned
+PASS for the pre-remediation subject. Doc-master remains outstanding at observation.
+Any changed subject must receive its required renewed review; this is not final F0.
+
+Draft C3 review (loader `870f36372c7b3ed176c43c2179e8514253266a8635a1e404d62592888a9aa908`):
+REQUEST_CHANGES on proof. The in-progress stale-bytecode row only observed cache
+creation, not competing bytecode execution; changed-after-read exercised the
+new helper directly and checked the real caller structurally. Supervisor asked
+for genuine fault insertion and actual caller execution through controlled
+offline seams in the existing table, replacing redundant structural assertions,
+and narrowing the claim that an unregistered module cannot be reached/shadowed.
+This is correction within the existing C3 contract, not a new framework, native
+attempt or demonstrated exploit. Reassess only after the worker's stable handoff.
+
+## Recovery history (not current process state)
+
+- **Latest supervisor transport (after another app interruption):** PIDs
+  `32029` / `32094` and holders `34443` / `34661` disappeared; handles `57664` /
+  `43512` were unknown. Neither implementer returned a completed result; both
+  preserved additional edits. The same sessions now run in detached tmux server
+  `adev-assurance`: session `f0`, pane `%0`, coordinator PID `39004`; session
+  `census`, pane `%1`, coordinator PID `39011`. Server PID `39003` had parent PID
+  1, rather than the Codex tool process. Inspect with
+  `tmux -L adev-assurance list-panes -a` and bounded `capture-pane`; do not restart
+  merely because old unified-exec handles are missing. Both panes were live and
+  performing read-only resume checks at observation. Holders must watch these
+  current coordinators, not their dead predecessors. Actual survival through a
+  later Codex restart is not yet proven. No product or acceptance scope changed.
+  Source implementer test call `toolu_01HrN5PKPavDCMFLLCVhjjvx` subsequently
+  returned 208 passed in 87.42s but **EXIT=1**: session-finish integrity detected
+  changed production activity file `2026-09-25.jsonl`. This is a failed command,
+  not a passing gate. Concurrent native logging is a possible writer, not proven
+  attribution. Supervisor instructed the coordinator to preserve evidence, avoid
+  guard bypass or unrelated conftest changes, and hand off a stable candidate for
+  quiescent or digest-identical isolated verification.
+  Read-only interval inspection found two `SubagentStop` rows at
+  `06:30:25.820682Z` / `06:30:25.832705Z`, between the test's pre-tool row and
+  post-tool row, using the actual source session ID. They report empty and
+  `__unattributable__:` roles and reference `agent-a1f0ab72bb7104fe2.jsonl`,
+  which was absent at supervisor inspection. These rows explain an observed log
+  change but do not establish the writer's provenance; neither test contamination
+  nor legitimate native activity is thereby proven. Retain the failed command
+  and require independent stable-subject verification rather than waive it.
+- **Recovery observation supersedes the running labels below:** supervisor found
+  original coordinator PIDs `20315` / `23058` absent and terminal handles `22591` /
+  `26862` unknown. Both implementer transcripts contain partial work but no
+  verified completion. Other live Claude processes were checked by working
+  directory and belong to unrelated NBN sessions; they were not touched.
+  The same Claude sessions were reopened on authenticated Claude Max with handles
+  `57664` / `43512` and observed live PIDs `32029` / `32094`, respectively.
+  Recovery requests explicitly require the canonical resume checks, preservation
+  of partial work, actual completion records and unchanged acceptance gates.
+  Both coordinators have begun read-only state inspection; resumed implementation
+  and successful recovery are not yet proven. No deployment, credential operation,
+  new native F0 attempt or release authorization was granted by this recovery.
+  Source recovery tool `toolu_01DEj969BYEWPxvwFbnCpzU1` subsequently reported
+  `record_run_start: True`, no completed agents, and rewrote sentinel mode/run ID
+  and base commit. Its successful lock acquisition occurred in a Python process
+  that then exited; it is not proof of lifetime run ownership. Supervisor
+  interrupted the source coordinator and requested read-only reconciliation of
+  original versus reconstructed state and the sanctioned recovery path. Preserve
+  the mutation evidence; do not treat reconstructed fields as original provenance
+  or resume implementation until the prerequisites are established.
+  Supervisor independently called the existing `verify_state_hmac` on the source
+  sentinel: `false`, run `8bf6bb224a9fe6ca`. The coordinator's proposed
+  per-mutation locking substitute was rejected. Directed recovery is preservation
+  of the invalid state as failed evidence, canonical alignment evaluation (fresh
+  classifier if required), and the existing lock helper held continuously by a
+  live background process until run termination, with a second-acquisition refusal
+  check. No new framework, fabricated completions, or weaker resume gate is
+  authorized. This recovery remains pending verification.
+  Source then started native background task `bqjnmzu1c`, tool
+  `toolu_012CXdgQjZVeUzoWCSFJ5fHu`, holding the existing lock fd in PID `34443`
+  while monitoring coordinator PID `32094`. Supervisor independently attempted
+  nonblocking acquisition and received `BlockingIOError` (HELD). This establishes
+  held ownership at observation time, not completion or future uninterrupted
+  ownership; verify the holder on continuation and release at run termination.
+  Canonical source alignment re-evaluation tool
+  `toolu_013QPK33XSfxGdKvAb8omhYX` returned `auto_pass`, verified citation and
+  valid signature; supervisor independently verified the signature is now valid.
+  Native `SendMessage` `toolu_012szag787FxHoe8VRv1X3jd` returned
+  `success: true`, `resumedAgentId: a785b5479026a7ce0`. This is genuine source
+  implementer resumption, not a completed correction. F0 also holds its existing
+  run lock in PID `34661`; supervisor independently observed refusal of competing
+  acquisition for both runs. F0 implementer resumption still requires its own
+  actual tool result, not inference from the source run.
+  Subsequent F0 `SendMessage` `toolu_01VAFREESHNBGT3NV6dZXHFF` returned successful
+  resumption of `afa1d3ec351515e28`. Both original implementers are resumed, with
+  their existing partial work and full correction contracts retained; neither
+  result is complete or independently accepted. Recovery milestone is tracked in
+  https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5827886573.
+- **Scoped report approval exercised:** the user approved native report persistence
+  for the two stopped runs. The exact-path CLI grant still refused F0 Edit
+  `toolu_01TzAibXGffDK4NcZ8c3YUNH`. Resuming the same session interactively and
+  selecting the native prompt's **one-time Yes**, not its session-settings option,
+  allowed Edit `toolu_016meUdPwcQDvfrQBH4ybFNX`. The combined report is 20,399 bytes,
+  SHA-256 `a81cf49d2e41ba3ac54e75520fcc28240f607dc502ae435fb130dbee810abc0c`;
+  its first 10,437 bytes retain the original SHA-256
+  `da53534514d6611e636c74824833a27bcf9da9edb5a12ce26330a667080736ac`.
+  F6.5's tool result records removal, but a subsequent supervisor read found the
+  sentinel recreated with session identity and no run/mode. Do not describe the
+  path as currently absent. The next bounded `/implement --fix` was submitted in
+  the same interactive session (handle `22591`) against the existing private
+  correction brief; normal STEP 0 must handle that state. No candidate acceptance,
+  global permission change or native-attempt admission follows from report saving.
+  Source CIA dispatch `toolu_01H14Sbm3Pb1iFjHwbYAtQss` subsequently returned its
+  rejection report. Headless Write `toolu_01Dbsshnae6guoxhoEr5vkXA` was refused;
+  interactive one-time approval allowed Write `toolu_01GHaoL4vjFd9vViWfemiMDo`.
+  Supervisor verified 12,127 bytes with SHA-256
+  `dbeac0d94cc2b613668a47ac9ede781bd1d5c2646c33293e7d2c4ead354142b7`.
+  Normal F6.5 cleanup was then recorded; the prior bypass-written validator
+  reports remain historical evidence, not compliant reports. Source interactive
+  recovery handle is `26862`; headless PID `17454` exited before it was resumed.
+  The attempted checkpoint-only commit was refused: documentation tests reported
+  14 passed / 1 skipped in 6.92s, but the real-state integrity guard detected
+  activity-log changes during concurrent Claude execution. No bypass was used;
+  only the supervisor's staged checkpoint was unstaged, preserving its contents.
+  Retry normal verification/commit when the native writer is quiescent.
+  Next F0 correction run is `5bdca182e329bd9c`; alignment returned auto-pass with
+  verified citation and F1.5 reported clean staging. Initial implementer request
+  `toolu_01WWmoXdoaMhyEAquTxckSbb` was refused for 39.8% cumulative prompt drift;
+  it is not execution evidence. The coordinator restored prior compliance context
+  and dispatched `toolu_01Vj9GmcjkQVPpdYWkRoYqWg`; native subagent
+  `afa1d3ec351515e28` is observed reading the private subject and test files.
+  The source correction was then submitted
+  through `/implement --fix` in handle `26862`, explicitly reading the latest
+  canonical census clarification rather than its stale worktree-base copy.
+  Both changesets remain unaccepted; source dispatch/subsequent outcomes must be
+  verified from the current native record, not inferred from prompt submission.
+- **Source correction before interruption:** run `8bf6bb224a9fe6ca`, native request
+  `toolu_01BpAWqtoa7PW6XK2wqy685K` returned a successful agent-launch result.
+  Before dispatch, the native coordinator's full-walker reproduction independently
+  returned false REACHED for echo, escaped dollar, invalid default and both
+  arbitrary-prelude variants, while the valid helper control remained REACHED.
+  These are baseline failure observations, not corrected behavior.
+- **Acceptance accounting advanced:** the existing census WA-W2/W3 section now
+  has eight reviewed reusable role/outcome case families, including post-remediation
+  judgment freshness and distinct single-run/batch resume conditions. No new
+  runtime, runner or store was introduced; the complete denominator is still
+  unfrozen and native outcomes remain UNMEASURED. Critic rounds 1–3 returned
+  PROCEED after corrections. Review incident: its role-required receipt write
+  touched `.Codex/plan_critic_verdict.json` despite the read-only task; the agent
+  restored original JSON content, but did not have a pre-write byte digest and
+  cannot certify exact trailing-byte restoration. Reported restored digest is
+  `edae04c9a4471258d2646b3de13cb5c4ea9939cd54705e4b08887b7779718e9a`.
+  New review receipt is isolated at `/tmp/mode-rows-critic.SJcPBb/plan_critic_verdict.json`.
+  That incidental write is not acceptance evidence or an authorized runtime change.
 - **Terminal, not accepted:** correction handle `90666` exited 0, but its final
   result is BLOCKED at F6: native sensitive-file permission refused the Edit to
   `.claude/local/cia-2026-09-25-issue-0-fix.md`. The complete report remains in
@@ -81,7 +467,7 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current execution and recovery
 
-**Native report permission blocker; both runs now stopped.** The source session
+**Historical native report permission blocker; recovery is above.** The source session
 received sensitive-file permission refusals for reviewer/security report Writes
 `toolu_015zp4q81Lbp9aakR2qGK218` and `toolu_013KEd38dsYuWiEbPzA3Aqzy`, then
 successfully wrote those same files through Bash

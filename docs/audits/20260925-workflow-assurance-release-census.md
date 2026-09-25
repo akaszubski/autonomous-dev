@@ -50,6 +50,38 @@ The sidecar generator's `--check` reports no drift on its selected inputs despit
 the other manifest and generator discrepancies. Preserve that bounded success;
 do not use it as release-wide consistency evidence.
 
+Refusal-inventory correction direction (read-only review, not implemented): reuse
+`test_refusal_sink_ratchet.py::_python_refusal_evidence` and its existing evidence
+strings to retain variable-valued decision envelopes as unresolved candidates.
+Do not add a special `_emit` spelling or a new parameter-binding engine merely to
+recognize `validate_paid_dependency.py`. This conservatively closes the observed
+omission class; it does not prove an envelope is emitted or a denial occurs.
+The sink, recording and reachability consumers currently treat nonempty evidence
+as a refuser, so their claims and instrument-premise cases must distinguish these
+UNKNOWN candidates from literal denial evidence. Derive unresolved completeness
+from the same inventory; registration or a file-level sink cannot resolve a dynamic
+decision. Runtime permit/refuse proof remains separate. Complete this bounded owner
+correction after the in-flight reachability handoff, not by changing its dependency
+under a running proof. No complete denominator is claimed in the meantime.
+
+Checkout-location correction (proposed; independent review returned GO): the exact
+source candidate produced an empty corpus under a `.codex` ancestor and a nonempty
+corpus after moving the unchanged checkout to a neutral parent. `_library_paths`
+applies exclusions to absolute `path.parts`, including ancestors outside the
+selected project. Keep the existing owner, globs and exclusions, but evaluate
+exclusions within the selected project-relative path; do not introduce a new
+resolver or alter symlink semantics incidentally. Reuse the existing fixture/case
+table to compare normalized corpus/reached/unknown identities under neutral and
+excluded-name ancestors, including the project-root basename. Parameterize the
+existing exclusion names and assert explicit nonempty expected corpus, reached
+and unknown identities, not equality alone. Internal excluded-directory fixtures
+must fall within matched globs, with an ordinary neighboring directory included,
+so the exclusion check cannot pass merely through glob omission. Keep the original
+collected paths and existing glob/is-file behavior unchanged. A required empty
+corpus must not pass. This follows the stable in-flight handoff; it is not permission to
+change the candidate currently under review, and the neutral-path pass does not
+close this portability requirement.
+
 ## Candidate acceptance matrix
 
 IDs here identify release outcomes, not newly implemented runtime gates. Freeze
@@ -123,9 +155,33 @@ store, or permission to omit frozen F0 specialists.
 | Fix | Research/planning omission is limited to a current evidenced failing-test/known-problem subject (`implement-fix.md:14–16`); missing eligibility refuses or escalates to Full |
 | Batch/resume | Inherit the selected mode and exact item/run subject; neither grants additional omissions or allows another item's evidence |
 
-The profile table still needs its remaining role/outcome cases frozen before
-migration. No current omission, green parser test, or mode label is proof of
-eligibility or completion.
+The following eight reusable case families specify the remaining role/outcome
+accounting. They are prospective expectations, not passed native cases or a freeze
+of the entire release denominator. Keep them in the existing acceptance runner and
+receipt owners; do not create a script/store for each row. Within the command
+directory, `I` = `implement.md`, `F` = `implement-fix.md`, `B` =
+`implement-batch.md`, and `R` = `implement-resume.md` (source anchors below).
+
+| Case family | Positive evidence / existing transition | Distinct negative or boundary |
+|---|---|---|
+| Profile and alignment | Actual current-subject classifier result plus mode eligibility before research/plan/test-context; batch/resume retain the original mode. Fix's no-failure exit means no fix needed, not implementation completed (`I:705–760,2673–2699`; `F:14–16,209–225`; `R:28–49`). | Self-attested alignment, missing failing-test subject, ineligible light/fix, or silently accepted alignment drift. |
+| Research | Both required full-mode research results, or evidenced current-subject reuse, or exact authorized omission; these are separate arms consumed before planning (`I:765–875`). Eligible light/fix omissions remain clause-bound. | Missing result, stale/unrelated cache, ignoring no-cache, unjustified omission, or unavailable research treated as success. |
+| Plan and critic | Required planner content, structural validation and genuine current-plan critic PROCEED/reuse before implementation. Full's unregistered-critic exception needs the actual allowed invocation error and recorded reason; it is omission, not PROCEED or an F0 waiver. Light critic triggers above 400 words OR five files (`I:1107–1265,2701–2772`). | Provisional/self-authored or wrong-plan PROCEED; missing/failed critic; revision without fresh required judgment; fabricated unavailable-agent reason. Exercise 400/401 words and 5/6 files. |
+| Acceptance-test allocation | AC-to-behavior evidence via the applicable acceptance-first, test-master/TDD or explicitly all-deterministic route; eligible light omits test creation, while fix identifies its existing regression or proves red/green (`I:1267–1318,2675`; `F:349–360`). | Missing required test-master; zero executions disguised as completion; registry-only coverage; deterministic cases lost from discovery; a regression passing both before and after. |
+| Implement/test/spec | Real implementer effects, applicable test gate and fresh independent spec-validator result before review. Reused canonical ACs remain verbatim and subject-bound; fix returns RCA. Preserve PROJECT's 80% coverage minimum AND applicable full/light baseline-minus-0.5-percentage-point floor (`I:1455,1671–1731,1784–1809,2774–2806`; `F:237–401`). | Dispatch-only/fabricated credit, disallowed failure, wrong ACs, validator supplied implementation, missing RCA or lost governing coverage floor. Preserve explicit baseline-failure attribution rules, not blanket false-green permission. |
+| Review/security/docs | Required current-subject role outcomes before final verification: full reviewer/security/doc-master; eligible light omissions only; fix security when triggered. Sensitive full route orders reviewer before security; remediation invalidates previous security PASS and requires renewed security/doc evidence (`I:1841–1857,1918–1960,2045–2099,2458–2474`; `F:405–565`). | Required role absent/failed, triggered audit omitted, premature security dispatch, pre-remediation PASS reused, or missing/shallow doc verdict accepted as warning. |
+| CIA and completion | Actual nonempty CIA return before git/item success; fix additionally persists the full report and checks size before cleanup. Full post-git doc congruence still precedes cleanup (`I:2507–2519,2617–2669,2836–2848`; `F:644–737`). | Task ID without result, empty/placeholder report, premature cleanup or post-batch CIA substituting for per-item CIA. Optional UI/mobile/advisory checks and the triggered fix PROD checklist retain their existing authority; pending soft PROD verification is not falsely called verified or made a new hard gate. |
+| Batch/resume identity | Exact signed run/subject/item/mode/attempt evidence, actual runtime/worktree and required carriers, successful-step reuse and lifetime lock through next-item/finalization/resume (`B:744–776,827–866,897–914`; `R:20–77`). | Wrong-item/session credit, missing/corrupt/unsigned authority, stale plan or lost lock, duplicate successful-step dispatch, final-item verification skipped. Single-run 4h/24h and changed-HEAD rules are NOT batch-resume rules (`R:25`); the 4–24h nonsecurity gap grants no inferred direct ratification. |
+
+Apply missing/failed/wrong-subject evidence and disabled-required-carrier controls
+through these same families. Eight stage slots remain visible as execution,
+authorized current-subject reuse or clause-bound omission. Source review identified
+these obligations; actual installed permit/refuse/fault evidence remains UNMEASURED.
+The existing resume-owner viability prerequisite below is not resolved by this table.
+Independent critique: round 1 required verbatim reused ACs, coverage floors,
+post-remediation security/doc freshness and separate batch-resume timing authority;
+rounds 2–3 checked those corrections and returned PROCEED. This approves the
+prospective accounting, not native execution or the complete release census.
 
 Completion reconciliation against PROJECT.md INV-2/3/7 and its evidence
 requirements (independently reviewed 2026-09-25): operative stage clauses own
@@ -296,6 +352,17 @@ exact `deny`. `HOOK_EXTENSIONS_ENABLED=false` disables discovery. Missing files,
 load/check errors and malformed returns currently allow; qualification must not
 mistake that permissive runtime behavior for evidence completeness.
 
+Discovery is invocation-relative, not unconditional user-home discovery:
+`Path(__file__).parent/extensions` precedes `Path.cwd()/.claude/hooks/extensions`.
+With a project-local hook at project-root cwd those slots coincide; a separately
+registered global hook may see a different population. Bind the invoked hook path,
+cwd, effective switch, concrete candidates/digests, symlink/shadow exclusions and
+basename winners to the consumer observation. Record the executed prefix separately
+from discovery because the first denial returns early. Non-native calls in projects
+not recognized as autonomous-dev exit before extension dispatch; do not claim
+all-tools coverage from directory membership. Shipped source contains the empty
+slot, not the `block_raw_mlx.py` documentation example as an installed extension.
+
 Freeze four rows through existing owners: (1) populated enabled marker-deny plus
 neighbor-permit with actual registered invocation observations; (2) the same files
 disabled in the real process environment, with zero execution and an explicitly
@@ -303,6 +370,10 @@ inactive census; (3) required missing carrier yields qualification non-pass, whi
 declared valid-empty remains distinct; (4) unchanged files/behavior with one omitted
 census entry yields independent denominator failure. No native row has passed yet.
 Mutation between census/load and fail-open exceptions also remain unresolved.
+Reuse the existing extension marker/order/dedup fixture patterns for these rows;
+the independent omitted-entry comparison must leave files, registration and actual
+behavior unchanged and remove only the inventory entry. These are specified
+acceptance obligations, not an implemented or passing census verifier.
 
 The three additional local consumers above contain settings declaring repo-local
 unified-pre-tool registration
