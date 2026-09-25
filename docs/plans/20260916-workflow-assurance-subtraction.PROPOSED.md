@@ -125,7 +125,14 @@ receipt writer is insufficient. No second completion ledger or parallel gate.
   retained; a local run ID cannot replace a missing native correlation edge.
 - Join tool request/result, hook ingress/decision/result and required telemetry by
   actual keys; missing, duplicate, conflicting, truncated or stale evidence is
-  non-pass for the claim requiring it. Timestamps serve diagnosis only.
+  non-pass for the claim requiring it. Time proximity never establishes identity,
+  causality or a join. A time-sensitive case instead declares its observation
+  interval and the governing requirement or dependency that justifies expiry or
+  change invalidation, plus trusted clock source and relevant uncertainty; the
+  production consumer rechecks validity before using its receipt. Never add an
+  arbitrary age limit where dependency invalidation is sufficient.
+  Immutable historical evidence remains evidence of that historical subject/run,
+  but cannot authorize a current transition after its declared validity is lost.
 - An observed complete Read proves returned input exposure, not comprehension.
   Pair examination evidence with independently checked behavior/document effects.
   General semantic correctness cannot be certified solely by a recorded read or
@@ -140,6 +147,19 @@ receipt writer is insufficient. No second completion ledger or parallel gate.
 - Required observability has an executable preflight and missing-carrier test.
   A disabled exporter or disconnected hook must be detected through the actual
   route. A changed flag alone is not proof of restored observability.
+- Every frozen acceptance-row claim declares which observation types may support
+  it and their limits.
+  Requirements/policy establish intent; source/settings establish declared
+  configuration; inventory establishes selected membership; native events and
+  effects establish only the behavior they can directly observe. A digest proves
+  byte identity, not execution; provider metadata proves a provider assertion, not
+  the served model. Unavailable required evidence narrows the claim or makes it
+  `UNMEASURED`; one evidence type never silently substitutes for another.
+- Qualify the observer for the claim it supports. Freeze selected surfaces,
+  filtering/truncation/drop behavior, inaccessible actors and producer-tampering
+  assumptions, then exercise a blind-spot or false-green control. A healthy
+  exporter, registered hook or green scanner is insufficient when its denominator
+  can omit the relevant route.
 
 ### Configurability and portability
 
@@ -265,6 +285,13 @@ disabled required telemetry; forged or altered evidence; empty/missed selection;
 partial update; consumer-settings clobber; source fallback; always-NO_DOC_IMPACT.
 Existing tests cover many of these: reuse their owners and fixtures.
 
+For every frozen acceptance row, record the claim, required observation and its
+authority, observation method, subject/run identity, temporal validity where
+applicable, result, limitation and decision. These are fields of the existing
+case/observation/decision/receipt concepts, not a second epistemic-state machine.
+Only the deterministic decision owns `PASS`, `FAIL`, `UNMEASURED` or `ERROR`;
+explanatory prose does not add decision states.
+
 Until the product can check itself, the supervisor runs the existing independent
 oracle and frozen fault controls outside the candidate, examines actual tool/result
 and hook joins, and checks effects and cleanup. Specialist review adds interpretation;
@@ -277,6 +304,17 @@ cost. A single green run proves that case/profile only. Generated workloads help
 exercise volume and faults; they do not replace a frozen real-use observation
 window. Any replacement promotion profile requires the approved methodology and
 its explicit evidence/volume rules before the trial.
+
+Close the feedback loop through existing authorities. CIA/improvement routes the
+finding; the capability/adapter acceptance-table owner retains a regression case
+only when a real escape or false refusal represents a distinct failure class not
+covered by an existing case. The existing deterministic verifier/consumer makes an
+observer omission non-pass or `UNMEASURED`, marks each dependency-affected receipt
+non-current for qualification, preserves its immutable bytes as historical evidence,
+lowers the affected qualification and triggers scoped re-proof. Reuse an existing
+fault case where possible. Demonstrate the loop once with a genuine retained failure
+and once with an observer-omission/false-green fault. Do not create a second incident
+ledger, confidence model or improvement pipeline.
 
 For objective fixture behavior, use independently authored executable oracles and
 effects. For open-ended quality, use rubric-based independent review and bounded

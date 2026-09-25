@@ -11,6 +11,17 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+Before freezing a row, add its claim-specific evidence contract: governing intent,
+required direct observation/effect, observation method and authority, subject/run,
+limitations and missing-evidence outcome. For each time-sensitive row, declare its
+observation interval, the governing requirement or dependency that justifies expiry
+or change invalidation, trusted clock and uncertainty bound, and consumption-time
+recheck. Exercise valid evidence and every declared invalidation or uncertainty
+boundary; never impose expiry where dependency invalidation is sufficient.
+Configuration, inventory, native behavior and outcome
+evidence are not interchangeable. Time proximity never supplies identity; historical
+receipts remain historical when no longer valid for a current transition.
+
 ## Observed populations and instrument limits
 
 | Instrument / source | Result | What it does not establish |
@@ -115,6 +126,14 @@ while marketplace/legacy plugin metadata declare >=3.9; PROJECT.md requires >=3.
    with unchanged settings. This mutant is specified, NOT yet executed.
 5. Name unresolved classification/deployment edges before freezing; neither an
    empty selection nor a scanner's selected-surface green closes the denominator.
+6. Exercise the observer itself: dropped/truncated events, filtered surfaces,
+   inaccessible actors and a healthy-looking scanner with an omitted route must
+   make the affected claim non-pass or explicitly UNMEASURED.
+7. Route one distinct real escape/false refusal and one observer omission through
+   CIA/improvement; have the capability/adapter acceptance-table owner retain only
+   a distinct regression case, and the existing deterministic verifier/consumer
+   mark dependency-affected receipts non-current without mutating historical bytes,
+   lower affected qualification and independently re-prove.
 
 Methods: standard-library JSON path/set/binding traversal, Python AST dictionaries,
 main guards and call closure, existing `library_reachability(..., use_cache=False)`

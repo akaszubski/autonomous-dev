@@ -178,7 +178,8 @@ thing, not a fixture. A guard observed only green is unproven.
 Freeze acceptance cases before execution and independently check native requests/results,
 hook decisions, required telemetry and observable effects. Required reads prove exposure,
 not understanding. Missing, stale, conflicting or unjoined evidence is not a pass;
-timestamps and an agent's report cannot substitute for actual identity links.
+time proximity and an agent's report cannot substitute for actual identity links.
+Time-sensitive claims declare and recheck their validity before receipt consumption.
 Require a broken-instrument control: disabling a required hook or evidence carrier must
 prevent acceptance. Detailed case matrices and current results belong in the execution plan.
 
