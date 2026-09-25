@@ -1615,9 +1615,8 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
                     "Seeded baseline from observation: %s issue #%d = %d words",
                     agent_type, seed_issue, word_count,
                 )
-                # Also record as batch observation for cumulative drift tracking (Issue #794)
-                from prompt_integrity import record_batch_observation as _record_obs
-                _record_obs(agent_type, seed_issue, word_count)
+                # Issue #1789: records exactly once — the cumulative-drift arm below is
+                # the sole batch-observation recorder (recording here too double-counted).
         except (IOError, OSError, json.JSONDecodeError) as exc:
             # Baseline-file I/O problems must not block agents (documented fail-open)
             _pi_logger.warning("Prompt-integrity baseline I/O error — fail-open: %s", exc)
