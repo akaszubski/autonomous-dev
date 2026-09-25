@@ -7,7 +7,7 @@ not acceptance evidence. Canonical scope remains the
 ## Current live pointer — 2026-09-25
 
 Canonical branch `fix/1779-pipeline-evidence-integrity` was last pushed at
-`6937d432` before this checkpoint update; verify its new HEAD with
+`addaffe9` before this checkpoint update; verify its new HEAD with
 `git rev-parse HEAD` on resume. The only pre-existing local changes remain the user-modified
 `plugins/autonomous-dev/.claude-plugin/plugin.json` and untracked `.Codex/`.
 The census now distinguishes its immutable 97-UNKNOWN baseline from the
@@ -40,13 +40,22 @@ Codex interrupted before implementer dispatch or source edit; using the same
 frozen classifier input, the supported API appended a corrective `ESCALATE`
 and restored `alignment_passed=false` with a valid signed sentinel. All three
 decision rows remain historical evidence, and [#1802](https://github.com/akaszubski/autonomous-dev/issues/1802)
-owns the approval-provenance defect. #1801 is held pending its exact escalation
-response; the false approval cannot be retroactively counted as valid. Recheck
-source HEAD/status and pane before any claim.
+owns the approval-provenance defect. The user subsequently approved the
+specific #1801 escalation through Codex supervision, recorded on that issue;
+this authorizes a NEW decision and the bounded source fix, not a retroactive
+validation of the false row or product proof of native AskUserQuestion binding.
+Recheck source HEAD/status and pane before any completion claim.
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
-of this source run. Next independent Stage 1 proof is the isolated populated
+of this source run. Read-only byte inspection found another connected limit:
+the configured global PreToolUse command runs `~/.claude/hooks/unified_pre_tool.py`,
+which selects its adjacent global `lib` first. That installed
+`prompt_integrity.py` still lacks the source #1789 reset coupling; exact hashes
+and the declared route are recorded on [#1521](https://github.com/akaszubski/autonomous-dev/issues/1521)
+and [#1789](https://github.com/akaszubski/autonomous-dev/issues/1789). Do not
+promote the source-only fix as native behavior or deploy during the paused F0
+run. Next independent Stage 1 proof is the isolated populated
 consumer extension omission arm with a frozen effective four-layer profile.
 Official Anthropic authentication documentation says a fresh
 `CLAUDE_CONFIG_DIR` reads a different Keychain entry on macOS; credential-free
