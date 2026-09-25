@@ -621,18 +621,41 @@ def record_prompt_baseline(
 
 
 def clear_prompt_baselines(*, state_dir: Optional[Path] = None) -> None:
-    """Clear all prompt baselines (typically at batch start).
+    """Clear prompt baselines AND batch observations at the serial run/batch boundary.
+
+    Ownership rule (restores the #794 coupling): clear_prompt_baselines OWNS both resets
+    — baselines and cumulative-drift batch observations are cleared together here, so a
+    fresh run cannot inherit a prior run's stale observations (Issue #1789).
+
+    Serial limit: two SEPARATE unlinks, NOT atomic and NOT concurrency-safe — a partial
+    failure (one unlink succeeds, the other then fails) and concurrent writers to the
+    repo-wide observations file remain UNRESOLVED (#1789). Both resets are fail-CLOSED
+    at the library boundary: a failed unlink PROPAGATES (uncaught) so the CALLER
+    RECEIVES the error (nonzero at a python-invoked call site) instead of a silent
+    success on stale state. Whether native command-start actually ABORTS the run on that
+    error is NOT proven here and remains an open #1789 arm.
 
     Args:
         state_dir: Override state directory (for testing)
     """
     baselines_path = _get_baselines_path(state_dir)
     if baselines_path.exists():
-        try:
-            baselines_path.unlink()
-            logger.info("Cleared prompt baselines")
-        except IOError as e:
-            logger.error("Failed to clear baselines: %s", e)
+        # Fail CLOSED (#1789): a failed baselines unlink PROPAGATES (uncaught) so the
+        # CALLER RECEIVES an error/nonzero instead of silently succeeding on a stale
+        # baseline (per-issue false-block/false-permit risk), matching the observations
+        # reset below. Do NOT swallow. (Native command-start abort on that error is an
+        # open #1789 arm, not proven here.)
+        baselines_path.unlink()
+        logger.info("Cleared prompt baselines")
+
+    # Coupling (#794/#1789): clear_prompt_baselines owns the observations reset too.
+    # INTENTIONALLY UNGUARDED — fail CLOSED. A failed observations unlink must NOT be
+    # swallowed: a silently-failed reset leaves stale cumulative-drift observations that
+    # a fresh run would inherit — the cross-run contamination #1789 exists to prevent.
+    # Let the error PROPAGATE so the CALLER RECEIVES an error/nonzero instead of a silent
+    # success on unreset state. Do NOT wrap in a swallowing try/except (safety review,
+    # #1789). (Whether native command-start aborts on that error is an open #1789 arm.)
+    clear_batch_observations(state_dir=state_dir)
 
 
 def get_agent_prompt_template(
