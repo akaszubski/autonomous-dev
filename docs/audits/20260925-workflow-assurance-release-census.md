@@ -615,6 +615,19 @@ outcome decisions and explicit per-control acceptance remain outstanding.
 | Setup/uninstall/hook activator | Source-layout imports/fallbacks exist; clean source-free support unproven |
 | `implement-fix.md` doc path | Missing doc-verdict retry can proceed with warning; `doc_verdict_validator.py` UNKNOWN to current route instrument; reconcile required refusal path |
 
+Candidate transport dispositions below turn the source-entry routes into explicit
+WA-L1/WA-L2 obligations; they are **not** retirement decisions or installed
+behavior claims. A legacy route stays supported until its actual consumers have
+either migrated with proof or been explicitly placed outside the release profile.
+
+| Source entry and observed caller | Candidate disposition / acceptance owner | Remaining evidence |
+|---|---|---|
+| Native `.claude-plugin/plugin.json` plus marketplace metadata | Retain native delivery, migrate to one installed root/version owner; WA-L1, D0, #1755/#1758/#1759/#1521/#1522 | The declarations disagree on version and Python floor; prove the pinned native hook, library and settings route, not manifest presence. Preserve the user-modified manifest while reconciling. |
+| Root `install.sh` documented bootstrap | Migrate its active global copy and hand-written plugin registration paths, then retire only after WA-L1/WA-L2 and #1636 consumer proof | It fetches `config/install_manifest.json` from master, copies commands/hooks/libraries and may merge global settings; identify affected installs and prove unrelated settings survive. |
+| `/setup` and `/sync` commands → `lib/sync_dispatcher/` | Migrate GitHub/source-fallback and marketplace-copy modes to the selected installed resolver before retiring either route; WA-L2, #1757/#1521/#1522 | `/setup` can use a source copy and `/sync` a global dispatcher; prove exact caller, installed bytes and no source fallback in clean/populated profiles. |
+| `scripts/deploy-all.sh` → `sync_settings_hooks.py`; `scripts/pull-plugin-update.sh` launchd path | Migrate each declared dogfood/remote/update consumer before removing copy deployment; WA-L2, #1757/#1521/#1522 | The settings helper replaces the whole hooks key. Check every affected local/remote registration, collision and preservation outcome; remote contents remain UNMEASURED. |
+| `plugins/autonomous-dev/scripts/install.py` | Keep UNKNOWN/retire-candidate, not dead-code credit; WA-L2, #1757 | Bounded source scan found no non-test active caller. Check external/manual callers and unique install effects before deletion. |
+
 ## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
 
 The configured Git hook is a symlink into the primary checkout, while its scans
