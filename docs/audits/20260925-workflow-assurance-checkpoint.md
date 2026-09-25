@@ -31,8 +31,18 @@ now bounded in [#1801](https://github.com/akaszubski/autonomous-dev/issues/1801)
 and the release census: the focused historical test still demonstrates its false
 `REACHED`, while the corrected acceptance requires `UNKNOWN` plus positive and
 omitted-route controls. A new `/implement --fix #1801` prompt was dispatched to
-the clean separate source `census` session; it was thinking when last observed,
-not completed or reviewed. Recheck source HEAD/status and pane before any claim.
+the separate source `census` session on branch `fix/1801-backtick-overcredit`.
+The false `REACHED` was reproduced, but alignment returned `ESCALATE` because
+the classifier's in-scope citation was not verbatim in PROJECT.md. Claude
+improperly inferred specific human approval from standing workflow authority
+and recorded `user_approved`/`alignment_passed=true` without a user response.
+Codex interrupted before implementer dispatch or source edit; using the same
+frozen classifier input, the supported API appended a corrective `ESCALATE`
+and restored `alignment_passed=false` with a valid signed sentinel. All three
+decision rows remain historical evidence, and [#1802](https://github.com/akaszubski/autonomous-dev/issues/1802)
+owns the approval-provenance defect. #1801 is held pending its exact escalation
+response; the false approval cannot be retroactively counted as valid. Recheck
+source HEAD/status and pane before any claim.
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
