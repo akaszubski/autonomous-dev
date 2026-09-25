@@ -272,6 +272,20 @@ real allowed route, prohibited route and broken-instrument route, then add cases
 only for distinct uncovered failure classes. Keep boundary/parser/property unit
 tests where they provide cheaper or more precise coverage.
 
+Implement those first three routes through one table-driven end-to-end runner,
+not one script or suite per condition. Express missing, empty, duplicate,
+conflicting, wrong-run, wrong-subject, invalidated-dependency, zero-selection and
+disabled-carrier variants as case rows or mutants. The runner is a consumer of
+the evidence kernel, not a second verifier or policy engine. A case expressible
+with the existing case/observation/decision/receipt concepts adds a row without
+new kernel or runner branches. Native field names stay in one named translation
+function in the real caller. The runner drives the real installed profile and
+checks the actual stage consumer—external comparator at R0 and guarded transition
+at T0—so replay alone cannot satisfy end-to-end acceptance. F0's comparator remains
+outside the product and never imports or calls the candidate kernel or runner.
+Qualification adds a held-out row using the existing concepts after kernel and
+runner bytes are frozen; that row must execute with both digests unchanged.
+
 For each case freeze public task, private expected outcome, required process
 obligations, inputs/configuration and invalidation dependencies before the candidate.
 Verify final filesystem/process effects and actual evidence. Required execution
@@ -421,8 +435,8 @@ pointer together. Protected infrastructure and frozen v12/F0 inputs stay untouch
 |---|---|
 | F0: existing private capture/binding/comparison files under the recorded artifact set | Reuse/replace scoped EX logic; preserve historical subjects; dependency inventory precedes extraction |
 | F0: `bootstrap/control_trust/`, `.github/workflows/control-runner-trust.yml` | Reuse frozen independent proof; changes require declared invalidation and renewed proof |
-| R0: proposed `plugins/autonomous-dev/lib/control_runtime.py` | Single library/CLI comparison and receipt owner; choose only after confirming no equivalent active owner |
-| R0: proposed `plugins/autonomous-dev/lib/control_adapter_claude.py` | Native event normalization only; source-free loading and explicit unsupported evidence |
+| R0: at most one small standard-library evidence module/CLI, exact path chosen during `/implement` | Reuse F0's public receipt contract but never import the frozen oracle; own only canonical receipt construction, binding/currentness verification and deterministic `PASS`/`FAIL`/`UNMEASURED`/`ERROR` reason output; delegate signing and atomic persistence to their existing owners, whose exact imported symbols the R0 acceptance table freezes before implementation—no policy DSL, service or store |
+| R0: existing real Claude hook/runner | Perform the first slice's thin native-event translation in the actual caller; do not create a standalone Claude adapter until a second real harness demonstrates shared translation worth extracting |
 | D0: `plugins/autonomous-dev/.claude-plugin/plugin.json`, native hook config, delivery manifest/resolver and `lib/settings_merger.py` | Reconcile one package/root and owned settings transaction; enumerate actual resolver callers first |
 | W0: `hooks/PreToolUseWrite-protect-sensitive.sh`, `lib/tool_intent.py`, actual hook consumers | One policy owner; built-in/MCP permit/refuse/fault proof; retire superseded shell decisions |
 | T0: `lib/pipeline_completion_state.py`, its actual `hooks/unified_pre_tool.py` consumer and `commands/implement.md` | Consume accepted receipts through existing state APIs; enforce next transition on real runs |
@@ -434,6 +448,16 @@ Before each /implement, freeze exact files, acceptance cases, callers, removal
 mapping and estimate on its existing family issue. Proposed paths are not a
 blanket module-creation instruction. A >50% scope expansion requires re-scoping
 within authority before building; it is not an automatic request for user input.
+The first product slice permits at most one kernel module and one shared table
+runner. W0 removes the old shell decision owner and at least one superseded
+integration path in the same activation. Before M0, T0 compares dependency-
+inclusive code, tests, scripts, dependencies and operator steps with the pre-R0
+baseline. T0 cannot exit until that comparison shows cumulative net reduction;
+otherwise T0 remains incomplete and subtraction precedes further migration.
+Neither stage may add a decision authority or persistent store;
+relocation or archival does not count as subtraction. The release census supplies
+rows to this capability and must not become another product scanner, receipt schema
+or runtime framework.
 
 ## Fast execution and durable progress
 
