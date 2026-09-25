@@ -74,9 +74,10 @@ the agreed hard-stop for regex-by-alternative repair. Claude stopped the live
 implementer and is preserving the dirty source diff as failed evidence; no
 source commit, canonical integration, deployed hook, or native F0 proof follows.
 [#1801](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5834589043)
-records the counterexample. Next: replan a conservative single-rule scanner
-boundary with a frozen negative and a genuine interpreter-in-substitution
-positive, then independently review before another implementation attempt.
+records the counterexample. Next: execute the bounded structural redesign in
+[#1805](https://github.com/akaszubski/autonomous-dev/issues/1805) with frozen
+negative and genuine interpreter-in-substitution positive cases, then
+independently review before another implementation attempt.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
