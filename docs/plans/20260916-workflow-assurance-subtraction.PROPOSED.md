@@ -176,6 +176,11 @@ registrations/consumer discovery. Include shell, markdown, CLI and dynamic route
 Reconcile discrepancies explicitly; a classifier cannot define its own coverage.
 Seed an omitted-route counterexample against the census.
 
+The [2026-09-25 two-source census](../audits/20260925-workflow-assurance-release-census.md)
+records exact source populations, shipping discrepancies and candidate acceptance
+rows. Reconciliation and the omitted-route fault control remain required before
+calling its denominator frozen; no UNKNOWN source or older consumer route is dropped.
+
 Group the finite population into the following families. This is the release
 denominator, not permission to discard an inconvenient active guard.
 
