@@ -4,7 +4,32 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Latest verified handoff — 2026-09-25
+## Current live pointer — 2026-09-25
+
+Canonical branch `fix/1779-pipeline-evidence-integrity` is pushed at
+`c764c8cb`; the only pre-existing local changes remain the user-modified
+`plugins/autonomous-dev/.claude-plugin/plugin.json` and untracked `.Codex/`.
+The census now distinguishes its immutable 97-UNKNOWN baseline from the
+corrected 90-UNKNOWN walk (later source integrations not rerun), selects
+PROJECT.md's Python 3.11+ release floor over stale >=3.9 delivery metadata,
+and identifies the active pre-commit calls into archived validators as a
+known violation to remove before release, not an accepted exception.
+The private FR1 evidence hash and its remaining limits are recorded below.
+No release denominator, F0, installed POPULATED-3 or D0 proof is accepted.
+
+The detached source `census` Claude session (tmux socket `adev-assurance`,
+pane PID 39011 when last observed) is running `/implement --fix #1757`
+against the bounded source-connectivity contract. Its first readback found
+the owner suite at 283 passed, raw exit 0, but it was still verifying whether
+all required negative classes and source routes—not just a green count—were
+actually covered. Recheck its pane and source HEAD/status before integration;
+do not restart merely because a polling interval expires. The separate `f0`
+session remains paused at the cumulative-history hook deadlock awaiting the
+explicit archive/clear authorization; do not submit its pending input as part
+of this source run. Next independent Stage 1 proof is the isolated populated
+consumer extension omission arm with a frozen effective four-layer profile.
+
+## Prior verified handoff — 2026-09-25
 
 Most recent continuation: canonical HEAD `16c210a6` was pushed on
 `fix/1779-pipeline-evidence-integrity` before the present WA-O3 note. Source
@@ -34,7 +59,7 @@ The selected isolated POPULATED-3 installed-consumer arm, complete per-arm
 hash/command receipts, common provenance ID and denominator freeze are still
 open. Next available Stage 1 action is that exact populated-consumer proof,
 not another source-only test.
-The present census/checkpoint edit must be committed before citing a new HEAD.
+That FR1 census/checkpoint edit was committed and pushed as `93a3b065`.
 The unrelated modified plugin manifest and untracked `.Codex/` remain user-owned.
 Next: finish the WA-O3 freeze/intervention receipts and remaining effective
 registration reconciliation; only then freeze #1757's finite denominator.
