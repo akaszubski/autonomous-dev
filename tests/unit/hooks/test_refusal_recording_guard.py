@@ -91,6 +91,8 @@ from tests.unit.hooks.test_refusal_sink_ratchet import (
     _refusal_evidence,
     _shell_refusal_evidence,
     _sink_evidence,
+    has_known_refusal,
+    unresolved_refusers,
 )
 
 # The canonical refusal vocabulary, imported from beside the WRITER (#1611).
@@ -300,7 +302,16 @@ def unrecorded_refusers(hooks_dir=HOOKS_DIR) -> "list[str]":
     return sorted(
         path.name
         for path in _iter_hook_files(hooks_dir)
-        if _refusal_evidence(path) and not records_its_refusals(path)
+        # KNOWN refusers only. An UNKNOWN-only hook (a computed decision
+        # envelope) is not a verified refuser — source cannot tell it refuses,
+        # so it cannot be an unrecorded-refusal OFFENDER. The shared
+        # ``has_known_refusal`` predicate is IMPORTED from the sink ratchet, not
+        # re-derived here. A MIXED hook (literal refusal + computed sibling) is a
+        # known refuser and is judged exactly as before. The unresolved
+        # inventory itself lives in the sink owner (``unresolved_refusers``);
+        # adding a recorder there cannot resolve an UNKNOWN site.
+        if has_known_refusal(_refusal_evidence(path))
+        and not records_its_refusals(path)
     )
 
 
@@ -320,6 +331,9 @@ class TestInstrumentPremises:
         assert _shell_refusal_evidence is ratchet._shell_refusal_evidence
         assert _iter_hook_files is ratchet._iter_hook_files
         assert _sink_evidence is ratchet._sink_evidence
+        # The shared known-versus-unresolved distinction this guard's rule keys
+        # on must also be the ONE sink-owner definition, never a local copy.
+        assert has_known_refusal is ratchet.has_known_refusal
 
     def test_block_shapes_comes_from_the_writer(self):
         """Premise: the vocabulary is the shared one, not a local copy."""
@@ -333,9 +347,16 @@ class TestInstrumentPremises:
         )
 
     def test_corpus_contains_refusal_candidates(self):
-        """A detector that finds nothing is not evidence of nothing."""
+        """A detector that finds nothing is not evidence of nothing.
+
+        Known refusers only: this guard's rule operates on verified refusers, so
+        the premise counts them via the shared ``has_known_refusal`` predicate
+        rather than any-evidence — an UNKNOWN-only site is not a candidate here.
+        """
         candidates = [
-            p.name for p in _iter_hook_files(HOOKS_DIR) if _refusal_evidence(p)
+            p.name
+            for p in _iter_hook_files(HOOKS_DIR)
+            if has_known_refusal(_refusal_evidence(p))
         ]
         assert len(candidates) >= 5, (
             f"Only {len(candidates)} refusal candidates across the corpus "
@@ -351,7 +372,9 @@ class TestInstrumentPremises:
         for name in sorted(PINNED_UNRECORDED_REFUSERS):
             path = HOOKS_DIR / name
             assert path.exists(), f"premise: {name} still exists"
-            assert _refusal_evidence(path), f"premise: {name} still refuses"
+            assert has_known_refusal(_refusal_evidence(path)), (
+                f"premise: {name} still KNOWN-refuses"
+            )
             assert recorder_shapes(path) == set(), (
                 f"{name} now calls a recorder. If it started recording "
                 f"refusals, delete it from PINNED_UNRECORDED_REFUSERS and "
@@ -415,8 +438,13 @@ class TestTheGuard:
         real signal about when enforcement was relaxed.
         """
         path = HOOKS_DIR / "plan_gate.py"
-        assert _refusal_evidence(path), (
-            "plan_gate.py no longer reads as refusal-capable; the instrument "
+        # KNOWN refusal specifically: plan_gate carries both a literal
+        # ``_output_decision("block")`` (known) and, since the UNKNOWN arm
+        # landed, a computed sibling. An any-evidence premise would stay green
+        # if only the KNOWN detection regressed but the computed one remained,
+        # which is exactly the regression this reproducer must catch.
+        assert has_known_refusal(_refusal_evidence(path)), (
+            "plan_gate.py no longer reads as a KNOWN refuser; the instrument "
             "regressed rather than the hook being fixed"
         )
         assert "block_event_decorator" in _sink_evidence(path), (
@@ -1013,6 +1041,85 @@ class TestCeilingIsNotATautology:
         assert "UNRECORDED_CEILING" in result.stdout, (
             f"the mutant failed for some reason other than a ceiling "
             f"assertion, so this proves nothing about it.\n{result.stdout}"
+        )
+
+
+class TestUnresolvedCandidatesAreNotVerifiedRefusers:
+    """The UNKNOWN arm, as it lands on the recording guard.
+
+    An UNKNOWN-only hook (a computed decision envelope) is not a verified
+    refuser, so it is out of scope for the "does it record its refusals?"
+    question — we cannot tell it refuses at all. A recorder cannot resolve an
+    UNKNOWN site either. The shared distinction is IMPORTED (no-copy guaranteed
+    by ``TestInstrumentPremises::test_imported_instruments_are_the_ratchet_originals``),
+    and the single live pin of the actual omission
+    (``validate_paid_dependency.py``) lives in the SINK owner's inventory — not
+    triplicated here. These arms test THIS owner's RULE on synthetic corpora.
+    """
+
+    @staticmethod
+    def _write(tmp_path, name: str, body: str):
+        path = tmp_path / name
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_unknown_only_hook_is_not_flagged(self, tmp_path):
+        """A computed-envelope hook with no recorder is still not an offender."""
+        self._write(
+            tmp_path,
+            "synthetic_unknown_only.py",
+            "import json\n"
+            "def _emit(decision):\n"
+            '    print(json.dumps({"permissionDecision": decision}))\n',
+        )
+        assert unrecorded_refusers(tmp_path) == [], (
+            "an UNKNOWN-only hook was flagged as unrecorded; it is not a "
+            "verified refuser"
+        )
+
+    def test_recorder_does_not_resolve_an_unknown_only_hook(self, tmp_path):
+        """ANTI-LAUNDERING. A recorder cannot resolve an UNKNOWN site.
+
+        The distinct behaviour: the hook calls ``log_block_event`` with a
+        refusal shape AND builds a computed envelope, yet the shared UNRESOLVED
+        inventory must STAY POPULATED for it — a recorder tells us nothing about
+        the computed decision value. This calls ``unresolved_refusers`` directly
+        (an empty offender list alone would not prove anti-laundering).
+        """
+        self._write(
+            tmp_path,
+            "synthetic_recorder_plus_unknown.py",
+            "import json\n"
+            "from hook_telemetry import log_block_event\n"
+            "def main(verdict):\n"
+            '    log_block_event(hook_name="x", decision_shape="dict",\n'
+            '                    reason="nope")\n'
+            '    print(json.dumps({"permissionDecision": verdict}))\n',
+        )
+        assert "synthetic_recorder_plus_unknown.py" in unresolved_refusers(tmp_path), (
+            "a recorder call resolved the UNKNOWN site away — the shared "
+            "inventory must still carry the computed envelope. A recorder "
+            "cannot resolve a dynamic decision."
+        )
+
+    def test_mixed_hook_that_records_nothing_is_still_flagged(self, tmp_path):
+        """A MIXED hook keeps its recording obligation via the literal refusal.
+
+        The literal ``deny`` makes it a known refuser; it records nothing; so it
+        must be flagged. The computed sibling does not exempt it.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_mixed.py",
+            "import json\n"
+            "def main(verdict):\n"
+            '    print(json.dumps({"decision": "deny"}))\n'
+            '    print(json.dumps({"permissionDecision": verdict}))\n',
+        )
+        assert unrecorded_refusers(tmp_path) == ["synthetic_mixed.py"], (
+            "a MIXED hook with a literal refusal and no recorder was not "
+            "flagged; the computed sibling wrongly exempted its refusal "
+            "obligation"
         )
 
 

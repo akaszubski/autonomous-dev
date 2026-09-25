@@ -259,6 +259,18 @@ PINNED_CEILING = 5
 # a deliberate, visible edit — the ceiling above may only be raised in a change
 # that also lands here, which is what separates a baseline correction from a
 # regression being waved through.
+#
+# ``unresolved_decision`` is DIFFERENT in kind from the six above: the six are
+# KNOWN-refusal instruments (they see a literal that denies), while this one
+# marks an UNRESOLVED (UNKNOWN) candidate — a decision envelope whose value is
+# computed, so source cannot tell whether it denies. It is admitted to the
+# vocabulary because the live corpus produces it (``validate_paid_dependency.py``
+# binds ``"permissionDecision": decision`` to a parameter), and an instrument
+# that produced evidence without being pinned here would fail
+# ``test_instrument_vocabulary_is_pinned``. It does NOT feed PINNED_OUT_OF_SINK
+# and does NOT touch PINNED_CEILING: an UNKNOWN site is not an offender, it is an
+# item on the unresolved inventory (see ``is_unresolved_evidence`` and
+# ``unresolved_refusers``).
 INSTRUMENTS = frozenset(
     {
         "dict_literal",
@@ -267,8 +279,75 @@ INSTRUMENTS = frozenset(
         "return2",
         "decorated_emitter",
         "decision_object",
+        "unresolved_decision",
     }
 )
+
+# THE ONE SHARED KNOWN-VERSUS-UNRESOLVED DISTINCTION.
+#
+# A decision key bound to a computed value (a variable, a call, an f-string, any
+# non-literal expression) cannot be classified from source: we cannot tell
+# whether the envelope denies. Such a site is recorded as an UNRESOLVED
+# candidate rather than dropped — neither a known refuser nor silently invisible.
+# The marker carries this prefix so that KNOWN refusal evidence and UNRESOLVED
+# candidates are distinguishable by a single predicate, ``is_unresolved_evidence``.
+#
+# This is the SINGLE distinction the other two refusal owners
+# (``test_refusal_recording_guard`` and ``test_hook_reachability_ratchet``)
+# IMPORT and reference. They do NOT re-derive the split — a second copy of the
+# classification is a second thing that can drift.
+UNRESOLVED_INSTRUMENT = "unresolved_decision"
+
+
+def is_unresolved_evidence(item: str) -> bool:
+    """True iff an evidence string marks an UNRESOLVED (UNKNOWN) candidate.
+
+    UNKNOWN means source cannot determine whether the envelope denies. It is
+    NOT a runtime denial claim and NOT a verified refuser — adding a sink, a
+    recorder or a lifecycle registration cannot resolve it, because none of
+    those tell us the computed decision value.
+
+    Args:
+        item: One evidence string from ``_python_refusal_evidence`` /
+            ``_refusal_evidence``.
+
+    Returns:
+        True when the string is an unresolved-candidate marker.
+    """
+    return item.split(":", 1)[0] == UNRESOLVED_INSTRUMENT
+
+
+def has_known_refusal(evidence: "list[str]") -> bool:
+    """True iff ``evidence`` contains at least one KNOWN (literal) refusal.
+
+    The three refusal-owner offender rules key on this: a hook is subject to
+    the sink / recording / reachability obligation only when it is a KNOWN
+    refuser. An UNKNOWN-only hook is carried on the unresolved inventory
+    instead of being treated as a verified refuser.
+
+    Args:
+        evidence: Evidence strings for one hook.
+
+    Returns:
+        True when any entry is not an unresolved-candidate marker.
+    """
+    return any(not is_unresolved_evidence(item) for item in evidence)
+
+
+def has_unresolved_candidate(evidence: "list[str]") -> bool:
+    """True iff ``evidence`` contains at least one UNRESOLVED candidate.
+
+    A hook with MIXED evidence (a literal refusal AND a computed envelope)
+    returns True here AND True from ``has_known_refusal`` — it retains both
+    obligations.
+
+    Args:
+        evidence: Evidence strings for one hook.
+
+    Returns:
+        True when any entry is an unresolved-candidate marker.
+    """
+    return any(is_unresolved_evidence(item) for item in evidence)
 
 _SHELL_COMMENT = re.compile(r"(?<!\\)#.*$")
 
@@ -327,12 +406,20 @@ def _python_refusal_evidence(source: str) -> "list[str]":
     * ``decision_object`` (#1588) — a ``HookDecision`` refusal constructed for
       ``safe_main`` to emit. A migrated hook prints nothing, so without this
       instrument its refusal would be invisible to every other one.
+    * ``unresolved_decision`` — a decision key bound to a COMPUTED value. This
+      is NOT a known refusal: it is an UNRESOLVED (UNKNOWN) candidate, marked
+      distinctly so callers can carry it on the unresolved inventory without
+      treating it as a verified refuser. See ``is_unresolved_evidence``.
 
     Args:
         source: Python source text.
 
     Returns:
-        Sorted list of evidence strings; empty when no refusal is detectable.
+        Sorted list of evidence strings; empty when no refusal is detectable
+        and no unresolved candidate is present. May contain KNOWN-refusal
+        markers, UNRESOLVED-candidate markers, or both (a MIXED site retains
+        both — a literal refusal is a refuser AND a computed sibling stays
+        unresolved).
 
     Raises:
         SyntaxError: If ``source`` does not parse.
@@ -341,16 +428,33 @@ def _python_refusal_evidence(source: str) -> "list[str]":
     evidence: "set[str]" = set()
 
     for node in ast.walk(tree):
-        # Instrument A: dict literal with a refusing decision value.
+        # Instrument A: dict literal with a refusing decision value, plus its
+        # UNRESOLVED sibling. A decision key bound to a refusing LITERAL is a
+        # known refusal (``dict_literal``). A decision key bound to a COMPUTED
+        # value — a variable, a call, an f-string, any non-Constant expression —
+        # cannot be classified from source: we cannot tell whether it denies, so
+        # it is recorded as an UNRESOLVED candidate rather than dropped. This is
+        # the omission ``validate_paid_dependency.py`` exposed: it binds
+        # ``"permissionDecision": decision`` to a parameter (line 86), so
+        # instrument A saw a non-Constant value and emitted nothing at all — the
+        # site was neither a known refuser nor an UNKNOWN candidate, it was
+        # invisible. A literal ``allow`` (or any non-refusing literal) is neither
+        # a refusal nor unresolved and stays silent, exactly as before.
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values):
-                if (
-                    isinstance(key, ast.Constant)
-                    and key.value in DECISION_KEYS
-                    and isinstance(value, ast.Constant)
-                    and value.value in REFUSAL_DECISION_VALUES
-                ):
-                    evidence.add(f"dict_literal:{key.value}={value.value!r}")
+                if not (isinstance(key, ast.Constant) and key.value in DECISION_KEYS):
+                    continue
+                if isinstance(value, ast.Constant):
+                    if value.value in REFUSAL_DECISION_VALUES:
+                        evidence.add(f"dict_literal:{key.value}={value.value!r}")
+                    # A non-refusing literal (``allow``, ...) is decidable and
+                    # decided: not a refusal, not unresolved.
+                else:
+                    # Computed value: source cannot decide whether it denies.
+                    evidence.add(
+                        f"{UNRESOLVED_INSTRUMENT}:{key.value}"
+                        f"=<{type(value).__name__}>"
+                    )
 
         # Instrument B: a known emitter invoked with a refusing first literal.
         if isinstance(node, ast.Call):
@@ -653,9 +757,52 @@ def out_of_sink_refusers(hooks_dir: Path = HOOKS_DIR) -> "list[str]":
     """
     offenders = []
     for path in _iter_hook_files(hooks_dir):
-        if _refusal_evidence(path) and not _sink_evidence(path):
+        # KNOWN refusers only. An UNKNOWN-only hook is not a verified refuser —
+        # it cannot be an out-of-sink OFFENDER, because we cannot tell it
+        # refuses at all. It is carried on the unresolved inventory instead
+        # (``unresolved_refusers``). A MIXED hook (literal refusal + computed
+        # sibling) IS a known refuser and is judged here as before.
+        if has_known_refusal(_refusal_evidence(path)) and not _sink_evidence(path):
             offenders.append(path.name)
     return sorted(offenders)
+
+
+def unresolved_refusers(hooks_dir: Path = HOOKS_DIR) -> "dict[str, list[str]]":
+    """THE UNRESOLVED INVENTORY: hooks with a computed decision envelope.
+
+    An UNKNOWN candidate is a decision key bound to a value source cannot
+    classify (see ``_python_refusal_evidence``'s ``unresolved_decision`` arm).
+    Such a site is neither a known refuser nor silently dropped: it is listed
+    here, explicitly.
+
+    Anti-laundering (contract critical): this inventory is derived ONLY from the
+    refusal evidence. It is deliberately NOT filtered by ``_sink_evidence`` or
+    any recorder/registration signal — adding a sink, a recorder or a lifecycle
+    registration cannot resolve a dynamic decision, so none of them may remove
+    an entry here. A hook that both routes through a sink AND carries a computed
+    envelope still appears on this inventory.
+
+    A MIXED hook (a literal refusal plus a computed sibling) appears here for
+    its unresolved part AND remains a known refuser everywhere else.
+
+    Args:
+        hooks_dir: Directory of hook scripts to scan.
+
+    Returns:
+        Mapping of hook filename to its sorted UNRESOLVED-candidate markers,
+        for every hook carrying at least one.
+
+    Raises:
+        SyntaxError: If a ``.py`` hook does not parse.
+    """
+    inventory: "dict[str, list[str]]" = {}
+    for path in _iter_hook_files(hooks_dir):
+        unresolved = sorted(
+            item for item in _refusal_evidence(path) if is_unresolved_evidence(item)
+        )
+        if unresolved:
+            inventory[path.name] = unresolved
+    return inventory
 
 
 class TestInstrumentPremises:
@@ -675,12 +822,67 @@ class TestInstrumentPremises:
         )
 
     def test_refusal_candidates_is_non_empty(self):
-        """A detector that finds nothing is not evidence of nothing."""
+        """A detector that finds nothing is not evidence of nothing.
+
+        This asserts at least one KNOWN refusal candidate, NOT merely a
+        non-empty union. Since the ``unresolved_decision`` arm landed,
+        ``refusal_candidates()`` also carries UNKNOWN-only hooks (a computed
+        decision envelope), so a bare non-empty check is VACUOUS as a
+        known-detection guarantee: if every known-refusal instrument
+        (dict_literal / emitter_call / exit2 / return2 / decorated_emitter /
+        decision_object) regressed to zero, an UNKNOWN-only corpus would still
+        satisfy ``assert candidates`` and mask a total known-detection failure.
+        The union recognizer itself is unchanged — only this premise tightens.
+        """
         candidates = refusal_candidates()
         assert candidates, (
             "Zero refusal candidates discovered across the entire hook corpus. "
             "That is an instrument failure, not a clean repo."
         )
+        known = {
+            name: evidence
+            for name, evidence in candidates.items()
+            if has_known_refusal(evidence)
+        }
+        assert known, (
+            "The union is non-empty but contains NO known refusal candidate — "
+            "every entry is an UNKNOWN-only computed envelope. The known-refusal "
+            "instruments (dict_literal / emitter_call / exit2 / return2 / "
+            "decorated_emitter / decision_object) have all regressed to zero. "
+            f"Union: {sorted(candidates)}"
+        )
+
+    def test_refusal_candidates_premise_is_not_vacuous(self, monkeypatch):
+        """CONTROL: a known-detection break must FAIL the premise above.
+
+        Before the premise required a KNOWN candidate, it asserted only that the
+        union was non-empty — which the ``unresolved_decision`` arm makes
+        satisfiable by an UNKNOWN-only corpus even if every known instrument
+        regressed to zero. This drives the SAME premise
+        (``test_refusal_candidates_is_non_empty``) against a mutant evidence
+        provider that strips every KNOWN marker (simulating all known arms
+        removed) and asserts it now RAISES. The union stays non-empty (the four
+        live UNKNOWN-only computed envelopes remain), so a bare non-empty check
+        would still pass — proving the tightened premise is load-bearing.
+
+        Positive control: the real, unmutated premise passes (run in the suite).
+        """
+        module = sys.modules[refusal_candidates.__module__]
+        original = module._refusal_evidence
+
+        def _known_arms_removed(path):
+            return [e for e in original(path) if is_unresolved_evidence(e)]
+
+        monkeypatch.setattr(module, "_refusal_evidence", _known_arms_removed)
+
+        # The union is still non-empty (UNKNOWN-only hooks remain), so a bare
+        # ``assert candidates`` would MASK the regression.
+        assert refusal_candidates(), (
+            "premise for this control: the UNKNOWN-only corpus is non-empty, so "
+            "the OLD bare non-empty check would have passed here"
+        )
+        with pytest.raises(AssertionError, match="NO known refusal candidate"):
+            TestInstrumentPremises().test_refusal_candidates_is_non_empty()
 
     def test_positive_control_largest_refuser_is_detected(self):
         """``unified_pre_tool.py`` must be found despite having no literals.
@@ -740,11 +942,19 @@ class TestInstrumentPremises:
         )
 
     def test_shell_hook_is_detected_by_the_union(self):
-        """The Python-only glob missed this file; the union must not."""
+        """The Python-only glob missed this file; the union must not.
+
+        Requires a KNOWN refusal, not bare union membership: the shell arm has
+        no ``unresolved_decision`` instrument, so a known marker is the only
+        thing that should ever put a shell hook here — asserting known keeps the
+        premise from going vacuous if that ever changes.
+        """
         candidates = refusal_candidates()
-        assert "PreToolUseWrite-protect-sensitive.sh" in candidates, (
-            "The shell hook was not detected as refusal-capable. The union has "
-            "regressed to Python-only, one of the four wrong answers."
+        evidence = candidates.get("PreToolUseWrite-protect-sensitive.sh", [])
+        assert has_known_refusal(evidence), (
+            "The shell hook was not detected as a KNOWN refuser. The union has "
+            f"regressed to Python-only, one of the four wrong answers. "
+            f"Evidence: {evidence}"
         )
 
 
@@ -1042,10 +1252,12 @@ class TestRatchet:
            that ``test_pinned_set_has_a_ceiling`` refuses.
         """
         candidates = refusal_candidates()
-        assert "plan_gate.py" in candidates, (
-            "plan_gate.py is no longer detected as refusal-capable. It still "
+        assert has_known_refusal(candidates.get("plan_gate.py", [])), (
+            "plan_gate.py is no longer detected as a KNOWN refuser. It still "
             "calls _output_decision('block', ...) on two paths, so this is an "
-            "instrument regression, not a migration."
+            "instrument regression, not a migration. (Bare union membership is "
+            "insufficient: plan_gate also carries an UNKNOWN computed envelope, "
+            "which must not mask a regression of the known emitter instrument.)"
         )
         assert "plan_gate.py" not in out_of_sink_refusers(), (
             f"plan_gate.py refuses outside the sanctioned sink again. Its "
@@ -1069,9 +1281,11 @@ class TestRatchet:
             "enforce_file_organization.py",
             "PreToolUseWrite-protect-sensitive.sh",
         ):
-            assert name in candidates, (
-                f"premise: {name} is detected as refusal-capable, so its "
-                f"permission below is meaningful rather than vacuous"
+            assert has_known_refusal(candidates.get(name, [])), (
+                f"premise: {name} is detected as a KNOWN refuser, so its "
+                f"permission below is meaningful rather than vacuous (bare "
+                f"union membership could be satisfied by an UNKNOWN-only "
+                f"computed envelope)"
             )
             assert name not in live, (
                 f"{name} routes its refusals through a sanctioned sink "
@@ -1736,6 +1950,274 @@ class TestSourceCorpusIsNotTheDeployedArtifact:
             "plugins/autonomous-dev/hooks/ has no tracked files — HOOKS_DIR "
             "does not point at a tracked corpus."
         )
+
+
+class TestUnresolvedInventory:
+    """The UNKNOWN arm: computed decision envelopes are carried, not dropped.
+
+    A decision key bound to a value source cannot classify is neither a known
+    refuser nor silently invisible — it is an UNRESOLVED candidate. These arms
+    watch that classification REFUSING (a real known refusal stays known, an
+    allow stays silent) and PERMITTING the UNKNOWN state (a computed value is
+    marked unresolved, and no sink resolves it). The reproducer is the live
+    ``validate_paid_dependency.py``; the synthetic controls are shaped
+    differently on purpose.
+    """
+
+    _PAID = HOOKS_DIR / "validate_paid_dependency.py"
+
+    @staticmethod
+    def _write(tmp_path: Path, name: str, body: str) -> Path:
+        path = tmp_path / name
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_actual_paid_dependency_source_is_unresolved(self):
+        """THE REPRODUCER. The real hook's computed envelope is UNKNOWN.
+
+        Before this arm existed, ``_python_refusal_evidence`` returned ``[]`` for
+        this file: ``"permissionDecision": decision`` binds a Name, not a
+        literal, so instrument A saw a non-Constant value and emitted nothing.
+        The site was invisible — neither a known refuser nor an UNKNOWN
+        candidate. It must now surface as an unresolved candidate, and must NOT
+        be promoted to a known refusal.
+        """
+        assert self._PAID.exists(), "premise: the paid-dependency hook still exists"
+        source = self._PAID.read_text(encoding="utf-8")
+        assert '"permissionDecision": decision' in source, (
+            "premise: the hook still binds the decision key to a variable. If "
+            "the envelope was rewritten to a literal, this reproducer no longer "
+            "exercises the computed-value case — pick another instance."
+        )
+        evidence = _python_refusal_evidence(source)
+        unresolved = [e for e in evidence if is_unresolved_evidence(e)]
+        assert unresolved == [f"{UNRESOLVED_INSTRUMENT}:permissionDecision=<Name>"], (
+            f"the paid-dependency hook's variable-valued envelope was not "
+            f"recorded as an UNKNOWN candidate; got evidence {evidence}"
+        )
+        assert not has_known_refusal(evidence), (
+            f"the computed envelope was mis-promoted to a known refusal: "
+            f"{evidence}. UNKNOWN is not a denial claim."
+        )
+        assert has_unresolved_candidate(evidence)
+
+    def test_literal_deny_control_is_known_not_unresolved(self):
+        """CONTROL. A literal ``deny`` stays a KNOWN refusal, distinct from UNKNOWN.
+
+        This is the value-side control for the reproducer above: the ONLY
+        difference between them is literal-versus-computed, so if this went
+        unresolved the distinction would be meaningless.
+        """
+        evidence = _python_refusal_evidence('print({"permissionDecision": "deny"})\n')
+        assert evidence == ["dict_literal:permissionDecision='deny'"], (
+            f"a literal deny is no longer a KNOWN refusal; got {evidence}"
+        )
+        assert has_known_refusal(evidence)
+        assert not has_unresolved_candidate(evidence)
+
+    @pytest.mark.parametrize("key", sorted(DECISION_KEYS))
+    @pytest.mark.parametrize(
+        "value_expr,node_kind",
+        [
+            ("decision", "Name"),
+            ("compute()", "Call"),
+            ('"de" + "ny"', "BinOp"),
+            ("f\"{verdict}\"", "JoinedStr"),
+        ],
+    )
+    def test_both_keys_with_computed_values_are_unresolved(
+        self, key, value_expr, node_kind
+    ):
+        """Both decision keys, four computed shapes — all UNKNOWN, none known.
+
+        Covers the class ``variable / call / expression``, not one instance, and
+        does it for ``permissionDecision`` AND ``decision``.
+        """
+        evidence = _python_refusal_evidence(f'print({{"{key}": {value_expr}}})\n')
+        assert evidence == [f"{UNRESOLVED_INSTRUMENT}:{key}=<{node_kind}>"], (
+            f"a computed {node_kind} value under {key!r} was not marked "
+            f"unresolved; got {evidence}"
+        )
+        assert not has_known_refusal(evidence)
+
+    def test_helper_called_with_literal_allow_vs_deny_stays_unresolved(self):
+        """No binding engine: helper call arguments do not resolve the envelope.
+
+        This is the paid-dependency SHAPE, distilled: ``_emit`` builds a computed
+        envelope and is called with a literal ``deny`` AND a literal ``allow``.
+        Because there is no binding analysis, the site inside ``_emit`` stays
+        UNKNOWN — it is neither promoted to a refusal by the ``deny`` call nor
+        cleared by the ``allow`` call.
+        """
+        source = (
+            "import json\n"
+            "def _emit(decision, reason):\n"
+            '    print(json.dumps({"hookSpecificOutput": {\n'
+            '        "permissionDecision": decision,\n'
+            '        "permissionDecisionReason": reason}}))\n'
+            "def main(bad):\n"
+            "    if bad:\n"
+            '        _emit("deny", "nope")\n'
+            "    else:\n"
+            '        _emit("allow", "fine")\n'
+        )
+        evidence = _python_refusal_evidence(source)
+        assert evidence == [f"{UNRESOLVED_INSTRUMENT}:permissionDecision=<Name>"], (
+            f"the helper's call arguments changed its classification — a "
+            f"binding engine was introduced. Expected a single UNKNOWN marker; "
+            f"got {evidence}"
+        )
+        assert not has_known_refusal(evidence), (
+            "the literal `deny` call argument was traced into the helper and "
+            "promoted the site to a known refusal. There is no binding engine."
+        )
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            pytest.param('print({"decision": "allow"})\n', id="literal-allow"),
+            pytest.param(
+                '"""permissionDecision: deny is described here."""\n'
+                "# permissionDecision: block  (a comment, not code)\n"
+                "x = 1\n",
+                id="comment-and-docstring-prose",
+            ),
+        ],
+    )
+    def test_decidable_non_refusals_stay_silent(self, source):
+        """CONTROLS: a literal non-refusing value and AST-invisible prose.
+
+        Neither is a refusal and neither is unresolved — the classifier only
+        marks UNKNOWN when a decision key is bound to a value it cannot decide,
+        not when the value is decidably non-refusing or not code at all.
+        """
+        assert _python_refusal_evidence(source) == []
+
+    def test_mixed_evidence_retains_both_obligations(self):
+        """A file with a literal refusal AND a computed sibling keeps both.
+
+        The literal makes it a KNOWN refuser; the computed value keeps it on the
+        unresolved inventory. Neither obligation subsumes the other.
+        """
+        source = (
+            'print({"decision": "deny"})\n'
+            'print({"permissionDecision": verdict})\n'
+        )
+        evidence = _python_refusal_evidence(source)
+        assert has_known_refusal(evidence), "the literal deny must stay a refuser"
+        assert has_unresolved_candidate(evidence), (
+            "the computed sibling must stay on the unresolved inventory"
+        )
+        assert "dict_literal:decision='deny'" in evidence
+        assert f"{UNRESOLVED_INSTRUMENT}:permissionDecision=<Name>" in evidence
+
+    def test_out_of_sink_ignores_unknown_only_hooks_but_inventory_keeps_them(
+        self, tmp_path
+    ):
+        """An UNKNOWN-only hook is not an out-of-sink OFFENDER, but is inventoried.
+
+        We cannot tell it refuses, so it cannot be a verified out-of-sink
+        refuser. It must still be visible on the unresolved inventory rather
+        than dropped.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_unknown_only.py",
+            "import json\n"
+            "def _emit(decision):\n"
+            '    print(json.dumps({"hookSpecificOutput": {\n'
+            '        "permissionDecision": decision}}))\n',
+        )
+        assert out_of_sink_refusers(tmp_path) == [], (
+            "an UNKNOWN-only hook was flagged as an out-of-sink refuser; we "
+            "cannot tell it refuses at all, so it is not a verified offender"
+        )
+        assert "synthetic_unknown_only.py" in unresolved_refusers(tmp_path), (
+            "an UNKNOWN-only hook was dropped from the unresolved inventory "
+            "instead of carried explicitly"
+        )
+
+    def test_adding_a_sink_does_not_resolve_an_unknown_site(self, tmp_path):
+        """ANTI-LAUNDERING. A sanctioned sink cannot clear an UNKNOWN entry.
+
+        The synthetic hook routes a refusal through ``deny_and_record`` AND also
+        builds a computed envelope elsewhere. The sink resolves the fused
+        refusal; it says nothing about the computed value, which must remain on
+        the unresolved inventory. Registration or a recorder would launder it
+        the same way, and must not.
+        """
+        self._write(
+            tmp_path,
+            "synthetic_sink_plus_unknown.py",
+            "import json\n"
+            "from hook_telemetry import deny_and_record\n"
+            "def main(verdict):\n"
+            "    print(json.dumps(deny_and_record(\n"
+            '        hook_name="x", reason="nope")))\n'
+            '    print(json.dumps({"permissionDecision": verdict}))\n',
+        )
+        assert "synthetic_sink_plus_unknown.py" in unresolved_refusers(tmp_path), (
+            "a hook that references a sanctioned sink had its UNKNOWN site "
+            "resolved away. A sink cannot resolve a dynamic decision."
+        )
+        assert out_of_sink_refusers(tmp_path) == [], (
+            "premise: the hook's KNOWN refusal really does route through the "
+            "sink, so its presence on the inventory is the UNKNOWN part alone"
+        )
+
+    def test_live_unresolved_inventory_contains_the_paid_dependency_hook(self):
+        """THE INVENTORY-COMPLETENESS CONTROL over the live corpus.
+
+        The one observed omission (``validate_paid_dependency.py``) must be
+        present and explicit. This is the control the omitted-arm mutant below
+        breaks.
+        """
+        inventory = unresolved_refusers()
+        assert "validate_paid_dependency.py" in inventory, (
+            "the live unresolved inventory dropped the paid-dependency hook — "
+            "the observed omission has reopened"
+        )
+        assert inventory["validate_paid_dependency.py"] == [
+            f"{UNRESOLVED_INSTRUMENT}:permissionDecision=<Name>"
+        ]
+
+    def test_omitted_arm_mutant_fails_inventory_completeness(self, monkeypatch):
+        """THE OMITTED-ARM MUTANT, driven through the REAL inventory route.
+
+        The completeness control is
+        ``test_live_unresolved_inventory_contains_the_paid_dependency_hook``:
+        the paid-dependency hook must be present in ``unresolved_refusers()``.
+        This does NOT reimplement that inventory — it calls the SAME production
+        function and only swaps the evidence provider it consults, which is the
+        exact effect of deleting the ``unresolved_decision`` arm from
+        ``_python_refusal_evidence`` (the arm's output is filtered out at the
+        source the route reads).
+
+        Both controls are present: the UNMUTATED real route must SATISFY
+        completeness (so a red means the mutation, not a broken route), and the
+        MUTANT real route must FAIL it (so the arm is proven load-bearing).
+        """
+        module = sys.modules[unresolved_refusers.__module__]
+        original = module._refusal_evidence
+
+        # Positive control: the real, unmutated completeness premise passes
+        # (it also runs standalone in the suite).
+        self.test_live_unresolved_inventory_contains_the_paid_dependency_hook()
+
+        # Mutant: strip UNKNOWN markers at the evidence source the REAL route
+        # reads, simulating the deleted/filtered ``unresolved_decision`` arm.
+        def _arm_removed(path):
+            return [e for e in original(path) if not is_unresolved_evidence(e)]
+
+        monkeypatch.setattr(module, "_refusal_evidence", _arm_removed)
+
+        # Drive the SAME completeness premise under the patch: it must RAISE,
+        # mirroring the known-arm mutant in
+        # ``test_refusal_candidates_premise_is_not_vacuous``. This proves the
+        # premise detects an omission inside the production route, not merely a
+        # census-wide emptiness.
+        with pytest.raises(AssertionError, match="observed omission has reopened"):
+            self.test_live_unresolved_inventory_contains_the_paid_dependency_hook()
 
 
 if __name__ == "__main__":
