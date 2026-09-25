@@ -672,6 +672,12 @@ Neither remote `pwd` completed. No host trust, remote settings or installation w
 changed; actual remote home, installed bytes, registrations and extension carriers
 remain unresolved. Retry the bounded census when a declared endpoint is reachable;
 timeout establishes neither absence nor drift.
+The fresh retry with ConnectTimeout=4 returned the same two TCP/22 timeouts.
+Local `tailscale status --json` independently reports `BackendState=NeedsLogin`,
+no local Tailscale IP and no current tailnet map; this explains why the Tailscale
+route cannot be used now, but does not establish the remote host's state. Remote
+consumer rows stay UNMEASURED; avoid repeated blind SSH attempts until local
+Tailscale access or the LAN route has actually changed.
 
 Required release profiles remain: isolated Linux Claude worker; standalone verifier;
 dogfood; distinct clean and populated consumer; real Claude/Codex portability case.
