@@ -8,13 +8,36 @@ not acceptance evidence. Canonical scope remains the
 
 Observed after the detached-session recovery; recheck liveness before use.
 
+Latest supervisor checkpoint: source-location candidate hashes are
+`7818342b3b38b2d9340cdf1a1e3ecc819d04db2bed160916968406b255a99faf`
+(ratchet) and `ba40b5d033eee4f6264ffdc74aa55e86c13b399fca6c45310aaf9786c3e32076`
+(CHANGELOG). Their isolated full-suite verification completed as tool session
+4271 in `/Users/akaszubski/.codex/artifacts/adev-location-proof.lI9B3o/repo`,
+base `01a13368`, under a real `.codex` ancestor with ordinary guards intact:
+**281 passed in 93.40 seconds, actual process exit 0**. Post-run hashes match.
+The source-session 281 passing tests with exit 1 remain distinct evidence;
+remaining specialist acceptance and whole-census reconciliation are not implied.
+
+F0 staging run `b685fe360589b185` is currently blocked at implementer dispatch,
+not implementing. Canonical template reconstruction still produced cumulative
+drift denial (41.7%). Supervisor verified the actual cumulative store contains
+66 implementer observations across issues 0, 1762, 1779, 1790 and 1791:
+first 2755 words, latest 1606 words. The hook appends before checking drift.
+`implement-fix.md` F1 calls `clear_prompt_baselines()`, whose current body only
+clears the baseline file, not `prompt_batch_observations.json`; the changelog's
+Issue #794 entry says both were cleared together. The coordinator's initial
+same-run-baseline diagnosis and proposed baseline-only reset are withdrawn.
+No reset, padding, bypass or native launch was authorized or performed by the
+supervisor. Read-only diagnosis continues; any deadlock recovery must preserve
+the observation history and follow the explicit hook-deadlock approval rule.
+
 | Workstream | Current transport | Verified execution / acceptance |
 |---|---|---|
-| F0 correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Fresh `a1400c43275ddf258` returned behavioral PASS; supervisor observed required PROJECT read, direct pytest output/status, test-body/interface inspection, no authored files or production-body reads. Three invalid prior attempts remain rejected. Structural/security obligations retain separate reviewer evidence, not this validator's certification. Truthful normal closure, F6.5 and native F0 qualification remain incomplete. |
-| Source correction `8bf6bb224a9fe6ca` | Same server, session `census`, coordinator `39011` | Remediated subject independently passed 261 tests with exit 0; fresh validator `abbc667eea14f44bf` returned clean PASS with supervisor tool audit. Fresh reviewer APPROVE and security re-audit PASS returned; CIA, /improve and normal closure remain. Earlier false REACHED and integrity failures are preserved, and checkout-location/refusal-inventory gaps remain open. |
+| F0 staging correction `b685fe360589b185` after terminal correction `5bdca182e329bd9c` | `tmux -L adev-assurance`, session `f0`, coordinator `39004` | Prior correction closed; fresh alignment passed. Implementer dispatch blocked by stale cumulative prompt state; reset awaits explicit deadlock approval. No worker deployment, credentials or native launch; no native F0 qualification yet. |
+| Checkout-location correction `42d35d2b7c0ba77f` | Same server, session `census`, coordinator `39011` | Prior correction committed/pushed as `01a13368`. Settled two-file candidate independently passed 281 tests under a real `.codex` ancestor, exit 0. Specialist reviews continue. Refusal-inventory and denominator freeze remain open. |
 
-Next: both native coordinators have saved their local CIA reports after user
-authorization through native option 1; cleanup and /improve remain. Census Write
+Both native coordinators saved their local CIA reports after user
+authorization through native option 1. Census Write
 `toolu_01NaaEbK2MQ6wALXb4utHJRC` preserves the current report as an exact prefix
 (supervisor comparison returned true); F0 Edit
 `toolu_01Wo6cS87T5PevuMi6TrVEE1` preserves the old verdict text and appends the
@@ -24,8 +47,8 @@ Supervisor verified the saved census content matches the approved Write exactly
 and the saved F0 report contains the approved append. No alternate Bash writer or
 settings change was used. The user subsequently authorized routine equivalent
 local report saves on their behalf after scope verification; this is not release,
-paid-action, settings-change or gate-bypass authority. Required cleanup and
-/improve are still outstanding.
+paid-action, settings-change or gate-bypass authority. Cleanup and /improve
+subsequently completed for both correction runs (history below).
 F0 subsequently reported normal run-scoped sentinel cleanup for
 `5bdca182e329bd9c`; /improve remains to verify. Census invoked /improve report-only
 (GitHub mutations were excluded from that native run); root retains GitHub updates.
@@ -39,6 +62,59 @@ remains open for its own aligned correction after this handoff; it was not folde
 into the candidate under review. Both coordinator processes were re-observed live
 with their tmux panes (dead=0); do not restart them.
 No release/promotion or whole-plan completion is implied.
+
+Subsequent delivery checkpoint: source correction committed as
+`01a13368ab068536493a45299ca8c46b6adad910` and pushed to
+`origin/fix/1757-census-carriers`; supervisor rechecked both exact reviewed hashes.
+Native census run `42d35d2b7c0ba77f` starts from that commit for the separate
+checkout-location correction, with fresh PROJECT/alignment before implementation.
+F0 completed /improve report-only and produced a read-only admission handoff, but
+its claim of no standing native-attempt authority and R0-before-F0 is rejected:
+current plan lines 42–48 explicitly retain reviewed changed-cause F0 authority and
+600-second/capture/cleanup controls; R0 follows accepted F0. Independent authority
+review is underway. Preserve the incorrect handoff as failed reasoning evidence.
+The F0 sentinel exists again after reported cleanup, with its same session_id and
+no run_id/mode/base_commit; recreation is not proof of an active pipeline, and no
+speculative deletion/reinitialization was performed.
+
+Installed-preflight investigation: root verified worker Linux, probe root present,
+and both native/collector services `not-found/inactive/dead`, MainPID 0. The prior
+receipt's exact driver was located at
+`/opt/adev-probe/ex-source.1pnvv_ae/ex-staged-public/EX-1-attempt11-evidence-bound/dispatch.py`,
+SHA `baa60ca16907e547530df23aadd88416df39af126c647a6a21a0174fe1e08a84`;
+its sibling contract SHA is
+`996f943ab890daf849dbe28f41f6b1fa5efa61e5f6d284a9374f294bd523fcc6`.
+Root read its code: `--preflight` validates the old pinned source/prepared/service
+and empty historical capture, not the new ordinal12 profile helpers. Do not rerun
+that consumed driver or overwrite its pins as if it were the corrected subject.
+The native coordinator withdrew its asserted linkage and generic-CLI output claim.
+Next is a bounded existing-owner staging/materialization proposal, not a new
+installer/framework. No credential read, installed mutation or native run occurred.
+Independent scope review also places the plan's larger-replacement re-scoping
+before native F0 activation, without blocking credential-free preflight or
+reinstating withdrawn line caps; comparable dependency accounting is still needed.
+
+Next F0 implementation dispatched through native `/implement --fix`: repair only
+the corrected-subject staging/materialization gap using the existing ordinal12
+preparer and relevant case tables, reusing the reviewed installer mechanism where
+appropriate. Preserve historical attempt11 wrapper/driver/pins/backups; one
+canonical successor and existing staging/receipt owner, no parallel installer or
+per-case scripts. Materialize a fresh disabled subject consumable by both the real
+caller and credential-free preflight; freeze profile before child and retain
+installed permit/missing-successor/old-source-fallback/permissions/context-drift
+refusal cases. Host implementation only: no worker deployment, credential access,
+service/settings changes or native launch in this implementation turn. Exact
+installed commands follow independent review; native activation retains scope,
+changed-cause/preflight, 600-second and capture/cleanup gates.
+
+Pre-change local snapshot:
+`/Users/akaszubski/.codex/artifacts/ordinal12-v3-reviewed.d1LjAM/candidate-local.tar.gz`,
+SHA `18098f4067edefda08d3de86ffcdcaa5b014298c44ffc2a3dd3341677ad4e70c`.
+All 13 current manifest entries matched both live and archived bytes. This is a
+local candidate/proof subset, not complete runtime closure: `native_collector.py`,
+`pr8_parent.py`, `pr8_join.py` are worker-only and their live hashes match the frozen
+contract. The earlier `candidate.tar.gz` in that directory had tar missing-file
+errors and remains a failed partial snapshot, not a complete archive.
 
 Latest F0 rejection is bound to validator `a95136274a2624370`, Bash
 `toolu_014WaPgWmWcD9oQFqCWeFriJ`: its command used `>` to create
