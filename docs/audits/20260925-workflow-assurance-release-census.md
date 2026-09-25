@@ -13,20 +13,22 @@ All acceptance rows below are UNMEASURED for the replacement release.
 
 Instrument progress since the population snapshot: source-route correction
 `01a13368ab068536493a45299ca8c46b6adad910` is committed and pushed on
-`fix/1757-census-carriers`, not yet integrated into this canonical checkout.
+`fix/1757-census-carriers` and integrated here as `d6e76665`.
 Its corrected walk reports 238 modules, 148 REACHED and 90 UNKNOWN; the original
 141/97 figures below remain historical snapshot results, not current verdicts
 from that corrected instrument. No module was thereby proved to execute.
 The follow-on checkout-location correction completed specialist review and is
 committed as `21090df0239436b4923fc668e2ab8c2c97eebe28` on that same source branch;
-it is not yet integrated into this canonical checkout:
+it is integrated here as `261fbd43`:
 ratchet SHA `7818342b3b38b2d9340cdf1a1e3ecc819d04db2bed160916968406b255a99faf`
 passed all 281 tests with process exit 0 in an isolated checkout under `.codex`
 (93.40 seconds). This establishes that tested location behavior, not a frozen
 denominator. The refusal-envelope source-inventory correction is committed and
-pushed as `a4650e631302b944b3f73a1183d1e0cc1520794f` on the same branch;
-it is also not integrated here. Its settled affected suite reported 373 passing
+pushed as `a4650e631302b944b3f73a1183d1e0cc1520794f` on the same branch
+and integrated here as `e615974f`. Its settled source run reported 373 passing
 tests with a separate #1779 activity/state guard causing raw process exit 1;
+the combined affected suite in this canonical checkout passed 373 tests with
+raw process exit 0 in 101.65 seconds.
 and independent review retained the actual paid-dependency envelope as UNKNOWN
 without counting it as a verified denial. The first spec-blind review was
 disqualified for below-floor source reads; a fresh constrained review passed.
@@ -38,8 +40,8 @@ control remain open; see the [current restart checkpoint](20260925-workflow-assu
 
 Independent read-only review separates inventory closure from later product proof:
 
-1. Integrate the reviewed source-route, location and refusal-envelope corrections,
-   then reconcile their selected lists without dropping UNKNOWNs or treating
+1. Reconcile the integrated source-route, location and refusal-envelope
+   corrections' selected lists without dropping UNKNOWNs or treating
    source candidates as observed runtime denials.
 2. Expand the family rows into exact control/path/caller/profile obligations,
    intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
@@ -98,7 +100,7 @@ The sidecar generator's `--check` reports no drift on its selected inputs despit
 the other manifest and generator discrepancies. Preserve that bounded success;
 do not use it as release-wide consistency evidence.
 
-Refusal-inventory correction (delivered on the source branch at `a4650e63`,
+Refusal-inventory correction (source `a4650e63`, integrated `e615974f`,
 native run `bfe7b4009d4aa95a`; source evidence only): reuse
 `test_refusal_sink_ratchet.py::_python_refusal_evidence` and its existing evidence
 strings to retain variable-valued decision envelopes as unresolved candidates.
@@ -138,7 +140,7 @@ A green regression result may prove honest UNKNOWN reporting, not complete denia
 coverage. This correction adds no runtime hook, scanner, binding engine, store or
 per-emitter special case, and does not require performing the later migrations.
 
-Checkout-location correction (delivered on the source branch at `21090df0`): the exact
+Checkout-location correction (source `21090df0`, integrated `261fbd43`): the exact
 source candidate produced an empty corpus under a `.codex` ancestor and a nonempty
 corpus after moving the unchanged checkout to a neutral parent. `_library_paths`
 applies exclusions to absolute `path.parts`, including ancestors outside the
@@ -154,7 +156,7 @@ so the exclusion check cannot pass merely through glob omission. Keep the origin
 collected paths and existing glob/is-file behavior unchanged. A required empty
 corpus must not pass. The isolated `.codex`-ancestor proof above and completed
 specialist review establish this bounded correction; they do not establish native
-execution, complete inventory coverage or integration into the canonical checkout.
+execution or complete inventory coverage.
 
 ## Candidate acceptance matrix
 

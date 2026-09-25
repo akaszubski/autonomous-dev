@@ -18,7 +18,9 @@ spec-blind attempt was disqualified after actual tool records revealed reads
 below its allowed source floors. A fresh constrained validator passed; code,
 security, documentation and CIA reviews completed. The CIA report was appended
 locally with prior entries preserved. This is source-instrument evidence only;
-the branch is not yet integrated into the canonical checkout, and the release
+the three source commits are integrated into the canonical checkout as
+`d6e76665`, `261fbd43` and `e615974f`. Their combined affected suite passed
+373 tests with raw process exit 0 in 101.65 seconds here. The release
 denominator, runtime denial behavior and F0 remain unaccepted.
 
 F0 native run `b685fe360589b185` remains paused at the cumulative prompt-history
@@ -27,7 +29,7 @@ performed. The proposed recovery is to archive the existing observations,
 clear that cumulative store once, and retry the blocked implementer dispatch;
 it awaits the explicit hook-deadlock approval required by the operating
 agreement. Other inventory work can continue independently. Next release-scope
-work is to integrate and reconcile the three source corrections, settle exact
+work is to reconcile the three integrated source corrections, settle exact
 control/consumer dispositions, and prove the independent omitted-entry control
 before freezing #1757's finite table. Historical entries below retain their
 as-observed state and must not override this latest handoff.
