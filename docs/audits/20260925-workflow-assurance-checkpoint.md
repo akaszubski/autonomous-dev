@@ -59,15 +59,32 @@ control/consumer dispositions, and prove the native populated extension route
 before freezing #1757's finite table. Historical entries below retain their
 as-observed state and must not override this latest handoff.
 
-Current continuation: the canonical release census now has candidate per-control
-WA-O1a/b/c rows with known JSON declarations, disposition proposals, owners and
-remaining native proof; this is not a denominator freeze. Its former #1639
-family pointer was wrong (#1639 is the alignment-gate issue), so #1757 owns
-this reconciliation and #1648 is historical context-size work. The detached
-source `census` session is alive with an uncommitted four-file #1789 serial
-prompt-lifecycle candidate on top of `379fd673`; F3.5 and doc-master passed
-independent checks, while reviewer, security, CIA and `/improve` still precede
-commit. It does not resolve F0's authorization wait or qualify native execution.
+Current continuation (2026-09-25): canonical HEAD `2004eb63` is pushed on
+`fix/1779-pipeline-evidence-integrity`. `030c6c9d` split candidate WA-D1
+documentation/skills and WA-L1/L2 delivery controls into exact owners, outcomes
+and D0 case mappings after independent source/issue review corrected a false
+three-layer hook-overlap claim. The denominator remains unfrozen; installed
+registration, consumer precedence and native extension omission still need proof.
+The source `census` session completed native `/implement --fix` for #1789 and
+pushed `e8d875e7`; the canonical cherry-pick is `2004eb63`. Its four-file
+helper/hook-integration candidate passed 17 focused tests with raw exit 0 in
+both checkouts and completed spec-blind, reviewer, security, doc-master and CIA
+reviews. It restores serial baseline/observation reset coupling and removes a
+double observation, but does not prove native command-start abort, concurrent
+state isolation, full/light startup reset, recovery telemetry or F0. #1789
+remains open. Source `/improve --auto-file` was launched after commit and is
+running in the detached `census` tmux session; verify its actual result before
+crediting an issue or conclusion. The separate `f0` session is still paused at
+the cumulative-history hook deadlock; no archive/reset approval or F0 pass is
+inferred from the #1789 repair. The unrelated pre-existing modified plugin
+manifest and untracked `.Codex/` in the canonical checkout remain untouched.
+Next resume check: `tmux -L adev-assurance list-sessions` and `capture-pane -p
+-t census -S -40` for the actual `/improve` result; recheck source/canonical
+`git status --short` and HEAD before any integration. Then reconcile the
+remaining effective registrations and observed extension carrier in the existing
+release census; #1757 is the current status owner. Do not submit the paused
+`f0` input or clear its cumulative store without the separate documented
+hook-deadlock approval.
 
 ## Current delivery status
 
