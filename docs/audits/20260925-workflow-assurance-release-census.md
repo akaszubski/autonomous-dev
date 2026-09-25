@@ -23,15 +23,24 @@ it is not yet integrated into this canonical checkout:
 ratchet SHA `7818342b3b38b2d9340cdf1a1e3ecc819d04db2bed160916968406b255a99faf`
 passed all 281 tests with process exit 0 in an isolated checkout under `.codex`
 (93.40 seconds). This establishes that tested location behavior, not a frozen
-denominator. Refusal-envelope omissions, consumer reconciliation and inventory
-omission controls remain open; see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
+denominator. The refusal-envelope source-inventory correction is committed and
+pushed as `a4650e631302b944b3f73a1183d1e0cc1520794f` on the same branch;
+it is also not integrated here. Its settled affected suite reported 373 passing
+tests with a separate #1779 activity/state guard causing raw process exit 1;
+and independent review retained the actual paid-dependency envelope as UNKNOWN
+without counting it as a verified denial. The first spec-blind review was
+disqualified for below-floor source reads; a fresh constrained review passed.
+This was temporary assurance growth (+714/-34), not product subtraction or
+native proof. Consumer reconciliation and the independent inventory-omission
+control remain open; see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
 
 ### Remaining inventory-freeze work
 
 Independent read-only review separates inventory closure from later product proof:
 
-1. Close the known route/envelope omissions through the existing scanner owners,
-   integrate the reviewed location correction, and reconcile corrected lists without dropping UNKNOWNs.
+1. Integrate the reviewed source-route, location and refusal-envelope corrections,
+   then reconcile their selected lists without dropping UNKNOWNs or treating
+   source candidates as observed runtime denials.
 2. Expand the family rows into exact control/path/caller/profile obligations,
    intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
    resolve the context-size transition, legacy registrations and commit validators.
@@ -89,20 +98,18 @@ The sidecar generator's `--check` reports no drift on its selected inputs despit
 the other manifest and generator discrepancies. Preserve that bounded success;
 do not use it as release-wide consistency evidence.
 
-Refusal-inventory correction direction (implementation active in native run
-`bfe7b4009d4aa95a`; not yet verified or accepted): reuse
+Refusal-inventory correction (delivered on the source branch at `a4650e63`,
+native run `bfe7b4009d4aa95a`; source evidence only): reuse
 `test_refusal_sink_ratchet.py::_python_refusal_evidence` and its existing evidence
 strings to retain variable-valued decision envelopes as unresolved candidates.
 Do not add a special `_emit` spelling or a new parameter-binding engine merely to
 recognize `validate_paid_dependency.py`. This conservatively closes the observed
 omission class; it does not prove an envelope is emitted or a denial occurs.
-The sink, recording and reachability consumers currently treat nonempty evidence
-as a refuser, so their claims and instrument-premise cases must distinguish these
-UNKNOWN candidates from literal denial evidence. Derive unresolved completeness
-from the same inventory; registration or a file-level sink cannot resolve a dynamic
-decision. Runtime permit/refuse proof remains separate. Complete this bounded owner
-correction after the in-flight reachability handoff, not by changing its dependency
-under a running proof. No complete denominator is claimed in the meantime.
+The sink, recording and reachability source-instrument consumers now distinguish
+UNKNOWN candidates from literal denial evidence using one shared classification.
+Their unresolved inventory retains computed values even when the file also has
+a sink, recorder or lifecycle registration. Runtime permit/refuse proof remains
+separate. No complete denominator is claimed from this correction.
 
 Bounded implementation contract (independent owner review): change the existing
 `test_refusal_sink_ratchet.py` dictionary arm and evidence vocabulary, then adapt
