@@ -7,10 +7,11 @@ not acceptance evidence. Canonical scope remains the
 ## Latest verified handoff — 2026-09-25
 
 The source-inventory branch `fix/1757-census-carriers` is clean and pushed at
-`a4650e631302b944b3f73a1183d1e0cc1520794f`. Its three corrections are
+`379fd6734d212933b117d7417831317c4d0d81ad`. Its four corrections are
 `01a13368` (source routes/operand boundary), `21090df0` (checkout location),
-and `a4650e63` (computed decision envelopes retained as UNKNOWN across the
-three existing refusal-instrument owners). The last correction changed four
+`a4650e63` (computed decision envelopes retained as UNKNOWN across the
+three existing refusal-instrument owners), and `379fd673` (WA-O3 extension
+census omission fixture). The refusal correction changed four
 files, +714/-34; its affected suite reported 373 passing tests, while the
 run's raw exit was 1 from the separately recorded #1779 activity/state guard.
 The first F3.5
@@ -18,10 +19,17 @@ spec-blind attempt was disqualified after actual tool records revealed reads
 below its allowed source floors. A fresh constrained validator passed; code,
 security, documentation and CIA reviews completed. The CIA report was appended
 locally with prior entries preserved. This is source-instrument evidence only;
-the three source commits are integrated into the canonical checkout as
+the first three source commits are integrated into the canonical checkout as
 `d6e76665`, `261fbd43` and `e615974f`. Their combined affected suite passed
-373 tests with raw process exit 0 in 101.65 seconds here. The release
-denominator, runtime denial behavior and F0 remain unaccepted.
+373 tests with raw process exit 0 in 101.65 seconds here. The fourth source
+commit is integrated as `9fd2cbb9`; its canonical extension owner suite passed
+16 tests with raw exit 0. Its first candidate was rejected because the negative
+arm was a tautological inequality. The accepted case uses an independently
+authored census claim, a separate fixture population, observed execution markers,
+and the same equality predicate for positive and omitted-row arms. It is a
+source-fixture instrument control, not native extension activation, whole-census
+freeze or maintenance subtraction. The release denominator, runtime denial
+behavior and F0 remain unaccepted.
 
 F0 native run `b685fe360589b185` remains paused at the cumulative prompt-history
 hook deadlock. No history reset, bypass, worker deployment or native launch was
@@ -29,8 +37,8 @@ performed. The proposed recovery is to archive the existing observations,
 clear that cumulative store once, and retry the blocked implementer dispatch;
 it awaits the explicit hook-deadlock approval required by the operating
 agreement. Other inventory work can continue independently. Next release-scope
-work is to reconcile the three integrated source corrections, settle exact
-control/consumer dispositions, and prove the independent omitted-entry control
+work is to reconcile the four integrated source corrections, settle exact
+control/consumer dispositions, and prove the native populated extension route
 before freezing #1757's finite table. Historical entries below retain their
 as-observed state and must not override this latest handoff.
 

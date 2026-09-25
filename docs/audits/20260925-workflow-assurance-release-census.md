@@ -28,13 +28,19 @@ pushed as `a4650e631302b944b3f73a1183d1e0cc1520794f` on the same branch
 and integrated here as `e615974f`. Its settled source run reported 373 passing
 tests with a separate #1779 activity/state guard causing raw process exit 1;
 the combined affected suite in this canonical checkout passed 373 tests with
-raw process exit 0 in 101.65 seconds.
-and independent review retained the actual paid-dependency envelope as UNKNOWN
-without counting it as a verified denial. The first spec-blind review was
+raw process exit 0 in 101.65 seconds. Independent review retained the actual
+paid-dependency envelope as UNKNOWN without counting it as a verified denial.
+The first spec-blind review was
 disqualified for below-floor source reads; a fresh constrained review passed.
 This was temporary assurance growth (+714/-34), not product subtraction or
-native proof. Consumer reconciliation and the independent inventory-omission
-control remain open; see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
+native proof. The extension census-omission source fixture was committed as
+`379fd673` and integrated here as `9fd2cbb9`; the canonical owner suite passed
+16 tests with raw process exit 0. It compares a separately authored selected-entry
+claim with observed execution markers and fixture files; removing only one claim
+row makes the same reconciliation refuse without re-running the hook. This is a
+source-fixture fault control, not native consumer activation or a frozen release
+denominator. Consumer reconciliation and the native extension rows remain open;
+see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
 
 ### Remaining inventory-freeze work
 
@@ -49,9 +55,10 @@ Independent read-only review separates inventory closure from later product proo
 3. Freeze CLEAN-0/POPULATED-3 recipes and supported consumer boundaries, baseline
    and last-known-good identities. Discover or explicitly disposition remaining
    remote/older transport populations; a named slot does not prove its contents.
-4. Demonstrate an omitted inventory entry fails with carrier/behavior unchanged,
-   using the existing populated extension fixture and census owners, then publish
-   the finite table on #1757.
+4. Reuse the now-passing omitted-entry source fixture as an instrument check;
+   demonstrate the populated consumer's registered invocation, marker-deny and
+   neighbor-permit with one census row omitted and unchanged runtime behavior,
+   then publish the finite table on #1757.
 
 All 97 original UNKNOWN members already received bounded source inspection and
 the five declared local consumer checkouts were inspected below; do not restart
@@ -455,7 +462,10 @@ neighbor-permit with actual registered invocation observations; (2) the same fil
 disabled in the real process environment, with zero execution and an explicitly
 inactive census; (3) required missing carrier yields qualification non-pass, while
 declared valid-empty remains distinct; (4) unchanged files/behavior with one omitted
-census entry yields independent denominator failure. No native row has passed yet.
+census entry yields independent denominator failure. The source-fixture arm of
+row 4 passed at `9fd2cbb9` (16 owner tests, raw exit 0), with separately authored
+fixture and claim lists, one real hook call and the same acceptance predicate in
+both arms. No native row has passed yet.
 Mutation between census/load and fail-open exceptions also remain unresolved.
 Reuse the existing extension marker/order/dedup fixture patterns for these rows;
 the independent omitted-entry comparison must leave files, registration and actual
@@ -817,9 +827,10 @@ this approves the planning definition, not a future candidate or its receipts.
    recognized emitter names. Keep this known source refuser in WA-O1; the existing
    scanner needs correction before its selected population can establish coverage.
    This demonstrates an enumeration omission, not observed native hook behavior.
-4. In an isolated consumer fixture, observe an extension's marker-deny and neighbor-
-   permit; remove only its census row and require census acceptance to fail even
-   with unchanged settings. This mutant is specified, NOT yet executed.
+4. The source-fixture omitted-row counterexample passed at `9fd2cbb9`; in an
+   isolated installed consumer, still observe marker-deny and neighbor-permit,
+   then remove only its census row and require acceptance to fail with unchanged
+   settings and behavior. That native consumer mutant is NOT yet executed.
 5. Name unresolved classification/deployment edges before freezing; neither an
    empty selection nor a scanner's selected-surface green closes the denominator.
 6. Exercise the observer itself: dropped/truncated events, filtered surfaces,
