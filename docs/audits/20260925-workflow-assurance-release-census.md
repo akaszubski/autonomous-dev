@@ -727,6 +727,16 @@ read. No numeric line cap or additional parser owner is introduced.
 
 ### Consumer-profile selection (proposed, not frozen digests)
 
+Recipe source: the retained private proposal is
+`/Users/akaszubski/.codex/artifacts/d0-consumer-lifecycle-matrix.lTBaCz/D0-CONSUMER-LIFECYCLE-MATRIX.PROPOSED.md`,
+sections 2–4 (profiles and D0-01…D0-08). Reuse those definitions rather than
+creating another matrix. Its macOS `CLAUDE-D0-2.1.236` envelope and four-file
+fixture restoration are exploratory evidence, not the Linux product profile or
+a last-known-good product release. This section supersedes its stale observation
+status; the private absolute path is a maintainer recovery pointer, not a consumer
+dependency. Before implementation, materialize the selected portable recipe and
+its concrete pins in the existing delivery owner.
+
 Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
 `CLEAN-0` and `POPULATED-3` as disposable fixture IDs, with separate standalone,
 dogfood, isolated-Linux and Claude/Codex process-result profiles; OS/tool versions
@@ -752,6 +762,10 @@ Since the retained private proposal, disposable preflight observed scalar order
 explicit > local > project > user, plugin-default env non-participation and five
 physical layer-canary processes per session. These supersede its unobserved-field
 claims only for that fixture, not installed-product composition or exactly-once.
+Scalar precedence does not prove permission composition or hook ordering; retain
+those as separate settings-behavior obligations rather than deriving them from
+the scalar probe. Required/optional/valid-empty extension-carrier behavior must
+also be explicit in each selected recipe.
 D0-01 retains source-unavailable plus counterfeit source module/executable faults;
 D0-04 requires one physical process joined to one native event and result/decision,
 with duplicate registration producing two physical rows and failure. D0-08 still
