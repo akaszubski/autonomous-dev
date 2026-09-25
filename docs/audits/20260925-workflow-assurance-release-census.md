@@ -195,7 +195,7 @@ claims that the installed owner has already been chosen or qualified.
 | WA-W3 command transitions | `P/commands/implement{,-batch,-fix,-resume}.md`; pipeline completion/run-lock APIs | Full/light/fix/batch/resume obligations via real command route; no fabricated completion or warning-only pass of required failures | T0/M0, #1757 |
 | WA-W4 prompt/authorization | `P/hooks/unified_prompt_validator.py`; unified-pre-tool prompt/MCP/agent/batch authorization validators | Actual required input and permissions; tampered/missing instructions or wrong actor refuses | M0, #1757 |
 | WA-W5 issue/drain/retrofit workflow | Unified-pre-tool daily-aggregate filing, issue-marker/create, drain-pending-commit and realign-bypass decisions | Valid issue/commit/retrofit route permits; bypassed prerequisites and duplicate direct filing refuse through actual caller | M0, #1757 |
-| WA-D1 docs/skills | `P/agents/doc-master.md`; existing doc-verdict/completion consumers; four priority skills | Changed behavior covered, false NO_DOC_IMPACT rejected, independent substantive review and effect checks; retain unique value | F0/M0, #1757/#1796 |
+| WA-D1 docs/skills | `P/agents/doc-master.md`; existing doc-verdict/completion consumers; four priority skills | Changed behavior covered, false no-impact conclusion rejected, independent substantive review and effect checks; retain unique value | F0/T0/M0, #1757 |
 | WA-O1 additional refusers | `P/hooks/enforce_file_organization.py`, `validate_claude_md_size.py`, `validate_paid_dependency.py` | Each real allow/refuse/fault route; include paid dependency emitter despite scanner omission | M0, #1757 |
 | WA-O2 unresolved source controls | `P/hooks/enforce_orchestrator.py`, `enforce_prunable_threshold.py`, `enforce_regression_test.py`, `enforce_tdd.py` | Resolve caller/consumer and retain/migrate/retire with outcome coverage; unknown is not silent exclusion | Census/M0, #1757 |
 | WA-O3 dynamic extensions | `P/hooks/unified_pre_tool.py::_run_extensions` and selected consumer extensions | Discover effective extension population; deny/permit, disabled/missing carrier and omitted-census-entry refusal | Census/M0, #1757 |
@@ -372,6 +372,35 @@ commit → post-push closure → clear. The aggregate and realign specialization
 not justify separate generic authorization frameworks. These are source-grounded
 proposals; installed cases, signed-state behavior and retirement remain unproven.
 
+## WA-D1 documentation and skill reconciliation (2026-09-25, not frozen)
+
+The existing `doc-master.md` role instructs a `covers:` scan, affected-doc and
+changed-source reads, semantic comparison, CHANGELOG/README updates where needed,
+and a final `DOC-DRIFT-VERDICT`. Its own Step 4.6 and Step 5 explicitly say that
+the word floor, self-check and verdict are **not** independent evidence of the
+examination. `implement.md:2472–2506` can proceed with a warning after a shallow
+or missing retry; `implement-fix.md:564–566` names the same fix-mode gap.
+`pipeline_completion_state.py:2076–2178` still accepts retired verdict tokens and
+legacy missing fields for batch credit, and returns success on state-read errors.
+Those are distinct from the role's now-canonical output vocabulary (#1773).
+No `NO_DOC_IMPACT` token was found in the inspected active doc role, commands,
+hooks or libraries: it is a proposed *classification outcome*, not an existing
+runtime owner or a presently enforced escape valve. #1796 belongs to the F0
+public fixture/examination contract, not to this documentation-control family.
+
+| Candidate control | Intended outcome / candidate disposition | Required positive, opposite and fault observations before acceptance |
+|---|---|---|
+| WA-D1a — actual doc examination (`agents/doc-master.md:30–97,120–128`) | Retain the specialist's distinct semantic comparison, but migrate examination credit to observed current-run reads joined to the changed-source and affected-doc denominator; a report alone never certifies itself. #1757, with F0 provenance owned by #1773. | A change with affected docs reads each doc and governing source before a supported PASS; a real no-affected-doc case permits a documented no-impact conclusion after the scan; omitted source/doc reads or a fabricated long PASS remain non-pass. Distinguish an empty `covers:` population from a genuinely unaffected change. |
+| WA-D1b — verdict transport and guarded consumer (`commands/implement.md:2472–2506`, `implement-fix.md:564–566`, `implement-batch.md:213–223`, `lib/doc_verdict_validator.py`, `lib/pipeline_completion_state.py:2076–2178`) | T0 consumes one current-run accepted receipt before progression; retain parser compatibility for historical records only, then retire warning-to-proceed and legacy-missing-field *gate credit* after migration. Do not remove historical evidence. #1757. | Real valid examination and fixed docs permit progression; FAIL, absent/shallow verdict, wrong run/issue, corrupt state or disabled carrier refuse; a parser-accepted but role-invalid token cannot gain new-run credit. Exercise full, fix and batch routes through their actual consumers. |
+| WA-D1c — impact selection (`agents/doc-master.md:35–62`, `lib/covers_index.py`, `lib/doc_drift_detector.py`) | Reuse one source-to-doc mapping/selection owner and independently test its denominator; retire any overlapping mapping only after its distinct coverage is mapped. A no-impact decision must be graph-grounded, not a default on missing index or scanner failure. #1757. | Changed covered behavior selects the relevant doc; an uncovered internal change may be no-impact with an explicit reason; stale/missing `covers:`, omitted source route, disabled selector and an always-no-impact mutant do not pass as verified documentation consistency. |
+| WA-D1d — priority skill guidance (`testing-guide`, `architecture-patterns`, `documentation-guide`, then `planning-workflow`) | Retain each instruction only if same-task current/candidate/without-skill trials show distinct value; consolidate contradictions and duplicate instructions using the existing skill-evaluation entrypoint. #1757. | Verify actual discovery/delivery and useful task outcome; a silently undiscovered skill, conflicting combined guidance, or prose-only evaluator cannot count as an improvement. Two candidate iterations trigger a disposition rather than endless tuning. |
+
+These rows are acceptance candidates, not four new gates, stores or scripts. Use
+the plan's shared table runner and existing evidence/transition owners; qualify
+the exact installed caller and selected consumer profile before promoting any
+row. The 2026-09-25 source inspection above does not prove native examination,
+impact correctness or retirement safety.
+
 ## WA-O1 outcome reconciliation (2026-09-25, not frozen)
 
 Source inspection separates desired outcomes from existing permissive defects;
@@ -494,6 +523,27 @@ but have **absent extension directories**, unlike the present-empty dogfood and
 that as valid-empty until each profile explicitly permits an absent carrier.
 No `HOOK_EXTENSIONS_ENABLED` setting was found in the inspected hook/env keys;
 inherited process environment and effective native merge still require observation.
+
+## WA-L1/L2 delivery-owner split (2026-09-25, not frozen)
+
+These are distinct current writers and resolution paths, not one proven
+installer. The shipping-route table below retains their consumer obligations;
+the D0-01…D0-08 cases in the selected profile supply lifecycle acceptance.
+
+| Candidate control | Source route and proposed disposition | Required D0 observation / unresolved fault |
+|---|---|---|
+| WA-L1a — installed identity | `P/.claude-plugin/plugin.json`, `P/.claude-plugin/marketplace.json`, `P/plugin.json`, `P/config/install_manifest.json` disagree on version/Python floor; retain native packaging but select one installed root/version owner. | D0-01 binds executing hook, library and registration bytes to the installed artifact; injected source or extra copy must fail. A manifest value is not execution evidence. |
+| WA-L1b — native/settings composition | `P/config/global_settings_template.json`, `P/templates/settings.local.json`, `P/.claude-plugin/default-settings.json` overlap in permissions; the global/default layers also declare divergent hooks, while `settings.local.json` has an empty hooks object. Retain only the owned effective projection. | D0-02/03 preserve unrelated populated layers and refuse conflicts without mutation; D0-04 observes one physical hook process joined to the event/decision, including a duplicate-layer fault. |
+| WA-L1c — additive settings writers | `lib/settings_merger.py:310–321,431–442,560–657` merges owned settings; `lib/sync_dispatcher/modes.py:52–101` has another project-settings writer that can return success on error. Migrate to one proven transaction before retiring duplicates. | D0-02/03 preservation and conflict refusal; D0-05 repeated update/idempotence; failed write cannot be reported as an installed success. |
+| WA-L1d — replacement writers | `lib/sync_dispatcher/dispatcher.py:834–932` may replace project `settings.json.hooks` after a nonblocking local merge; `scripts/sync_settings_hooks.py:189–257` replaces whole `hooks` and `permissions.deny`. Migrate each affected active caller before retirement. | D0-03 zero-mutation conflict and D0-04 no duplicate process; include existing consumer hooks/permissions as sentinels rather than judging only the toolkit's keys. |
+| WA-L2a — setup/sync source routes | `commands/setup.md:32–43` has source fallback; `commands/sync.md:11–16` calls a global dispatcher; `lib/sync_dispatcher/cli.py:299–312` defaults to GitHub, while `modes.py:241–308,461–482` and `dispatcher.py:626–806` retain different copy/fetch paths. Migrate callers to the selected installed resolver before retiring any route. | D0-01 source-free execution, D0-05 update and D0-08 uninstall/route disposition; absence of a non-test internal caller does not prove an external/manual route unused. |
+| WA-L2b — bootstrap/deploy/update | Root `install.sh`, `scripts/deploy-all.sh`, and the independent `P/scripts/install.py` route require separate active-consumer decisions; keep the latter UNKNOWN until manual callers and unique effects are checked. | D0-01/02/06/07/08 cover install, populated state, interruption, recovery and removal; remote installed contents remain UNMEASURED. |
+
+`unified_pre_tool.py:666–704` can resolve sibling, global or marketplace
+libraries; the D0-01 case must bind the actual imported path and bytes, not the
+first plausible declaration. The current startup-only fixture does not prove
+cross-layer permissions precedence, physical exactly-once execution, installed
+product behavior or Linux support. No row above authorizes deletion yet.
 
 ## D0 identity dependency (2026-09-25)
 
