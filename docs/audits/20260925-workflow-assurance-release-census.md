@@ -96,12 +96,34 @@ All four sidecars are utility-labelled. Packaging a file is not activation.
 | `enforce_regression_test.py` | Retire only after dispositioning fix-mode and raw-commit behavior; full-pipeline regression coverage does not establish those profiles. |
 | `enforce_tdd.py` | Retire legacy heuristic after acceptance-first/TDD-mode coverage is established; if strict raw-commit TDD is required, migrate it to one existing transition. |
 
-These are proposals, not deletion authorization or completed migration. Installed
-consumer absence remains **UNMEASURED**: inspect effective project/user/global/plugin
-settings, installed hashes and manual callers; distinguish benchmark events from
+These are proposals, not deletion authorization or completed migration. Global
+absence and actual runtime activation remain **UNMEASURED**; bounded local static
+inspection follows. Inspect effective merged settings, remote and manual callers;
+distinguish benchmark events from
 joined lifecycle invocations; freeze each remaining permit/refuse obligation; then
 prove owned stale-file/registration removal preserves unrelated settings. WA-O2
 remains open until those checks and dispositions are complete.
+
+Local installed follow-up: dogfood, `realign` and user-global copies of all four
+hooks match the reviewed source hashes. Parsed project/user settings, bounded
+installed hook/library imports and both active Git hooks contain no located
+registration or executable caller. All four remain shipped in installed manifests
+as utility sidecars; `active:true` metadata does not establish lifecycle activation.
+The prunable/regression sidecars' claimed library importers are prose references,
+not actual AST imports. This narrows the gap to **no activation found in these
+three bounded local installations**, not global absence: remaining local consumers
+are inspected below; remote hosts, external schedulers and native-host discovery
+remain UNMEASURED.
+
+Remaining declared local checkouts were then inspected: `spektiv` (`69f2d916`),
+`homeassistant` (`7cb8d332`) and `vllm-mlx` (`1911937e`) all have installations
+containing the same four hook hashes, matching utility sidecars and deploy-state
+entries. No activation was located in parsed settings, installed hook/library
+imports or active Git hooks. An archived quality dispatcher names an absent
+archived TDD file and skips before execution; this is not a live caller of the
+shipped top-level TDD hook. Older `anyclaude` has no located local checkout, which
+does not establish absence of an installation elsewhere. Remote slots and actual
+runtime activation remain UNMEASURED across every declared consumer.
 
 ## WA-O3 bounded extension census (2026-09-25)
 
@@ -127,6 +149,135 @@ declared valid-empty remains distinct; (4) unchanged files/behavior with one omi
 census entry yields independent denominator failure. No native row has passed yet.
 Mutation between census/load and fail-open exceptions also remain unresolved.
 
+The three additional local consumers above contain settings declaring repo-local
+unified-pre-tool registration
+but have **absent extension directories**, unlike the present-empty dogfood and
+`realign` directories. Their static discovery also yields zero; do not classify
+that as valid-empty until each profile explicitly permits an absent carrier.
+No `HOOK_EXTENSIONS_ENABLED` setting was found in the inspected hook/env keys;
+inherited process environment and effective native merge still require observation.
+
+## D0 identity dependency (2026-09-25)
+
+The supported native directory-marketplace fixture executed a separate frozen
+artifact outside the development checkout with matching runtime/file manifests.
+Evidence: private `d0-native-path-artifact.QuLK4I/RESULT.md`, SHA-256
+`ed714c361013336180ef769d49d919edf5f717f1c5359823b52e019449d60a2e`;
+the supervisor verified its complete evidence manifest. This is a fixture baseline,
+not product qualification or source-injection/mutation refusal proof.
+
+Read-only owner mapping found those missing refusal checks depend on the planned
+R0 canonical verifier, which is not yet implemented. The existing F0 trustcheck
+is bootstrap-only, not a product API; do not promote it implicitly or extend the
+unwired retrofit verifier into a competing owner. Reuse existing negative-test
+patterns for changed bytes, missing files, stale receipts and source fallback in
+the single lifecycle runner after R0. Native registration/lifecycle remains with
+Claude; settings preservation remains with its existing scoped merge owner.
+
+## Bounded lifecycle-library disposition
+
+The existing reachability ratchet's three library checks passed on 2026-09-25;
+its live and pinned UNKNOWN set remains 97. Sixteen lifecycle/verification members
+were inspected further, without equating an ungrounded caller with dead code:
+
+| Proposed treatment | Audited members (under `P/lib/`) |
+|---|---|
+| Preserve required roles/history; ground actual callers | `install_audit`, `batch_agent_verifier`, `completion_verifier` |
+| Migrate unique lifecycle outcomes before retiring competing owners | `copy_system`, `install_orchestrator`, `installation_analyzer`, `installation_validator`, `staging_manager`, `plugin_updater`, `update_plugin`, `validate_marketplace_version` |
+| Reconcile into actual existing/planned acceptance consumer, not another verifier | `doc_verdict_validator`, `retrofit_verifier` |
+| Retirement candidates only after consumer/dynamic-path disposition | `auto_install_deps`, `health_check`, `runtime_verification_classifier` |
+
+Grounded internal AST edges exist beneath ungrounded entry candidates:
+`genai_install_wrapper` imports staging/analyzer/copy/audit; install orchestrator
+imports copy/validator; installation analyzer imports staging; update plugin imports
+plugin updater; align-project-retrofit imports retrofit verifier. These edges do
+not establish live entrypoints. None of the sixteen has a settings binding found
+by the existing walker. At that point 81 UNKNOWN members still awaited inspection; all
+97 retain their current machine verdict pending actual route/disposition proof.
+
+A second bounded cohort inspected 12 workflow/evidence libraries. The static walker
+missed a real dynamic shell edge: `P/templates/settings.autonomous-dev.json:101`
+declares `SessionStart-batch-recovery.sh`, whose lines 142–172 compute and execute
+`batch_resume_helper.py`. Preserve that helper's secure recovery outcome and ground
+this edge; an UNKNOWN classifier result is demonstrably not proof of no caller.
+
+The remaining cohort members are `auto_implement_pipeline`, `batch_git_finalize`,
+`batch_mode_detector`, `checkpoint`, `coordinator_log`, `orchestrator`,
+`parallel_validation`, `session_resource_manager`, `session_state_manager`,
+`status_tracker`, and `workflow_coordinator`. Current command-driven batching,
+completion-state and specialist validation routes supply candidate replacement
+owners, but consumer and opposite-arm proof is still required before retirement.
+`session_resource_manager` has unique process/session-limit semantics requiring
+explicit retention or retirement disposition. After both cohorts, 69 members have
+not had this additional inspection; all 97 retain the machine UNKNOWN verdict.
+A concurrent ratchet rerun passed its three assertions but its session-finish
+guard detected activity/dispatch files changing; the overall run is not a clean
+pass. No state was reverted and no further concurrent pytest was run.
+
+### Further bounded cohorts (not retirement approval)
+
+Seventeen alignment/test-routing members were inspected next. A second missed
+executable root is present in `.github/workflows/ci.yml:253–267`: multiline
+`python3 -c` imports and calls `test_routing.route_tests`. Retain this route and its
+run-all-suites fallback; the walker UNKNOWN result does not invalidate that source
+connection or prove that a CI run executed it.
+
+| Members | Proposed disposition and outcome owner to prove |
+|---|---|
+| `test_routing` | Retain/ground the actual CI carrier and failure fallback |
+| `alignment_gate`, `project_md_parser` | Consolidate only after current `alignment_classifier` classification/parsing and hook consumers preserve the required outcomes |
+| `alignment_fixer` | Reconcile prose-only execution claims; preserve approved atomic intent updates before retirement |
+| `acceptance_criteria_parser`, `step5_quality_gate`, `test_runner` | Map unique outcomes to current acceptance tracker, quality/coverage and direct runner consumers before removal |
+| `complexity_assessor`, `scope_detector`, `feature_completion_detector` | Compare with actual issue-scope and prior-art command routes; do not retain duplicate decision owners merely for API compatibility |
+| `success_criteria_validator`, `workflow_violation_logger`, `code_path_analyzer`, `blocking_signal_classifier` | Disposition archived callers, historical readers and role-contract-only behavior before retiring or grounding |
+| `feature_dependency_analyzer`, `worker_consistency_validator` | Explicitly decide smart batch ordering and distributed-consistency outcomes; no connected replacement inferred |
+| `tool_validator` | Migrate unique deny/whitelist/path cases to active tool-intent, hook, sandbox and MCP owners before retirement |
+
+Another 18 members were inspected using the existing walker, AST and bounded
+command/source inspection without production imports or pytest:
+
+| Members | Finding and proposed disposition |
+|---|---|
+| `distributed_training_validator`, `hardware_calibrator`, `training_metrics` | Specialized training/calibration outcomes; ungrounded internal edges include `distributed_training_validator -> hardware_calibrator` and `realign_orchestrator -> hardware_calibrator`; no bounded caller for `training_metrics` was found. Establish consumer/mission disposition before removal; do not expand workflow assurance into a new training subsystem |
+| `math_utils` | Fibonacci implementation; no active caller found in the inspected command/hook/script surfaces. Candidate removal needs consumer/API disposition, not inference from its test suite |
+| `ideation_engine`, `ideation_report_generator`, five `ideators/*_ideator` members | Ungrounded mutually referring discovery/reporting family; preserve any distinct required finding category through current improvement/review owners before retirement |
+| `implement_dispatcher/{cli,dispatcher,models,modes,validators}` | Internal package imports exist, but dispatcher lines 195–330 return textual instructions referring to old workflows, not actual dispatch. Current user-invoked `/implement` command owns the workflow contract; preserve CLI/mode validation, mutually exclusive batch sources, batch-id/path validation and batch-state handling before retirement |
+| `search_utils`, `performance_profiler` | No grounded route found for cache/quality/timing APIs in the bounded surfaces. Reconcile research freshness and actual telemetry/report consumers; a comment in `hook_perf_report.py` is not an import or equivalence proof |
+
+The documentation/improvement cohort adds 17 members:
+
+| Members | Proposed disposition and concrete route distinction |
+|---|---|
+| `claude_md_updater` | Retain until legacy installer migration: `install.sh:2241–2307` constructs/calls it; preserve idempotent injection, backup and path safety |
+| `daily_aggregate_manager` | Retain actual `drain-watchdog.yml:176–198` embedded caller and issue-context refusal behavior |
+| `flaky_tests`, `retrospective_analyzer` | Retain actual embedded imports/calls in `implement.md:1381–1389` and `retrospective.md:50–125`; separately disposition unused mutation APIs |
+| `eval_metrics` | Retain documented standalone statistical API, not an active control; changelog explicitly records no command integration |
+| `drain_revert` | Ground manual `scripts/drain_regression_check.py` action separately from still-unproven automatic scheduling; state ownership alone is not rollback execution |
+| `session_telemetry_reader`, `skill_loader` | Migrate required classification/redaction and dangling-skill validation to existing improvement/health owners before retiring legacy readers/loader; manual CLI is not native skill-injection proof |
+| `cia_promotion_filter` | Presence in `/improve` file closure is not filter execution; select actual `macro_promotion` thresholds explicitly before removing the duplicate |
+| `comprehensive_doc_validator`, `doc_master_auto_apply`, `doc_update_risk_classifier` | Reconcile validation/auto-fix and high-risk approval outcomes with current doc-master and congruence consumers; do not infer parity |
+| `error_analyzer`, `failure_analyzer`, `qa_self_healer` | Disposition archived producers and the ungrounded healer/parser pair; preserve required dedupe/redaction/remediation through current owners |
+| `github_issue_fetcher`, `realign_orchestrator` | Check external detail-fetch and distinct realign consumer use before retirement; internal source absence is insufficient |
+
+The final 17-member cohort completes this bounded source review:
+
+| Members | Proposed disposition and concrete route distinction |
+|---|---|
+| `selector_stall_detector` | Retain actual dynamic import/call in `drain-watchdog.yml:233–236`; separately decide packaging for a repo-workflow-only caller |
+| `active_security_scanner` | Mandatory auditor instructions name `full_scan`, but actual execution is unobserved; retain required dependency/history/OWASP outcomes and prove use or migration |
+| `agent_pool`, `pool_config`, `token_tracker` | Internal manual parallel-validation chain, not current native specialist dispatch; disposition unique priority/retry/cancellation/token-cap outcomes before retirement |
+| `code_patcher`, `stuck_detector` | Ungrounded healer dependencies; preserve required backup/rollback and repeated-error refusal in actual remediation owners |
+| `auto_inject_memory`, `memory_formatter`, `memory_relevance` | Archived injection carrier only; explicitly disposition automatic injection, budgets and ranking against supported memory owners before retirement |
+| `context_budget_monitor` | No caller found; preserve required truncation/verbatim handoff behavior in current command before retiring duplicate code |
+| `agent_feedback`, `memory_layer` | Explicitly disposition adaptive routing and legacy memory-store retention/PII outcomes; current improvement/native memory is not automatically equivalent |
+| `brownfield_retrofit`, `headless_mode`, `mcp_profile_manager` | Map unique state recovery, noninteractive exit/output and MCP profile-validation outcomes into actual retrofit/adapter/setup owners before retirement |
+| `ralph_loop_manager` | Archived producer only; migrate unique retry/checkpoint/rollback outcomes to current completion and batch owners before retirement |
+
+All 97 machine-UNKNOWN members now have bounded additional source inspection.
+This closes the uninspected-library cohort, not the release denominator: every
+machine verdict remains unchanged, and consumer/manual/runtime proof, unique
+outcome decisions and explicit per-control acceptance remain outstanding.
+
 ## Shipping routes requiring explicit disposition
 
 | Route | Concrete finding / next evidence |
@@ -147,8 +298,18 @@ Declared current deploy targets are `autonomous-dev`, `realign`, `spektiv`,
 `homeassistant`, `vllm-mlx` in both local and remote host slots; older transports
 also name `anyclaude`, at each host user's `~/Dev/<repo>/.claude` destination.
 Each host's global `.claude` tier is another configuration
-source. None of these installed populations was inspected by this census; all
+source. Bounded local WA-O2/O3 inspections now cover all five checkouts and the
+local global tier, as recorded above; this is not a full installed-control audit.
+Remote slots, runtime firing/effective merge and replacement-release behavior
 remain UNMEASURED, not absent or already migrated.
+
+Remote access check on 2026-09-25: both declared endpoints
+`andrewkaszubski@10.55.0.2` and `andrewkaszubski@100.103.205.63` timed out on
+TCP/22 (exit 255) using BatchMode, ConnectTimeout=3 and StrictHostKeyChecking=yes.
+Neither remote `pwd` completed. No host trust, remote settings or installation was
+changed; actual remote home, installed bytes, registrations and extension carriers
+remain unresolved. Retry the bounded census when a declared endpoint is reachable;
+timeout establishes neither absence nor drift.
 
 Required release profiles remain: isolated Linux Claude worker; standalone verifier;
 dogfood; distinct clean and populated consumer; real Claude/Codex portability case.
