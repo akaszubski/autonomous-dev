@@ -1077,10 +1077,25 @@ command/configuration bytes before any test rather than relying on this abstract
 
 Legacy Python dictionary declarations (nine bindings; native validity unresolved):
 
-| Declaring owner | Event / matcher | Script(s) / binding count |
-|---|---|---|
-| `P/hooks/setup.py` | PostToolUse / Write and Edit | auto_format.py / 2 |
-| `P/hooks/setup.py` | PreCommit / `*` | auto_test.py, security_scan.py / 2 |
-| `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare script list | display_project_context.py, enforce_command_limit.py / 2 |
-| same | SubagentStop / bare script list | log_agent_completion.py, auto_update_project_progress.py / 2 |
-| same | PrePush / bare script list | auto_test.py / 1 |
+| Declaring owner | Event / matcher | Script / count | Proposed disposition and required retained outcome |
+|---|---|---|---|
+| `P/hooks/setup.py::setup_hooks` | PostToolUse / Write and Edit | auto_format.py / 2 | Migrate registration to the existing modern formatting route; preserve formatting and prove no duplicate execution before retiring the competing writer |
+| same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; pipeline tests alone do not qualify raw Git behavior |
+| same | PreCommit / `*` | security_scan.py / 1 | Migrate security refusal to the configured commit/validation owner; preserve permit, invalid-subject refusal and missing-scanner non-pass |
+| `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
+| same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
+| same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion; invocation is not specialist success |
+| same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Explicitly decide whether to retain progress reporting through existing status/doc owners or retire automatic PROJECT mutation; completion logging is not equivalent |
+| same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; qualify separately from commit and pipeline success |
+
+Independent read-only caller review: setup's `main → run → setup_hooks` automatic
+mode writes `.claude/settings.local.json` using `existing.update(hooks_config)`,
+replacing the entire hooks value; custom/slash-command modes skip that writer
+(`setup.py:375–387`). Updater's `update → _activate_hooks → activate_hooks` route
+defaults activation on, including noninteractive `update_plugin.main`;
+`HookActivator` migrates existing settings before merging the new bare-string
+defaults (`hook_activator.py:1089,1263`). Activation errors do not fail the update,
+so update success cannot prove registration or execution. These caller obligations
+belong to WA-L1/L2 and the corresponding workflow family, not a new installer.
+All dispositions remain proposals, not deletion authority or observed native
+activation; preserve unrelated settings and prove selected outcomes before removal.
