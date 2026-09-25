@@ -45,6 +45,26 @@ specific #1801 escalation through Codex supervision, recorded on that issue;
 this authorizes a NEW decision and the bounded source fix, not a retroactive
 validation of the false row or product proof of native AskUserQuestion binding.
 Recheck source HEAD/status and pane before any completion claim.
+Continuation observed 2026-09-26: #1801 remains an uncommitted source
+candidate under adversarial re-review; a green self-test has repeatedly missed
+an opposite shell form. Independent probes found closing-backtick,
+two-substitution, quoted/escaped-data false credits and a lost genuine
+single-quoted interpreter argument in successive candidates. The bounded
+candidate's focused backtick selection last passed 19 tests with raw exit 0;
+an independent concurrent full run had 292 passing tests but raw exit 1 when
+the #1779 shared activity/state guard observed writes during the run, so that
+run is not a clean full-suite receipt. The source candidate is not native or
+installed proof. A separate assignment-only false credit is tracked in
+[#1803](https://github.com/akaszubski/autonomous-dev/issues/1803), and the
+untouched HOOK scanner's closing-backtick sibling in
+[#1804](https://github.com/akaszubski/autonomous-dev/issues/1804); both block
+freezing the #1757 denominator. One current re-review question is whether a
+valid escaped-literal backtick line should be explicitly classified as an
+unsupported `UNKNOWN`; it must not be described as a syntax error. Verify
+the settled source diff, reviewer, doc-master, CIA and commit before crediting
+#1801. Neither this source work nor the user's scoped #1801 approval authorizes
+clearing the F0 observation store.
+
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
 explicit archive/clear authorization; do not submit its pending input as part
