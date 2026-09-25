@@ -81,6 +81,52 @@ claims that the installed owner has already been chosen or qualified.
 | WA-C2 portability | Required Claude/Codex process-result/evidence case, unchanged future core | Exact native profiles, real observed events and joined results; observation is not enforcement parity | After W0, #1757/#1636 |
 | WA-M1 subtraction | All included families and necessary private helpers | Dependency-inclusive net code/test/owner/configuration/operator burden reduction with retained distinct fault coverage | Every migration/final, #1757 |
 
+## WA-O2 bounded source disposition (2026-09-25)
+
+Independent read-only review at `0decd8d3730982ab36cfdb42d7634076fac9ecd3`
+found no production AST import, subprocess, dynamic execution or lifecycle
+registration for the four named hooks. Tests and `scripts/capture_baseline.py`
+execute them; the latter runs hooks with synthetic input, not lifecycle events.
+All four sidecars are utility-labelled. Packaging a file is not activation.
+
+| Owner | Proposed disposition, pending consumer proof |
+|---|---|
+| `enforce_orchestrator.py` | Retire legacy commit/session evidence heuristic after confirming consumer coverage by the connected alignment controls. |
+| `enforce_prunable_threshold.py` | Migrate the required refusal outcome or explicitly retire it before removing the hook: the connected `TestLifecycleManager.check_prunable_threshold()` currently reports rather than blocks. |
+| `enforce_regression_test.py` | Retire only after dispositioning fix-mode and raw-commit behavior; full-pipeline regression coverage does not establish those profiles. |
+| `enforce_tdd.py` | Retire legacy heuristic after acceptance-first/TDD-mode coverage is established; if strict raw-commit TDD is required, migrate it to one existing transition. |
+
+These are proposals, not deletion authorization or completed migration. Installed
+consumer absence remains **UNMEASURED**: inspect effective project/user/global/plugin
+settings, installed hashes and manual callers; distinguish benchmark events from
+joined lifecycle invocations; freeze each remaining permit/refuse obligation; then
+prove owned stale-file/registration removal preserves unrelated settings. WA-O2
+remains open until those checks and dispositions are complete.
+
+## WA-O3 bounded extension census (2026-09-25)
+
+Read-only inspection of dogfood, distinct local consumer `realign`, and user-global
+extension directories found no `*.py` extensions. Each installed unified-pre-tool
+hook matched source snapshot `0decd8d` with SHA-256
+`ee8ec71c236f513877c5ee004f6149911c767bef05b2ff50f3a93ce30fbb06c9`.
+Both consumers declare project-local registration; user settings also declare a
+global registration. Effective native merge, physical firing count and inherited
+environment remain UNMEASURED; static parity does not establish activation.
+
+The existing `_run_extensions` owner searches hook-adjacent then cwd project
+directories, skips symlinks, deduplicates basenames first-wins, and blocks only
+exact `deny`. `HOOK_EXTENSIONS_ENABLED=false` disables discovery. Missing files,
+load/check errors and malformed returns currently allow; qualification must not
+mistake that permissive runtime behavior for evidence completeness.
+
+Freeze four rows through existing owners: (1) populated enabled marker-deny plus
+neighbor-permit with actual registered invocation observations; (2) the same files
+disabled in the real process environment, with zero execution and an explicitly
+inactive census; (3) required missing carrier yields qualification non-pass, while
+declared valid-empty remains distinct; (4) unchanged files/behavior with one omitted
+census entry yields independent denominator failure. No native row has passed yet.
+Mutation between census/load and fail-open exceptions also remain unresolved.
+
 ## Shipping routes requiring explicit disposition
 
 | Route | Concrete finding / next evidence |

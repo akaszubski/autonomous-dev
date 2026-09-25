@@ -65,6 +65,19 @@ second output authority alongside the canonical doc-master report.
 remain NONPASS; successful exit or record collection does not change that.
 Role-prompt byte provenance and the complete qualifying workflow remain unproven.
 
+Authority reconciliation (2026-09-25): adopted v12 sections 2 and F0, and the
+sandbox amendment's Acceptance/Evidence sections, require installed role-source
+identity, requested specialist type, native child identity, actual read/tool/hook
+and effect joins, canonical verdict and the independent frozen oracle. They do
+not require server-side prompt-application proof. The private ordinal12 v3 build
+contract subsequently made unmeasured applied-role bytes an unconditional blocker;
+that additional gate is withdrawn prospectively after independent authority review.
+Preserve that build contract and its historical result unchanged. Exact effective
+prompt bytes remain UNMEASURED; never claim client telemetry proves server receipt,
+model comprehension or obedience. No raw-body capture service is required to close
+F0. All adopted cases, source identity, carrier joins, tampering controls, independent
+verification and promotion authorization still apply; this clarification is no pass.
+
 The selected private construction baseline is 13 files / 11,218 physical lines,
 including 8,211 implementation and 3,007 test lines, excluding imported collectors.
 It is not a dependency-closed product size or a portable release.
@@ -72,6 +85,9 @@ The first action is to prepare the single-contract correction, reusing capture a
 comparison code; do not restart sandbox construction or authentication by default.
 
 ## Existing Solutions
+
+Design input: [supplied reference architecture](../references/20260925-autonomous-dev-reference-architecture.md),
+preserved as a proposal, not competing acceptance authority.
 
 Reuse the frozen F0 oracle/comparator in `bootstrap/control_trust/`, existing
 `proof_of_block.py`, `tool_intent.py`, pipeline completion-state owner, settings
@@ -306,6 +322,15 @@ case/observation/decision/receipt concepts, not a second epistemic-state machine
 Only the deterministic decision owns `PASS`, `FAIL`, `UNMEASURED` or `ERROR`;
 explanatory prose does not add decision states.
 
+Keep execution status, supported claim scope and action authority as separate
+fields in those existing records: exit zero is neither acceptance nor permission.
+Agent reports may propose conclusions but cannot issue trusted gate receipts.
+Qualify each applicable observer with both a disabled control and an always-refuse
+control, so refusing legitimate work cannot masquerade as safety. Where an opt-out
+is supported, record enforcement as inactive and preserve the non-optional floor;
+do not report the opt-out as successful enforcement. These are additional arms of
+existing cases, not new agents, stores, status machines or proving frameworks.
+
 Until the product can check itself, the supervisor runs the existing independent
 oracle and frozen fault controls outside the candidate, examines actual tool/result
 and hook joins, and checks effects and cleanup. Specialist review adds interpretation;
@@ -419,9 +444,14 @@ Exercise new install, populated-repo retrofit, repeated update, interrupted upda
 rollback and uninstall with the real installed entrypoint. Compare unrelated
 settings and verify effective control behavior in each applicable arm.
 Use one parameterized lifecycle runner for these outcomes. Before implementation,
-freeze the clean/populated consumer identities, harness version and artifact/profile
-digests, all participating settings layers and their effective precedence, and the
-owned settings projection. Conflict refusal must prove zero mutation before
+freeze the clean/populated consumer identities, supported harness version,
+last-known-good artifact/profile digests, baseline/source dependency closure,
+intended consumer execution profiles and security semantics, all participating
+settings layers and their effective precedence, the owned settings projection,
+and the expected lifecycle cases. After implementation produces the candidate,
+but before any acceptance run, freeze its artifact digest and complete
+dependency/profile closure; those pins remain immutable through independent
+proof and explicit promotion. Conflict refusal must prove zero mutation before
 activation. A valid exactly-once result requires one physical hook execution joined
 to its event and decision; deduplicated receipts or one registration alone cannot
 prove this. Include a duplicate-registration mutant that the observer detects.
