@@ -84,6 +84,22 @@ It is not a dependency-closed product size or a portable release.
 The first action is to prepare the single-contract correction, reusing capture and
 comparison code; do not restart sandbox construction or authentication by default.
 
+Preparation minimalism: maintain one canonical staged successor at the existing
+import path. Preserve the frozen baseline and failed artifacts, and bind a complete
+ordinary source diff to the exact before/after hashes before acceptance. A
+preparation-only source generator, duplicate reader/undo machinery and generator-only
+tests are temporary provenance, not shipped runtime dependencies or additional
+release gates. Retire them from maintained active code before promotion once all
+distinct behavioral, security, replay, duty and caller-compatibility detectors are
+preserved. Use the existing secure staging/activation route: after retirement,
+installed credential-free preflight and native activation must still assert the
+canonical successor's absolute path and digest; missing-successor and source/old-
+module fallback sabotage must refuse. Preserved baseline/generator/failed artifacts
+stay outside the installed runtime/import search path (deliberately injected fault
+fixtures are not a release profile). Count any retained dependency in maintenance
+burden. This introduces no line-count gate, diff-replay requirement, new loader,
+native admission waiver or change to F0/R0 authority.
+
 ## Existing Solutions
 
 Design input: [supplied reference architecture](../references/20260925-autonomous-dev-reference-architecture.md),

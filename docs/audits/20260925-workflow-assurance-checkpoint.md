@@ -6,11 +6,27 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current delivery status
 
-- **Running, not accepted (04:30 UTC):** correction on handle `90666`; after
-  dispatch-context gate refusals, the full handoff reached the implementer
-  (`toolu_012wsrxyxzfn68jmgvmDw7Gj`). Observed tool calls inspect the frozen owner
-  and its real `native_parent.py` caller. Implementation/review results are still
-  pending; dispatch is not acceptance. Do not count retries as delivery.
+- **Terminal, not accepted:** correction handle `90666` exited 0, but its final
+  result is BLOCKED at F6: native sensitive-file permission refused the Edit to
+  `.claude/local/cia-2026-09-25-issue-0-fix.md`. The complete report remains in
+  the native transcript; do not persist it through another tool or mark cleanup
+  complete. Normal native approval is needed for that exact report edit before
+  resuming this pipeline. Implementation returned via
+  `toolu_012wsrxyxzfn68jmgvmDw7Gj`.
+  Spec-validator dispatch was `toolu_018CDXTNtPqFEWpnsrvZuHHn`; native reviewer,
+  security-auditor and doc-master dispatches are respectively
+  `toolu_01CLA7sWhzvWXtXmRE2iuVyS`, `toolu_018b1FkfTrkdz9hWzF8JN16n` and
+  `toolu_01Ryw7yN4JoebPEDXHPRsHLP`. IDs were read from the session tool record,
+  not inferred from the coordinator's report. Dispatch is not completion or
+  independent acceptance. Its final report claims all internal validators passed;
+  root's outstanding provenance, subtraction and reachable-loader findings remain.
+  Post-terminal candidate snapshot:
+  `/Users/akaszubski/.codex/artifacts/ordinal12-v3-correction-reviewed.UBHXEs/candidate.tar`,
+  SHA-256 `0e87901ec34488ba00456acd0e7ec4d9d799bd06e122812c7599e9bbc549bb65`.
+  Source worker `3876` remains live in review after native spec-validator completion.
+  Its reported 208-test passes do not overcome the supervisor's independently
+  reproduced four full-walker false positives below. The reviewed live diff adds
+  1,652 and removes 15 lines in the existing ratchet. No net subtraction is claimed.
 - **Evidence recovered:** all seven retained ordinal11 capture leaves were
   retrieved read-only from the worker and independently matched to the frozen
   binding. Local replay input: `/Users/akaszubski/.codex/artifacts/ordinal11-retained-capture.aIUMsi`.
@@ -33,13 +49,109 @@ not acceptance evidence. Canonical scope remains the
 - **Still required:** independent corrected F0 acceptance, reusable runtime and
   plugin qualification, control migration with actual retirement, and clean plus
   populated consumer release proof. No net maintenance reduction is claimed.
+- **Reviewed simplification:** the canonical plan's "Preparation minimalism"
+  paragraph now distinguishes temporary derivation provenance from the maintained
+  successor. Independent final review returned PROCEED after preserving exact-path
+  activation and fallback-refusal requirements. Apply this at the native worker's
+  terminal handoff; its current 842-line generator is not accepted as permanent
+  product machinery. No generator or failed evidence has yet been removed.
 - **Review watchpoint:** the implementer ran a temporary macOS replay feasibility
   probe that relaxed copied owner UID/mode checks. That probe is not accepted
   historical replay or security evidence. Final review must verify the native
   ownership/mode gates remain intact and distinguish any offline test adapter
   from the real acceptance route; frozen source was not changed by that command.
+- **Provisional independent review:** candidate binding SHA-256
+  `ab38b9e3ba4c3483a3b7ce78b2a0741fcd45a04fc2e0b1966183b76c43fba4a8`
+  retains strict worker ownership/mode checks and exposes no leaf-policy selector
+  on its public native wrappers. The reviewer nevertheless returned REVISE:
+  persisted capture metadata must distinguish the retained historical reader
+  policy from the worker policy, and the reader docstring is stale. Verify that
+  retained replay rejects ordinal12 input, cannot qualify as native evidence,
+  and native wrappers reject weakened ownership/modes and policy overrides.
+  `prepare_boundary.py` changed during that review and remains unreviewed at a
+  stable snapshot. This is pending feedback, not a new acceptance authority or a
+  reason to interrupt/restart the live writer; reconcile at its terminal handoff.
+- **Supervisor focused check:** independently ran `python3 -m pytest
+  test_ordinal12_v3.py -q -p no:cacheprovider` with bytecode writing disabled:
+  112 passed in 2.31 seconds. Binding `ab38b9e3...` and test file
+  `74b5b318d4a22e62fb8f5e2e036b0f68b7e4fa83cb935be90dff380b582b8765`
+  were identical before and after. This does not resolve the review findings,
+  establish affected-suite success, or qualify a native attempt.
 
 ## Current execution and recovery
+
+Loader prerequisite progressed read-only: worker helper ancestry is root-owned
+0755 and the helper is a root-owned regular 0644 single-link file matching its
+existing pinned digest; sibling `__pycache__` is absent at observation. Exact
+metadata is appended to the private correction brief. The existing secure reader
+can be reused without relaxing those observed metadata requirements; this does
+not prove future immutability or qualify the present hash-then-reopen load.
+
+Independent source-candidate review now requires correction, not acceptance:
+observed file SHA-256 `c997a09f83545ed5e914fdcca1a73dc6bd6fd680ad8e2d1575d3c82af9010d4b`.
+Supervisor reproduced helper-level false interpretation: escaped-dollar input,
+an invalid `${MAX:-;}` default and arbitrary `$PRELUDE` become parseable Python
+through substitution with `None`; the helper invocation regex also matches an
+echoed interpreter command. A subsequent supervisor run used the existing
+`TestSourceConnectivityCorrection._verdict` fixture through the full
+`library_reachability` entry point: echo-helper, one escaped dollar,
+`${MAX:-;}`, and arbitrary `$PRELUDE` all incorrectly returned REACHED;
+the valid helper control also returned REACHED. The source SHA above was identical
+before and after. The independent review additionally identified heredoc quote-mode,
+terminator and assignment-lifetime gaps. Consolidate these into the existing
+case table and reuse command-position handling; do not grow another parser or
+accept the 208-test result as sufficient. Deliver feedback at the live run's
+terminal handoff, preserving this failed candidate and all distinct detectors.
+
+Source failed-candidate snapshot:
+`/Users/akaszubski/.codex/artifacts/source-connectivity-failed.v8k1yU/candidate.tar`,
+SHA-256 `48dba2a7f854f300680df787f9e7b1e3f83bbdd568181d10449be81daa035302`;
+source SHA `c997a09f...` matched before/after archival. Actual native tool results
+`toolu_01CbC4N6WiMkSwP3BubQxH7g` (spec-validator) and
+`toolu_01TotnA1K5tFAXro8sm8BTCG` (reviewer) returned PASS/APPROVE. Their returned
+reports independently reran the same 208-test suite but did not exercise the
+four supervisor counterexamples. The review's claim that unhandled shapes fail
+toward UNKNOWN is contradicted by those observations. Preserve the reports;
+fix the bounded fault cases and review method, not their historical verdicts.
+
+The mode-accounting clarification in the release census passed final independent
+review after distinguishing authorized research reuse from authorized omission.
+It adds no runtime state vocabulary or gate and does not waive frozen F0 roles.
+
+Latest checkpoint commit attempt was refused by the normal state-change guard:
+documentation assertions passed (14 passed, one skipped, 7.13 seconds), but the
+activity log and `active_agent_dispatch.json` changed during that test window.
+The guard establishes concurrent changes, not which process made them. Changes
+remain local/staged; do not bypass or repeat the test against a live writer merely
+to obtain a quiet window. Retry normal commit checks after the writer is terminal.
+Independent review progress is also preserved at
+https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5826962346.
+
+Two independent real Claude runs are now active; poll each existing handle rather
+than launching replacements:
+
+| Work | Handle / session | Exclusive write scope |
+|---|---|---|
+| Private F0 correction | `90666` / `890bdc4c-f604-4a3a-bdc5-29a0f09336e0` | Existing private ordinal12 artifact workspace; no native attempt/deployment |
+| Seven-route census instrument correction | `3876` / `c3a0192f-8021-4860-9dfc-7f24d8e26e36` | Clean `/Users/akaszubski/Dev/autonomous-dev-census-1757`, branch `fix/1757-census-carriers`, base `2ae033b86d8eb5eb89e3cd840b05ad0607ae42d3`; ratchet plus bounded docs only |
+
+The second session loaded native `implement-fix`; Claude auth status reported
+the existing Max subscription and no API-credential environment was present.
+Its contract is committed and pushed in `2ae033b8`. Both sessions must leave
+candidate acceptance to independent verification; neither may commit/push,
+deploy or modify the other's state. Source-only census results cannot pass F0.
+The census now also holds a reviewed carrier clarification discovered during
+implementation: exact shell double-quote processing, numeric-default-only
+normalization and command-position helper recognition. Independent prototype
+review reproduced escaped-dollar/arbitrary-prelude/echo false edges. The second
+review approved the narrow clarification, not the implementation. At the source
+worker's terminal handoff compare its candidate against these controls and route
+any remaining correction through the existing native session, not a duplicate
+writer. The live worker began from `2ae033b8` and has not yet received this later
+review feedback; do not presume it implemented that clarification.
+Also verify audit attribution: the worker's new ratchet comment calls the census
+"READ BY A HUMAN", but these inspections were performed by agents and the
+supervisor, not an observed human reviewer. Correct that claim before acceptance.
 
 Earlier durable docs commit: `692c1f1f` (pushed); the completed library census was
 subsequently committed and remote-verified at `d2c053f5a3fc4062dab1e9102303672b0bca250d`

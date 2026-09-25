@@ -81,6 +81,161 @@ claims that the installed owner has already been chosen or qualified.
 | WA-C2 portability | Required Claude/Codex process-result/evidence case, unchanged future core | Exact native profiles, real observed events and joined results; observation is not enforcement parity | After W0, #1757/#1636 |
 | WA-M1 subtraction | All included families and necessary private helpers | Dependency-inclusive net code/test/owner/configuration/operator burden reduction with retained distinct fault coverage | Every migration/final, #1757 |
 
+## WA-W1 write-control reconciliation (2026-09-25, not frozen)
+
+| Actual owner in `unified_pre_tool.py` | Required outcome | Current gap / proposed subtraction |
+|---|---|---|
+| Protected non-Bash infrastructure (`2004–2140`, `8798–8823`) | Applicable protected writes require actual dispatched implementer authority; hard floor survives bypass | Checks any active dispatch, not its agent identity; stored dispatch authority is unsigned. Wrong-agent and corrupt/missing authority are required negative cases, not valid permits |
+| Protected Bash infrastructure (`7839–8024`, `9352–9360`) | Same implementer-only outcome for applicable mutations | Active pipeline permits before actor validation; conservative string parsing has false negatives. Enumerated command cases alone cannot qualify arbitrary Bash or satisfy containment |
+| Nested plugin-source `.claude` (`2504–2608`) | Refuse nested source configuration while allowing legitimate root/installed layouts | Resolution faults permit; Bash is excluded. Preserve actual policy scope, but do not label unresolved applicable paths safe |
+| General production writes (`3399–3579`, `8860–8938`) | Applicable production writes require the selected workflow authority; legitimate non-code/test/profile exclusions remain distinct | Only native Write/Edit enters this gate; ordinary NotebookEdit/MultiEdit/MCP writes do not. Empty paths and plugin-only consumer recognition are gaps |
+| Bash production detector (`9143–9195`) | No enforcement credit for advisory-only output | Explicitly downgraded to advisory; retire the claimed guard/duplicate machinery unless a distinct required advisory outcome is demonstrated |
+
+Reuse the existing classification/hard-floor responsibilities and signed-state
+owner; this does not require preserving the present large files unchanged.
+Required faults include wrong/unknown actor, absent/corrupt/wrong-subject authority,
+classification loss and unresolved targets on every required transport. Missing
+classification also misses content-less MCP rename/delete forms. A profile may
+exclude a tool only when it is genuinely unavailable/outside required scope, not
+to hide an applicable false permit. Dynamic Bash remains an unresolved required
+obligation where enabled; observed narrow grammar is not release-wide proof.
+WA-S2 owns native containment separately. No new shell parser is proposed here.
+
+## WA-W2/W3 transition reconciliation (2026-09-25, not frozen)
+
+Required outcome groups are plan entry, post-plan critique/entry, ordered specialist
+dispatch, successful selected-profile completion before git, per-item batch
+isolation, and exact-run resume with a lifetime-held lock. Each permits current
+subject-bound valid evidence and refuses missing, failed, corrupt, wrong-run or
+wrong-subject evidence; dispatch alone is not completion. Full/light/fix are
+existing modes, batch wraps a selected mode, and resume continues that same mode.
+Keep all eight invariant stage slots in the acceptance accounting. Record actual
+current-subject execution, explicitly authorized current-subject reuse with its
+evidence, or an authorized omission with the exact eligibility clause and evidence;
+otherwise the slot is failed/unmeasured, never a generic N/A or inferred pass.
+This is an interpretation of existing mode authority, not a new state vocabulary,
+store, or permission to omit frozen F0 specialists.
+
+| Mode | Existing authority and required eligibility evidence |
+|---|---|
+| Full | Execute the stages; research non-execution requires either authorized current-subject issue/cache research reuse, or the fully-specified omission route with all existing safeguards (`implement.md:765–846`). Reuse and authorized omission are distinct; neither is inferred from absence of research |
+| Light | Only low-risk changes with no new logic or security-sensitive paths (`implement.md:2673–2690`); research may be omitted, planning still executes. Ineligible work escalates to Full; other specialist omissions must match the same explicit mode clauses |
+| Fix | Research/planning omission is limited to a current evidenced failing-test/known-problem subject (`implement-fix.md:14–16`); missing eligibility refuses or escalates to Full |
+| Batch/resume | Inherit the selected mode and exact item/run subject; neither grants additional omissions or allows another item's evidence |
+
+The profile table still needs its remaining role/outcome cases frozen before
+migration. No current omission, green parser test, or mode label is proof of
+eligibility or completion.
+
+Completion reconciliation against PROJECT.md INV-2/3/7 and its evidence
+requirements (independently reviewed 2026-09-25): operative stage clauses own
+obligations, not stale agent-count summaries. A revised plan needs a fresh
+independent critic PROCEED for that subject; planner revision alone is not the
+critic's judgment. `Research: unavailable` records execution but remains unverified
+and non-pass unless an existing authorized reuse/omission route actually applies.
+CIA must return a nonempty outcome before git or batch-item advancement; FIX keeps
+its stronger existing persisted-report check. Per-item CIA precedes per-item
+completion verification; post-batch CIA is supplemental. Missing/shallow doc
+verdicts and dispatched-but-unreturned agents cannot satisfy required judgments.
+These correct assurance semantics, not mode eligibility or frozen F0 roles.
+Resume-owner investigation: retain `pipeline_completion_state.py` as the proposed
+single completion owner, not a second store. Its production writers currently
+omit `run_id` and use session-hashed paths (`679–703,1003–1092`), whereas
+`implement-resume.md:64–67` requests its unused run-keyed path. Ordering/commit
+readers remain session-keyed. The bounded inspection of 15 current completion
+files found legacy fields only, with no run-ownership or signature metadata;
+completion-state code supplies no HMAC verification. The separate sentinel's
+partial/legacy-permissive signature cannot certify those completion records.
+This is a failed prerequisite, not a signed-resume capability.
+
+Migration must converge actual writers, ordering/commit readers, batch items and
+resume on the existing run-keyed path with verified exact subject/item identity;
+sign all gating fields within the same locked atomic mutation and refuse missing,
+corrupt, mismatched or unsigned authority. Session identity remains actor metadata,
+not a substitute lookup key. Preserve records for the advertised resume window
+rather than the current two-hour expiry, and never credit legacy unsigned files
+as completed work. Select/reuse existing signing and persistence primitives only
+after their behavior is verified; no competing store or new framework is proposed.
+Owner viability also requires observed installed-profile persistence across the
+advertised resume interruption/window: current `/tmp` storage, POSIX locking and
+swallowed write errors are not proof. If existing path/key primitives cannot meet
+that contract, selection remains unresolved rather than adding a store by default.
+
+| Existing mechanism | Observed gap / consolidation prerequisite |
+|---|---|
+| `plan_gate.py:60–82,355–362,440–506` | Uses unverified `permissionDecision=block`, latest-plan selection and fail-open errors; migrate required plan outcome to a current-run transition owner before retiring this duplicate |
+| Plan-exit observer → unified gate (`unified_pre_tool.py:8187–8563`) | Plaintext marker, absent/read-error permit and legacy marker treated critique-done; retain effective action gate but move authority to signed current-plan state |
+| `agent_ordering_gate.py:19–91,200–204,291–328` | Required sets/order omit spec-validator and, in full, CIA despite command obligations; use one profile table for ordering and completion |
+| Completion checks (`pipeline_completion_state.py:1997–2006,2034–2043,2599–2713`) | Import/load/error and some batch checks fail open; required judgment failures cannot become successful completion |
+| Doc verdicts in full/light/fix/batch commands | Missing/shallow retry can proceed as warning; required doc judgment must remain non-pass instead |
+| `implement.md:330–346` run lock | Lock is acquired in a short-lived Python process and released when it exits; the printed fd integer does not keep it held |
+| `pipeline_state.py:606–714,786–881` | Transition APIs lack production callers; failed/partial state can become unsafe completion summaries. Keep only needed utilities or migrate them, not this unproven parallel authority |
+| Resume (`implement-resume.md:64–67`) | Reads a completion store that `implement.md:213` says has no production writer; select one authoritative signed store |
+| Batch (`implement-batch.md:761–776`) | TypeError degrades issue scope to session scope and continues; cross-item receipt substitution must refuse |
+
+Canonical logical responsibilities remain the actual unified transition checks
+and signed completion state, with one selected-profile definition—not a requirement
+to retain every legacy implementation line. Preserve distinct mode outcomes and
+failure detectors before retiring duplicate plan markers, state machines or gates.
+
+## WA-W4 authorization reconciliation (2026-09-25, not frozen)
+
+| Actual route | Intended retained outcome / consolidation | Current gap, not acceptable behavior |
+|---|---|---|
+| `UserPromptSubmit` → `unified_prompt_validator.py` | Human-text routing only; keep actual tool-action authorization with PreToolUse | Malformed input/crash permits; refusing a prompt does not establish enforcement of later tool calls |
+| Native Agent/Task → prompt-integrity fast path (`unified_pre_tool.py:9840–9888`) | Preserve applicable specialist instruction integrity with the existing owner | Missing shipped validator, missing actor/type and corrupt baseline/cumulative state can permit; first-baseline establishment must differ explicitly from loss of established gating state |
+| Native Write/Edit/Bash → actor fast path (`9725–9766`) | Refuse coordinator/unknown-actor protected code writes during an applicable pipeline; preserve legitimate specialist work subject to other gates | Missing/corrupt pipeline state must not erase an applicable obligation; signed-state integration remains required |
+| Generic agent authorization (`6508–6677`, `9990–10005`) | Migrate any unique outcome to the existing effective owner before retiring the duplicate | Native tools return before this route, while meaningful branches require native tool names; direct unit calls are not native-route evidence |
+| MCP authorization (`1845–1893`) | Qualify native permission ownership and retain specific workflow MCP controls | Optional validator module is absent; permissive fallback is not a security control and must not receive coverage credit |
+| Optional batch permission (`6680–6720`) | Qualify only an explicitly enabled supported profile; native ask requires an observed user decision | Default is disabled; classifier loss/crash permits. Optional presence is not active enforcement |
+
+Source review also found whole-hook malformed-input/crash paths emitting `ask`
+(`8625–8655`, `10021–10026`). Neither permit nor refusal can be inferred without
+the pinned native protocol and observed decision. Freeze applicable input, actor,
+state-establishment and fault semantics; do not add a new custom authorization
+layer to compensate for an unproven native owner. No route was retired here.
+
+## WA-W5 issue/drain/consumer reconciliation (2026-09-25, not frozen)
+
+| Existing route | Proposed retained outcome / owner | Gap or retirement prerequisite |
+|---|---|---|
+| Daily aggregate (`unified_pre_tool.py:5521–5576`, watchdog → `daily_aggregate_manager`) | One living aggregate through the existing manager; dogfood title/prefix policy belongs in its consumer profile | The watchdog's Python subprocess is not a Claude tool event. Unknown issue-list results must not become empty-list permission to create duplicates |
+| Legacy issue-marker guard (`5213–5324`) | Retire protection for the powerless legacy marker; preserve real issue authorization below | Bounded inspection found no non-test authority reader/writer; confirm installed/manual consumers before deletion |
+| Actual issue creation (`5671–5802`, `9395–9448`) | Current subject-bound authority from the actual registered issue command/specialist; refuse unauthorized direct/wrapped creates using the existing signed-receipt machinery | Global unsigned command/mtime context, broad active-pipeline allowance and missing-command warning/allow are not accepted authority |
+| Drain commitment (`4326–4403`, drain-queue STEP 3.6/12.5) | Selected drain commitment precedes governed commits and remains until post-push issue closure is verified; reuse signed state | Read/import/parse failures currently permit. Bind required issue references to the actual commit role, not any arbitrary issue in the cluster |
+| Realign raw-MLX bypass (`6188–6246`, `9705–9723`) | Move realign-only policy into its consumer profile/extension; preserve official-route permit and raw-route refusal there | Cwd heuristics and exception-to-permit are not generic toolkit policy or qualified applicability |
+
+Drain source reconciliation: `implement-batch.md:27` requires the currently
+processed issue in each per-issue commit and all cluster issues in a cluster
+commit; the hook currently accepts any intersection with the cluster. Preserve
+that role distinction in the eventual case/profile, rather than require every
+issue in every per-issue commit or accept one issue for a whole-cluster commit.
+Evidence must join issue command → authority → create and drain selection →
+commit → post-push closure → clear. The aggregate and realign specializations do
+not justify separate generic authorization frameworks. These are source-grounded
+proposals; installed cases, signed-state behavior and retirement remain unproven.
+
+## WA-O1 outcome reconciliation (2026-09-25, not frozen)
+
+Source inspection separates desired outcomes from existing permissive defects;
+current behavior is not automatically the replacement acceptance contract.
+
+| Existing owner | Outcome to preserve and prove | Gap requiring resolution before freeze |
+|---|---|---|
+| `enforce_file_organization.py` | Permit allowed root names and below-root writes; refuse disallowed repository-root writes; preserve denial under emitter/telemetry dependency failure | `_repo_root()` conflates a genuine non-Git context with Git failure/timeout; malformed input permits; classifier-loss fallback covers native tools but not MCP. Applicable lost obligations are fault gaps, not permitted cases. |
+| `validate_claude_md_size.py` | Detect over-ceiling/overlap findings, distinguish warnings, and retain absolute-ceiling fallback when the committed ratchet cannot be read | Runs after the write on PostToolUse. A printed block envelope does not prove write prevention or a later guarded transition; no persistent gating state/later consumer was identified. Unreadable existing files and malformed payloads currently skip measurement. Select and observe the actual governed transition before claiming enforcement. |
+| `validate_paid_dependency.py` | Permit clean production content and excluded test/non-Python targets; refuse prohibited production client construction and classifier import loss | Malformed JSON currently permits; the local `_emit` is missed by the scanner and has no identified fused evidence sink. Native refusal and joined evidence remain unproven. |
+
+Source anchors: file organization lines 93–115, 181–205, 374–429, 508–599;
+context-size lines 350–469, 898–1064; paid dependency lines 79–91, 133–196.
+Freeze the supported Git/MCP/payload fault domain and allowed file absence with
+each consumer profile. Do not silently exclude a supported invocation because
+its classifier, observation or payload failed. Existing bypass switches describe
+current configuration, not new authority to waive hard floors or release gates.
+Any selected persisted state governing a later transition must meet INV-7;
+diagnostic telemetry alone is not that state. Prefer an existing transition owner
+over adding a new gate or parallel state store.
+
 ## WA-O2 bounded source disposition (2026-09-25)
 
 Independent read-only review at `0decd8d3730982ab36cfdb42d7634076fac9ecd3`
@@ -292,6 +447,32 @@ outcome decisions and explicit per-control acceptance remain outstanding.
 | Setup/uninstall/hook activator | Source-layout imports/fallbacks exist; clean source-free support unproven |
 | `implement-fix.md` doc path | Missing doc-verdict retry can proceed with warning; `doc_verdict_validator.py` UNKNOWN to current route instrument; reconcile required refusal path |
 
+## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
+
+The configured Git hook is a symlink into the primary checkout, while its scans
+use the committing worktree's cwd. Primary/worktree hook bytes matched at review;
+future worktree edits alone do not prove the configured hook changed. Its five
+archived validator calls contradict PROJECT.md's archived-code rule. All five
+silently skip when the validator file is missing; a present nonzero exit refuses
+under `set -e`. These are source observations, not joined commit-path acceptance.
+
+| Archived validator | Required value / disposition proposal | Evidence gap before retirement |
+|---|---|---|
+| `validate_commands.py` | Preserve refusal for missing/empty command implementation; reuse the active command-file validator that already extracts that section | Active validator delegates absence to the archived owner; no equivalent replacement yet |
+| `validate_install_manifest.py` | Consolidate full source/manifest reconciliation with the live manifest validator and existing shipping-file checks | Live validator is currently narrower; choose explicit update versus check-only semantics before migration |
+| `validate_settings_hooks.py` | Preserve referenced-hook source existence and manifest membership in the same canonical manifest owner | Current live validator alone does not establish both relationships |
+| `validate_lib_imports.py` | Retire the ineffective algorithm, retaining required installed import-integrity outcomes through the existing import-smoke/installed-tree family | In a stable tree it filters imports to existing filenames before testing whether they are missing; deleted imports disappear from its input. Broader required coverage must be selected and proven, not asserted equivalent |
+| `validate_hooks_documented.py` | Select one canonical hook registry and retain its required documentation coverage | Current validator targets `docs/HOOKS.md`; existing regression coverage targets `docs/HOOK-REGISTRY.md`, which is not automatically equivalent |
+
+Pre-commit source lines 217–316 perform full working-tree scans, not staged-only
+checks. Lines 237–241 may stage an existing manifest diff, not only the generator's
+changes. Freeze snapshot semantics and preserve unrelated unstaged edits before
+changing this path. Reuse existing outcome families rather than add five new
+frameworks: ordinary permit, meaningful invalid-subject refusal and missing-owner
+fault through the actual configured commit route; full manifest reconciliation
+needs missing-source and orphan-entry arms. No validator was removed or relocated
+by this review. Consumer installation does not qualify maintainer commit controls.
+
 ## Consumer population and support claims
 
 Declared current deploy targets are `autonomous-dev`, `realign`, `spektiv`,
@@ -373,6 +554,39 @@ Round 1 identified these three defect families; round 2 required the bounded
 helper grammar and ordering mutants now specified above. Final independent
 plan-critic review returned PROCEED on this bounded source-only contract.
 
+Implementation-discovered clarification, independently reviewed: real double-quoted
+`python -c` bodies include shell-escaped quotes (`ci.yml:265`, `implement.md:1441`),
+and retrospective numeric defaults (`${MAX_SESSIONS:-20}`, `${MIN_THRESHOLD:-3}`).
+Dedent alone cannot parse those bodies. Extend only the existing carrier boundary:
+apply exact double-quote shell escaping, preserving escaped dollar distinctions;
+if normalization of parameter expansion is needed, accept only the evidenced
+unescaped `${POSIX_ID:-decimal}` form and substitute its decimal default. This
+establishes the default-path source edge, never every possible environment or
+runtime execution. Do not replace arbitrary expansions with `None` to manufacture
+parseability; unresolved expansion remains unresolved. New heredoc argument
+support is limited to the evidenced single-quoted delimiter with a literal body.
+The same-file helper interpreter must occur in actual command position, optionally
+after bounded simple POSIX environment assignments; `echo python3 "$helper"` is
+not execution. Keep the real environment-prefixed command-substitution positive.
+Through the same walker, require escaped-dollar, arbitrary-prelude, unsupported
+expansion and echo negatives in addition to the existing ordering controls.
+The development prototype accepted those false edges; it is not acceptance
+evidence or a second maintained implementation.
+Round 2 returned PROCEED for this bounded clarification; the live implementation
+still requires independent verification against it at its normal terminal handoff.
+
+The reviewed implementation snapshot `c997a09f83545ed5e914fdcca1a73dc6bd6fd680ad8e2d1575d3c82af9010d4b`
+also failed the supervisor's four full-walker counterexamples (echoed interpreter,
+escaped dollar, invalid default, arbitrary prelude), with its valid helper control
+passing. Preserve this failed snapshot. Correct within the existing owner and
+case table: compute the unchanged full live graph once per test subject, retain
+per-carrier attribution and distinct mechanism-removal checks, and consolidate
+repeated fixture bodies/prose. A broad blind-text mutant does not replace the
+specific command-position, quoting, expansion, ordering and carrier faults.
+Check assignment lifetime and literal-heredoc/terminator handling without adding
+an evaluator. Attribute agent/supervisor inspection accurately, not as a human
+read. No numeric line cap or additional parser owner is introduced.
+
 ### Consumer-profile selection (proposed, not frozen digests)
 
 Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
@@ -422,7 +636,15 @@ this approves the planning definition, not a future candidate or its receipts.
    CLI/Markdown/root-shell routes, archived invocations and consumer extension slots.
 2. Reconcile each to an actual caller/profile or an explicit retirement disposition;
    map every selected control to exact acceptance cases and current owner.
-3. Reproduce the real missed `_emit('deny', ...)` route in the census comparison.
+3. Reproduced the real missed `_emit('deny', ...)` route read-only on 2026-09-25:
+   the existing `_python_refusal_evidence` returned `[]` for the actual
+   `validate_paid_dependency.py` source, while the same invocation recognized
+   a literal `{"decision": "deny"}` positive control. The source's classifier-loss
+   and prohibited-content branches call `_emit("deny", ...)`; its envelope binds
+   `permissionDecision` to a variable and `_emit` is absent from the scanner's
+   recognized emitter names. Keep this known source refuser in WA-O1; the existing
+   scanner needs correction before its selected population can establish coverage.
+   This demonstrates an enumeration omission, not observed native hook behavior.
 4. In an isolated consumer fixture, observe an extension's marker-deny and neighbor-
    permit; remove only its census row and require census acceptance to fail even
    with unchanged settings. This mutant is specified, NOT yet executed.
