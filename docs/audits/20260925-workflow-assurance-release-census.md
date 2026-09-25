@@ -199,7 +199,7 @@ claims that the installed owner has already been chosen or qualified.
 | WA-O1 additional refusers | `P/hooks/enforce_file_organization.py`, `validate_claude_md_size.py`, `validate_paid_dependency.py` | Each real allow/refuse/fault route; include paid dependency emitter despite scanner omission | M0, #1757 |
 | WA-O2 unresolved source controls | `P/hooks/enforce_orchestrator.py`, `enforce_prunable_threshold.py`, `enforce_regression_test.py`, `enforce_tdd.py` | Resolve caller/consumer and retain/migrate/retire with outcome coverage; unknown is not silent exclusion | Census/M0, #1757 |
 | WA-O3 dynamic extensions | `P/hooks/unified_pre_tool.py::_run_extensions` and selected consumer extensions | Discover effective extension population; deny/permit, disabled/missing carrier and omitted-census-entry refusal | Census/M0, #1757 |
-| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; 97 UNKNOWN libraries | Reconcile callers and decision/evidence dependencies rather than classifying unused by filename; preserve each required outcome or justify retirement | Census/M0, #1757 |
+| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; 97 UNKNOWN libraries in the original `401c1ff0` snapshot, 90 under corrected walk `d6e76665` (later integrations not yet rerun) | Reconcile callers and decision/evidence dependencies rather than classifying unused by filename; preserve each required outcome or justify retirement. Neither count is a frozen current denominator | Census/M0, #1757 |
 | WA-L1 plugin lifecycle | Config/native/plugin manifests, `P/lib/settings_merger.py`, existing installers/updaters/resolvers | Source-free installed root, one version/registration owner; clean/populated install/update/repeat/interruption/rollback/uninstall preserves unrelated configuration | D0, #1755/#1758/#1759/#1521/#1522 |
 | WA-L2 delivery routes | `install.sh`, `P/scripts/install.py`, deploy scripts, `P/lib/sync_dispatcher/`, setup/sync commands | Every affected active transport/consumer migrated or explicitly dispositioned; no source fallback or stale extra copy | D0/M0, #1757/#1521/#1522 |
 | WA-L3 commit controls | Configured active `scripts/hooks/pre-commit` and its five archived-hook invocations | Prove applicable shell-branch behavior; each required outcome remains covered before relocating/retiring an archived owner | Census/M0, #1757 |
@@ -728,6 +728,9 @@ future worktree edits alone do not prove the configured hook changed. Its five
 archived validator calls contradict PROJECT.md's archived-code rule. All five
 silently skip when the validator file is missing; a present nonzero exit refuses
 under `set -e`. These are source observations, not joined commit-path acceptance.
+This is a **known current violation to remove before release**, not an approved
+exception to PROJECT.md and not a reason to delete the validators without
+preserving their distinct outcomes.
 
 | Archived validator | Required value / disposition proposal | Evidence gap before retirement |
 |---|---|---|
@@ -780,7 +783,12 @@ from `/opt/homebrew/bin`; version output is not compatibility qualification or a
 decision to upgrade. Windows, WSL, other OS/harness profiles are not implied green;
 OpenCode/Pi remain optional future candidates.
 Runtime requirements also disagree: the native manifest declares Python >=3.11,
-while marketplace/legacy plugin metadata declare >=3.9; PROJECT.md requires >=3.11.
+while `P/.claude-plugin/marketplace.json` and `P/plugin.json` advertise >=3.9;
+PROJECT.md requires >=3.11. Select **Python 3.11+ as the release support floor**;
+the two lower-floor declarations are stale delivery inputs, not permission to
+qualify Python 3.9. D0 must correct or retire both exact declarations through its
+approved settings/package path and re-prove on a pinned 3.11+ consumer before
+release. The user-modified native manifest remains untouched here.
 
 ## Reconciliation and omitted-route controls before freeze
 
