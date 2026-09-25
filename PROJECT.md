@@ -77,7 +77,7 @@ before it is trusted.
 - Skipping PROJECT.md alignment — never proceed without validation
 - Optional best practices — all SDLC steps are mandatory
 - Language-specific lock-in — stay generic
-- SaaS / cloud hosting — local-first. **One named exception: web research.**
+- SaaS product hosting or required hosted services — local-first. **Web research exception:**
   Research is inherently a network call, and no local index covers current
   vendor documentation — measured 2026-08-29, a self-hosted SearXNG returned
   3 relevant results in 10 for a Claude Code docs question while the hosted
@@ -85,7 +85,10 @@ before it is trusted.
   declare a hosted search tool as primary, but ONLY alongside a local one,
   which can never be removed. On a local-model backend the hosted tool does
   not resolve and the local one is used. See INV-8.
-- Paid features — 100% free, MIT licence
+- Paid product features or gate dependencies — the toolkit remains free, MIT-licensed.
+  Separately authorized, redacted advisory experiments (such as Jev) may use a hosted
+  provider; they cannot certify, gate, or become a release prerequisite, and require
+  explicit cost/privacy authority before a call. Shipping an adapter needs scope review.
 
 ---
 
@@ -123,14 +126,12 @@ not counts, and require measured net maintenance reduction across the completed 
 
 ## ARCHITECTURE (Solution-on-a-Page)
 
-A **harness** — the layer that keeps a model on deterministic rails, because reliability
-compounds multiplicatively: ten steps at 90% fails more than 60% of the time. Four layers, in
-descending order of guarantee: **hooks** (enforcement, blocking, and running on every matched
-event ONLY where an invocation record shows they did — a hook that timed out, was never
-registered, or was never reached runs nothing, so "always run" is a claim requiring evidence,
-not a guarantee) → **agents** (intelligence, conditional) → **continuous improvement**
-(post-hoc analysis, files issues) → **autonomous self-improvement** (closed loop,
-evidence-driven).
+A **policy execution and assurance toolkit**, hosted by an agent harness: native OS
+sandboxing and permissions provide containment; hooks enforce workflow decisions;
+specialists supply judgment; independent evidence checks qualify each claimed outcome.
+A hook that timed out, was never registered, or was never reached provides no enforcement;
+native containment is not workflow compliance. Both require observed permit/refuse/fault
+cases on the applicable installed route. Improvement consumes that evidence, not claims.
 
 *Layer detail, diagram, pipeline flow, model tiers and repository structure:
 [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md). Testing model:
@@ -140,7 +141,7 @@ evidence-driven).
 
 These are the load-bearing properties of the harness. A proposed change that contradicts one is an **architecture delta** and requires explicit user sign-off before implementation (Issue #1467). Volatile detail — component counts, hook lists, model tiers, step sub-numbering — lives in [`docs/ARCHITECTURE-OVERVIEW.md`](docs/ARCHITECTURE-OVERVIEW.md) and is explicitly NOT invariant.
 
-- **INV-1 — Enforcement is hooks, not nudges.** Anything that must hold is enforced by a hook returning `{"decision": "block"}`. Prompt-level "should" text is advisory and never counts as enforcement.
+- **INV-1 — Enforcement is an effective control, not a nudge.** Workflow obligations use blocking hooks on actual guarded transitions; containment uses the approved native OS sandbox and file permissions, not custom shell-parsing hooks. Each control must demonstrably refuse prohibited actions and permit allowed ones through its native protocol, including fault cases; no prompt, model verdict or successful registration substitutes for enforcement. See the [approved boundary amendment](docs/plans/20260913-f0-native-sandbox-amendment.md).
 - **INV-2 — Specialists run in fresh context.** Each pipeline agent is invoked with a clean context window and a single responsibility. The coordinator never self-attests a judgment that a specialist exists to make.
 - **INV-3 — The pipeline shape is fixed.** Eight steps: alignment → research → plan → acceptance tests → implement → validate → verify → git. Internal sub-steps may be added; the top-level set and their order do not change without sign-off.
 - **INV-4 — Protected infrastructure is implementer-only.** `agents/*.md`, `commands/*.md`, `hooks/*.py`, `lib/*.py`, `skills/*/SKILL.md` are never edited outside `/implement`; the hard floor holds even under `.claude/.bypass`.

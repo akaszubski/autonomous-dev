@@ -25,6 +25,13 @@ This redesign was requested by the user; it updates design and execution guidanc
 It does not declare a successful run, promote a release, or silently replace a
 frozen case. PROJECT.md invariants, specialist roles and eight-stage pipeline hold.
 
+The 2026-09-25 goal explicitly authorizes reconciling intent with approved design.
+PROJECT.md now states the already-approved boundary separation: native OS/permissions
+provide containment, blocking hooks enforce workflow, and both require observed proof.
+INV-2 through INV-8 and frozen v12/F0 inputs are unchanged. Optional hosted semantic
+review remains a separately cost/privacy-authorized experiment, not a product or gate
+dependency; shipping an adapter needs scope review. This is not native acceptance.
+
 The complete prior plan, including every failure, review, receipt digest and
 authorization checkpoint, is preserved at
 [commit 6649685988a9f960784b55e3b031346e565183aa](https://github.com/akaszubski/autonomous-dev/blob/6649685988a9f960784b55e3b031346e565183aa/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md),
@@ -45,7 +52,8 @@ a model cannot invent those future identities or record human adoption.
 
 Working branch: `fix/1779-pipeline-evidence-integrity`, checkout
 `autonomous-dev-1779`; planning base `6649685988a9f960784b55e3b031346e565183aa`.
-Preserve unrelated dirty PROJECT.md, plugin manifest and .Codex contents.
+The earlier PROJECT.md date-only edit was superseded by the authorized intent update;
+preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
@@ -276,6 +284,9 @@ critical path; benchmark it only under separately authorized cost/privacy terms.
 At the user's request, evaluate whether Jev improves interpretation of PROJECT.md
 intent, the plan and observed execution. Use one optional adapter at existing
 planning/review checkpoints; no new always-on service or call per tool event.
+This is an experimental review tool outside the required product release; no
+shipping commitment or cost/privacy authorization follows from this plan.
+Moving a proven adapter into the shipped toolkit requires explicit scope review.
 Give it the exact versioned intent clauses, the scoped proposed diff/task and a
 redacted evidence packet with supplied clause/observation IDs. Check three things:
 does the change serve the stated intent; does observed behavior contradict an
@@ -359,8 +370,9 @@ consumer is migrated or explicitly outside the supported release with dispositio
 
 ## Files to Create/Modify
 
-This planning update edits this file only, plus linked GitHub status; it leaves
-PROJECT.md, protected infrastructure and frozen v12/F0 inputs untouched.
+The original design-only revision left PROJECT.md untouched; the subsequent
+user-authorized intent reconciliation updates PROJECT.md, this plan and the goal
+pointer together. Protected infrastructure and frozen v12/F0 inputs stay untouched.
 
 | Implementation stage / path | Action |
 |---|---|

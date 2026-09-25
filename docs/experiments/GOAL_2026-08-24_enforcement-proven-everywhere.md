@@ -1,6 +1,6 @@
 # GOAL — Enforcement Proven Everywhere, and Smaller
 
-## Current execution objective — updated 2026-09-16
+## Current execution objective — updated 2026-09-25
 
 Complete the adopted control-tool plan as a small, maintainable retrofit SDLC
 toolkit: accurate and consistent outcomes, independent end-to-end evidence,
@@ -8,7 +8,7 @@ and proven installation in other repositories, not dogfooding alone. Reduce acti
 code, redundant tests, duplicate policy/configuration and operator maintenance;
 retain tests for the distinct protection they provide, not their count.
 
-The [workflow-assurance and subtraction update](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md#completion-criteria-smaller-and-easier-to-maintain)
+The [workflow-assurance and subtraction update](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md#completion-and-the-goal-to-execute)
 owns the measurable maintenance criteria and skill retain/revise/merge/retire
 method. Complete one real workflow at a time, remove superseded mechanisms during
 activation, and report net reduction without weakening required behavior or evidence.
@@ -17,6 +17,9 @@ Execution authority remains [control-tool v12](../plans/20260909-control-tool-v1
 and its adopted amendments: resume the existing F0 checkpoint, preserve frozen
 acceptance/security boundaries, and obtain separately required promotions. This
 update does not claim completion or revive the aborted v3-v5 execution schedule.
+First reconcile intent/plan contradictions, then freeze the finite control/consumer
+acceptance matrix as required by the active goal; preserve evidence and restart
+checkpoints, parallelize independent work and resolve routine issues autonomously.
 
 ## Historical v3-v5 goal — retained evidence, not current execution authority
 
