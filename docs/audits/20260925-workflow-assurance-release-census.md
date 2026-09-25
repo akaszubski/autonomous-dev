@@ -48,7 +48,10 @@ Independent read-only review separates inventory closure from later product proo
 
 1. Reconcile the integrated source-route, location and refusal-envelope
    corrections' selected lists without dropping UNKNOWNs or treating
-   source candidates as observed runtime denials.
+   source candidates as observed runtime denials. Resolve the distinct
+   backtick-assignment over-credit below before freezing the library
+   denominator; a passing reachability test is not proof that its selected
+   route executed.
 2. Expand the family rows into exact control/path/caller/profile obligations,
    intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
    resolve the context-size transition, legacy registrations and commit validators.
@@ -67,6 +70,24 @@ Native control acceptance, installation/lifecycle proof and actual retirement
 follow the freeze in dependency order; they are not prerequisites to specifying
 their obligations. Unknown remote contents and the omitted-entry fault control
 remain inventory blockers, not permission to claim completeness prematurely.
+
+Backtick-assignment instrument defect ([#1801](https://github.com/akaszubski/autonomous-dev/issues/1801), separate from the shipped #1757 source
+correction): `tests/unit/hooks/test_hook_reachability_ratchet.py:8119` records a
+synthetic `helper_path="`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"`
+assignment followed by `python3 "$helper_path"`. The full walker returns
+`REACHED` solely because its older `_COMMAND_POSITION` regex treats a backtick
+inside the assignment as a command boundary; the same-file binding recognizer
+correctly declines to resolve the computed right-hand side. This is **not**
+runtime evidence that the target file executed. Its honest static verdict is
+`UNKNOWN` unless an independent observed execution establishes otherwise.
+The bounded repair must first make this assignment-only false-green `UNKNOWN`,
+preserve a positive control where a literal library path actually occupies a
+shell command position, and preserve the existing live registered route pins.
+It must also challenge a real executable backtick command-position case so a
+regex narrowing does not discard legitimate coverage. Run the ordinary corpus
+and an omitted-route mutant after the repair. Do not change the runtime hook,
+build a general shell interpreter, or silently reclassify dynamic paths as
+unreachable; record any unresolved syntax as `UNKNOWN`.
 
 Before freezing a row, add its claim-specific evidence contract: governing intent,
 required direct observation/effect, observation method and authority, subject/run,
