@@ -17,7 +17,9 @@ Instrument progress since the population snapshot: source-route correction
 Its corrected walk reports 238 modules, 148 REACHED and 90 UNKNOWN; the original
 141/97 figures below remain historical snapshot results, not current verdicts
 from that corrected instrument. No module was thereby proved to execute.
-The follow-on checkout-location correction is still in specialist review:
+The follow-on checkout-location correction completed specialist review and is
+committed as `21090df0239436b4923fc668e2ab8c2c97eebe28` on that same source branch;
+it is not yet integrated into this canonical checkout:
 ratchet SHA `7818342b3b38b2d9340cdf1a1e3ecc819d04db2bed160916968406b255a99faf`
 passed all 281 tests with process exit 0 in an isolated checkout under `.codex`
 (93.40 seconds). This establishes that tested location behavior, not a frozen
@@ -29,7 +31,7 @@ omission controls remain open; see the [current restart checkpoint](20260925-wor
 Independent read-only review separates inventory closure from later product proof:
 
 1. Close the known route/envelope omissions through the existing scanner owners,
-   finish location review, and reconcile corrected lists without dropping UNKNOWNs.
+   integrate the reviewed location correction, and reconcile corrected lists without dropping UNKNOWNs.
 2. Expand the family rows into exact control/path/caller/profile obligations,
    intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
    resolve the context-size transition, legacy registrations and commit validators.
@@ -87,7 +89,8 @@ The sidecar generator's `--check` reports no drift on its selected inputs despit
 the other manifest and generator discrepancies. Preserve that bounded success;
 do not use it as release-wide consistency evidence.
 
-Refusal-inventory correction direction (read-only review, not implemented): reuse
+Refusal-inventory correction direction (implementation active in native run
+`bfe7b4009d4aa95a`; not yet verified or accepted): reuse
 `test_refusal_sink_ratchet.py::_python_refusal_evidence` and its existing evidence
 strings to retain variable-valued decision envelopes as unresolved candidates.
 Do not add a special `_emit` spelling or a new parameter-binding engine merely to
@@ -128,7 +131,7 @@ A green regression result may prove honest UNKNOWN reporting, not complete denia
 coverage. This correction adds no runtime hook, scanner, binding engine, store or
 per-emitter special case, and does not require performing the later migrations.
 
-Checkout-location correction (proposed; independent review returned GO): the exact
+Checkout-location correction (delivered on the source branch at `21090df0`): the exact
 source candidate produced an empty corpus under a `.codex` ancestor and a nonempty
 corpus after moving the unchanged checkout to a neutral parent. `_library_paths`
 applies exclusions to absolute `path.parts`, including ancestors outside the
@@ -142,9 +145,9 @@ and unknown identities, not equality alone. Internal excluded-directory fixtures
 must fall within matched globs, with an ordinary neighboring directory included,
 so the exclusion check cannot pass merely through glob omission. Keep the original
 collected paths and existing glob/is-file behavior unchanged. A required empty
-corpus must not pass. This follows the stable in-flight handoff; it is not permission to
-change the candidate currently under review, and the neutral-path pass does not
-close this portability requirement.
+corpus must not pass. The isolated `.codex`-ancestor proof above and completed
+specialist review establish this bounded correction; they do not establish native
+execution, complete inventory coverage or integration into the canonical checkout.
 
 ## Candidate acceptance matrix
 
