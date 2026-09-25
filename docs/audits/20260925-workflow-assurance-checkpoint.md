@@ -137,6 +137,19 @@ This is a distinct owner-binding defect now included in #1807. The current
 run is bootstrap evidence under Codex supervision, not accepted product
 authentication or proof that STEP-0 works unmodified. No specialist had
 edited code when these controls were recorded, and no F0 state was changed.
+The first #1807 alignment classifier paraphrased INV-7; the deterministic
+gate recorded `ESCALATE`, and its question received no specific human answer.
+Codex preserved that row and required a new classifier invocation on unchanged
+issue text with PROJECT.md's verbatim line 150. The new row returned
+`auto_pass`, with the old escalation still in the log; no synthetic
+`user_approved` row was written. The full 15,011-test baseline exceeded its
+600-second capture budget and wrote `__TIMEOUT__`; baseline status is UNKNOWN,
+not green. A subsequent research file initially failed structured persistence
+with empty findings, then was written as prose. Independent JSONL tool records
+show the local researcher did read the relevant source files and tests; the web
+researcher fetched RFC 8725 only. RFC 7507/etcd were search-result analogies,
+not fetched sources, and cannot authorize the repair. The planner is still
+running; no implementation source file has changed as of this checkpoint.
 
 The separate `f0`
 session remains paused at the cumulative-history hook deadlock awaiting the
