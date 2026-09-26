@@ -6,6 +6,37 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Further native observation: the bounded consistency implementer returned and
+the coordinator independently reran four scoped candidate test files. They
+reported `rc=0`/139 passed, but a discriminating `/tmp` before/after inventory
+found **84 new entries** (74 locks, 10 JSON) unrelated to the live run. The
+frozen cleanup helper constructed `.json.lock` while the real state writer
+creates `.lock`. This is [recorded on #1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844411371).
+The native test-master is repairing exact per-row cleanup; the green counts are
+provisional until the same measured run leaves no attributable artifacts.
+No broad GC or glob deletion is authorized while the keeper holds the live
+lock. A pytest-gate completion was recorded to unblock specialist ordering
+after actual zero exits, but **before** clean isolation; it is not accepted
+test-phase/reviewer proof.
+
+The candidate guard also refused completion when the coordinator imported the
+new source module into the already-started old-format run. The owner ledger
+had `current_run_id=78988353f7287509`, no `run_start`, and a surviving active
+obligation. The prior installed module was pin-verified and used for that
+pre-migration run; fabricating a new expectation or nonce in the live ledger
+would invalidate the proof. This [migration interlock](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844385454)
+requires a fresh isolated run through the new initializer and guards before
+claiming native qualification.
+
+Separate live defect [#1811](https://github.com/akaszubski/autonomous-dev/issues/1811):
+Claude supplies plugin-namespaced agent names but four hook membership checks
+compare unprefixed names. Three deny legitimate specialists; the alignment
+escalation check silently misses them. This is distinct from closed #779 and
+#1484. The issue explicitly rejects naive suffix stripping and requires exact
+registered-namespace/known-role matching with spoof/coordinator negative
+controls. It is **filed, not fixed**; one-shot bypass use in the native repair
+does not close it.
+
 Later native #1807 continuation: independent critic returned **REVISE** (2.7)
 on the LN12-R successor. Its completion writer used the run-id address, but
 its reader used the owner-hash address; therefore a reported non-completion
