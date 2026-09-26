@@ -18,6 +18,16 @@ unmapped registration duties, exact consumer identities, scanner corrections,
 remote dispositions and populated omitted-row proof remain unresolved; neither
 this integration nor successful documentation tests freeze the denominator.
 
+Subsequent four-duty selection is independently reviewed and integrated into the
+same declaration table: tier health remains diagnostic, with migration to existing
+`/improve` only after explicit consumer cadence selection; Stop diagnostics are
+provisionally retained until measured distinct-value/cost proof; redundant strict
+echo guarantees retire only after functional profile proof; necessary doc repair
+moves to explicit preparation while selected-tree commit checks never mutate or
+stage files. Required healthy/opposite/unavailable outcomes are specified. These
+are conditional contract selections, not deletion authority or native acceptance;
+exact callers, consumers, cadence and replacement effects remain to qualify.
+
 Latest state: genuine native implementer is running after independently verified
 sealed RED. No repair or F0/product acceptance yet. Installed-cache composition
 and duplicate observations are independently reviewed fixture results; consumer

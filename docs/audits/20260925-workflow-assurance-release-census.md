@@ -1641,7 +1641,7 @@ Effective native event support and settings composition remain unverified.
 | PreToolUse | `Task\|Agent` | session_activity_logger.py | G | Supporting evidence; selected consumer duty/profile unresolved | Preserve distinct declared carrier; dispatch observation is not joined success |
 | PreToolUse | W | PreToolUseWrite-protect-sensitive.sh | ALL | WA-S1-01…04 | Migrate to one decision owner after built-in/MCP/opposite/fault arms; then retire duplicate |
 | PreToolUse | W | enforce_file_organization.py | G,A | WA-O1a | Preserve root-path outcome through actual caller, including Git-classifier failure |
-| PreToolUse | W | enforce_tier_distribution.py | G | WA-O4-01 candidate | Duty/severity selection unresolved; source warning cannot be promoted into refusal |
+| PreToolUse | W | enforce_tier_distribution.py | G | WA-O4-01 diagnostic | Select migration to existing `/improve` tier-health reporting only with explicit consumer cadence disposition; until then retain immediate warning, never invent refusal |
 | PreToolUse | W | plan_gate.py | G,A | WA-W2-02/03 | Migrate current-plan owner; wrong envelope and absent required plan cannot pass |
 | PreToolUse | W | validate_paid_dependency.py | ALL | WA-O1c | Preserve paid-content refusal; computed `_emit` source UNKNOWN is not observed refusal |
 | PreToolUse | `*` | unified_pre_tool.py | ALL | WA-W1a…e; WA-W2…W5; WA-O3 | Existing concrete subcontrols own distinct obligations; no single case certifies dispatcher |
@@ -1653,9 +1653,9 @@ Effective native event support and settings composition remain unverified.
 | SessionStart | `*` | SessionStart-batch-recovery.sh | A | WA-W3-05 | Preserve batch recovery identity and useful context; no reconstructed signed authority |
 | PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S | Supporting evidence; selected consumer duty/profile unresolved | Preserve this distinct carrier separately from G's matcher; source activity is not a native join |
 | PostToolUse | `Write\|Edit` | auto_format.py | A,S | WA-L2b formatting outcome; D0-04 | Qualify modern Write/Edit effects and duplicate/missing-formatter faults; LEGACY-01/02 remain distinct declarations below |
-| Stop | empty string | stop_quality_gate.py | A | WA-O4-01 candidate | Distinct diagnostic vs pipeline-validation duty unresolved; no commit authority inferred |
-| UserPromptSubmit | `*` | inline strict-mode echo | S | WA-O4-01 candidate | Proposed duplicate-reminder retirement only after strict functional duties mapped; echo gets no security credit |
-| PreCommit | absent | auto_fix_docs.py | N | WA-L3-05 / WA-D1 candidate | Native event validity, mutation and unique duty unresolved; no resurrection or automatic intent mutation |
+| Stop | empty string | stop_quality_gate.py | A | WA-O4-01 diagnostic | Provisionally retain end-of-turn diagnostic; consolidate only after measured distinct-value/cost proof, with no commit authority |
+| UserPromptSubmit | `*` | inline strict-mode echo | S | WA-O4-01 advisory presentation | Select redundant-guarantee retirement after strict functional/profile proof; optional presentation must describe actual selected profile, never certify enforcement |
+| PreCommit | absent | auto_fix_docs.py | N | WA-L3-05 / WA-D1 preparation | Select deterministic repair in explicit preparation, never commit-time mutation/staging; qualify promised effects and caller/event before retirement |
 
 These are allocations of the existing 23 declaration shapes, not new acceptance
 IDs or evidence of activation. Each keeps its exact surface/matcher parameters;
@@ -1665,7 +1665,25 @@ case credit: that case profile/order is unchanged, and consumer duties/profiles
 remain explicitly unresolved where not selected. Native executing roots,
 supported events, receipt joins and current
 dependency identities remain UNMEASURED until directly established. Candidate
-rows keep their explicit unresolved duty selections; this table is not frozen.
+rows keep their explicit conditional selections; this table is not frozen.
+
+Four-duty selection is prospective, independently reviewed against current source,
+not delivered behavior. Tier distribution currently warns and allows, including
+an analyzer-error path; preserve healthy/imbalance reporting, distinguish unavailable
+analysis, and keep ordinary writes permitted. Existing `TestLifecycleManager` and
+`/improve` reporting may replace the write-time diagnostic only when that consumer
+explicitly selects the changed cadence; timing is not equivalent by default.
+The current Stop owner runs available tools and reports to stderr with exit zero;
+retain genuine failure reporting and distinguish disabled/no-tools/unavailable
+states. Its source comment about upstream Stop capability is not authority.
+Strict echo supplies advisory activation claims, not action decisions: omitted
+reminder must preserve every selected strict-profile permit/refuse outcome before
+retirement. `auto_fix_docs` currently repairs and stages files; move necessary
+repair effects to explicit preparation and qualify correct resulting docs, while
+selected-tree validation remains check-only and preserves unrelated staged and
+unstaged bytes. Missing/mismatching required validation stays non-pass. None of
+these selections proves native activation, resolves unknown consumers or permits
+deleting an owner before replacement and applicable consumer proof.
 
 G uses `~/.claude/hooks`; project templates resolve project-root `.claude/hooks`;
 N uses a relative path with `|| exit 1`. Python interpreters, environment prefixes
