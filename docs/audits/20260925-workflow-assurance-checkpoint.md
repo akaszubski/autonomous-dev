@@ -2552,3 +2552,30 @@ as `d2c053f5`. Consult `git status` for later working-copy edits rather than inf
 them from this historical record. Do not disable the state guard or
 claim its change-detection alone identifies the writer. This checkout's live-log
 watch means commit-time tests and native pipeline activity can share mutable state.
+
+## 2026-09-26 continuation — remote census and #1807 acceptance hold
+
+The prior pushed checkpoint head at this observation was `b318e234` on
+`fix/1779-pipeline-evidence-integrity`. The [release census](20260925-workflow-assurance-release-census.md)
+now records read-only Mac Studio access over Tailscale, sampled remote settings
+layers/installed bytes and launchd registration, while explicitly retaining
+unknown full closure and runtime behavior. #1757 and #1809 carry the exact
+progress/overwrite-risk notes; no remote deploy, settings mutation or consumer
+acceptance occurred. The `.claude/settings.json` and plugin manifest edits in
+this checkout predate this census work and remain unstaged user/parallel state.
+
+Native #1807 coordinator `e3c14df7-da93-4232-8ccd-2ae6dcbd53db` remains live
+in `/Users/akaszubski/Dev/autonomous-dev-1807-native` under tmux
+`adev-assurance:owner1807`; its source implementer returned, and its test-master
+is repairing the cases. Five sealed test files were reported byte-identical and
+157 passing by that coordinator, **not accepted**: independent supervision
+measured A10 green with `GateResult.passed=False`, a fix-mode permit on verifier
+ImportError plus damaged sentinel, and a fix-mode permit with an absent sentinel
+and session ledger containing completion stamps but missing current-run fields.
+Each has a clean/valid opposite control; #1807 comments preserve the exact
+counterexamples. The existing 22 red tests encode obligation-without-sentinel
+fixtures that conflict with the new refusal contract; repair their shared setup
+instead of weakening the refusal. No rollout, native F0 completion or migration
+credit follows from the 157 passing cases. Next: collect the test-master result,
+freeze the new RED arms, repair source through the live `/implement` specialists,
+and independently rerun affected behavior and assurance gates before promotion.
