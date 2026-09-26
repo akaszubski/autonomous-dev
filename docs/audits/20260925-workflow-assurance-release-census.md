@@ -295,7 +295,7 @@ Every row still needs its claim-specific evidence contract described above.
   next exercise omitted reads and always-no-impact, then measured skill value.
 - **WA-O1a…c:** reuse organization, context-size and paid-dependency rows below.
   Profiles: applicable declared native events. Migrate required outcomes; next
-  select the context-size guarded transition and observe paid `_emit` refusal.
+  qualify the selected commit-time context-size transition below and observe paid `_emit` refusal.
   A post-write diagnostic is not write prevention.
 - **WA-O2-01…04:** orchestrator, prunable threshold, regression and TDD. Profiles:
   remaining installed/manual consumers plus applicable fix/raw-commit/TDD modes.
@@ -585,7 +585,7 @@ All four sidecars are utility-labelled. Packaging a file is not activation.
 | Owner | Proposed disposition, pending consumer proof |
 |---|---|
 | `enforce_orchestrator.py` | Retire legacy commit/session evidence heuristic after confirming consumer coverage by the connected alignment controls. |
-| `enforce_prunable_threshold.py` | Migrate the required refusal outcome or explicitly retire it before removing the hook: the connected `TestLifecycleManager.check_prunable_threshold()` currently reports rather than blocks. |
+| `enforce_prunable_threshold.py` | Migrate its findings-based commit refusal to the existing commit/pre-git owner before removing the unconnected hook/sidecar. The connected dashboard's deletable-file metric is not an equivalent replacement. |
 | `enforce_regression_test.py` | Retire only after dispositioning fix-mode and raw-commit behavior; full-pipeline regression coverage does not establish those profiles. |
 | `enforce_tdd.py` | Retire legacy heuristic after acceptance-first/TDD-mode coverage is established; if strict raw-commit TDD is required, migrate it to one existing transition. |
 
@@ -596,6 +596,24 @@ distinguish benchmark events from
 joined lifecycle invocations; freeze each remaining permit/refuse obligation; then
 prove owned stale-file/registration removal preserves unrelated settings. WA-O2
 remains open until those checks and dispositions are complete.
+
+WA-O2 pruning contract selection (prospective, not implementation or acceptance):
+preserve the shipped findings-based threshold from #863 rather than infer its
+retirement from #1317's separate CIA/dashboard correction. Applicability remains
+profile-bound: #863 was strict-mode opt-in, not a default-on
+gate. This selection does not activate it in default consumers. Existing analyzer and
+commit/pre-git ownership must evaluate the bound candidate subject; no new hook,
+authority store or automatic deletion is authorized. Freeze these paired cases:
+findings at/below the profile's threshold permit; above-threshold findings refuse
+with actionable explanation; analyzer/root/input unavailable is non-pass for an
+applicable check; findings above threshold still refuse when deletable-file count
+is below threshold. Qualify raw commit and pipeline routes separately, recheck a
+changed subject, and record explicitly supported opt-outs as inactive rather than
+successful enforcement while preserving hard floors. Default threshold is 100
+in the current source; pin the effective value with each consumer profile.
+Sidecar removal requires replacement both-arm and consumer proof. No existing
+dashboard metric or report alone supplies that evidence, and no noisy-test
+classification authorizes deleting tests without examining their distinct value.
 
 Local installed follow-up: dogfood, `realign` and user-global copies of all four
 hooks match the reviewed source hashes. Parsed project/user settings, bounded
