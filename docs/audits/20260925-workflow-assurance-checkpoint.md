@@ -6,6 +6,33 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Later native #1807 continuation: independent critic returned **REVISE** (2.7)
+on the LN12-R successor. Its completion writer used the run-id address, but
+its reader used the owner-hash address; therefore a reported non-completion
+could be an address mismatch, not a guard refusal. A same-address observation
+and paired genuine-positive control are required before that sub-arm can count.
+The critic also retained the source-level Bash/descendant/path-alias
+non-refusals as actual diagnostic failures; they are not excused by the
+separate unmeasured native Write/MCP-origin venue. Original and successor
+seals and raw failed output remain retained.
+
+The live coordinator subsequently found that a content-only expected record
+cannot distinguish a reconstructed sentinel with matching six fields and a
+valid MAC. A native implementer is attempting a ledger-to-sentinel nonce
+witness, with legitimate re-signers preserving the witness. That proposal can
+bind one artifact to its expectation; it **does not authenticate the signing
+principal**, prove W1 containment, or close AC7. Existing short-expectation
+positive cases must still pass, and no frozen negative may be skipped or
+redefined. This is live implementation, not accepted design or release proof.
+
+Independent native-worktree inspection also found `.claude/settings.json`
+dirty, removing `OTEL_LOGS_EXPORTER=console` while leaving telemetry enabled.
+Writer and effect are not yet attributed. The coordinator was notified to
+resolve this observability change before acceptance; it is not silently
+adopted as part of #1807. Codex account inspection reports ordinary usage
+allowed, while one parallel census sub-agent received a limit error; the
+independently reviewed earlier census patch was already pushed as `8e2d98ab`.
+
 Successor observation supersedes the setup-only diagnosis below, without erasing
 it: native test-master changed only LN12-R setup to record independently held
 complete bindings. Original seal `9671ea7352f53777a0c88a940c9b6d2ae581ef4eb538fa2c53a70bdb2432e3f0`
