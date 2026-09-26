@@ -1064,6 +1064,32 @@ the effective process, alternate domain, installed script behavior, hook
 receipts and all consumer outcomes remain **UNMEASURED**. Do not retire or
 replace a route from this inventory alone.
 
+A second read-only pass fingerprinted hook commands without printing their
+contents. The global tier declares 16 command hooks; the five project
+`settings.json` files each declare the same eight-command event shape.
+The `autonomous-dev` local settings add eight commands, `realign` and
+`spektiv` add one each, `homeassistant` declares none, and `vllm-mlx` has no
+local settings file. Identical command fingerprints occur across all five
+project settings and between the global and `autonomous-dev` local layers.
+This is a collision **candidate**, not observed duplicate firing or proof of
+Claude's effective settings precedence. The remote source checkout, global
+copy, and all five project copies of `hooks/unified_pre_tool.py` and
+`lib/pipeline_state.py` have matching SHA-256 digests; all five project copies
+of `commands/implement.md` match the source. These sampled installed files
+are separate regular files, not symlinks into source. The global
+`commands/implement.md` is absent. Byte equality at these three sampled
+owners does not prove full installed closure or loaded-module identity.
+
+The drain-driver service was also absent in both inspected `user/501` and
+`gui/501` launchd domains. Its installed script digest matches the remote
+source script, although the plists differ. The installed plist declares a
+1800-second interval and a non-placeholder heartbeat URL; the URL was not
+printed or used. A sanitized historical log scan counted 1372 `DISPATCHED`,
+48 `skip`, 176 `ok` and four `ERROR:` lines, with the latest recognized event
+on 2026-07-25. Those historical labels establish neither a current scheduled
+job nor correct dispatch effects. The remote route remains a migration
+obligation until effective behavior and opposite-arm proof are recorded.
+
 ## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
 
 The configured Git hook is a symlink into the primary checkout, while its scans
