@@ -574,6 +574,18 @@ checked subject is the committed subject or revalidate/refuse. Qualify raw commi
 and pipeline routes separately, preserve unrelated staged/unstaged bytes, and
 reuse existing owners rather than a new post-write gate or state store.
 
+WA-O1b evidence contract: governing intent is accurate applicable context with
+one existing transition owner. Subject is the selected committing tree plus
+reference HEAD and profile; authority is the independently checked existing
+context validator on those inputs, not the authoring agent's report. Direct
+observation must bind the validator result to the tree consumed by the actual
+commit/pre-git caller. Validator, ratchet/configuration or subject-byte changes
+invalidate prior proof; consumption rechecks those identities or refuses.
+Dependency invalidation, not an arbitrary time expiry, governs freshness here.
+Missing/uninspectable applicable inputs or a missing result are non-pass.
+Post-write diagnostics and current implementation do not establish that claim;
+exact consumer/result identities remain to be frozen before qualification.
+
 ## WA-O2 bounded source disposition (2026-09-25)
 
 Independent read-only review at `0decd8d3730982ab36cfdb42d7634076fac9ecd3`
@@ -596,6 +608,18 @@ distinguish benchmark events from
 joined lifecycle invocations; freeze each remaining permit/refuse obligation; then
 prove owned stale-file/registration removal preserves unrelated settings. WA-O2
 remains open until those checks and dispositions are complete.
+
+WA-O2 evidence contract: governing intent and applicable profile are the four
+selected outcomes below, not historical hook presence. Subject is the candidate
+and, where required, its bound run/item and pre-fix baseline. Authority is the
+independently checked applicable alignment/analysis/reproducer/chronology owner;
+required direct observation is its actual result consumed by the guarded caller.
+Candidate, baseline, profile, governing intent or checker changes invalidate proof;
+the caller rechecks bindings at consumption or refuses. TDD ordering is observed
+event order with bound identity, not timestamp proximity or a new expiry window.
+Missing, wrong-run, stale or unavailable applicable evidence is non-pass; explicit
+inapplicability is inactive, never enforcement success. Exact consumer carriers
+and native results remain UNMEASURED, with no new store or certification agent.
 
 WA-O2 pruning contract selection (prospective, not implementation or acceptance):
 preserve the shipped findings-based threshold from #863 rather than infer its
@@ -1030,6 +1054,18 @@ refusal and missing-owner faults before archived-caller retirement. Later index 
 hook mutation must revalidate or refuse; this selection alone does not prove the
 eventual committed tree was checked. Generation remains preparation outside the
 check-only route. All five outcomes remain UNMEASURED for the replacement.
+
+WA-L3 evidence contract: governing intent is one canonical, current delivery and
+documentation description without commit-time generation. For 01/02/03/05 the
+subject/dependencies are the selected commit tree, reference HEAD, validator,
+configuration and required source/document bytes; for 04 they are the separately
+identified installed closure and its verification instrument. Authority is the
+independently checked existing applicable validator; direct observation must
+show its actual result and caller consumption on that subject, including opposite
+and missing-owner arms. Any dependency change invalidates proof and requires
+consumption-time revalidation/refusal, not an arbitrary time expiry. Missing or
+uninspectable applicable input/result is non-pass. Snapshot and installed claims
+remain separate; neither author prose nor a working-tree scan supplies acceptance.
 
 ## Consumer population and support claims
 
@@ -1595,31 +1631,41 @@ default-settings. ALL = G,A,D,B,P,S. W = `Write|Edit|MultiEdit|NotebookEdit|mcp_
 E = `Write|Edit|MultiEdit|NotebookEdit`. These normalize owners, not command bytes.
 Effective native event support and settings composition remain unverified.
 
-| Event | Matcher | Owner | Surfaces |
-|---|---|---|---|
-| PostCompact | `*` | post_compact_enricher.sh | ALL |
-| PostToolUse | ExitPlanMode | plan_mode_exit_detector.py | G,A |
-| PostToolUse | E | validate_claude_md_size.py | ALL |
-| PostToolUse | `*` | session_activity_logger.py | ALL |
-| PreCompact | `*` | pre_compact_batch_saver.sh | ALL |
-| PreToolUse | `Task\|Agent` | session_activity_logger.py | G |
-| PreToolUse | W | PreToolUseWrite-protect-sensitive.sh | ALL |
-| PreToolUse | W | enforce_file_organization.py | G,A |
-| PreToolUse | W | enforce_tier_distribution.py | G |
-| PreToolUse | W | plan_gate.py | G,A |
-| PreToolUse | W | validate_paid_dependency.py | ALL |
-| PreToolUse | `*` | unified_pre_tool.py | ALL |
-| Stop | `*` | session_activity_logger.py | G,B,P,S |
-| Stop | `*` | conversation_archiver.py | G,A |
-| SubagentStop | `*` | unified_session_tracker.py | G,A |
-| TaskCompleted | `*` | task_completed_handler.py | G,A |
-| UserPromptSubmit | `*` | unified_prompt_validator.py | G,A |
-| SessionStart | `*` | SessionStart-batch-recovery.sh | A |
-| PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S |
-| PostToolUse | `Write\|Edit` | auto_format.py | A,S |
-| Stop | empty string | stop_quality_gate.py | A |
-| UserPromptSubmit | `*` | inline strict-mode echo | S |
-| PreCommit | absent | auto_fix_docs.py | N |
+| Event | Matcher | Owner | Surfaces | Existing case-family allocation | Proposed disposition / next observation |
+|---|---|---|---|---|---|
+| PostCompact | `*` | post_compact_enricher.sh | ALL | WA-W3-05 | Preserve useful context and bound recovery identity; no ledger-only authority |
+| PostToolUse | ExitPlanMode | plan_mode_exit_detector.py | G,A | WA-W2-02/03 | Migrate current-plan critique authority; missing/revised marker cannot pass |
+| PostToolUse | E | validate_claude_md_size.py | ALL | WA-O1b | Selected commit/pre-git refusal; post-write warning is separately advisory, not prevention |
+| PostToolUse | `*` | session_activity_logger.py | ALL | Supporting evidence; selected consumer duty/profile unresolved | Preserve required event evidence; missing/disabled/duplicate carrier cannot satisfy required claims |
+| PreCompact | `*` | pre_compact_batch_saver.sh | ALL | WA-W3-05 | Preserve handoff identity; stale/unsigned recovery cannot authorize progression |
+| PreToolUse | `Task\|Agent` | session_activity_logger.py | G | Supporting evidence; selected consumer duty/profile unresolved | Preserve distinct declared carrier; dispatch observation is not joined success |
+| PreToolUse | W | PreToolUseWrite-protect-sensitive.sh | ALL | WA-S1-01…04 | Migrate to one decision owner after built-in/MCP/opposite/fault arms; then retire duplicate |
+| PreToolUse | W | enforce_file_organization.py | G,A | WA-O1a | Preserve root-path outcome through actual caller, including Git-classifier failure |
+| PreToolUse | W | enforce_tier_distribution.py | G | WA-O4-01 candidate | Duty/severity selection unresolved; source warning cannot be promoted into refusal |
+| PreToolUse | W | plan_gate.py | G,A | WA-W2-02/03 | Migrate current-plan owner; wrong envelope and absent required plan cannot pass |
+| PreToolUse | W | validate_paid_dependency.py | ALL | WA-O1c | Preserve paid-content refusal; computed `_emit` source UNKNOWN is not observed refusal |
+| PreToolUse | `*` | unified_pre_tool.py | ALL | WA-W1a…e; WA-W2…W5; WA-O3 | Existing concrete subcontrols own distinct obligations; no single case certifies dispatcher |
+| Stop | `*` | session_activity_logger.py | G,B,P,S | Supporting evidence; selected consumer duty/profile unresolved | Preserve distinct declared carrier; required missing/disabled evidence remains non-pass |
+| Stop | `*` | conversation_archiver.py | G,A | Supporting history; selected consumer duty/profile unresolved | Preserve needed history; archival presence is not tool/hook identity joining |
+| SubagentStop | `*` | unified_session_tracker.py | G,A | WA-E2; WA-W3-04/05 | Migrate joined actual result/current-run credit; wrong-child/unsigned-dispatch refuses credit |
+| TaskCompleted | `*` | task_completed_handler.py | G,A | WA-E2; WA-W3-04/05 | Preserve joined completion authority, not legacy completion-record success |
+| UserPromptSubmit | `*` | unified_prompt_validator.py | G,A | WA-W4-01 | Retain human routing; routing never grants later action authorization |
+| SessionStart | `*` | SessionStart-batch-recovery.sh | A | WA-W3-05 | Preserve batch recovery identity and useful context; no reconstructed signed authority |
+| PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S | Supporting evidence; selected consumer duty/profile unresolved | Preserve this distinct carrier separately from G's matcher; source activity is not a native join |
+| PostToolUse | `Write\|Edit` | auto_format.py | A,S | WA-L2b formatting outcome; D0-04 | Qualify modern Write/Edit effects and duplicate/missing-formatter faults; LEGACY-01/02 remain distinct declarations below |
+| Stop | empty string | stop_quality_gate.py | A | WA-O4-01 candidate | Distinct diagnostic vs pipeline-validation duty unresolved; no commit authority inferred |
+| UserPromptSubmit | `*` | inline strict-mode echo | S | WA-O4-01 candidate | Proposed duplicate-reminder retirement only after strict functional duties mapped; echo gets no security credit |
+| PreCommit | absent | auto_fix_docs.py | N | WA-L3-05 / WA-D1 candidate | Native event validity, mutation and unique duty unresolved; no resurrection or automatic intent mutation |
+
+These are allocations of the existing 23 declaration shapes, not new acceptance
+IDs or evidence of activation. Each keeps its exact surface/matcher parameters;
+applicable CLEAN-0/POPULATED-3 variants require separately frozen installed
+profiles. Supporting logging/history rows do not receive frozen Linux F0 WA-E1
+case credit: that case profile/order is unchanged, and consumer duties/profiles
+remain explicitly unresolved where not selected. Native executing roots,
+supported events, receipt joins and current
+dependency identities remain UNMEASURED until directly established. Candidate
+rows keep their explicit unresolved duty selections; this table is not frozen.
 
 G uses `~/.claude/hooks`; project templates resolve project-root `.claude/hooks`;
 N uses a relative path with `|| exit 1`. Python interpreters, environment prefixes

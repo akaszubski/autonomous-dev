@@ -6,6 +6,18 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Phase-one specification continuation: independent docs-only review accepted
+allocation columns on all 23 existing declaration shapes, preserving each event,
+matcher, owner and surface. Recovery/completion use WA-W3/WA-E2; supporting
+logging/history duties stay unresolved and receive no retrospective frozen F0
+WA-E1 credit. Modern formatting remains separate from LEGACY-01/02. Existing
+WA-O1b, WA-O2 and WA-L3 sections now explicitly bind governing intent, direct
+caller consumption, subject/dependency invalidation and missing-evidence non-pass.
+No new taxonomy, runner, store, gate or arbitrary expiry was added. The four
+unmapped registration duties, exact consumer identities, scanner corrections,
+remote dispositions and populated omitted-row proof remain unresolved; neither
+this integration nor successful documentation tests freeze the denominator.
+
 Latest state: genuine native implementer is running after independently verified
 sealed RED. No repair or F0/product acceptance yet. Installed-cache composition
 and duplicate observations are independently reviewed fixture results; consumer
