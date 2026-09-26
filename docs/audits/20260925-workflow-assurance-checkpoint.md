@@ -18,6 +18,13 @@ planner complete Read union returned at 03:57:28.447Z / 03:57:34.723Z; all retur
 lines match that digest. Revised final reports were not yet observed by that
 audit, so exposure does not establish incorporation or acceptance. Earlier
 stale-input reports cannot qualify acceptance against the current goal.
+Corrected-input critic `aaef7260ce4e203f3` subsequently returned **REVISE**,
+composite 3.5. Source inspection confirms `session_mode.py:89` sets a one-hour
+TTL and its reader returns `None` after expiry; the proposed protected-observed
+mode/issue/subject bindings therefore lack a durable active-run disposition.
+The same planner must resolve this and add a qualifying case, not extend an
+arbitrary timeout or permit on missing evidence. Preparation minimalism and
+dependency-closed retirement measurement remain binding for this repair.
 The W1–W4 revision withdrew custom Bash containment and reconstruction-permit
 cases, but independent review still requires init-request replay/identity-loss
 refusal, all six protected expected bindings, nonmutating liveness observation,
@@ -44,6 +51,12 @@ not execute. Failure is retained in `adev-1807-srt-prep.jKlZGL/VM-RESULT.md`
 owned process/cgroup/runtime cleanup was verified. This does not establish native
 hook origin, reconstruction refusal or AC7 acceptance. Independently review the
 smallest write-denial test correction without relabeling the failed run as PASS.
+Separately frozen public-dummy candidate `adev-1807-visible-prep.s2ni9e` passed
+independent preparation/review conditional on repeated live preflight. It keeps
+signing HOME hidden and baseline write denials intact, makes only public dummy
+sentinel/ledger readable, and requires the same checker to reject a deliberately
+writable public-path mutant after observing an atomic permit. Execution was
+dispatched; no result or native acceptance is inferred from preparation approval.
 Do not relax the Docker boundary or reuse old worker state to force a pass.
 
 Historical consolidated-report observation: the same native planner `abdcaaab98a9014a9` returned
