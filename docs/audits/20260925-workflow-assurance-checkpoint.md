@@ -19,6 +19,17 @@ Independent transcript review checked exact exports and actual planner test read
 No subsequent critic acceptance of that corrected freeze was yet observed.
 Supervisor sent continuation through genuine critic/test/implementer gates in the
 same run; no new approval, bypass, restart, protected edit or reduced gate occurred.
+Subsequent independent semantic review remains REVISE: anchor6's expectation-only
+ACTIVE predicate may overlook surviving current-run/nonterminal obligations, and
+the successor manifest still selects ledger69/anchor8 rather than ledger73/final
+anchor9. Both concrete corrections were sent to the same native parent/current
+critic and recorded on #1807. Missing expectation must not authorize re-init while
+any existing active-run obligation survives; retain genuine fresh/terminal positives.
+The private eight-family D0 matrix now incorporates observed Git-source acquisition
+and historical #119/#945 dependency/command-bootstrap outcomes, SHA-256
+`0465ac637911853339df7dbdda24d9cc48807e44c75479997fcfdebe4955930a`.
+Its path remains `d0-consumer-lifecycle-matrix.lTBaCz` under private Codex artifacts;
+no matrix freeze, copying installer or product PASS was added.
 
 The baseline registration test failure is now directly measured: the stale
 `def _extract_wrapped_command` forbidden entry rejects the unchanged baseline.
