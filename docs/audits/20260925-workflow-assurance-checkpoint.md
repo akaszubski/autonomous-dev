@@ -6,6 +6,21 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+The native #1807 test-master returned the completion/ledger amendment RED, and
+the coordinator independently reran all **five** existing #1807 test files.
+Corrected raw outcomes: `identity_gates` exit 1 with B-T3 and B-G4d failing
+and 52 passing; `run_authority` 33 passed, `native_initializer_wiring` 34,
+`sentinel_witness` 18, and `sentinel_owner_evidence` 18 (all exit 0). The
+specialist's table had permuted three green per-file counts; the coordinator's
+rerun, not that table, is the count authority. `sentinel_owner_evidence` predates
+this amendment, so its presence is not a fifth-file scope addition. Repeated
+RED runs reported zero attributable residue and the live lock inode unchanged.
+A separate read-only review found no same-address, carrier, stderr or ordinary
+permit flaw in the amended B-T3/B-G4d assertions; the native plan critic is
+still reviewing them. No source repair, control acceptance or F0 promotion is
+claimed by this RED checkpoint. See the
+[#1807 evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844710218).
+
 Independent native review rejected the first completion-authority amendment
 (REVISE 2.6): its proposed genuine-positive fixture lacked a sentinel witness,
 three named hosts tested dispatch rather than completion, and its negatives
