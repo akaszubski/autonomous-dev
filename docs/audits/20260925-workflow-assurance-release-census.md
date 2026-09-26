@@ -1185,6 +1185,27 @@ remains explicit. No profile proposal grants either authority.
 Independent profile review returned PROCEED after checking these separations;
 this approves the planning definition, not a future candidate or its receipts.
 
+Prospective execution-root refinement (two independent critique rounds,
+REVISE then PROCEED): reuse D0-01 with a separately delivered, consumer-owned
+packaged marketplace/catalog release artifact as the selected executing root.
+It must not be a renamed mutable development checkout. Native registry
+`installPath` is metadata, not execution-origin evidence: the retained I1
+cache-origin requirement failed and remains failed. This selection creates no
+new runner, case family, state store or retrospective pass.
+Freeze the artifact's provenance, complete executable/import/registration and
+dependency closure, supported interpreter and protected mutation boundary.
+Observe actual native root, handler/import paths and bytes against that artifact;
+reject missing/changed/counterfeit roots and source/ambient-copy fallback.
+Before/after digests alone cannot prevent mid-run substitution and do not qualify
+that boundary. Update and rollback must prove the actual executing-root version
+switch; uninstall must disposition executing catalog and registry cache separately
+while preserving unrelated settings/data. Clean/populated profiles, physical
+duplicate-process negative and all D0 lifecycle obligations remain unchanged.
+A credential-free supported-interpreter startup probe may reuse the existing
+disposable recipe to measure packaged-root feasibility only. R0, protected
+boundary, complete product closure, real PreToolUse and separate platform/consumer
+qualification remain required and unaccepted; no release authority is granted.
+
 ### Remaining release reconciliation
 
 1. Preserve all 23 JSON route shapes, nine legacy declarations, source refusers,

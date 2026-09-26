@@ -6,6 +6,24 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Newest observation: the same native planner `abdcaaab98a9014a9` returned
+`planner_consolidated_FULL.md` (69,044 bytes; SHA-256
+`9a03ce1d3133aa877ebb1f9b595c165bfb703636b4840f01a533ecfa4c3b58`).
+It explicitly leaves AC7/authenticated-owner authority OPEN; planned consistency
+checks are not completion of that requirement. Independent transcript audit
+then established a fresh correction-ledger Read at 03:32:42.740Z, returned at
+03:32:42.911Z, lines 1–271 including final empty line, exact digest
+`dabcb83b5fa1a75aaa857664f2f994a60639d63b73dc0607f7d724a771883037`.
+That read follows the 03:32:35Z report, so it does not retroactively establish
+incorporation. Same-agent closeout and substantive independent review remain
+pending. PID 63075 was confirmed live; do not restart this run.
+In parallel, D0 executing-root selection completed REVISE then PROCEED critique:
+qualify a separately packaged consumer-owned release catalog, not a mutable
+checkout or assumed registry cache. Census D0-01 retains the historical cache
+failure, source/counterfeit faults, protected mutation boundary, full closure,
+physical duplicate and update/rollback/uninstall requirements. This is a
+prospective profile selection only, not product or release acceptance.
+
 Latest restart action: qualifying full-input native critic
 `a8dad62f29eafa31e` completed in 3m14s with **BLOCKED**, composite 2.0/5.
 Actual tool records establish complete reads of the retained planner report,
