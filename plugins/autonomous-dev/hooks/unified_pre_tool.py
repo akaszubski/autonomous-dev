@@ -773,6 +773,54 @@ PIPELINE_AGENTS = [
     'doc-master',
 ]
 
+# Plugin namespaces whose pipeline roles are trusted (Issue #1811).
+#
+# A plugin-dispatched subagent reports CLAUDE_AGENT_NAME as
+# "<plugin-namespace>:<role>" (e.g. "autonomous-dev:implementer") while
+# PIPELINE_AGENTS above holds bare roles, so every membership test above
+# mis-evaluated for plugin-dispatched agents. _normalize_agent_identity()
+# strips the namespace ONLY for an exact match of (registered namespace) x
+# (known pipeline role) — stripping an arbitrary prefix would let
+# "evil:implementer" authorize itself as the implementer.
+#
+# Hardcoded rather than read from plugins/autonomous-dev/.claude-plugin/
+# plugin.json on purpose: this hook runs under a 5s budget on every tool call,
+# and the installed copy at .claude/hooks/ has no plugin manifest beside it, so
+# a manifest read would be both a per-call I/O cost and unreliable at the one
+# location that matters. tests/regression/test_issue_1811_namespaced_agent_
+# identity.py cross-validates this constant against plugin.json so the two
+# cannot drift silently.
+REGISTERED_PLUGIN_NAMESPACES: frozenset = frozenset({'autonomous-dev'})
+
+
+def _normalize_agent_identity(raw_name: str) -> str:
+    """Resolve a plugin-namespaced pipeline agent to its bare role (Issue #1811).
+
+    Both halves of the name are validated against an allow-list:
+
+    * the namespace must be an EXACT member of
+      :data:`REGISTERED_PLUGIN_NAMESPACES` (not a prefix, not a suffix, not
+      "whatever precedes the last colon"), and
+    * the role must already be a member of :data:`PIPELINE_AGENTS`.
+
+    Anything else keeps its raw name and is therefore treated as an
+    unregistered identity by every downstream membership test. In particular
+    ``evil:implementer``, ``autonomous-dev-extra:implementer`` and
+    ``autonomous-dev:evil:implementer`` all stay unauthorized.
+
+    Args:
+        raw_name: Lowercased agent identity, possibly namespaced.
+
+    Returns:
+        The bare pipeline role when both halves validate, else ``raw_name``.
+    """
+    if ':' not in raw_name:
+        return raw_name
+    namespace, _, role = raw_name.partition(':')
+    if namespace in REGISTERED_PLUGIN_NAMESPACES and role in PIPELINE_AGENTS:
+        return role
+    return raw_name
+
 # Agents authorized to create GitHub issues directly (Issue #599)
 GH_ISSUE_AGENTS = {'issue-creator'}
 
@@ -2147,13 +2195,19 @@ def _get_active_agent_name() -> str:
     1. agent_type from hook stdin JSON (available inside subagents)
     2. CLAUDE_AGENT_NAME env var (set by Claude Code in some contexts)
 
+    Issue #1811: both sources may carry a plugin namespace
+    ("autonomous-dev:implementer"). Normalization happens HERE, once, so the
+    four PIPELINE_AGENTS membership sites downstream need no change. Only an
+    exact (registered namespace) x (pipeline role) pair is stripped — see
+    _normalize_agent_identity().
+
     Returns:
         Lowercase agent name, or empty string if not in an agent context.
     """
     if _agent_type:
-        return _agent_type.strip().lower()
+        return _normalize_agent_identity(_agent_type.strip().lower())
     env_name = os.getenv("CLAUDE_AGENT_NAME", "").strip().lower()
-    return env_name
+    return _normalize_agent_identity(env_name)
 
 
 def _is_stale_session(state: dict, state_path: "Path") -> bool:
