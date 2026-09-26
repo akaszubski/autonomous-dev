@@ -4,9 +4,34 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
+## Current pointer — 2026-09-26 (native owner repair and private fixture acquisition)
 
-Newest independently verified continuation: native critic returned PROCEED at
+Native #1807 test-master wrote library/regression candidates after qualifying
+critic confirmation and returned at 05:31:32.894Z, exact result SHA-256
+`2691ae67b213fe886e126206f7c9f212961230117864abfb37a185a40b5d1df2`.
+Independent review found real improvements to carrier expiry, initialization,
+write effects and paired controls, but reconstruction must prove all six bindings
+against independent expectations; unmeasured native arms cannot disappear on a
+successful pytest result, and mutant kills must exclude unrelated preconditions.
+Invented reason-code reconciliation remains pending. No RED execution or accepted
+implementation follows from source inspection. Exclusive ownership of the third,
+frozen wiring-test path transferred to a fresh native test-master only after the
+original child acknowledged revocation; aggregate coverage/completion is required.
+
+Fresh private `d0-git-composition.jxsQ4O` acquisition initially failed strict catalog
+validation because its description was missing. This preparation/review omission
+is retained, not retrospectively green: failed proof SHA-256
+`e54ef90c09385aaf421e4e4c3249f3d765e34570259e5a2d20779f876d06487b`.
+The metadata-only correction was independently reviewed without weakening strict
+validation. Fresh acquisition2 completed six raw-zero/group-absent steps; its proof
+SHA-256 is `08818f7f05da02be33fcd179fac51598c6bda7a6443e7d663dee3095bfb5631a`.
+Native cache HEAD/tree match `bc93ddd7b5d320d317114c4cf9e2beeafe9e6a4a` /
+`4086cd3f88464658e68821cbc2a0ffc163eb6262`, all four runtime files match, and
+unrelated settings survived. No startup occurred: actual-cache layer commands and
+their second freeze/review are next. Native joins, product lifecycle/portability
+and F0 acceptance remain unmeasured. No credentials, model call or new runner.
+
+Preceding independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
 `ae3af1bb46dda79030607cb49a58d85f4d4d84732f6cf2a155e36e8011255fcd`.
 Full returned reads of anchor6-final, association step2-final and updated manifest
