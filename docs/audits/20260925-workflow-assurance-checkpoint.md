@@ -6,6 +6,22 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Latest restart action: qualifying full-input native critic
+`a8dad62f29eafa31e` completed in 3m14s with **BLOCKED**, composite 2.0/5.
+Actual tool records establish complete reads of the retained planner report,
+correction ledger and first critique; this closes review-input exposure, not
+design acceptance. The critic confirmed intact signed replay is untested,
+six-field reconstruction is incomplete, completion writes precede heartbeat,
+outer import failure remains identity-blind, and signing tests still reach real
+HOME secrets. Its suggestion to relabel mutable-log identification or defer the
+consumer fallback is insufficient for the unchanged release requirements.
+The supervisor sent one consolidated continuation to the same `owner1807`
+session: revise from all complete inputs, retain the rejected evidence, close
+full/fix authority and actual completion boundaries, use existing isolated Docker
+execution, and reduce duplication. No test-master/implementation acceptance,
+deployment or release is inferred. Re-poll that existing session; do not restart
+it merely because a review or observation interval expires.
+
 Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
 `pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
 tests that invoke real global age-only state GC. The interrupted capture has no
