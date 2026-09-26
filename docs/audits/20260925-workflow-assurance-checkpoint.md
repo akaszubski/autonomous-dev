@@ -31,8 +31,20 @@ paths. Specify where existing consumers retrieve all six protected expected
 bindings after initialization, preserve them through later prompts/expiry,
 restore the genuine signed-owner-A / expected-owner-B negative, and remove the
 unqualified executor claim. These are unchanged authority requirements; no new
-store or parallel framework is authorized. The same native planner received
-the consolidated deltas; source remains unmodified and acceptance is pending.
+store or parallel framework is authorized. The prior native planner returned
+v3/v4/v5 without incorporating the decisive corrections. Inspection of v5
+(`b217727c7bde5c202518441323c355ac88e1df9384eb66d882c125d03de3fe20`)
+confirms four protected paths, unread-carrier MUST-VERIFY and the unsupported
+qualified-executor claim remain. A fresh specialist is authorized from fixed,
+fully read inputs after this completed-agent failure; do not restart the native
+parent/run or discard rejected reports. Fresh dispatch actually launched in the
+same parent/run. Independent transcript audit establishes all six frozen inputs
+returned in full by 04:18:53.337Z, matching the dispatch digest pins. Its native
+digest command and returned final report were not yet observed; exposure is not
+incorporation or acceptance. Source remains unmodified; acceptance is pending.
+Governing refusal scope is current-native authority/guarded effects,
+not an invented blanket requirement that every Python call raises an errno;
+the strict failed disposable probes are not retroactively passed by that fact.
 The W1–W4 revision withdrew custom Bash containment and reconstruction-permit
 cases, but independent review still requires init-request replay/identity-loss
 refusal, all six protected expected bindings, nonmutating liveness observation,
@@ -73,7 +85,40 @@ Descendant/workspace/writable-mutant arms were not reached. Retained result
 `a3cc56b936eb4d2cb83d0ca434523dc03ec0e9a69a07290227d410e2600c2743`;
 owned process/cgroup/runtime cleanup verified. Preparation transport failure was
 preserved and recovered using existing `orbctl push` before execution. No retry
-after the boundary failure; independently diagnose path/return semantics next.
+after the boundary failure. Source-only diagnosis confirms pinned Linux SRT
+drops remaining write globs and ledger APIs can swallow write errors. The single
+next disposable candidate is `adev-1807-effect-prep.rgMCl5`, fixture SHA-256
+`dad2d368785a145661b3d01f7506d2026c7270e9299e5682a143469bc1872c3f`.
+It uses exact owned ledger/lock paths, real exception/effect observations,
+unconditional inventories, original-key signature comparison and the same
+refusal predicate for baseline/mutant. Ordinary independent failures aggregate;
+timeouts stop before further operations. Independent full-byte review and root
+review permit bounded execution only after repeated actual live preflight.
+This candidate's first no-API preflight completed raw 0, but external supervision
+missed its live window and returned expired/default transient-unit properties.
+That observation is invalid for effective-profile qualification; full APIs were
+withheld and cleanup verified. The authorized subsequent observation composed
+launch/live-property collection without a model round-trip: live MainPID 1124313,
+owned cgroup, UID 999, private tmp/network, empty capabilities/credentials and
+exact read-only inputs/unique writable work were observed. Preflight exited 0;
+owned runtime/cgroup absence was verified before the full run.
+The full run exited 1 after all eight arms, outcome vector
+`[false,true,true,false,true,true,true,true]`: direct signing/atomic/ledger,
+descendant signing/atomic/ledger, workspace and writable-mutant detection.
+Trusted outside APIs produced actual effects from different reset baselines.
+Inside, both signing calls returned objects that failed original-key validation;
+strict signing refusal therefore FAILED. This is not evidence of original-key
+access or valid original-key forgery. Both atomic writers encountered attributed
+`EROFS`; ledger calls returned success despite unchanged baseline state and an
+observed exact-lock-path `EROFS`. Protected before/after inventories and the
+original dummy-key digest remained unchanged. Ordinary workspace work succeeded;
+the same refusal predicate rejected the physically writable sentinel mutant.
+Owned process/cgroup/runtime cleanup was verified. Terminal retained result:
+`adev-1807-effect-prep.rgMCl5/VM-RESULT.md`, SHA-256
+`15aaa85b1edfce9e77c9047838fbce43403bfb4fd8e533240df02825c957675b`.
+Preserve both the earlier supervision failure and this overall FAILED result.
+No further attempt is authorized here; native origin, all-six guarded
+reconstruction and actual consumer acceptance remain unproven.
 Do not relax the Docker boundary or reuse old worker state to force a pass.
 
 Historical consolidated-report observation: the same native planner `abdcaaab98a9014a9` returned
