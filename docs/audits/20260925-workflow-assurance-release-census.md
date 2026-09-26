@@ -1024,6 +1024,11 @@ installed-plugin or legacy routes are absent. The remote rows above remain
 UNKNOWN until a reachable target-host inspection or an explicitly bounded
 unsupported-profile disposition is recorded; no local source or plist substitutes
 for that observation.
+The subsequent connectivity check brought up Tailscale on this Mac, but
+`tailscale ping -c 1 mac-studio` then returned `peer's node key has expired`
+(exit 1); `root@100.103.205.63` still timed out before authentication.
+Mac Studio reauthentication is required before that route can be inspected.
+This narrows the access failure, not the unknown installed-control population.
 
 ## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
 
