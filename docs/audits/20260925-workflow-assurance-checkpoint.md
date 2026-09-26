@@ -6,7 +6,18 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
-Current action: same native `owner1807` session remains live and source-clean.
+Current action: same native `owner1807` session remains live; implementation is
+not accepted. Its stale governing-plan capture has now been replaced with the
+actual 1779 source (SHA-256
+`d05ffa1facce6e092719c07e06e1954c08198d310f21611759913e3ec48ea140`).
+The old `44ec7bfd…` capture omitted the current reconstruction boundary and
+minimalism clauses and is retained as `FAILED_STALE_INPUT_canonical_plan_593line.md`.
+The new frozen artifact matches the governing source byte-for-byte. Independent
+transcript audit now establishes critic full Read returned at 03:56:41.898Z and
+planner complete Read union returned at 03:57:28.447Z / 03:57:34.723Z; all returned
+lines match that digest. Revised final reports were not yet observed by that
+audit, so exposure does not establish incorporation or acceptance. Earlier
+stale-input reports cannot qualify acceptance against the current goal.
 The W1–W4 revision withdrew custom Bash containment and reconstruction-permit
 cases, but independent review still requires init-request replay/identity-loss
 refusal, all six protected expected bindings, nonmutating liveness observation,
@@ -22,7 +33,17 @@ No signing/API cases ran. Evidence `adev-1807-srt-prep.jKlZGL/RESULT.md` digest
 `c8b24240f1da331558c888915e29e4b564968c74e013ccfb2193b6eccd6f0793`.
 The same artifact retains a separately isolated existing-VM proposal; reviews
 require inherited bind/writable-directory resets, old-state masks, private tmp,
-proc-support protection and scoped cleanup. No VM unit launched at this snapshot.
+proc-support protection and scoped cleanup. Subsequent unique VM preflight passed
+with actual live unit/mount observations, private tmp/network and stock SRT
+namespace marker. The dummy API invocation then failed exit 1: trusted signing,
+atomic writing and ledger calls permitted, but the sandbox atomic writer raised
+`ENOENT` because its protected parent was hidden, rather than the required
+attributed permission-denial error. Later descendant and ordinary-work arms did
+not execute. Failure is retained in `adev-1807-srt-prep.jKlZGL/VM-RESULT.md`
+(SHA-256 `60f46148f32a1a40a2833919198fbb413e9a02b52b17b82691f19dcc2d0f33db`);
+owned process/cgroup/runtime cleanup was verified. This does not establish native
+hook origin, reconstruction refusal or AC7 acceptance. Independently review the
+smallest write-denial test correction without relabeling the failed run as PASS.
 Do not relax the Docker boundary or reuse old worker state to force a pass.
 
 Historical consolidated-report observation: the same native planner `abdcaaab98a9014a9` returned
