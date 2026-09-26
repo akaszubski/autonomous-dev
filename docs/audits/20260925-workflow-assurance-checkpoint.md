@@ -6,6 +6,24 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Further preservation diagnosis: existing `test_sync_settings_hooks.py` expectations
+explicitly require dropping custom consumer deny entries (lines 275–287,
+367–371 and 550–558 in this snapshot). Together with the actual failed populated
+trial, this establishes an intent mismatch in the old test contract, not merely
+a missing regression. Repair must prospectively preserve unrelated hooks/denies,
+retire only demonstrably toolkit-owned entries, and refuse ambiguous ownership
+before mutation; repeated updates and conflict/active-run/no-partial-write arms
+remain required. See [#1809's diagnosis](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5843859380).
+No protected source or failed consumer fixture was edited for this diagnosis.
+
+Native scope-only review: the additional existing
+`tests/regression/progression/test_issue_358_plan_mode_routing.py` edit is expressly
+authorized by frozen anchor9 Delta4 (lines 63–72): remove only the stale
+`def _extract_wrapped_command` prohibition, retaining the test and its other three
+guards. The actual diff matches that scope. The three sealed acceptance test
+hashes remain unchanged; scope agreement is not behavioral acceptance, and the
+complete differential-attribution/hash gate remains outstanding.
+
 Latest delivery diagnostic: a fresh private existing-transport trial reached clean
 source gate/stamp and successful settings replacement, but independently verified
 loss of an unrelated project hook and custom deny. Execution ERROR127 and
