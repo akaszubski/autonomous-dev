@@ -6,6 +6,42 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Latest continuation: the same native parent `e3c14df7-da93-4232-8ccd-2ae6dcbd53db`
+and run `78988353f7287509` remain live on tmux `owner1807`; PID 63075 and lock
+keeper 63602 were observed live. Source worktree remains clean. Genuine full
+critic returned **REVISE** at 04:52:51.992Z, frozen report SHA-256
+`789ed590dca7cf460b6352cae485f0fc91369b661bd30a094399fbf212f7f430`.
+Corrected planner anchor9 returned at 04:55:04.788Z, SHA-256
+`89eedafdf0e46d4eade5e74e85b229fd665a07a9a4321b41f1ca8f0f7218eb38`;
+ledger73 SHA-256
+`b2ca6e82bf257361c2140d0a34e8c71ded90bcdd2dfbdacae8256f9749292cc1`.
+Independent transcript review checked exact exports and actual planner test reads.
+No subsequent critic acceptance of that corrected freeze was yet observed.
+Supervisor sent continuation through genuine critic/test/implementer gates in the
+same run; no new approval, bypass, restart, protected edit or reduced gate occurred.
+
+The baseline registration test failure is now directly measured: the stale
+`def _extract_wrapped_command` forbidden entry rejects the unchanged baseline.
+Retire only that entry, retaining the three working #926 migration guards and
+adding the reachability pin. Candidate/baseline differential attribution is still
+unmeasured; do not call the entire test useless or treat baseline failure as a pass.
+
+Separate credential-free local-Git plugin diagnostic completed and was independently
+reviewed at `/Users/akaszubski/.codex/artifacts/d0-git-source.wyjRhg/RESULT.md`.
+Pinned Claude 2.1.236 loaded the hook from its native version cache after both owned
+acquisition paths were recoverably renamed unavailable. Installed HEAD/tree and all
+four tracked runtime files match frozen commit
+`533225713adfb40467b345ca8e58f67c3867cae5`; unrelated settings survived. Eight
+steps returned zero with owned-group absence; startup took 0.234 seconds. Steps
+SHA-256 `03ba128129479e4f76600a9a5717f78dbde93f04dc10d864b9d30e8b5ec6e1d3`;
+physical receipt SHA-256
+`11c0cdc257a3e0c116273f6f9aa36afd5980bedb20fff5e122fce3fa5f09b855`.
+The earlier directory-marketplace origin failure is preserved. This supports using
+native Git-source acquisition rather than adding a copying installer; it does not
+accept D0. Independent native-result/parent joins, tamper controls, product closure,
+full consumer lifecycle and portability remain unmeasured. No credentials, model
+call, public publication, source fallback or product deployment was involved.
+
 Current action: same native `owner1807` session remains live; implementation is
 not accepted. Its stale governing-plan capture has now been replaced with the
 actual 1779 source (SHA-256
