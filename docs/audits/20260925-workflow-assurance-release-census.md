@@ -1016,6 +1016,15 @@ either migrated with proof or been explicitly placed outside the release profile
 | `scripts/launchd/com.akaszubski.drain-driver-cron.plist` → external `drain-driver-cron.sh` | Candidate Mac Studio/repo heartbeat and dispatch route, WA-W5/WA-O4, #1757; preserve the #1326 historical obligation until actual target-host disposition | Tracked plist points to `/Users/andrewkaszubski/bin/drain-driver-cron.sh` and a placeholder healthchecks URL; current local `gui/501` job and user LaunchAgents plist are absent. CHANGELOG #1326 documents a Mac Studio consumer, but that host's effective registration and bytes were not checked here. Local absence does not retire the remote route. |
 | `plugins/autonomous-dev/scripts/install.py` | Keep UNKNOWN/retire-candidate, not dead-code credit; WA-L2, #1757 | Bounded source scan found no non-test active caller. Check external/manual callers and unique install effects before deletion. |
 
+Remote registration is still an inventory gap. A read-only, non-interactive SSH
+probe to the documented Mac Studio Tailscale address on 2026-09-26 timed out
+connecting to port 22 after eight seconds (exit 255), before any remote command
+ran. This establishes neither that the host is offline nor that its launchd,
+installed-plugin or legacy routes are absent. The remote rows above remain
+UNKNOWN until a reachable target-host inspection or an explicitly bounded
+unsupported-profile disposition is recorded; no local source or plist substitutes
+for that observation.
+
 ## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
 
 The configured Git hook is a symlink into the primary checkout, while its scans
