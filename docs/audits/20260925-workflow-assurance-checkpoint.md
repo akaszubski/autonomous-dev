@@ -31,10 +31,25 @@ missing PUBLIC (exit 2). Post-install readback confirmed root:root 0444 installe
 loader, backup/install-state identities, empty capture, both units still
 not-found/inactive/dead and no credential/native launch. Private supervisor-recorded
 receipts: `ORDINAL12-S1-WORKER-20260926T0141Z.json` and
-`ORDINAL12-S2-WORKER-20260926T014123Z.json`. These establish the observed install
-and production join, **not complete S1/S2 or F0 acceptance**: finish worker
-negative controls and separate root-owned rollback success proof, then fresh
-admission including effective non-root native-unit properties before S4.
+`ORDINAL12-S2-WORKER-20260926T014123Z.json`.
+
+Additional actual production-path controls refused the root-owned old-owner
+build-binding fixture (`69726640`), writable caller fixture and caller-profile
+drift fixture, each exit 2 with its distinct reason. `ORDINAL12_REQUIRE_UID=501`
+did not weaken production: receipt still `require_uid:0`, no overrides, exit 0.
+The same pinned installer/profile completed install then real `restore()` SUCCESS
+on a separate root-owned disposable fixture; an untrusted backup refused.
+All mutation targets were explicitly remapped and asserted inside that fixture;
+this is installer-algorithm recovery proof, not a live consumer rollback claim.
+Readback confirmed fixture loader restored to baseline `55567be0`, rollback
+receipt SHA-256 `a9842589d8fef3d5eb672a2b7bbf7d6f33a8a6e3bbb7bb341e00764170fb6e92`,
+and live PUBLIC remained corrected `4ab0b724`. Fixture and fault subjects are
+preserved; private summary `ORDINAL12-WORKER-CONTROLS-20260926T0145Z.json`.
+
+These establish the observed install, production join and scoped recovery/control
+results, **not F0 acceptance**. Reconcile the remaining frozen worker controls,
+then obtain fresh admission including exact native launch-source/case binding and
+effective non-root unit properties before S4. No credential read or native run.
 
 ### Earlier pointer — local correction; independent admission pending
 
