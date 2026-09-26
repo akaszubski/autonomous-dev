@@ -1206,6 +1206,22 @@ disposable recipe to measure packaged-root feasibility only. R0, protected
 boundary, complete product closure, real PreToolUse and separate platform/consumer
 qualification remain required and unaccepted; no release authority is granted.
 
+Packaged-root startup feasibility was subsequently observed with supported Python
+3.14.3, but `-I` alone retained ambient editable-package paths (realign/vllm).
+Preserve that contaminated candidate at `d0-packaged-startup.zCqXyx/RESULT.md`,
+SHA-256 `6015c19f2cceee22b68eaaf8c38c8d537bef2f1fdedddc0f207f17d755cf7789`.
+The separately frozen stdlib-only `-I -S` fixture passed native validate/add/install/
+startup, observed one SessionStart process and only stdlib runtime paths, with
+unchanged catalog bytes. Result: `d0-packaged-nosite.r7111O/RESULT.md`, SHA-256
+`387d389d143fdb8f2ac069680955eade3158fff1a4c81fb9b2fce65cbdd9ea9e`.
+These private artifact names are recovery pointers, not product dependencies.
+This does not qualify full product imports/dependencies, counterfeit/source-
+unavailable faults, protected mutation, physical duplicate compatibility,
+PreToolUse or lifecycle/consumer acceptance. The old observer requires native
+`CLAUDE_PLUGIN_ROOT`; do not fabricate it to force the consumer duplicate arm.
+Select the actual runtime dependency closure, not an assumption that `-I` removes
+site customization or that a stdlib canary proves the whole installed product.
+
 ### Remaining release reconciliation
 
 1. Preserve all 23 JSON route shapes, nine legacy declarations, source refusers,
