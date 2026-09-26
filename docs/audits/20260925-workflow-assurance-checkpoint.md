@@ -51,6 +51,71 @@ results, **not F0 acceptance**. Reconcile the remaining frozen worker controls,
 then obtain fresh admission including exact native launch-source/case binding and
 effective non-root unit properties before S4. No credential read or native run.
 
+At `2026-09-26T01:49:47Z`, Codex invoked the **same production driver** against
+six preserved root-owned fault subjects under
+`/opt/adev-probe/ordinal12-root-faults-20260926`. Missing sixth leaf,
+symlinked sixth leaf, unexpected symlink directory, sibling digest mismatch,
+group/other-writable ancestor and source loader shadow each returned raw exit 2
+with the corresponding distinct refusal reason. A seventh invocation against
+canonical P-prime returned raw exit 0, `promotable:true`, production mode,
+no overrides, observed P-prime sixth-leaf origin and unchanged exact join pins.
+Every receipt explicitly recorded `credential_read:false` and
+`native_started:false`. Fault subjects remain preserved; these are production
+admission controls, not native workflow or final F0 acceptance.
+
+A separate credential-free check used the actual configured service principal
+`adev-f0-probe-v5` (UID 999/GID 990), not a generic nobody identity. Under
+`runuser`, `test -w` was false for canonical P-prime and its sixth leaf, installed
+PUBLIC and its loader, and the corrected transport driver. Both target services
+remained not-found/inactive/dead with MainPID 0 and empty InvocationID. This proves
+those current filesystem permissions for that principal; effective transient-unit
+User/Group, NoNewPrivileges, ProtectSystem and ReadWritePaths remain unproven until
+the native unit is observed and bound into its receipt.
+
+The detached Claude `f0` session is performing a read-only native-path
+investigation. Its current input forbids writes, credentials and launch, and
+requires reuse of existing preparation/parent owners rather than another
+framework. Historical doc11 dispatch pins obsolete roots/digests and must not
+be executed unchanged. Next: reconcile its evidence-backed minimal preparation
+change against the live plan, then use `/implement` and fresh independent
+admission before any bounded native attempt.
+
+The first native-path investigation (`a8d43266c25124fee`) is **non-certifying**:
+it inspected `native-integration.XakH8y/native_parent.py` instead of the pinned
+P-prime caller, described the already-staged six-leaf P-prime as missing, and
+conflated credential-free SRT viability with qualifying native Claude execution.
+Codex independently read the actual worker caller: SHA-256
+`1b767c85a64d2d80904365722e0f0d7ad547f69e9e02645f13125d487b56bbe0`,
+2,946 lines; lines 2280 onward construct `systemd-run` for the installed PUBLIC
+loader, with isolated Python and the native-outer arguments. The report remains
+preserved; no implementation or launch was authorized from it. Claude was asked
+to reconcile the exact pinned caller and historical dispatch/prepared-case
+dependencies read-only, without accessing a token. A substantial report is not
+evidence of examination of the correct subject.
+
+Further direct source inspection found that historical doc11 dispatch lines
+78–153 read case receipts, native settings/service and evidence leaves from its
+old source root before verifying prepared content and rendered PUBLIC bytes.
+The new P-prime deliberately contains exactly six import leaves; the corrected
+dispatch must keep case/data receipts in a separate verified root, not append
+them to P-prime or discard its closed-world constraint. Read-only worker checks
+confirmed the historical prepared EX-1 directory and old PREPARED-FREEZE still
+exist. Current PUBLIC settings SHA-256 is `43ad2e71…cce3a01`, outer
+`fe01e473…bf3ea8`, service template `cd04e12e…d5dae`, and installed unit drop-in
+`ae1ab4b1…abff08`; existence of these old preparation subjects is not new-case
+qualification. Reconcile them with the corrected case before native admission.
+
+Checkpoint commit attempt was refused by the #1779 state-isolation guard:
+documentation assertions returned 14 passed/1 skipped, but raw pytest exit 1
+because the production activity file changed during the window. Appended row
+metadata names the concurrent detached Claude session `890bdc4c-…`, whose live
+read-only investigation was verified. This is evidence of concurrent production
+writes, not attribution of every delta or proof that tests were clean. No bypass
+or log cleanup was used. Added the observation and the required legitimate-
+append-versus-synthetic-write distinction to
+[#1626](https://github.com/akaszubski/autonomous-dev/issues/1626#issuecomment-5842146666).
+Retry committing only in a verified idle window; preserve the refused attempt.
+
 ### Earlier pointer — local correction; independent admission pending
 
 Claude `/implement --fix` run `f7d41c8e5643b852` is terminal and its lock-holder

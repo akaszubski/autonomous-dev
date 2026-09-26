@@ -44,6 +44,21 @@ see the [current restart checkpoint](20260925-workflow-assurance-checkpoint.md).
 
 ### Remaining inventory-freeze work
 
+Current continuation correction (2026-09-26): the #1801 regex repair and first
+#1805 parser-like candidate were rejected and remain preserved, uncommitted
+evidence. [#1805](https://github.com/akaszubski/autonomous-dev/issues/1805)
+now specifies a conservative source boundary: backtick-bearing PROGRAM lines
+credit no library stem, while ordinary quoted interpreter operands remain
+supported. Valid shell execution and static support are separate claims; exact
+changed member sets must be published rather than preserving an old count by
+re-pinning. #1803 and #1804 remain separate unresolved instrument defects.
+The redesign session is terminal after a signed run-identity loss; its candidate
+cannot be resumed as an authorized run. #1807 requires fail-closed handling, not
+reconstruction of signed authority from an unsigned completion ledger.
+The #1806 lock-GC correction also remains an integration/deployment prerequisite
+before overlapping fresh `/implement` runs. These are current execution pointers,
+not acceptance of any candidate or a frozen denominator.
+
 Independent read-only review separates inventory closure from later product proof:
 
 1. Reconcile the integrated source-route, location and refusal-envelope
