@@ -584,7 +584,7 @@ All four sidecars are utility-labelled. Packaging a file is not activation.
 
 | Owner | Proposed disposition, pending consumer proof |
 |---|---|
-| `enforce_orchestrator.py` | Retire legacy commit/session evidence heuristic after confirming consumer coverage by the connected alignment controls. |
+| `enforce_orchestrator.py` | Migrate required alignment outcomes to existing workflow/commit owners, including strict raw commits; retire recent-session/commit-message heuristics only after separate consumer proof. Write alignment alone does not qualify commit progression. |
 | `enforce_prunable_threshold.py` | Migrate its findings-based commit refusal to the existing commit/pre-git owner before removing the unconnected hook/sidecar. The connected dashboard's deletable-file metric is not an equivalent replacement. |
 | `enforce_regression_test.py` | Migrate required regression protection across full/fix and applicable raw bug-fix commits to existing workflow/commit owners; then retire the stale-message/staged-filename heuristic after consumer proof. |
 | `enforce_tdd.py` | Migrate strict-profile test-before-code obligations to existing evidence/progression owners, preserving dogfood versus explicit strict-consumer applicability; retire session/history heuristics only after consumer proof. Ordinary acceptance-first is not strict temporal TDD. |
@@ -638,6 +638,22 @@ inactive rather than successful TDD. Batch/resume inherits the selected profile
 and bound item/run; neither a full-pipeline pass nor `--tdd-first` in another run
 qualifies the raw-commit subject. Actual caller, both arms, ordering and consumer
 evidence remain required before removal; no chronology receipt is yet accepted.
+
+WA-O2 orchestrator contract selection (prospective, not current acceptance):
+reuse existing alignment and commit/progression owners. Full/fix/batch cases
+require a current bound alignment verdict for eligible progression; missing,
+wrong-run or stale verdicts refuse. The strict raw-commit case independently
+requires alignment for the candidate subject; recent session prose, commit
+keywords and a bare `alignment_passed` boolean are not trusted evidence.
+Subject changes revalidate/refuse, and batch/resume remains item/run-bound.
+ESCALATE permits only an observed exact user response to the current escalation;
+caller-supplied approval and replay refuse, retaining the separate #1802 cases.
+Pin explicit docs-only/non-strict/optional-PROJECT applicability in each consumer
+profile rather than infer it from legacy fall-throughs. Missing PROJECT when the
+profile requires alignment is non-pass; supported inactive profiles are recorded
+as inactive, never successful alignment, and cannot relax protected hard floors.
+Raw commit qualification remains separate from native write qualification. No
+legacy completion heuristic or source-only owner mapping closes these cases.
 
 Local installed follow-up: dogfood, `realign` and user-global copies of all four
 hooks match the reviewed source hashes. Parsed project/user settings, bounded
