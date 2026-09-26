@@ -74,6 +74,24 @@ implementer dispatch follow the real pipeline, not a supervisor-created record.
 Changing counts while untracked tests were being edited establish neither
 identical-subject flakiness nor final acceptance.
 
+Independent dispatch audit verified genuine implementer launch at 05:50:17.919Z
+(successful tool result 05:50:18.105Z), after sealed RED and joined test-master
+completion. Dispatch binds current worktree/run, frozen inputs and three test
+hashes; sealed tests and installed control-plane libraries are not editable.
+Source repair is now in progress, not accepted. Equal aggregate counts establish
+count consistency only, not absence of cross-file interference. The old issue-zero
+completion API is an explicit bootstrap limitation, not a new promotion claim.
+
+Next inventory-instrument slice: one serialized scanner repair covering #1805,
+then #1803, then #1804, preserving their separate cases and independent review.
+All share `tests/unit/hooks/test_hook_reachability_ratchet.py`; parallel edits
+would conflict. Preserve ordinary quoted interpreter and literal-command positives,
+seven live source routes and omitted-entry negatives, run existing reachability
+and refusal corpora, and publish exact changed member sets rather than silently
+re-pinning counts. No lexer/parser or second scanner. #1807 and #1806 integration
+remain prerequisites for overlapping new native runs; remote inventory and the
+populated omitted-row native control are separate remaining freeze obligations.
+
 Preceding independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
 `ae3af1bb46dda79030607cb49a58d85f4d4d84732f6cf2a155e36e8011255fcd`.
