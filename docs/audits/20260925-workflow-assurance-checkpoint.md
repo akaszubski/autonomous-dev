@@ -125,6 +125,14 @@ No source implementation or global rollout is accepted.
 Plan clarification commit `05cc062a` passed ordinary commit checks and was pushed
 to `fix/1779-pipeline-evidence-integrity`; no runtime deployment was performed.
 
+Independent follow-up execution audit (2026-09-26) confirmed actual returned
+tracker bodies and several primary-source fetches; capped fetches establish
+exposure, not full-document examination. The required `git show 178ed211 --stat`
+attempt failed because Bash was disabled for that subagent, and no successful
+coordinator invocation was observed. The native coordinator was directed to
+close this exact gap while preserving the failed attempt. Report-content
+acceptance and reconstruction-boundary qualification remain separate and open.
+
 Research actual-examination audit found gaps after both terminal reports: required
 `git show 178ed211 --stat` was omitted, affected tracker consumer bodies were
 searched but not read, and external research fetched TUF only (other standards
