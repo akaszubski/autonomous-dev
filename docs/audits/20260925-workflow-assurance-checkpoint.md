@@ -4,7 +4,71 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (real worker preflight exposed a false refusal)
+## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
+
+Fresh admission validator `ac0e54366c519fc5c` passed on unchanged final bytes.
+Codex inspected the actual dispatch prompt and transcript: contract/data inputs
+only, visibly self-derived P1–P3/R1–R17 cases before any test/implementation read,
+no authored fixtures, and existing suite exit 0. Transcript SHA-256
+`646276e5ae5de8f2e9b779b3e39e9184c866d89f2c69f7d9afe2daa394b058e3`;
+reconciled private handoff `b906ad520642b088b22c134842e1014668a233fc19adc6de7b6d71f6a5279c41`.
+The two rejected validator records remain non-certifying and preserved.
+
+After rechecking idle units/processes, absent runtime-collision paths and exact
+source bytes, Codex staged four root:root 0444 files at fresh worker transport
+`/opt/adev-probe/ordinal12-transport-v2` (driver `26e659ce`, unchanged profile and
+manifests). The old transport remains intact. Before install, the real production
+CLI refused baseline PUBLIC loader `55567be0` at `2026-09-26T01:40:58Z`, exit 2.
+The guarded exact installer then returned **INSTALLED_NOT_EXECUTED**, exit 0,
+backup `/opt/adev-probe/exd-ordinal12-loader-backup.xse7cacu`; only PUBLIC loader
+changed to `4ab0b724`. At `2026-09-26T01:41:23Z`, the actual worker production
+CLI returned exit 0, `promotable:true`, no overrides, exact P-prime/installed-PUBLIC
+join (`aa2697b4`/`4ab0b724`), observed sixth-leaf origin P-prime, and
+`PREFLIGHT_JOIN_PROVEN_NATIVE_NOT_STARTED_NOT_ACCEPTED`.
+
+Read-only negative invocations refused missing P-prime, old source root and
+missing PUBLIC (exit 2). Post-install readback confirmed root:root 0444 installed
+loader, backup/install-state identities, empty capture, both units still
+not-found/inactive/dead and no credential/native launch. Private supervisor-recorded
+receipts: `ORDINAL12-S1-WORKER-20260926T0141Z.json` and
+`ORDINAL12-S2-WORKER-20260926T014123Z.json`. These establish the observed install
+and production join, **not complete S1/S2 or F0 acceptance**: finish worker
+negative controls and separate root-owned rollback success proof, then fresh
+admission including effective non-root native-unit properties before S4.
+
+### Earlier pointer — local correction; independent admission pending
+
+Claude `/implement --fix` run `f7d41c8e5643b852` is terminal and its lock-holder
+PID 19664 has exited. The populated-PUBLIC correction now checks actual import
+precedence; a follow-up derives receipt provenance from the observed origin and
+adds defensive file-read branch controls. Codex independently reran the focused
+suite: **85 passed, raw exit 0**. Final local driver SHA-256
+`26e659ceb45f345e144f05a5bcfa751f667a8b478287c5d60ed72390b1c50ab3`,
+tests `777f8753c9e72a9a36bf999c566455d4735574d15423dfa7282a4c31100ecf60`,
+frozen contract `1b6ece4c791ce2b460b3f904c9c77cce2b5fd138abb2e333dd046b480bdabf02`.
+Reviewer APPROVE, security PASS and documentation consistency results bind those
+bytes; CIA recorded evidence-durability concerns. The private terminal handoff is
+`ORDINAL12-RUN-f7d41c8e-HANDOFF.md` in the existing private artifact root.
+
+**S1 admission is not accepted.** One validator authored temporary fixtures and
+was discarded. Its no-write successor (`aadf80a9777525ded`) did define cases
+before implementation reads, but Codex inspected its actual dispatch input:
+`toolu_01W2AfjDqv8chH74sk4hWYpc` supplied implementation function names, internal
+assignment details and exact test names before case derivation. This violates
+the frozen spec-blind step 2b (contract plus black-box paths only), so that PASS
+is also **non-certifying**. Preserve both records. A fresh read-only admission
+validator has been requested with only the contract identity and black-box paths;
+its prompt, case-before-code sequence and actual tool records require independent
+inspection, followed by a corrected handoff/CIA record before worker mutation.
+
+Read-only worker recheck confirms PUBLIC loader still baseline `55567be0`,
+worker transport still driver `26b69720`, loader candidate `4ab0b724`, installer
+`76086c8d`, and dedicated install capture empty. Prior staging is preserved;
+no installer, credential read or native attempt occurred. Stage the new driver
+in a fresh versioned transport location only after admission, preserving the
+failed preflight bytes, then continue S1/S2 under the frozen sequence.
+
+### Earlier pointer — real worker preflight exposed a false refusal
 
 S1 stopped **before PUBLIC replacement**. The exact-byte six-leaf P-prime,
 separate corrected loader, transport files and empty root:root 0700 capture
