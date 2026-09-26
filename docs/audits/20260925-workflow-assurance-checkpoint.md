@@ -4,7 +4,90 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current live pointer — 2026-09-25
+## Current pointer — 2026-09-26 (local transport accepted; S1/S2 not run)
+
+Claude `/implement --fix` run `81e2e577cbb3efc1` is terminal and its lifetime
+lock released. The final local ordinal12 transport under
+`/Users/akaszubski/.codex/artifacts/adev-boundary-wiring.KXz82zi4/ordinal12-transport/`
+has `corrected_driver.py` SHA-256
+`26b69720669967078d6c5a2f0acd20aac8f8cc342e0afff37506f030ffa0c8d0`
+and test SHA-256
+`187e59081a9c19ecc71821c256dfadd4008e422a7c66d28d4a4ecdb509589206`.
+Independent raw rerun: 63 passed, exit 0. A fresh spec-blind validator wrote
+its cases before reading code, made no authored filesystem writes, and returned
+binary PASS on those bytes; focused reviewer APPROVE and security PASS followed
+the final change. The sixth `ex_service.py` leaf is now constant-pinned and
+required, with missing/altered/symlink refusal cases. A terminal refusal for
+any required leaf without a digest branch has a behavioral seventh-leaf fault
+control, so that omission cannot silently recur. These are **local pre-S1**
+results, not worker join or F0 acceptance.
+
+Codex read-only worker before-state: installer SHA-256
+`76086c8d7b565d0f71f6a15511ab33e432535a5273d6e89bba55cb09a50bf7c7`
+and active PUBLIC loader SHA-256
+`55567be0b51fcf795d46571fd4e83cf75d014d9ead4df793043e0c4d564e8d73`,
+both root:root 0444; target service `LoadState=not-found`,
+`ActiveState=inactive`; fresh P′ and loader-source roots absent. The old P
+source root has matching pinned hashes and root:root 0444 for the five reused
+leaves (`native_parent`, `native_collector`, `pr8_join`, `pr8_parent`,
+`ex_service`). The corrected `build_binding.py` is the separate v3 staged
+source (`aa2697b4…c09cedf1`), **not** the top-level historical owner
+(`69726640…397e741`). The corrected loader source is the top-level
+`native_loader.py` (`4ab0b724…879236e5`). These exact sources, the two DATA
+manifests, install profile and driver must be rehashed at S1 point of use.
+No worker write, credential read or native launch has yet occurred.
+
+Next: complete the independent source/evidence gate against the final bytes
+and this worker before-state, then stage a fresh exact-six P′ and a separate
+loader source read-only, run the guarded in-place loader install (S1), and
+exercise the real credential-free join plus negative controls (S2). Keep the
+live corrected install in place until S2 has tested it; root-owned restore
+success is required only after S2 under the frozen sequence. Native launch
+still needs its own explicit admission and effective non-root unit proof.
+
+## Earlier pointer — 2026-09-26 (ordinal12 transport before final fix)
+
+F0 is **not accepted**. The detached Claude `adev-assurance:f0` session completed
+`/implement --fix` run `6000fd3129855667` for local ordinal12 transport only.
+The delivered files are under
+`/Users/akaszubski/.codex/artifacts/adev-boundary-wiring.KXz82zi4/ordinal12-transport/`;
+they are qualification scaffolding, not the shipped toolkit. An independent raw
+rerun of its suite passed 58 tests (exit 0). The previously confirmed extra
+symlink-directory false permit now has a named opposite-arm test and refuses
+locally. Current `corrected_driver.py` SHA-256 is
+`cb17ed30c25a92868a281f3127e67c7e35a6e5ec143ce46b43fe180fc8c38630`.
+
+Do **not** promote the reported F3.5 PASS: its case list preceded code reads,
+but the validator created scratch fixtures contrary to
+`plugins/autonomous-dev/agents/spec-validator.md:55-69,85-91`. The coordinator
+prompt incorrectly instructed it to do so. Doc-master also changed profile
+comments and manifest description after that verdict. A fresh no-write
+validator did follow the cases-before-code and no-write procedure on final
+bytes, but emitted `PASS-WITH-UNMEASURED` after confirming the sixth-file
+false permit. That is neither the required binary PASS/FAIL verdict nor a
+resolution of the frozen exact-tree requirement. Both verdicts are rejected;
+do not count F3.5 complete. The first failure and exact scope are recorded on
+[#1773](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5841229649).
+An independent contract check also found a second blocking local false permit:
+the frozen exact P′ manifest names six files, but `P_PRIME_REQUIRED` verifies
+only five; the passing fixture omits `ex_service.py`. Its native execution is
+deferred, but its presence/digest are part of the exact-tree claim. Preserve
+the failing observation and require a missing/altered-sixth-leaf opposite arm
+before local acceptance; see the [issue checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5841250801).
+
+Read-only worker checks still show installer SHA `76086c8d`, active PUBLIC
+loader SHA `55567be0`, and no
+`/opt/adev-probe/ex-source.ordinal12/native_loader.py`. Thus S1 staging/install,
+S2 real join, rollback success, effective non-root unit settings and native F0
+remain **UNMEASURED**; no worker mutation, credential use or native launch has
+occurred in this correction. Next: a NEW scoped `/implement --fix` run closes
+the sixth-file gap with missing/altered/symlink opposite arms and all normal
+review gates; then obtain a fresh binary no-write F3.5 verdict, bind the actual
+final bytes and captured worker before-state in an independent source/evidence
+gate, and follow the frozen S1/S2 sequence. Do not reuse the completed run or
+count local tests as worker proof.
+
+## Earlier pointer — 2026-09-25
 
 Canonical branch `fix/1779-pipeline-evidence-integrity` was last pushed at
 `addaffe9` before this checkpoint update; verify its new HEAD with
