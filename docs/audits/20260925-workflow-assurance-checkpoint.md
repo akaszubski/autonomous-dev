@@ -47,6 +47,24 @@ Native joins, omission/duplicate arms, permission composition, product
 lifecycle/portability and F0 acceptance remain unmeasured. No credentials, model
 call or new maintained runner.
 
+Further credential-free composition diagnostics now have actual records: O1–O4
+selected local/project/user/unset respectively with five physical hooks each.
+D1's identical user registration was natively deduplicated (five); D2's actual
+plugin/settings overlap produced six physical processes and failed the unchanged
+five-hook predicate. Original settings bytes and modes were restored. Aggregate
+SHA-256 `24ae0a988cbaedc990b024036fcc4b5ac0689b983862fe795e3b374fe30c751f`;
+private `OMISSION-RESULT.md` retains scope and per-arm pointers. Independent actual
+result review is pending. No native joins, permission semantics or product pass.
+The earlier assumption that an identical user registration necessarily creates six
+processes was rejected before execution and the preparation bytes were preserved.
+
+Native row13 initially selected stale absent-carrier permit wording; independent
+review required superseding LN15-prime/P3-prime refusal. Its later correction
+preserves that refusal and limits the row to static wiring; file2 owns runtime
+evidence. Final writer completion, three-file byte seal and combined execution are
+still required. Changing counts while untracked tests were being edited establish
+neither identical-subject flakiness nor final acceptance.
+
 Preceding independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
 `ae3af1bb46dda79030607cb49a58d85f4d4d84732f6cf2a155e36e8011255fcd`.
