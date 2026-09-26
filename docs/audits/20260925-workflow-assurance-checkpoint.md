@@ -6,6 +6,37 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Newest independently verified continuation: native final critic returned REVISE,
+SHA-256 `b959a65ee9615b5271db17be33ae72156a013bd39cb4e6734d51933cb2ccfc88`.
+Planner replaced anchor6, SHA-256
+`2ac55f1023c3f01839c6812c8a8c9c046c3935fb2078c3217a2a60e9d30ca9eb`,
+restoring all surviving active-run owners and local fresh/terminal positives.
+Bounded independent review confirms that correction, but terminal evidence must
+also match the surviving run association: existing `load_pipeline(run_id)` returns
+the embedded run identifier without equality validation. Wrong-run terminal
+evidence cannot clear another active obligation; this correction was sent to the
+same native critic before PROCEED. No accepted repair or protected source edits.
+
+The native coordinator prematurely dispatched test-master at 05:04:55.109Z before
+that qualifying critic verdict; supervisor required a hold. Native TaskStop returned
+success at 05:05:01.837Z. Independent child transcript audit found no tool calls or
+writes, target files remain absent and native Git status is clean. Stop is not
+specialist completion; observed legacy completion state has no test-master entry.
+The same native parent/run and lock keeper remain live; no restart or GC occurred.
+
+Parallel installed-cache duplicate diagnostic is independently verified at private
+`d0-git-duplicate.fLoNWk/RESULT.md`: same registration-only revised release
+`bc93ddd7b5d320d317114c4cf9e2beeafe9e6a4a`, unchanged canary, sources unavailable,
+four-file cache closures and settings preserved. Sole produced one physical PID;
+duplicate produced two with the same event/session/source/label. The same diagnostic
+count predicate accepted sole and rejected duplicate despite both native exits zero.
+Starts took 0.251/0.247 seconds; fresh owned-group absence checks passed. STARTUP
+SHA-256 `4e24524aeda8d1609767fae565183292ea324c89a361f6e0b5c150923f9e9173`.
+This is a qualified fixture physical-count fault, not the product verifier or D0
+acceptance. Independent native-result/parent joins, product closure, lifecycle and
+portability remain unmeasured. Only owned private acquisition paths were recoverably
+renamed; original successful and failed diagnostic evidence remains unchanged.
+
 Latest continuation: the same native parent `e3c14df7-da93-4232-8ccd-2ae6dcbd53db`
 and run `78988353f7287509` remain live on tmux `owner1807`; PID 63075 and lock
 keeper 63602 were observed live. Source worktree remains clean. Genuine full
