@@ -52,6 +52,27 @@ B-I4's ignored forged-mode claim contradicts request-selected mode. Name/qualify
 the existing authoritative route or keep that initialization unresolved/refused;
 two matching copies do not cure the gap. No implementation accepted. Source
 remains unmodified; genuine native critic and corrected design remain pending.
+All six bindings remain mandatory: an unresolved native source for mode/issue/
+subject cannot be replaced by a smaller accepted verdict. Source inspection also
+corrected a routing inference: explicit `/implement` may skip command routing,
+but `_classify_intent_safe` and the optional carrier writer run earlier in main.
+Do not claim that routing skip disables the classifier.
+Separate credential-free macOS input-shape diagnostic now observed pinned Claude
+2.1.236 emitting `UserPromptSubmit` with `prompt` and nonempty `session_id` strings;
+`userPrompt` was absent. The existing validator reads `userPrompt`. Actual public
+prompt receipt SHA-256
+`c5a78b1a78f8fed9935de6987d1a76f7c86f66c5be7f6eacebb67251b0778049`
+was created exclusively at mode 0600; the observer blocked processing. CLI exited
+0 in 0.262s and owned process-group absence was verified. Empty isolated HOME/
+config/work, exact environment, disabled plugins/skills/browser, strict empty MCP
+and stock network-denial profile were used; concrete socket preflight returned
+EPERM. Retained `adev-native-ingress.2nI3FW/RESULT.md` SHA-256
+`59905d1dee8a4393d8efc5a3cc660ed933acde836742b00298d01cba873beb96`.
+This is one actual plain-prompt input-shape observation, not F0, authentication,
+wrapped-command, trusted initialization, protected writer or Linux proof. No
+relaunch or credential transfer. Current [hook reference](https://code.claude.com/docs/en/hooks#userpromptsubmit-input)
+and [SDK types](https://code.claude.com/docs/en/agent-sdk/python) agree on `prompt`;
+historical #922 additionally records command wrapping, which remains to qualify.
 Governing refusal scope is current-native authority/guarded effects,
 not an invented blanket requirement that every Python call raises an errno;
 the strict failed disposable probes are not retroactively passed by that fact.

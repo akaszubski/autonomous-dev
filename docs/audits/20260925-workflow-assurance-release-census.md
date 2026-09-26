@@ -1558,16 +1558,29 @@ command/configuration bytes before any test rather than relying on this abstract
 
 Legacy Python dictionary declarations (nine bindings; native validity unresolved):
 
-| Declaring owner | Event / matcher | Script / count | Proposed disposition and required retained outcome |
-|---|---|---|---|
-| `P/hooks/setup.py::setup_hooks` | PostToolUse / Write and Edit | auto_format.py / 2 | Migrate registration to the existing modern formatting route; preserve correct formatting and prove one physical formatter effect for each actual Write/Edit route, with duplicate execution and missing supported formatter non-pass, before retiring the competing writer |
-| same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Pipeline tests alone do not qualify raw Git behavior |
-| same | PreCommit / `*` | security_scan.py / 1 | Migrate security refusal to the configured commit/validation owner; preserve permit, invalid-subject refusal and missing-scanner non-pass |
-| `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
-| same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
-| same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion and child-result identity; dispatch-only, missing result and wrong child refuse credit, while failed/unresolved required specialist outcomes cannot authorize progression. Invocation is not specialist success |
-| same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Select migration to the existing read-only status/report path, preserving evidence-bound progress presentation; retire automatic PROJECT percentage mutation only after supported-consumer promises and replacement outcomes are qualified. Completion logging is not equivalent |
-| same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Qualify separately from commit and pipeline success |
+| WA-L2b variant suffix | Declaring owner | Event / matcher | Script / count | Proposed disposition and required retained outcome |
+|---|---|---|---|---|
+| LEGACY-01 | `P/hooks/setup.py::setup_hooks` | PostToolUse / Write | auto_format.py / 1 | Migrate to the existing modern formatting route; prove correct formatting and one physical Write effect, with duplicate execution and missing supported formatter non-pass, before retiring the competing writer |
+| LEGACY-02 | same | PostToolUse / Edit | auto_format.py / 1 | Preserve the distinct Edit physical-effect arm with the same formatting, duplicate and missing-formatter obligations |
+| LEGACY-03 | same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Pipeline tests alone do not qualify raw Git behavior |
+| LEGACY-04 | same | PreCommit / `*` | security_scan.py / 1 | Migrate security refusal to the configured commit/validation owner; preserve permit, invalid-subject refusal and missing-scanner non-pass |
+| LEGACY-05 | `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
+| LEGACY-06 | same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
+| LEGACY-07 | same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion and child-result identity; dispatch-only, missing result and wrong child refuse credit, while failed/unresolved required specialist outcomes cannot authorize progression. Invocation is not specialist success |
+| LEGACY-08 | same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Select migration to the existing read-only status/report path, preserving evidence-bound progress presentation; retire automatic PROJECT percentage mutation only after supported-consumer promises and replacement outcomes are qualified. Completion logging is not equivalent |
+| LEGACY-09 | same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Qualify separately from commit and pipeline success |
+
+These suffixes identify variants of existing WA-L2b obligations, not new gates
+or another runner. LEGACY-01…04 apply to the automatic setup writer;
+LEGACY-05…09 to activation-on updater callers. CLEAN-0 and POPULATED-3 normal
+arms remain legacy-free; explicit populated migration/conflict variants seed each
+exact owned binding separately and preserve unrelated settings. Freeze participating
+layer, declaration bytes and caller per candidate profile; native support and
+precedence remain UNMEASURED. Legacy-containing active consumers retain separate
+named rows until migrated or explicitly dispositioned; unknown remote/manual
+populations are not represented by fixture coverage. Reuse D0-02/03/04/08 for
+preservation, zero-mutation conflict refusal, physical execution and retirement.
+No variant here certifies native validity, execution or deletion authority.
 
 Independent read-only caller review: setup's `main → run → setup_hooks` automatic
 mode writes `.claude/settings.local.json` using `existing.update(hooks_config)`,
