@@ -18,6 +18,15 @@ implementation follows from source inspection. Exclusive ownership of the third,
 frozen wiring-test path transferred to a fresh native test-master only after the
 original child acknowledged revocation; aggregate coverage/completion is required.
 
+Later actual child tool results at 05:38:39.164Z and 05:39:26.975Z show library
+31 failed / 2 passed and regression 44 failed / 10 passed respectively. Earlier
+missing `timeout` and collection failures are retained as non-execution. Independent
+review confirms the six reconstruction equalities, visible unmeasured coverage,
+intended mutant invocation and existing `INSTRUMENT_UNAVAILABLE` discriminator now
+appear in the candidate. Many failures concern absent APIs, not demonstrated
+behavioral refusal; B-NR2 already passes the baseline. Writers remain active, so
+these intermediate runs do not certify final test bytes or native acceptance.
+
 Fresh private `d0-git-composition.jxsQ4O` acquisition initially failed strict catalog
 validation because its description was missing. This preparation/review omission
 is retained, not retrospectively green: failed proof SHA-256
