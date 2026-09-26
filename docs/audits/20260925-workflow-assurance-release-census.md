@@ -586,8 +586,8 @@ All four sidecars are utility-labelled. Packaging a file is not activation.
 |---|---|
 | `enforce_orchestrator.py` | Retire legacy commit/session evidence heuristic after confirming consumer coverage by the connected alignment controls. |
 | `enforce_prunable_threshold.py` | Migrate its findings-based commit refusal to the existing commit/pre-git owner before removing the unconnected hook/sidecar. The connected dashboard's deletable-file metric is not an equivalent replacement. |
-| `enforce_regression_test.py` | Retire only after dispositioning fix-mode and raw-commit behavior; full-pipeline regression coverage does not establish those profiles. |
-| `enforce_tdd.py` | Retire legacy heuristic after acceptance-first/TDD-mode coverage is established; if strict raw-commit TDD is required, migrate it to one existing transition. |
+| `enforce_regression_test.py` | Migrate required regression protection across full/fix and applicable raw bug-fix commits to existing workflow/commit owners; then retire the stale-message/staged-filename heuristic after consumer proof. |
+| `enforce_tdd.py` | Migrate strict-profile test-before-code obligations to existing evidence/progression owners, preserving dogfood versus explicit strict-consumer applicability; retire session/history heuristics only after consumer proof. Ordinary acceptance-first is not strict temporal TDD. |
 
 These are proposals, not deletion authorization or completed migration. Global
 absence and actual runtime activation remain **UNMEASURED**; bounded local static
@@ -614,6 +614,30 @@ in the current source; pin the effective value with each consumer profile.
 Sidecar removal requires replacement both-arm and consumer proof. No existing
 dashboard metric or report alone supplies that evidence, and no noisy-test
 classification authorizes deleting tests without examining their distinct value.
+
+WA-O2 regression/TDD contract selection (prospective, not current enforcement):
+reuse existing bugfix/regression and workflow/commit owners rather than another
+hook or store. Regression cases cover full, fix and applicable raw bug-fix commit
+routes separately: a genuine reproducer fails against the bound pre-fix subject
+and passes against the candidate; an existing failing reproducer may provide the
+same protection without a redundant new test. Missing or always-green reproducers
+refuse, non-bugfix work permits, and missing baseline/subject evidence is non-pass.
+Test-count growth or a staged test filename alone cannot prove regression value.
+This preserves #737's regression outcome and existing-test exception while using
+the execution plan's distinct-failure-detector rule rather than test-count growth
+as the release proof.
+
+For strict TDD profiles, preserve observed tests-before-code chronology, not merely
+acceptance text written before implementation. Pin the applicable profile: current
+legacy source treats dogfood as mandatory and other consumers as explicit strict
+opt-in; this selection does not extend strict chronology to non-strict consumers.
+Cases permit no applicable production change and bound qualifying test-first
+execution; refuse applicable production change without that evidence and wrong-run,
+stale or unbound session/history substitutes. Record non-strict applicability as
+inactive rather than successful TDD. Batch/resume inherits the selected profile
+and bound item/run; neither a full-pipeline pass nor `--tdd-first` in another run
+qualifies the raw-commit subject. Actual caller, both arms, ordering and consumer
+evidence remain required before removal; no chronology receipt is yet accepted.
 
 Local installed follow-up: dogfood, `realign` and user-global copies of all four
 hooks match the reviewed source hashes. Parsed project/user settings, bounded
