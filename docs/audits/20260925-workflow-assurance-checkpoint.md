@@ -6,6 +6,71 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
+`pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
+tests that invoke real global age-only state GC. The interrupted capture has no
+complete pytest summary or verified exit code; its result is **UNKNOWN**, not green.
+The shared `/tmp/baseline_failing_tests.txt` was observed truncated to zero bytes;
+the prior contents were not preserved. Native interruption evidence incorrectly
+said the command was rejected before execution; the supervisor instructed an
+append-only correction because the subprocess had actually started.
+
+The same native session has since dispatched an alignment specialist and received
+an in-scope verdict; recording and integrity verification are not yet independently
+accepted. No unsafe host baseline rerun or source implementation is authorized by
+that verdict. Existing disposable Docker execution is being qualified instead of
+adding a custom runner: OrbStack image
+`sha256:4b9e87ead492d4261d1049ce6996defd25d751b0452aa65e8374ca1057714a31`
+ran as UID 501 with no network, read-only root and fresh `/tmp`, `/home` and
+`/workspace`, without host mounts. Its probe could not find `python3`; therefore
+it is **not a usable baseline executor yet**. The shell's final exit 0 does not
+override those explicit missing-runtime errors or establish test readiness.
+The unchanged test denominator must be retained; a Linux baseline cannot establish
+macOS parity. The populated F0 worker remains out of scope for this baseline.
+
+A second existing image, `nikolaik/python-nodejs:python3.11-nodejs20`, was probed
+under the same isolated filesystem/network conditions with fail-fast shell
+execution: Python 3.11.15 is present, but `python3 -m pytest --version` exits 1
+because pytest is absent. This is dependency discovery, not a test result. The
+independent D0 route review also identified cleanup-before-sync library deletion,
+direct truncating installer writes and standalone reset/MCP-migration branches;
+the census draft now explicitly includes these first-mutation boundaries.
+
+Dependency preparation completed in a disposable container using the existing
+`requirements-dev.txt` plus CI's collection-only `openai`/`anthropic` dependencies.
+Wheels are retained at
+`/Users/akaszubski/.codex/artifacts/adev-baseline-deps.vjP4a9UG`; no credentials or
+live source/state were mounted. A subsequent network-disabled offline-install
+probe exited 126 because `/tmp/venv/bin/pip` was not executable on the tmpfs mount.
+This is an executor mount qualification failure, not pytest failure or acceptance.
+Next qualify an explicitly executable disposable environment filesystem while
+keeping host mounts read-only, host state unreachable and test network disabled.
+Dependency identities/hashes and compatibility remain to be frozen before baseline.
+
+Executable-workspace offline installation now succeeds: pytest 9.1.1 and
+`pip check` exit 0; ordered wheel-path/hash manifest digest
+`60dfa83632bee3fca5e862e182eab64a06bd255fa113a1b1d93d04f9eea1e1c8`.
+The dependency-owner constraints are unpinned upstream; these resolved wheels are
+the frozen candidate inputs, not proof of compatibility with the host baseline.
+Clean source HEAD is `178ed211f6dc2bd203569ea2e179b050a3a632a0`, with no source
+diff; its git archive SHA-256 is
+`6ac71f00dbd3168393e57ebbc50834acbb6f5edafa530ed79d1d491e749d4cb7`.
+An unchanged whole-suite collection-only qualification is live in container
+`adev-baseline-qual-178ed211` (ID `261c05b6192a`), execution handle 51327.
+Independent Docker inspection proves network `none`, read-only root,
+non-privileged execution, fresh tmp/home/workspace and only the dedicated input
+artifact directory mounted read-only. No live checkout, host tmp, home, Docker
+socket or F0 worker mount is present. Collection result remains pending; this is
+not a behavioral baseline, native acceptance or macOS parity proof.
+
+Collection qualification is terminal exit 2: 19,017 items collected, nine skipped,
+one collection error in `tests/property` (`hypothesis` absent), 26.13 seconds.
+Raw Docker output is preserved as `collection-qualification.log` in the wheelhouse
+artifact directory. Do not run a partial baseline or exclude property tests;
+resolve the missing collection dependency and repeat unchanged collection first.
+The 15,023 native baseline-count metadata uses a different documented scope and
+does not establish equivalence to this whole-suite Linux count.
+
 Latest restart action: reconciled Round-1 critique in
 [bounded native preparation input](20260926-f0-native-slice-input.md), independently
 rechecked existing preparation/test/binding hashes, and dispatched Round 2 to the

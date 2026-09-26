@@ -703,6 +703,42 @@ first plausible declaration. The current startup-only fixture does not prove
 cross-layer permissions precedence, physical exactly-once execution, installed
 product behavior or Linux support. No row above authorizes deletion yet.
 
+### #1809 mutation-route admission — draft, not installed proof
+
+Source-known routes below remain migration/retention candidates, not observed
+activation. Remote, timer and manual populations remain UNKNOWN. Admission must
+cover each resolved target before its first mutation and exclude concurrent run
+start throughout the transaction; a check-then-write or per-run lock alone is
+insufficient. `P` retains the plugin-root meaning used above.
+
+| Source-known entry / first mutation boundary | Required disposition or D0 evidence |
+|---|---|
+| `scripts/pull-plugin-update.sh:177–189` and `P/lib/drain_runner.py` / `P/commands/drain-queue.md:617–639` → deploy | Preserve deferred rollout distinctly; timer tag consumption and drain's non-fatal handling cannot certify success. |
+| `scripts/deploy-all.sh` → global `mkdir/rsync:308–310`, local `367–368`, remote `585–586,654`; later purge/settings/chmod | Per-target admission must precede all affected mutation paths, not only a wrapper's pull. |
+| `scripts/deploy_local.sh:80–86,204–205`; `scripts/deploy-to-repos.sh:70–71,98–99` | Migrate to canonical route or qualify identical admission; do not retain independent unchecked copies. |
+| `P/lib/sync_dispatcher/{modes,dispatcher}.py` → target creation, copy, GitHub writes, settings replacement | Cover direct mode/marketplace callers and separate project/global targets, including rollback/uninstall boundaries. |
+| `P/scripts/sync_settings_hooks.py:246–257` → parent/temp/settings replacement | Refuse active-run mutation and preserve unrelated settings; this is a scripts route, not a lib route. |
+| Root `install.sh:1443,1479,1594,1663` → target creation/copies and later registration writers; reset/MCP migration branches `579,1228` | Admit before first consumer mutation; staging is not consumer activation. Attribute reset, MCP migration, uninstall and rollback first writes separately. |
+| `P/scripts/install.py:775,671,467–470` → target creation/staged commit/direct target write | Check mode remains read-only; staged download does not establish atomic activation; current target writes can truncate. |
+| `P/lib/install_orchestrator.py:274,290,378,411,501` → install/backup/upgrade/rollback removal | Preserve recovery/data outcomes for every retained caller. |
+| `P/lib/update_plugin.py:431` → `plugin_updater.py:401–403` pre-install cleanup, then `462,1011,1054,890,699,1239–1243`; `orphan_file_cleaner.py:477,517` removes installed lib | Admission must precede cleanup, not just sync or backup. Include project/global writes, installed-library deletion and rollback; nonblocking activation failures cannot establish a successful rollout. |
+| `scripts/{dogfood-bootstrap,resync-dogfood}.sh:57/65,36`; `P/hooks/setup.py:186,400` | Migrate or explicitly retain each activation route; distinguish verification-only branches. |
+| Native plugin install/update/uninstall and internal native update trigger | External mutation authority: independently reconcile artifact identity, registration and conflicts; no source-interlock coverage claim. |
+
+Smallest consolidation candidate: reuse `P/scripts/deploy_state.py` as source-owned
+delivery admission rather than add a guard service. Its current `gate` is source
+provenance only, with no active-run check; `deploy-all.sh:913–930` warns/proceeds
+on a broken gate. This is not current interlock evidence. Delegate identity/lock
+semantics to existing pipeline owners only after their qualification; route all
+retained writers through the selected transaction or retire them after equivalent
+consumer proof. Bind source revisions and recheck these line anchors at execution.
+
+Add to existing D0 rows, not another runner: active-run refusal with byte-identical
+installed/settings state including library retention; idle permit; stale/ambiguous/broken detector non-pass;
+concurrent start/update exclusion; deferred retry exactly once; external-native
+reconciliation. D0 remains after authorized F0/R0 prerequisites; this authorizes
+no #1807 global rollout and freezes no consumer denominator.
+
 ## D0 identity dependency (2026-09-25)
 
 The supported native directory-marketplace fixture executed a separate frozen
