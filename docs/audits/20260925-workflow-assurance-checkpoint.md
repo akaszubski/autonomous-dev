@@ -4,7 +4,31 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (native owner repair and private fixture acquisition)
+## Current pointer — 2026-09-26 (sealed RED and native implementation)
+
+Latest state: genuine native implementer is running after independently verified
+sealed RED. No repair or F0/product acceptance yet. Installed-cache composition
+and duplicate observations are independently reviewed fixture results; consumer
+matrix remains a proposed contract. Details below preserve the preceding events
+and failures rather than replacing them with retrospective passes.
+
+Parallel Linux preparation reuses the existing running Ubuntu arm64 worker. Git
+was missing from checked paths/package state; the first pinned install failed100
+on stale dependency metadata/404s. After package-list refresh and reviewed
+simulation, Git2.43.0 installed0 with nine new packages and three dependency
+updates, zero removals. Claude/Node/Python/Bubblewrap/SRT entrypoint hashes remained
+unchanged; no matching `adev-*` unit was active and package audit found no issues.
+Exact versions/pins and the failure are retained privately at
+`d0-linux-prerequisites.IYS1fv/PROGRESS.md`. This changes worker prerequisites and
+requires fresh Linux profile qualification; no native/model/plugin trial, auth,
+new VM, framework or Linux acceptance occurred.
+
+Private D0 matrix authority navigation was repaired: the old plan line412–453
+range now points to optional Jev, not delivery. Verified named delivery/evidence/
+execution sections and unchanged plan digest replace brittle line ranges. Docs-only
+independent review PROCEED on matrix SHA-256
+`25e16fbb9c84c499ce21d52ab81f0476d4da83b88ba948791f8e961a0bc97b85`;
+all eight families and unfinished acceptance limits remain unchanged.
 
 Native #1807 test-master wrote library/regression candidates after qualifying
 critic confirmation and returned at 05:31:32.894Z, exact result SHA-256
@@ -13,8 +37,8 @@ Independent review found real improvements to carrier expiry, initialization,
 write effects and paired controls, but reconstruction must prove all six bindings
 against independent expectations; unmeasured native arms cannot disappear on a
 successful pytest result, and mutant kills must exclude unrelated preconditions.
-Invented reason-code reconciliation remains pending. No RED execution or accepted
-implementation follows from source inspection. Exclusive ownership of the third,
+At that earlier snapshot, invented reason-code reconciliation was pending. No RED
+execution or accepted implementation followed from source inspection. Ownership of the third,
 frozen wiring-test path transferred to a fresh native test-master only after the
 original child acknowledged revocation; aggregate coverage/completion is required.
 
