@@ -6,6 +6,26 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Safety intervention: actual implementer broad unit/integration tool
+`toolu_01PTukXtnRh9ucPgcBWS2qXG` was interrupted (recorded exit144), followed by
+two unsafe retries. Supervisor verified and terminated only test groups 48128,
+54818 and 56102; parent63075/keeper63602 and lock inode377266863 remained intact.
+The coordinator forwarded a real child safety message; the implementer is now
+responding to the revoked broad run. No broad-suite PASS is established.
+Repeated `after_raw.txt` use means earlier partial raw bytes are not independently
+immutable per attempt; actual native tool/interruption records are retained.
+Frozen pre-execution HOME and /tmp isolation requirements govern global-writer
+tests despite a broad command appearing in the plan. Verify scoped isolation and
+complete results before retry, not merely filtered summaries. See
+[#1807 intervention](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5843889702).
+
+Independent docs-only review accepted the five supporting logging/history
+declaration allocations to existing WA-W3/WA-O3/WA-O4 cases. Exact events,
+matchers and surfaces are preserved; selected profiles remain prospective, with
+no effective activation or retrospective frozen F0 credit. The census is still
+DRAFT; per-member dispositions, remote membership and product-profile identities
+remain unresolved independently of runtime acceptance.
+
 Further preservation diagnosis: existing `test_sync_settings_hooks.py` expectations
 explicitly require dropping custom consumer deny entries (lines 275–287,
 367–371 and 550–558 in this snapshot). Together with the actual failed populated

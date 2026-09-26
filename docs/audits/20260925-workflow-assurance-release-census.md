@@ -1649,22 +1649,22 @@ Effective native event support and settings composition remain unverified.
 | PostCompact | `*` | post_compact_enricher.sh | ALL | WA-W3-05 | Preserve useful context and bound recovery identity; no ledger-only authority |
 | PostToolUse | ExitPlanMode | plan_mode_exit_detector.py | G,A | WA-W2-02/03 | Migrate current-plan critique authority; missing/revised marker cannot pass |
 | PostToolUse | E | validate_claude_md_size.py | ALL | WA-O1b | Selected commit/pre-git refusal; post-write warning is separately advisory, not prevention |
-| PostToolUse | `*` | session_activity_logger.py | ALL | Supporting evidence; selected consumer duty/profile unresolved | Preserve required event evidence; missing/disabled/duplicate carrier cannot satisfy required claims |
+| PostToolUse | `*` | session_activity_logger.py | ALL | Supporting WA-W3-02…04 / WA-O3-01…05 | Prospectively retain activity observation for selected declared CLEAN-0/POPULATED-3 surfaces pending adapter-equivalence/subtraction proof; no activation implied |
 | PreCompact | `*` | pre_compact_batch_saver.sh | ALL | WA-W3-05 | Preserve handoff identity; stale/unsigned recovery cannot authorize progression |
-| PreToolUse | `Task\|Agent` | session_activity_logger.py | G | Supporting evidence; selected consumer duty/profile unresolved | Preserve distinct declared carrier; dispatch observation is not joined success |
+| PreToolUse | `Task\|Agent` | session_activity_logger.py | G | Supporting WA-W3-02…04 dispatch observation | Retain distinct explicitly selected global-layer variant; dispatch observation is not joined success or default-profile activation |
 | PreToolUse | W | PreToolUseWrite-protect-sensitive.sh | ALL | WA-S1-01…04 | Migrate to one decision owner after built-in/MCP/opposite/fault arms; then retire duplicate |
 | PreToolUse | W | enforce_file_organization.py | G,A | WA-O1a | Preserve root-path outcome through actual caller, including Git-classifier failure |
 | PreToolUse | W | enforce_tier_distribution.py | G | WA-O4-01 diagnostic | Select migration to existing `/improve` tier-health reporting only with explicit consumer cadence disposition; until then retain immediate warning, never invent refusal |
 | PreToolUse | W | plan_gate.py | G,A | WA-W2-02/03 | Migrate current-plan owner; wrong envelope and absent required plan cannot pass |
 | PreToolUse | W | validate_paid_dependency.py | ALL | WA-O1c | Preserve paid-content refusal; computed `_emit` source UNKNOWN is not observed refusal |
 | PreToolUse | `*` | unified_pre_tool.py | ALL | WA-W1a…e; WA-W2…W5; WA-O3 | Existing concrete subcontrols own distinct obligations; no single case certifies dispatcher |
-| Stop | `*` | session_activity_logger.py | G,B,P,S | Supporting evidence; selected consumer duty/profile unresolved | Preserve distinct declared carrier; required missing/disabled evidence remains non-pass |
-| Stop | `*` | conversation_archiver.py | G,A | Supporting history; selected consumer duty/profile unresolved | Preserve needed history; archival presence is not tool/hook identity joining |
+| Stop | `*` | session_activity_logger.py | G,B,P,S | Supporting WA-W3-04/05 session-end observation | Prospectively retain selected declared layers pending measured replacement; Stop never establishes terminal success |
+| Stop | `*` | conversation_archiver.py | G,A | WA-O4-01 history/reporting diagnostic | Retain queryable history in explicitly archival-enabled variants; disabled, missing, unavailable or corrupt transcript is not successful archival |
 | SubagentStop | `*` | unified_session_tracker.py | G,A | WA-E2; WA-W3-04/05 | Migrate joined actual result/current-run credit; wrong-child/unsigned-dispatch refuses credit |
 | TaskCompleted | `*` | task_completed_handler.py | G,A | WA-E2; WA-W3-04/05 | Preserve joined completion authority, not legacy completion-record success |
 | UserPromptSubmit | `*` | unified_prompt_validator.py | G,A | WA-W4-01 | Retain human routing; routing never grants later action authorization |
 | SessionStart | `*` | SessionStart-batch-recovery.sh | A | WA-W3-05 | Preserve batch recovery identity and useful context; no reconstructed signed authority |
-| PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S | Supporting evidence; selected consumer duty/profile unresolved | Preserve this distinct carrier separately from G's matcher; source activity is not a native join |
+| PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S | Supporting WA-W3-02…04 dispatch/request observation | Retain each separately selected project surface and guarded Bash request diagnostics; request records never authorize completion |
 | PostToolUse | `Write\|Edit` | auto_format.py | A,S | WA-L2b formatting outcome; D0-04 | Qualify modern Write/Edit effects and duplicate/missing-formatter faults; LEGACY-01/02 remain distinct declarations below |
 | Stop | empty string | stop_quality_gate.py | A | WA-O4-01 diagnostic | Provisionally retain end-of-turn diagnostic; consolidate only after measured distinct-value/cost proof, with no commit authority |
 | UserPromptSubmit | `*` | inline strict-mode echo | S | WA-O4-01 advisory presentation | Select redundant-guarantee retirement after strict functional/profile proof; optional presentation must describe actual selected profile, never certify enforcement |
@@ -1674,11 +1674,23 @@ These are allocations of the existing 23 declaration shapes, not new acceptance
 IDs or evidence of activation. Each keeps its exact surface/matcher parameters;
 applicable CLEAN-0/POPULATED-3 variants require separately frozen installed
 profiles. Supporting logging/history rows do not receive frozen Linux F0 WA-E1
-case credit: that case profile/order is unchanged, and consumer duties/profiles
-remain explicitly unresolved where not selected. Native executing roots,
+case credit: that case profile/order is unchanged. These prospective selections
+do not establish effective CLEAN-0/POPULATED-3 activation. Native executing roots,
 supported events, receipt joins and current
 dependency identities remain UNMEASURED until directly established. Candidate
 rows keep their explicit conditional selections; this table is not frozen.
+
+The five supporting selections preserve observation/history duties, not authority.
+Current source owners are `session_activity_logger.py::main` with
+`path_utils.resolve_activity_log_dir`, and `conversation_archiver.py`'s transcript
+copy/index path. Where a selected consumer claim requires evidence, independently
+validate its actual native event, source identity, result/effect and required join;
+unknown session IDs, wrong-child/run records, missing/disabled carriers or
+duplicates cannot supply required credit. Historical archives are representations,
+not native origin or signed authority. Disabled archival is an explicit profile
+outcome; enabled failed archival cannot report success. Retire either adapter only
+after applicable consumer obligations and useful history survive replacement;
+no new logger or store is selected.
 
 Four-duty selection is prospective, independently reviewed against current source,
 not delivered behavior. Tier distribution currently warns and allows, including
