@@ -4,7 +4,30 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (capture correction accepted locally; S1/S2 not run)
+## Current pointer — 2026-09-26 (real worker preflight exposed a false refusal)
+
+S1 stopped **before PUBLIC replacement**. The exact-byte six-leaf P-prime,
+separate corrected loader, transport files and empty root:root 0700 capture
+were staged in fresh worker paths; all staged file digests/modes/owners were
+read back. The real credential-free corrected driver against the still-baseline
+PUBLIC returned raw exit `2` at `2026-09-26T00:49:11Z`:
+`REFUSED public_module_shadow:ex_service.py`. Read-only inspection shows the
+populated PUBLIC already has root:root 0644 `ex_service.py` SHA-256
+`0b320c2458b2429dc0b53529d92fb6e5b2fe885f1ea21fb5e4e6330c7459fb64`,
+while P-prime has the pinned root:root 0444 sixth leaf SHA-256
+`7c3a837138d9231d79ae48fdd8e779530bf484f0131513f0ecd2db3ed98134f7`.
+The local positive fixture omitted that real PUBLIC leaf. The driver inserts
+P-prime before PUBLIC, but its blanket PUBLIC-shadow scan refuses the duplicate
+before testing effective import precedence. This is a newly observed
+false-refusal candidate, **not** grounds to bypass the scan. The installer was
+not invoked, PUBLIC remains at baseline `55567be0`, and no credential or native
+run occurred. Staging and the historical capture are preserved. A fresh scoped
+`/implement --fix` must reproduce the populated-layout case, establish a safe
+effective-import rule plus hostile-shadow opposites, and obtain final-byte
+reviews before another S1 attempt; see
+[#1773](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5841678599).
+
+### Earlier pointer — capture correction accepted locally; S1/S2 not run
 
 The new Claude `/implement --fix` run `4163c85f3c5a0353` is terminal and its
 lifetime lock released. Final-byte no-write spec-validator PASS, reviewer
