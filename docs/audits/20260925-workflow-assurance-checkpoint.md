@@ -112,7 +112,7 @@ can be inferred from this Linux result.
 
 Current actionable pointer: native owner-repair session and holder remain live;
 alignment observation passed independent review and both research dispatches
-finished, with research examination/content review pending. Unchanged isolated
+finished, with examination/content audits finding unresolved gaps below. Unchanged isolated
 Linux baseline is live at handle 58312 / `adev-baseline-run2-178ed211`; it has
 entered real test execution after Git-identity and disposable-GC controls passed.
 Do not duplicate or restart it on an observation timeout. Behavioral failures are
@@ -135,6 +135,41 @@ Global installed-lib edits suggested by research are forbidden until rollout
 qualification; RPC/keychain/new authority stores exceed this slice. Forked pytest,
 xdist and subprocesses do not isolate shared filesystem `/tmp`. These findings were
 sent to native planning; unresolved provenance must remain an open acceptance row.
+
+Planner-input audit additionally rejects narrowing AC7 to a signed replacement
+with a deliberately wrong owner. Reconstruction using the correct actual
+owner/run/base/mode must be refused at an independent guarded transition;
+expected-owner equality alone is insufficient. If the existing boundary cannot
+prove this, retain AC7 OPEN and resolve the architectural gap without a green
+substitute. Native supervisor correction is queued; its processing is not yet
+observed. The planner's earlier no-Docker/scoped-only instruction is stale:
+the qualified isolated full baseline is live, and scoped checks supplement rather
+than replace its evidence.
+
+Native observation now shows both targeted research followups and the planner
+live; this establishes dispatch, not completion or satisfactory examination.
+Final wheelhouse manifest `wheels.SHA256` (filenames plus individual digests)
+SHA-256 is `2d03e6a987ae54f271eeeb862ca2ecb836356d724057cb9f77ca774d00b4415b`,
+including hypothesis 6.168.1. Earlier path-based digest predates that addition.
+The behavioral baseline snapshot retains only shallow Git history and no host
+installed assets; those profile differences must be considered when interpreting
+failures, not concealed as native/worktree equivalence. No failures are excused or
+tests removed merely because they may be environment-dependent.
+Installed ordering API explicitly supports `tdd-first` and adds test-master to
+the full required set; the sentinel's `full` value is therefore not itself evidence
+of an invalid mode. Actual tdd-first specialist execution still requires proof.
+
+The plan now clarifies the unchanged reconstruction-refusal requirement: use all
+six bindings and actual signing/writing/ledger APIs; qualify an independent
+transition boundary rather than owner/MAC equality. Three read-only review rounds
+completed (initial integration review, fresh critic, convergence); final PROCEED
+applies to the clarification only. Existing dummy-data boundary discovery is not
+conditional on accepted F0, but grants no new native attempt, implementation
+acceptance or rollout. Effective boundary remains UNMEASURED. Candidate178ed211
+already co-signs owner; its callable signer still does not establish provenance.
+Remote access was rechecked without mutation: Tailscale remains NeedsLogin and
+declared SSH endpoints remain unreachable. The existing census limitation remains;
+do not repeat blind SSH probes before connection state changes.
 
 Historical preparation pointer (superseded by terminal review below): reconciled Round-1 critique in
 [bounded native preparation input](20260926-f0-native-slice-input.md), independently

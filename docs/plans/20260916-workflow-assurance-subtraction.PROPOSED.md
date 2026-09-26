@@ -176,6 +176,26 @@ receipt writer is insufficient. No second completion ledger or parallel gate.
   and safe samples. Record dropped/truncated evidence and retention/cleanup outcome.
   Use existing signing/persistence ownership for gating state (INV-7); no second
   identity service, secret store or custom credential broker.
+- Current-run reconstruction refusal (#1807) requires an independently qualified
+  transition boundary, not owner/MAC equality alone. Freeze an attempted replacement
+  carrying all six correct bindings (native owner, run, mode, issue, base, subject)
+  and a valid newly computed MAC through the actual signing/writing APIs, plus a
+  ledger-only rebind; both must be refused at the actual guarded route.
+  The inspected same-principal signing API does not currently establish this.
+  Smallest candidate: compose the existing F0 native sandbox/file-tool permissions
+  with existing sentinel/secret paths and native initialization/progression owners;
+  do not introduce another store, signer service or parallel state manager.
+  Before implementation acceptance, prove model-controlled writes/invocations are
+  refused while genuine native-owned full/fix initialization and progression work,
+  including fabricated hook input, replay, configuration/path aliases and descendants.
+  Effective hook access and origin are UNMEASURED until directly exercised; proposed
+  settings and a script that accepts fabricated JSON are not authentic native proof.
+  If that composition cannot meet the unchanged requirement, leave it OPEN and
+  resolve the boundary design; do not promote a MAC-only partial repair as complete.
+  This clarification authorizes neither deployment nor an extra native F0 attempt
+  and preserves the existing F0/R0 adoption and release gates. Missing/corrupt
+  identity, unsigned/stale legacy authority and dispatch/completion refusal remain
+  mandatory unchanged acceptance cases, not replaced by this clarification.
 - Required observability has an executable preflight and missing-carrier test.
   A disabled exporter or disconnected hook must be detected through the actual
   route. A changed flag alone is not proof of restored observability.
