@@ -27,9 +27,14 @@ redefined. This is live implementation, not accepted design or release proof.
 
 Independent native-worktree inspection also found `.claude/settings.json`
 dirty, removing `OTEL_LOGS_EXPORTER=console` while leaving telemetry enabled.
-Writer and effect are not yet attributed. The coordinator was notified to
-resolve this observability change before acceptance; it is not silently
-adopted as part of #1807. Codex account inspection reports ordinary usage
+Further read-only inspection found the same removal in canonical `1779`
+(`17:25:01 +1000`), main and `1806` (`17:25:24 +1000`), as well as native
+`1807` (`17:25:24 +1000`). Main gained other hook/deny registrations too.
+The coordinator restored the native file only; writer and full effect across
+checkouts are not yet attributed. This cross-worktree preservation concern is
+[recorded on #1809](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5844362630).
+No F0 observability or product-preservation acceptance follows from restoring
+one checkout. Codex account inspection reports ordinary usage
 allowed, while one parallel census sub-agent received a limit error; the
 independently reviewed earlier census patch was already pushed as `8e2d98ab`.
 
