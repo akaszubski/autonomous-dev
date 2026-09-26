@@ -353,7 +353,12 @@ class TestEvaluateAndRecord:
         assert out["project_md_found"] is False
         assert "PROJECT.md not found" in out["stage0_reason"]
 
-    def test_user_approval_upgrades_escalation(self, repo: Path) -> None:
+    def test_user_approval_cannot_upgrade_escalation(self, repo: Path) -> None:
+        """Issue #1802: INVERTED — the wired snippet path refuses the flag.
+
+        Renamed from ``test_user_approval_upgrades_escalation``. Signed state
+        must record the failure, since that is what the hook consumer reads.
+        """
         state_path = _state_file(repo)
         out = evaluate_and_record(
             "Add SaaS cloud hosting for the dashboard",
@@ -363,8 +368,11 @@ class TestEvaluateAndRecord:
             session_id="sess-wiring",
             user_approved=True,
         )
-        assert out["verdict"] == "user_approved"
-        assert out["alignment_passed"] is True
+        assert out["verdict"] == "escalate"
+        assert out["alignment_passed"] is False
+        state = json.loads(state_path.read_text())
+        assert state["alignment_passed"] is False
+        assert state["alignment_verdict"] == "escalate"
 
     def test_word_confidence_is_coerced_to_float(self, repo: Path) -> None:
         out = evaluate_and_record(

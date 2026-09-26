@@ -745,14 +745,13 @@ except Exception: cj = None
 out = evaluate_and_record(open('/tmp/implement_feature_$RUN_ID.txt').read(), cj,
         state_path=os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())),
         session_id=os.environ.get('CLAUDE_SESSION_ID','unknown'),
-        issue_number=os.environ.get('ISSUE_NUMBER',''),
-        user_approved=os.environ.get('ALIGNMENT_USER_APPROVED','') == '1')
+        issue_number=os.environ.get('ISSUE_NUMBER',''))
 print(json.dumps(out))
 "
 ```
 **2d. Verdict routing**:
 - `auto_pass` → print `ALIGNMENT: auto_pass — cited "<clause>"` and proceed to STEP 3.
-- `escalate` **interactive** (`is_autonomous_context()` false) → **AskUserQuestion** with the escalation_reason, Stage 0 reasons, and the classifier's reasoning; exactly four options: (A) Approve — this IS in scope, proceed (re-run the 2c snippet with `user_approved=True` substituted for the env lookup: `ALIGNMENT_USER_APPROVED` is inline-spoofing-protected, and the upgrade records an `approval` trail); (B) Update PROJECT.md scope first, then re-run STEP 2; (C) Narrow the change to stay in scope; (D) Cancel. On (B)/(C)/(D) STOP the pipeline.
+- `escalate` **interactive** (`is_autonomous_context()` false) → **AskUserQuestion** with the escalation_reason, Stage 0 reasons, and the classifier's reasoning; exactly three options: (A) Update PROJECT.md scope first, then re-run STEP 2; (B) Narrow the change to stay in scope; (C) Cancel. STOP the pipeline on all three. There is no "approve and proceed" option: Issue #1802 closed the `escalate → user_approved` upgrade, so every coordinator-supplied approval (the `user_approved` flag or any receipt object) is now REFUSED and recorded as such — a genuine-approval path returns only with #1807's independent receipt channel.
 - `escalate` **autonomous** → BLOCK. If `ISSUE_NUMBER` is set: `gh issue edit $ISSUE_NUMBER --add-label needs-scope-decision` and `gh issue comment $ISSUE_NUMBER --body "<verdict summary>"`. Blocking must not depend on gh succeeding. Then STOP.
 
 **FORBIDDEN**:
@@ -760,7 +759,7 @@ print(json.dumps(out))
 2. ❌ Skipping the alignment-classifier dispatch because the change "obviously" fits — that is the self-attestation this gate replaces.
 3. ❌ Treating an `escalate` verdict as advisory, or re-running Stage 1 with a reworded prompt to shop for a different classification.
 4. ❌ Auto-approving in autonomous mode. Autonomous mode blocks; it never approves.
-5. ❌ Proceeding to STEP 3 with any verdict other than `auto_pass` / `user_approved`.
+5. ❌ Proceeding to STEP 3 with any verdict other than `auto_pass` / `user_approved` (the latter is HISTORICAL only — pre-#1802 signed states can still carry it; no new one can be produced).
 
 ### STEP 3: Check Research Cache
 
