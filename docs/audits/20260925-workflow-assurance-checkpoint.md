@@ -23,6 +23,21 @@ Exact versions/pins and the failure are retained privately at
 requires fresh Linux profile qualification; no native/model/plugin trial, auth,
 new VM, framework or Linux acceptance occurred.
 
+Subsequent private Linux fixture preparation is independently verified: commit
+`67d9f51a165a5dfa4b80bca034a645d9a720a74c`, tree
+`11e2e8539beb0050f2d25b344de86e48e5123877`, parent `bc93ddd7`.
+The sole change replaces the Homebrew interpreter with `/usr/bin/python3` in
+hook registration; `-I -S`, handler, timeout and the other three files are
+unchanged. `d0-linux-prerequisites.IYS1fv/DERIVED-FIXTURE.md` pins all four files.
+This is a platform-specific disposable fixture, not product portability proof.
+No VM transfer or native execution occurred. Fresh readiness release, dependency
+closure and ambient credential/policy isolation remain launch blockers; the base
+identity is ancestry only and cannot select the derived acquisition artifact.
+
+Live native implementation observation at 06:02Z: the original Claude parent and
+lock keeper remain live; `pipeline_state.py` has a candidate diff. No sealed test
+edit, implementation acceptance, deployment or issue closure is implied.
+
 Private D0 matrix authority navigation was repaired: the old plan line412–453
 range now points to optional Jev, not delivery. Verified named delivery/evidence/
 execution sections and unchanged plan digest replace brittle line ranges. Docs-only
