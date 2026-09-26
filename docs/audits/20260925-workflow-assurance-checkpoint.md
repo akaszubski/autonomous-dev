@@ -8,7 +8,7 @@ not acceptance evidence. Canonical scope remains the
 
 Newest observation: the same native planner `abdcaaab98a9014a9` returned
 `planner_consolidated_FULL.md` (69,044 bytes; SHA-256
-`9a03ce1d3133aa877ebb1f9b595c165bfb703636b4840f01a533ecfa4c3b58`).
+`9a03ce1d3133aa877ebb1f9b595c165bfb703636b4840f01a533ecfa4c3b5835`).
 It explicitly leaves AC7/authenticated-owner authority OPEN; planned consistency
 checks are not completion of that requirement. Independent transcript audit
 then established a fresh correction-ledger Read at 03:32:42.740Z, returned at
@@ -17,6 +17,14 @@ then established a fresh correction-ledger Read at 03:32:42.740Z, returned at
 That read follows the 03:32:35Z report, so it does not retroactively establish
 incorporation. Same-agent closeout and substantive independent review remain
 pending. PID 63075 was confirmed live; do not restart this run.
+Full-report independent review subsequently returned REVISE: consistency still
+returns `AUTHORIZED`; AC7's protected composition and independent mode/issue/
+base/subject bindings remain deferred; ledger mtime TTL permits still-live runs;
+the import-failure probe misses empty/deleted sentinel with surviving ledger;
+coordinator/library completion writers remain unprotected; and env-only bootstrap
+lacks a demonstrated native positive. These findings were sent to the same native
+session, not used to restart or relax gates. Complete the existing protected
+composition and actual transition cases rather than promote the partial check.
 In parallel, D0 executing-root selection completed REVISE then PROCEED critique:
 qualify a separately packaged consumer-owned release catalog, not a mutable
 checkout or assumed registry cache. Census D0-01 retains the historical cache
