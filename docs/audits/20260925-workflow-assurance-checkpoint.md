@@ -73,6 +73,16 @@ wrapped-command, trusted initialization, protected writer or Linux proof. No
 relaunch or credential transfer. Current [hook reference](https://code.claude.com/docs/en/hooks#userpromptsubmit-input)
 and [SDK types](https://code.claude.com/docs/en/agent-sdk/python) agree on `prompt`;
 historical #922 additionally records command wrapping, which remains to qualify.
+Latest routine repair decision preserves existing `ENFORCE_WORKFLOW` semantics:
+correct the observed native prompt key, without a new default-off routing gate.
+Independent alignment review confirms this restores INV-1/INV-4/INV-6 rather
+than preserving the disconnected control. Require native ordinary permit,
+enforced refusal, explicit `/implement` no-recursion and disabled-enforcement
+compatibility. Missing/nonstring/conflicting input cannot become authoritative
+capture; legacy-key compatibility is not native-origin proof. Same native
+coordinator received the decision and resumed its planner; full native critic
+and six-binding origin/effect acceptance remain pending. Durable decision:
+[#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5843245186).
 Governing refusal scope is current-native authority/guarded effects,
 not an invented blanket requirement that every Python call raises an errno;
 the strict failed disposable probes are not retroactively passed by that fact.
