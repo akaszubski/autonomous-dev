@@ -121,6 +121,24 @@ is `baseline-run2.COMPLETE.log` in the existing wheelhouse artifact directory;
 Do not rerun it or treat it as green/native/macOS equivalence. No failure was
 classified or waived. Host lock inode remains intact. Native planner returned;
 its required revision must incorporate the research/boundary corrections.
+The native planner revision subsequently returned after 10m49s; independent
+substantive review requires revision before acceptance. It still infers a fresh
+owner from environment or a unique unsigned activity-log entry, leaves the
+consumer import-failure permit, checks expected owner without independently
+expected run/base/issue/subject bindings, and substitutes dispatch refusal for
+completion-path proof. Its planned ACs labeled DELIVERED are not delivered
+evidence. The intact signed wrong-run replay and live-run missing/stripped-state
+arms must coexist with genuine ordinary-absence permits. These findings were
+sent to the native coordinator for the real critic; no gate credit or source
+implementation acceptance is inferred from this independent review.
+The review additionally traced actual completion writes before the ignored
+heartbeat result, so late SubagentStop after identity loss is a required real
+entry-path case. Signing secrets use `Path.home()` independently of sentinel/log
+overrides; those overrides plus later cleanup do not qualify test isolation.
+Isolate and verify HOME/secret ownership before any signing test, and qualify all
+global-state writers before host suite execution. Full initialization retains the
+same unsafe prior-sentinel/activity-log fallback and needs the same fresh-owner
+correction as fix. These findings were also sent before test/implementer dispatch.
 No source implementation or global rollout is accepted.
 Plan clarification commit `05cc062a` passed ordinary commit checks and was pushed
 to `fix/1779-pipeline-evidence-integrity`; no runtime deployment was performed.
