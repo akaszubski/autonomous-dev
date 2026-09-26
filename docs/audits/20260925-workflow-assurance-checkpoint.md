@@ -6,6 +6,76 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
+Latest restart action: reconciled Round-1 critique in
+[bounded native preparation input](20260926-f0-native-slice-input.md), independently
+rechecked existing preparation/test/binding hashes, and dispatched Round 2 to the
+live detached `adev-assurance` / `f0` native Claude session. A fresh background
+`plan-critic` dispatch is visible; result and actual examination remain pending.
+No implementation or native launch is authorized by the draft.
+Progress comment: https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5842244221
+
+Parallel read-only bootstrap review confirmed the installed lock API requires a
+persistent descriptor holder and the installed MAC does not bind `session_id`.
+A fresh isolated full-mode repair must establish the owner from its actual native
+SessionStart event, not recovery or completion ledgers. Before execution, resolve
+stock STEP-0 double initialization and its global age-only lock GC: an isolated
+worktree alone does not protect another session's live lock. The stopped #1806
+unsigned ownerless run remains invalid; process liveness is not repair progress.
+No global rollout, stopped-state reconstruction or gate bypass has occurred.
+
+Native command-provider probe: pinned host CLI 2.1.236 supports session-only
+`--plugin-dir`. In a new supervisor-created diagnostic directory, the #1807
+source plugin displayed **No commands match** for both `/implement` and
+`/autonomous-dev:implement`; no prompt was submitted to the model. Its plugin
+manifest validation exited 1 (`repository` object, expected string), while the
+already-dirty #1779 candidate manifest exited 0 with warnings. Candidate manifest
+SHA-256 `886fde75461b4c6cb5683077e06ccbbda45feca425ac85004bceb57325983149`;
+it was not edited, committed or deployed by this probe. Candidate native command
+registration remains under observation in detached `providerprobe`; validation
+alone is not proof of registration. Diagnostic directory:
+`/Users/akaszubski/.codex/artifacts/adev-provider-probe.wWAeerd3`.
+The census draft case allocation also passed independent documentation-only review;
+this does not freeze its denominator or prove any release outcome.
+
+Candidate provider observation now succeeds: the native completion UI lists
+`/autonomous-dev:implement` when loading the existing #1779 manifest candidate
+through `--plugin-dir`. This is session-only source-provider proof, not an installed
+consumer or release. No model prompt was submitted in the diagnostic.
+
+Narrow supervised #1807 bootstrap execution amendment: use a fresh isolated
+worktree `/Users/akaszubski/Dev/autonomous-dev-1807-native`, base
+`178ed211f6dc2bd203569ea2e179b050a3a632a0`, branch
+`fix/1807-native-owner-finish`. Replace activation mechanics once, as STEP 0, with
+existing installed APIs, persistent canonical lock and the directly observed native
+owner; proceed to STEP 0a without double initialization or fake resume. Global
+age-only GC is explicitly deferred due to the verified #1806 live-lock defect,
+not reported as equivalent or run. This changes no hook, acceptance or release gate.
+Actual supplemental SessionStart receipt matches configured session
+`e3c14df7-da93-4232-8ccd-2ae6dcbd53db` and the fresh worktree, before any prompt or
+sentinel initialization. Installed API pins remain `4e5aa856` / `2ac68ddc`;
+metadata settings `859da91f`. Existing MAC does not establish owner provenance:
+independent startup observations/comparisons are bootstrap-only evidence. Do not
+reconstruct or promote old stopped state; no global installed files may change.
+
+Fresh repair activation is now observed, not merely planned: full/TDD run
+`78988353f7287509`, original sentinel SHA-256
+`18eff0fa6596b7068417e90e5a4f0a3c8444a64e65008d007347eca6d146dc29`,
+holder PID 63602 / descriptor 3 / inode 377266863. Independent process acquisition
+refused, and an independent reviewer matched native event/receipt/sentinel/base
+and live descriptor/pathname. Native transcript records the real registered
+`autonomous-dev:implement` Skill expansion and subsequent preflight reads/tool
+results. This is not specialist completion. Detached handles are `owner1807` and
+`owner1807lock` on `adev-assurance`; control-plane state operations must use pinned
+installed modules, while the partial source modules remain subjects under test.
+No source/global MAC-format mixing or re-signing from candidate modules is allowed.
+
+F0 preparation review is terminal: Round 1 REVISE, Round 2 PROCEED with the
+enforcement-owner precision note reconciled in the bounded input. Actual read
+records are under native session `890bdc4c-f604-4a3a-bdc5-29a0f09336e0`, subagent
+`a896931653399dd21`; supervisor directly rechecked the omitted enforcement homes.
+Required F0 preparation implementation and freeze/report digests are still ahead
+after the separate #1807 prerequisite—not deliverables of the owner repair.
+
 Fresh admission validator `ac0e54366c519fc5c` passed on unchanged final bytes.
 Codex inspected the actual dispatch prompt and transcript: contract/data inputs
 only, visibly self-derived P1–P3/R1–R17 cases before any test/implementation read,
@@ -115,6 +185,50 @@ or log cleanup was used. Added the observation and the required legitimate-
 append-versus-synthetic-write distinction to
 [#1626](https://github.com/akaszubski/autonomous-dev/issues/1626#issuecomment-5842146666).
 Retry committing only in a verified idle window; preserve the refused attempt.
+
+The idle-window retry passed the same documentation suite (14 passed/1 skipped,
+raw exit 0), committed and pushed as `e5159ccb`; no guard was bypassed.
+The bounded next-slice input is
+[20260926-f0-native-slice-input.md](20260926-f0-native-slice-input.md), a draft
+awaiting two independent critique rounds, not new launch authority.
+
+Independent #1806 review found the lock correction technically sound but returned
+REQUEST_CHANGES because its recorded scoped suite retains an inherited #1047
+source-shape failure. A scoped test-contract repair was requested, preserving
+export/child inheritance rather than omitting that acceptance. Its fresh run
+`5c42071a168801d3` claimed identity bound; Codex inspected the actual sentinel and
+found no session owner (SHA-256 `f27246f0…cb0a19e`). The initialization command
+wrote mode/run/time/issue only, then treated `record_run_start` as binding; that
+ledger call did not bind sentinel ownership. Codex stopped the run before
+implementation and requested read-only independent review of #1807 owner fix
+`178ed211` first. No state reconstruction, integration or deployment is accepted.
+
+That independent review returned REQUEST_CHANGES: `178ed211` is explicitly
+partial and leaves unsigned fix-mode initialization, wrong-session verification
+and replay authority unresolved. #1809 remains the active-run update interlock
+release blocker. The stopped repair's alignment child completed, but its result
+was not acted on or recorded as authorization. The original lock-fix pipeline's
+authorization also needs re-examination; technical code evidence is not a valid
+pipeline receipt by itself.
+
+A bounded identity-channel research lead was recorded on #1807: official Claude
+hooks reference documents native `session_id` input and SessionStart
+`CLAUDE_ENV_FILE` persistence into subsequent Bash commands. Archive searches
+found no shipped repo solution using that carrier. Host CLI is 2.1.236 and accepts
+`--init-only --version`; no model or native workflow was started. Actual carrier
+behavior remains UNMEASURED. Environment persistence alone would not authenticate
+authority: expected owner must be checked against the native event, without
+repo-wide log inference, ledger reconstruction or a new state store.
+
+Direct native channel probe now observed: host CLI 2.1.236 `--init-only` with a
+one-use additional SessionStart diagnostic exited 0 (0.73 seconds), receiving
+native UUID `00b17d33-6b23-41f3-a1fd-3bae36d11f57`, source startup and a present
+`CLAUDE_ENV_FILE` destination. The destination did not yet exist; no export was
+written. Diagnostic scope is metadata only, not authentication, Bash inheritance
+or F0. Artifacts are private `adev-session-channel.TBQj2CCG`: script SHA-256
+`ddeabc8dcfa85db0a73bf2cb59d372b8fa33373b732742be78e007a9bfeba649`,
+receipt `3135b5f04ffaf49f6ddb8ac9ef0adeb3aa473c297f3f20c13682ff52eb1c69a9`.
+No model prompt, installed settings/library change or credential inspection.
 
 ### Earlier pointer — local correction; independent admission pending
 

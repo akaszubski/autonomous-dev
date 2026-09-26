@@ -283,10 +283,15 @@ requirements; do not quietly treat them as generic product requirements or relax
 them to obtain a pass. Any changed case receives an explicit old→new obligation
 mapping and independent review before execution.
 
-Retire the separate 522-line semantic verifier and 515-line test only after their
+Retire the separate semantic verifier and its test only after their
 distinct obligations are preserved and the replacement rejects the real ordinal11
 failure and seeded faults. Keep old bytes for historical replay, outside the active
 product. Removing the overlay alone does not prove the child will comply.
+The earlier 522/515-line figures were a historical snapshot, not current size:
+supervisor measurement on 2026-09-26 found 536/591 lines in the existing private
+`verify_doc_semantics.py` / `test_verify_doc_semantics.py`. Its covers-first/result
+ordering and fixture-read union, including README, remain live obligations;
+preserve/migrate them before retirement and remeasure the dependency-closed total.
 
 This redesign explicitly withdraws the self-imposed ordinal12 admission gates
 introduced at 66496859: the 110/40/180 Python-line caps, 90-JSON-line cap and

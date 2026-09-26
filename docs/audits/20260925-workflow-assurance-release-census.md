@@ -243,6 +243,100 @@ claims that the installed owner has already been chosen or qualified.
 | WA-C2 portability | Required Claude/Codex process-result/evidence case, unchanged future core | Exact native profiles, real observed events and joined results; observation is not enforcement parity | After W0, #1757/#1636 |
 | WA-M1 subtraction | All included families and necessary private helpers | Dependency-inclusive net code/test/owner/configuration/operator burden reduction with retained distinct fault coverage | Every migration/final, #1757 |
 
+### Draft case allocation — not a frozen denominator
+
+These suffixes allocate the existing outcomes to reviewable cases; they add no
+control, runner, owner or acceptance authority. Source/caller and owning issue
+remain in the table and reconciliations below. Existing `a`–`e` control IDs are
+reused, not renamed. Mode, tool and consumer variants parameterize the existing
+cases; they are not independent gates. Frozen F0 IDs/order remain unchanged.
+Every row still needs its claim-specific evidence contract described above.
+
+- **WA-E1-01…05:** required examination, request/result identity, hook/telemetry
+  join, effects, and missing/forged/invalidated evidence. Profile: frozen Linux
+  F0. Retain independent oracle; next observation is qualifying native evidence,
+  not another local-suite pass. R0 extraction remains after accepted F0.
+- **WA-E2-01…04:** valid transition receipt, absent/corrupt receipt, wrong
+  run/subject, and declared invalidation. Profiles: applicable full/light/fix/
+  batch/resume. Migrate to the existing guarded completion consumer; next trace
+  must show actual receipt consumption, not an unwired state API.
+- **WA-S1-01…04:** built-in permit/refuse, MCP payload permit/refuse, rename/
+  side-effect writers, and classifier/carrier faults. Profiles: CLEAN-0 and
+  POPULATED-3. Migrate to one decision owner, retire shell duplicate after proof;
+  next freeze actual tool schemas and observe installed opposite arms.
+- **WA-S2-01…05:** useful allowed work, prohibited file/network/process effects,
+  and hook-loss containment. Profile: exact approved Linux sandbox. Retain native
+  containment; next observe effective boundary configuration and effects.
+- **WA-W1a…e:** reuse the five write-control rows below. Profiles: applicable
+  workflow modes and consumer policy. Migrate required a–d outcomes; e receives
+  no enforcement credit. Next observe actor/path/bypass faults through the real
+  caller; arbitrary Bash containment belongs to WA-S2.
+- **WA-W2-01…04:** research eligibility, current plan/critic, revised-plan
+  invalidation, and specialist order. Profiles: full/light/fix/batch/resume with
+  their exact eligibility clauses. Consolidate markers/profile definitions;
+  next observe authorized reuse/omission separately from missing execution.
+- **WA-W3-01…05:** acceptance allocation, implement/test/spec, review/security/
+  docs, CIA/completion, and batch/resume identity/lock. Profiles: actual command
+  modes. Migrate competing completion authorities; next observe required role
+  returns, wrong-item faults and lifetime lock through actual transitions.
+- **WA-W4-01…06:** prompt routing, instruction integrity, escalation-response
+  provenance, actor authority, MCP/native permissions, and explicitly enabled
+  batch permission. Profiles: applicable native callers, optional batch only
+  when selected. Retain native permission ownership; next prove real current-run
+  response → guarded dispatch (#1802), not an asserted approval boolean.
+- **WA-W5-01…05:** aggregate dedupe, issue-create authority, drain commit role,
+  post-push closure/clear, and realign route. Profiles: generic workflow plus
+  explicit dogfood/realign specialization. Retire powerless marker only after
+  consumer disposition; next join actual issue/drain effects. Watchdog execution
+  remains a subprocess route, not a Claude tool event.
+- **WA-D1a…d:** reuse doc examination, verdict transport, impact selection and
+  priority-skill rows below. Profiles: actual full/fix/batch and same-task skill
+  trials. Retain semantic role, migrate credit/selection to existing owners;
+  next exercise omitted reads and always-no-impact, then measured skill value.
+- **WA-O1a…c:** reuse organization, context-size and paid-dependency rows below.
+  Profiles: applicable declared native events. Migrate required outcomes; next
+  select the context-size guarded transition and observe paid `_emit` refusal.
+  A post-write diagnostic is not write prevention.
+- **WA-O2-01…04:** orchestrator, prunable threshold, regression and TDD. Profiles:
+  remaining installed/manual consumers plus applicable fix/raw-commit/TDD modes.
+  Retain UNKNOWN caller status and conditional dispositions below; next reconcile
+  effective/remote/manual callers and prove replacement before stale-copy removal.
+- **WA-O3-01…05:** extension set, marker-deny/neighbor-permit, disabled/missing
+  carrier, omitted inventory row, and cross-layer duplication. Profile:
+  POPULATED-3 installed consumer. Retain extension capability; next execute the
+  omitted-row intervention with files/settings/behavior unchanged. FR1 is not
+  product provenance or exactly-once proof.
+- **WA-O4-01…03:** remaining hook/CLI candidates, UNKNOWN-library cohorts, and
+  external/manual API dispositions. Profiles remain unresolved per member.
+  No retirement is inferred. #1803/#1804/#1805 block source-denominator freeze;
+  next settle the instrument, rerun corpus/omitted-route control, and attribute
+  every changed membership before assigning exact per-member acceptance.
+- **WA-L1a…d / WA-L2a…b:** reuse the delivery-owner rows below, mapped to existing
+  D0-01…08 rather than a new lifecycle suite. Profiles: CLEAN-0/POPULATED-3.
+  Select one native root/version/registration and owned transaction; next bind
+  product/closure identity, settings behavior and affected transport consumers.
+- **WA-L3-01…05:** command implementation, manifest consistency, settings-hook
+  source/membership, installed import integrity and hook documentation. Profile:
+  configured raw Git pre-commit branches. Consolidate required outcomes into
+  existing owners; next execute missing/orphan/source-loss arms before retiring
+  any archived invocation. Working-tree scans are not staged-only evidence.
+- **WA-C1-01…04:** standalone, dogfood, CLEAN-0 and POPULATED-3, retaining separate
+  results and existing D0-01…08 lifecycle arms. Next freeze supported Python
+  3.11+ product/profile and last-known-good identities; historical Darwin startup
+  and four-file fixture results cannot supply product acceptance.
+- **WA-C2-01:** unchanged-core process/result case through real Claude and Codex.
+  Profiles: separately pinned native harnesses after W0. Next freeze Codex carrier,
+  sandbox/approval and correlation fields; version output implies no parity.
+- **WA-M1-01…04:** dependency-inclusive baseline, per-slice retirement, cumulative
+  net reduction and retained distinct faults. Profiles: each activated migration
+  plus final release. Next bind pre-R0 burden/removal mapping; T0 cannot exit
+  without cumulative reduction. Private scaffolding is not product subtraction.
+
+The D0 recipe and evidence limits in **Consumer-profile selection** below govern
+these allocations, superseding stale private-proposal observation status. Exact
+native joins, permissions/hook composition, interruption points, remote contents
+and product digests remain unresolved where recorded; draft IDs do not close them.
+
 ## WA-W1 write-control reconciliation (2026-09-25, not frozen)
 
 | Actual owner in `unified_pre_tool.py` | Required outcome | Current gap / proposed subtraction |
