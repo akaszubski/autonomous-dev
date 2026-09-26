@@ -25,6 +25,14 @@ mode/issue/subject bindings therefore lack a durable active-run disposition.
 The same planner must resolve this and add a qualifying case, not extend an
 arbitrary timeout or permit on missing evidence. Preparation minimalism and
 dependency-closed retirement measurement remain binding for this repair.
+Full independent v3 review also returned REVISE: the unsigned, last-writer-wins
+`/tmp/session_mode_<hash>.json` carrier is outside the proposed four protected
+paths. Specify where existing consumers retrieve all six protected expected
+bindings after initialization, preserve them through later prompts/expiry,
+restore the genuine signed-owner-A / expected-owner-B negative, and remove the
+unqualified executor claim. These are unchanged authority requirements; no new
+store or parallel framework is authorized. The same native planner received
+the consolidated deltas; source remains unmodified and acceptance is pending.
 The W1–W4 revision withdrew custom Bash containment and reconstruction-permit
 cases, but independent review still requires init-request replay/identity-loss
 refusal, all six protected expected bindings, nonmutating liveness observation,
@@ -55,8 +63,17 @@ Separately frozen public-dummy candidate `adev-1807-visible-prep.s2ni9e` passed
 independent preparation/review conditional on repeated live preflight. It keeps
 signing HOME hidden and baseline write denials intact, makes only public dummy
 sentinel/ledger readable, and requires the same checker to reject a deliberately
-writable public-path mutant after observing an atomic permit. Execution was
-dispatched; no result or native acceptance is inferred from preparation approval.
+writable public-path mutant after observing an atomic permit. Execution
+subsequently failed exit 1. Trusted APIs returned permits; inside SRT the sentinel
+atomic write refused with actual `EROFS`, but signing and run-start returned
+permits. These returns do not prove secret-read or ledger-mutation effects: the
+parent assertion short-circuited before the post-failure inventory.
+Descendant/workspace/writable-mutant arms were not reached. Retained result
+`adev-1807-visible-prep.s2ni9e/VM-RESULT.md` SHA-256
+`a3cc56b936eb4d2cb83d0ca434523dc03ec0e9a69a07290227d410e2600c2743`;
+owned process/cgroup/runtime cleanup verified. Preparation transport failure was
+preserved and recovered using existing `orbctl push` before execution. No retry
+after the boundary failure; independently diagnose path/return semantics next.
 Do not relax the Docker boundary or reuse old worker state to force a pass.
 
 Historical consolidated-report observation: the same native planner `abdcaaab98a9014a9` returned
