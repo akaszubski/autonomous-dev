@@ -890,6 +890,9 @@ missed a real dynamic shell edge: `P/templates/settings.autonomous-dev.json:101`
 declares `SessionStart-batch-recovery.sh`, whose lines 142–172 compute and execute
 `batch_resume_helper.py`. Preserve that helper's secure recovery outcome and ground
 this edge; an UNKNOWN classifier result is demonstrably not proof of no caller.
+Selected batch/resume profile: WA-W3-05, #1757. Required qualified
+signed/subject-bound handoff permits; absent/corrupt/wrong-run evidence cannot
+authorize recovery.
 
 The remaining cohort members are `auto_implement_pipeline`, `batch_git_finalize`,
 `batch_mode_detector`, `checkpoint`, `coordinator_log`, `orchestrator`,
@@ -914,7 +917,7 @@ connection or prove that a CI run executed it.
 
 | Members | Proposed disposition and outcome owner to prove |
 |---|---|
-| `test_routing` | Retain/ground the actual CI carrier and failure fallback |
+| `test_routing` | Retain/ground the actual CI carrier and failure fallback. Selected repo CI profile: WA-O4-01/WA-W3-02, #1757; correct selection and actual all-applicable-suites fallback required; missed/empty relevant selection is non-pass |
 | `alignment_gate`, `project_md_parser` | Consolidate only after current `alignment_classifier` classification/parsing and hook consumers preserve the required outcomes |
 | `alignment_fixer` | Reconcile prose-only execution claims; preserve approved atomic intent updates before retirement |
 | `acceptance_criteria_parser`, `step5_quality_gate`, `test_runner` | Map unique outcomes to current acceptance tracker, quality/coverage and direct runner consumers before removal |
@@ -938,10 +941,10 @@ The documentation/improvement cohort adds 17 members:
 
 | Members | Proposed disposition and concrete route distinction |
 |---|---|
-| `claude_md_updater` | Retain until legacy installer migration: `install.sh:2241–2307` constructs/calls it; preserve idempotent injection, backup and path safety |
-| `daily_aggregate_manager` | Retain actual `drain-watchdog.yml:176–198` embedded caller and issue-context refusal behavior |
-| `flaky_tests`, `retrospective_analyzer` | Retain actual embedded imports/calls in `implement.md:1381–1389` and `retrospective.md:50–125`; separately disposition unused mutation APIs |
-| `eval_metrics` | Retain documented standalone statistical API, not an active control; changelog explicitly records no command integration |
+| `claude_md_updater` | Retain until legacy installer migration: `install.sh:2241–2307` constructs/calls it; preserve idempotent injection, backup and path safety. Legacy populated-bootstrap migration profile: WA-L2a/D0-02/03/08, #1757/#1521/#1522; preserve unrelated content and refuse unsafe/conflicting mutation |
+| `daily_aggregate_manager` | Retain actual `drain-watchdog.yml:176–198` embedded caller and issue-context refusal behavior. Selected repo watchdog/drain profile: WA-W5-01/02, #1757; preserve dedupe/issue-context authority and unavailable-source non-pass |
+| `flaky_tests`, `retrospective_analyzer` | Retain actual embedded imports/calls in `implement.md:1381–1389` and `retrospective.md:50–125`; separately disposition unused mutation APIs. Applicable workflow test profiles use WA-W3-02; explicit retrospective diagnostic uses WA-O4-01; #1757. Reporting cannot authorize blanket quarantine or intent mutation; unused mutation APIs remain unresolved |
+| `eval_metrics` | Retain documented standalone statistical API, not an active control; changelog explicitly records no command integration. Explicit standalone/manual API profile: WA-O4-03, #1757; preserve valid/invalid-input outcomes without workflow credit |
 | `drain_revert` | Ground manual `scripts/drain_regression_check.py` action separately from still-unproven automatic scheduling; state ownership alone is not rollback execution |
 | `session_telemetry_reader`, `skill_loader` | Migrate required classification/redaction and dangling-skill validation to existing improvement/health owners before retiring legacy readers/loader; manual CLI is not native skill-injection proof |
 | `cia_promotion_filter` | Presence in `/improve` file closure is not filter execution; select actual `macro_promotion` thresholds explicitly before removing the duplicate |
@@ -953,7 +956,7 @@ The final 17-member cohort completes this bounded source review:
 
 | Members | Proposed disposition and concrete route distinction |
 |---|---|
-| `selector_stall_detector` | Retain actual dynamic import/call in `drain-watchdog.yml:233–236`; separately decide packaging for a repo-workflow-only caller |
+| `selector_stall_detector` | Retain actual dynamic import/call in `drain-watchdog.yml:233–236`; separately decide packaging for a repo-workflow-only caller. Selected repo watchdog diagnostic: WA-O4-01, #1757, optionally supporting WA-W5 without commit/closure authority; distinguish healthy, stalled and unavailable observations |
 | `active_security_scanner` | Mandatory auditor instructions name `full_scan`, but actual execution is unobserved; retain required dependency/history/OWASP outcomes and prove use or migration |
 | `agent_pool`, `pool_config`, `token_tracker` | Internal manual parallel-validation chain, not current native specialist dispatch; disposition unique priority/retry/cancellation/token-cap outcomes before retirement |
 | `code_patcher`, `stuck_detector` | Ungrounded healer dependencies; preserve required backup/rollback and repeated-error refusal in actual remediation owners |
@@ -962,6 +965,11 @@ The final 17-member cohort completes this bounded source review:
 | `agent_feedback`, `memory_layer` | Explicitly disposition adaptive routing and legacy memory-store retention/PII outcomes; current improvement/native memory is not automatically equivalent |
 | `brownfield_retrofit`, `headless_mode`, `mcp_profile_manager` | Map unique state recovery, noninteractive exit/output and MCP profile-validation outcomes into actual retrofit/adapter/setup owners before retirement |
 | `ralph_loop_manager` | Archived producer only; migrate unique retry/checkpoint/rollback outcomes to current completion and batch owners before retirement |
+
+These prospective selections retain outcomes, not automatically shipped helpers.
+CI/watchdog duties are repo-profile-only; product packaging remains unresolved.
+All runtime qualification, UNKNOWN membership and consumer-disposition limits
+remain unchanged.
 
 All 97 machine-UNKNOWN members now have bounded additional source inspection.
 This closes the uninspected-library cohort, not the release denominator: every
