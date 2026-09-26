@@ -1250,6 +1250,20 @@ Scalar precedence does not prove permission composition or hook ordering; retain
 those as separate settings-behavior obligations rather than deriving them from
 the scalar probe. Required/optional/valid-empty extension-carrier behavior must
 also be explicit in each selected recipe.
+
+Installed-cache follow-up is now independently qualified for fixture composition
+only at private `d0-git-composition.jxsQ4O`: initial/repeat each observed five
+physical layer hooks, scalar explicit; scalar-only omissions selected local,
+project, user and unset without losing any hook. Identical user registration
+was deduplicated natively, whereas actual plugin/settings overlap produced six
+physical processes and the unchanged five-hook detector rejected it. All settings
+were restored to exact baseline bytes/modes. Omission result SHA-256
+`24ae0a988cbaedc990b024036fcc4b5ac0689b983862fe795e3b374fe30c751f`.
+Use individual step records, not the preserved aggregate with environment aliasing.
+The earlier omission manifest's preparation pin precedes the reviewed wording
+correction; this discrepancy is explicit, not a wholly-matching manifest claim.
+Reuse these unchanged observations; product joins, permission semantics,
+plugin-default scalar, lifecycle, clean/populated and portability remain unfinished.
 D0-01 retains source-unavailable plus counterfeit source module/executable faults;
 D0-04 requires one physical process joined to one native event and result/decision,
 with duplicate registration producing two physical rows and failure. D0-08 still

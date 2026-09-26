@@ -54,16 +54,25 @@ plugin/settings overlap produced six physical processes and failed the unchanged
 five-hook predicate. Original settings bytes and modes were restored. Aggregate
 SHA-256 `24ae0a988cbaedc990b024036fcc4b5ac0689b983862fe795e3b374fe30c751f`;
 private `OMISSION-RESULT.md` retains scope and per-arm pointers. Independent actual
-result review is pending. No native joins, permission semantics or product pass.
+result review verified all six receipt/step bindings, 65 inventoried objects and
+exact restoration. No native joins, permission semantics or product pass. The old
+omission manifest retains the preparation's pre-wording-correction pin and is not
+described as wholly matching; the changed preparation hash is recorded separately.
 The earlier assumption that an identical user registration necessarily creates six
 processes was rejected before execution and the preparation bytes were preserved.
 
 Native row13 initially selected stale absent-carrier permit wording; independent
 review required superseding LN15-prime/P3-prime refusal. Its later correction
 preserves that refusal and limits the row to static wiring; file2 owns runtime
-evidence. Final writer completion, three-file byte seal and combined execution are
-still required. Changing counts while untracked tests were being edited establish
-neither identical-subject flakiness nor final acceptance.
+evidence. Three-file byte sealing and combined execution subsequently occurred
+after fresh writer returns at 05:42:28.420Z/05:47:35.054Z.
+The full three-file hash seal at 05:47:49.809Z matches current independent hashes;
+actual combined result 05:48:35.200Z is 81 failed / 40 passed, consistent with
+per-file 31/2, 44/10 and 6/28. This qualifies the reproducible RED baseline only;
+native Write/MCP/hook-origin arms remain explicitly unmeasured. Completion and
+implementer dispatch follow the real pipeline, not a supervisor-created record.
+Changing counts while untracked tests were being edited establish neither
+identical-subject flakiness nor final acceptance.
 
 Preceding independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
