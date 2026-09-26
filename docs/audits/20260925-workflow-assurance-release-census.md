@@ -901,7 +901,11 @@ The remaining cohort members are `auto_implement_pipeline`, `batch_git_finalize`
 completion-state and specialist validation routes supply candidate replacement
 owners, but consumer and opposite-arm proof is still required before retirement.
 `session_resource_manager` has unique process/session-limit semantics requiring
-explicit retention or retirement disposition. After both cohorts, 69 members have
+explicit retention or retirement disposition. Its proposed WA-O4 specialized/manual
+profile must preserve evidenced process/session limits; cancellation and cleanup
+become acceptance arms only where the consumer contract promises them. WA-W3-05
+may support separately established workflow-lifetime effects, not prove that this
+helper has been replaced. After both cohorts, 69 members have
 not had this additional inspection; all 97 retain the machine UNKNOWN verdict.
 A concurrent ratchet rerun passed its three assertions but its session-finish
 guard detected activity/dispatch files changing; the overall run is not a clean
@@ -923,7 +927,7 @@ connection or prove that a CI run executed it.
 | `acceptance_criteria_parser`, `step5_quality_gate`, `test_runner` | Map unique outcomes to current acceptance tracker, quality/coverage and direct runner consumers before removal |
 | `complexity_assessor`, `scope_detector`, `feature_completion_detector` | Compare with actual issue-scope and prior-art command routes; do not retain duplicate decision owners merely for API compatibility |
 | `success_criteria_validator`, `workflow_violation_logger`, `code_path_analyzer`, `blocking_signal_classifier` | Disposition archived callers, historical readers and role-contract-only behavior before retiring or grounding |
-| `feature_dependency_analyzer`, `worker_consistency_validator` | Explicitly decide smart batch ordering and distributed-consistency outcomes; no connected replacement inferred |
+| `feature_dependency_analyzer`, `worker_consistency_validator` | Proposed WA-O4 specialized/manual profile, #1757: explicitly decide evidenced smart batch ordering and distributed-consistency consumer promises before migration or retirement; no connected replacement inferred. WA-W3-01/05 and WA-W3-02/04 respectively support only independently established batch and run/subject effects, not ordering or distributed equivalence. Cycle/ambiguity and consistency-failure arms apply where the existing contract promises them. |
 | `tool_validator` | Migrate unique deny/whitelist/path cases to active tool-intent, hook, sandbox and MCP owners before retirement |
 
 Another 18 members were inspected using the existing walker, AST and bounded
@@ -931,7 +935,7 @@ command/source inspection without production imports or pytest:
 
 | Members | Finding and proposed disposition |
 |---|---|
-| `distributed_training_validator`, `hardware_calibrator`, `training_metrics` | Specialized training/calibration outcomes; ungrounded internal edges include `distributed_training_validator -> hardware_calibrator` and `realign_orchestrator -> hardware_calibrator`; no bounded caller for `training_metrics` was found. Establish consumer/mission disposition before removal; do not expand workflow assurance into a new training subsystem |
+| `distributed_training_validator`, `hardware_calibrator`, `training_metrics` | Proposed WA-O4 specialized/manual API profile, #1757; ungrounded internal edges include `distributed_training_validator -> hardware_calibrator` and `realign_orchestrator -> hardware_calibrator`; no bounded caller for `training_metrics` was found. Establish actual consumer/mission promises before migration or removal; detailed metric, calibration and failure arms depend on those promises. Generic workflow validation is not replacement proof; do not expand this into a new training subsystem. |
 | `math_utils` | Fibonacci implementation; no active caller found in the inspected command/hook/script surfaces. Candidate removal needs consumer/API disposition, not inference from its test suite |
 | `ideation_engine`, `ideation_report_generator`, five `ideators/*_ideator` members | Ungrounded mutually referring discovery/reporting family; preserve any distinct required finding category through current improvement/review owners before retirement |
 | `implement_dispatcher/{cli,dispatcher,models,modes,validators}` | Internal package imports exist, but dispatcher lines 195–330 return textual instructions referring to old workflows, not actual dispatch. Current user-invoked `/implement` command owns the workflow contract; preserve CLI/mode validation, mutually exclusive batch sources, batch-id/path validation and batch-state handling before retirement |
@@ -960,9 +964,9 @@ The final 17-member cohort completes this bounded source review:
 | `active_security_scanner` | Mandatory auditor instructions name `full_scan`, but actual execution is unobserved; retain required dependency/history/OWASP outcomes and prove use or migration |
 | `agent_pool`, `pool_config`, `token_tracker` | Internal manual parallel-validation chain, not current native specialist dispatch; disposition unique priority/retry/cancellation/token-cap outcomes before retirement |
 | `code_patcher`, `stuck_detector` | Ungrounded healer dependencies; preserve required backup/rollback and repeated-error refusal in actual remediation owners |
-| `auto_inject_memory`, `memory_formatter`, `memory_relevance` | Archived injection carrier only; explicitly disposition automatic injection, budgets and ranking against supported memory owners before retirement |
+| `auto_inject_memory`, `memory_formatter`, `memory_relevance` | Proposed WA-O4 legacy/manual profile, #1757: archived injection carrier only; disposition evidenced automatic injection, budgets and ranking against supported memory owners before retirement. WA-W3-05/WA-D1 supports separately established recovery/examination effects, not native-memory equivalence; omission/truncation arms apply only where promised. |
 | `context_budget_monitor` | No caller found; preserve required truncation/verbatim handoff behavior in current command before retiring duplicate code |
-| `agent_feedback`, `memory_layer` | Explicitly disposition adaptive routing and legacy memory-store retention/PII outcomes; current improvement/native memory is not automatically equivalent |
+| `agent_feedback`, `memory_layer` | Proposed WA-O4 specialized/manual profile, #1757: disposition evidenced adaptive routing and legacy retention/PII duties, including export/deletion only where promised; current improvement/native memory is not automatically equivalent. WA-W5/WA-D1 supports independently established feedback/privacy effects, not authority to move or erase historical private data. |
 | `brownfield_retrofit`, `headless_mode`, `mcp_profile_manager` | Map unique state recovery, noninteractive exit/output and MCP profile-validation outcomes into actual retrofit/adapter/setup owners before retirement |
 | `ralph_loop_manager` | Archived producer only; migrate unique retry/checkpoint/rollback outcomes to current completion and batch owners before retirement |
 
@@ -970,6 +974,11 @@ These prospective selections retain outcomes, not automatically shipped helpers.
 CI/watchdog duties are repo-profile-only; product packaging remains unresolved.
 All runtime qualification, UNKNOWN membership and consumer-disposition limits
 remain unchanged.
+The manual/specialized profile selections above are prospective contract routing,
+not permission to retire an active guard, exclude an older or remote consumer,
+or count an unobserved outcome as covered. Exact limits, ordering policies,
+memory budgets, retention duties and training thresholds remain unresolved until
+an actual consumer/policy promise is identified and independently tested.
 
 All 97 machine-UNKNOWN members now have bounded additional source inspection.
 This closes the uninspected-library cohort, not the release denominator: every
