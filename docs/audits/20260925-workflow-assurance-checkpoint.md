@@ -71,11 +71,77 @@ resolve the missing collection dependency and repeat unchanged collection first.
 The 15,023 native baseline-count metadata uses a different documented scope and
 does not establish equivalence to this whole-suite Linux count.
 
-Latest restart action: reconciled Round-1 critique in
+Second qualification includes the missing hypothesis dependency, keeps all source
+tests/configuration unchanged, and reports 19,107 collected / nine skipped without
+a reported collection error. Handle 98292 and container
+`adev-baseline-qual2-178ed211` remain live during finalization; no terminal exit is
+claimed. Its Docker log snapshot is `collection-qualification2.log` (refresh after
+termination). First failed qualification remains preserved separately.
+
+Independent alignment-only review passed: native classifier `a2ccac1c2a072cb15`
+actually read all 224 lines of `.claude/PROJECT.md`; its verdict matches recorded
+classifier JSON and installed `evaluate_and_record` returned citation-verified
+auto-pass. Sentinel identity remains intact and installed HMAC verifies; live
+holder fd/path inode remains 377266863. This proves matching alignment observation,
+not authenticated owner binding, repair completion or research acceptance.
+Ordering calls used `pipeline_mode='tdd-first'` while sentinel mode is `full`;
+retain this distinction for profile validation rather than assuming mode parity.
+
+Second isolated collection is terminal exit 0, 19,107 collected in 41.86 seconds;
+completed log SHA-256 `d67fc9e5bb013b042c0e46f73bd54e549ac4ba780a139f5386401a1ed8a0f789`.
+No behavioral baseline was run by collection. A clean shallow offline clone of
+the same commit was prepared to retain Git identity without a live-worktree mount.
+First behavioral-run preflight exited 1 before the execution marker: macOS tar
+metadata produced a `._pack-*.idx` sidecar that Git rejected. Raw failure is
+`baseline-preflight1.log`; host holder fd/path inode remains 377266863.
+Rebuild only archive transport with `COPYFILE_DISABLE=1` and no xattrs, preserving
+source and failed artifacts; do not treat this environment failure as test failure.
+
+Metadata-free archive v2 SHA-256
+`0c95ddb017d883a38f97668f0e7ccc384d9fc3c9113f98fa7269ed4433b88389`;
+second baseline preflight/execution handle 58312, container
+`adev-baseline-run2-178ed211`. Re-poll this exact handle/container after restart;
+do not launch another baseline solely because observation times out. It uses
+UID 501:20, dropped capabilities, no-new-privileges, network none, read-only root
+and only the dedicated inputs mounted read-only. Preflight requires exact clean
+Git identity and real disposable GC stale-refuse/fresh-retain controls before
+the `BASELINE_EXECUTION_BEGIN` marker. Inner unchanged command is
+`pytest --tb=no -q` under the original 600-second capture budget; a timeout is
+partial/UNKNOWN, not a passing baseline. No native acceptance or macOS parity
+can be inferred from this Linux result.
+
+Current actionable pointer: native owner-repair session and holder remain live;
+alignment observation passed independent review and both research dispatches
+finished, with research examination/content review pending. Unchanged isolated
+Linux baseline is live at handle 58312 / `adev-baseline-run2-178ed211`; it has
+entered real test execution after Git-identity and disposable-GC controls passed.
+Do not duplicate or restart it on an observation timeout. Behavioral failures are
+already visible, but no terminal summary is available: no green or native/macOS
+equivalence claim. No source implementation or global rollout is accepted.
+Pushed documentation checkpoint/census commit is `0c3c43bd`.
+
+Research actual-examination audit found gaps after both terminal reports: required
+`git show 178ed211 --stat` was omitted, affected tracker consumer bodies were
+searched but not read, and external research fetched TUF only (other standards
+were search-only). Supervisor requested targeted native specialist followups
+before plan/implementation acceptance, preserving original reports and credit
+chronology. Completed reports are not sufficient examination evidence.
+
+Independent report-content critique also requires correction: re-signing a changed
+field authenticates the mutation, so it is not an unchanged-MAC tamper refusal.
+Coordinator reconstruction needs independently authenticated transition evidence,
+not same-user signing or an allegedly immutable same-user append-only store.
+Global installed-lib edits suggested by research are forbidden until rollout
+qualification; RPC/keychain/new authority stores exceed this slice. Forked pytest,
+xdist and subprocesses do not isolate shared filesystem `/tmp`. These findings were
+sent to native planning; unresolved provenance must remain an open acceptance row.
+
+Historical preparation pointer (superseded by terminal review below): reconciled Round-1 critique in
 [bounded native preparation input](20260926-f0-native-slice-input.md), independently
 rechecked existing preparation/test/binding hashes, and dispatched Round 2 to the
 live detached `adev-assurance` / `f0` native Claude session. A fresh background
-`plan-critic` dispatch is visible; result and actual examination remain pending.
+`plan-critic` dispatch was visible; its result and actual examination were pending
+at that observation, not now.
 No implementation or native launch is authorized by the draft.
 Progress comment: https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5842244221
 
@@ -96,8 +162,9 @@ manifest validation exited 1 (`repository` object, expected string), while the
 already-dirty #1779 candidate manifest exited 0 with warnings. Candidate manifest
 SHA-256 `886fde75461b4c6cb5683077e06ccbbda45feca425ac85004bceb57325983149`;
 it was not edited, committed or deployed by this probe. Candidate native command
-registration remains under observation in detached `providerprobe`; validation
-alone is not proof of registration. Diagnostic directory:
+registration was then under observation in detached `providerprobe`; validation
+alone was not proof of registration. Later native UI registration is recorded below.
+Diagnostic directory:
 `/Users/akaszubski/.codex/artifacts/adev-provider-probe.wWAeerd3`.
 The census draft case allocation also passed independent documentation-only review;
 this does not freeze its denominator or prove any release outcome.
