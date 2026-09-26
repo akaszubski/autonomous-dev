@@ -27,9 +27,16 @@ validation. Fresh acquisition2 completed six raw-zero/group-absent steps; its pr
 SHA-256 is `08818f7f05da02be33fcd179fac51598c6bda7a6443e7d663dee3095bfb5631a`.
 Native cache HEAD/tree match `bc93ddd7b5d320d317114c4cf9e2beeafe9e6a4a` /
 `4086cd3f88464658e68821cbc2a0ffc163eb6262`, all four runtime files match, and
-unrelated settings survived. No startup occurred: actual-cache layer commands and
-their second freeze/review are next. Native joins, product lifecycle/portability
-and F0 acceptance remain unmeasured. No credentials, model call or new runner.
+unrelated settings survived. Subsequent frozen/reviewed initial and repeat startups
+each produced five distinct hook PIDs, one per user/project/local/explicit/plugin,
+with scalar winner `explicit`, raw exit zero, owned-group absence and unchanged
+settings/cache/catalog. Independent review confirmed this fixture-only result.
+The aggregate recording has a mutable-environment alias defect: its first-run
+receipt environment points to run 2. Preserve it unchanged; individual step records
+are authoritative, with correction and hashes in private `STARTUP-RESULT.md`.
+Native joins, omission/duplicate arms, permission composition, product
+lifecycle/portability and F0 acceptance remain unmeasured. No credentials, model
+call or new maintained runner.
 
 Preceding independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
