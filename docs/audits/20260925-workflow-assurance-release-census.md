@@ -1030,6 +1030,40 @@ The subsequent connectivity check brought up Tailscale on this Mac, but
 Mac Studio reauthentication is required before that route can be inspected.
 This narrows the access failure, not the unknown installed-control population.
 
+### Mac Studio Tailscale inspection (2026-09-26, read-only)
+
+The access limit above is superseded for **reachability**, not for behavioral
+qualification. `tailscale ping -c 1 100.103.205.63` returned a pong; non-interactive
+SSH to `andrewkaszubski@100.103.205.63` succeeded with this Mac's explicitly
+selected `id_ed25519` key and returned `Mac-Studio.localdomain`. The default
+`id_rsa` was refused, explaining why an unqualified SSH retry is not a reliable
+access test. No LAN route, root login or remote mutation was used.
+
+The remote user's five declared `~/Dev` checkouts (`autonomous-dev`, `realign`,
+`spektiv`, `homeassistant`, `vllm-mlx`) and their `.claude/settings.json` files
+exist; `anyclaude` does not exist in that location. The global
+`~/.claude/settings.json`, `~/.claude/{hooks,lib,commands,skills}` and plugin
+registry exist. The registry lists three official plugins, not
+`autonomous-dev`; that does not mean the direct-copy hook/library routes are
+absent. The global settings declare eight hook events and 61 deny entries;
+each of the five repo settings declares four hook events and 61 deny entries.
+These are configuration-shape observations, not hook-firing or settings-merge
+proof. The remote source checkout was at `fbaa0329028678a75f3bca125deb49ca776941a0`
+at inspection (2026-09-26T09:06:50Z).
+
+Of the four named remote LaunchAgent plists in the inventory, only
+`com.akaszubski.drain-driver-cron.plist` exists in the user's LaunchAgents
+directory. Its installed SHA-256 is `e5bd7ec2f5e10cff470eaa575293e0e97b67e73beaa5a332c3812a029c42564b`,
+different from the remote checkout's source plist SHA-256
+`9ebd7477894ed50cae8954b7a36b19e2486556076dbbb0a1be143958ec375ebf`.
+The referenced `~/bin/drain-driver-cron.sh` exists. `launchctl print`
+reported no `com.akaszubski.drain-driver-cron` service in `gui/501`, and
+`launchctl list` showed no named drain/triage jobs in the inspected SSH
+context. A plist on disk is not proof of a loaded or historically executed job;
+the effective process, alternate domain, installed script behavior, hook
+receipts and all consumer outcomes remain **UNMEASURED**. Do not retire or
+replace a route from this inventory alone.
+
 ## WA-L3 commit-control reconciliation (2026-09-25, not frozen)
 
 The configured Git hook is a symlink into the primary checkout, while its scans
@@ -1150,6 +1184,9 @@ no local Tailscale IP and no current tailnet map; this explains why the Tailscal
 route cannot be used now, but does not establish the remote host's state. Remote
 consumer rows stay UNMEASURED; avoid repeated blind SSH attempts until local
 Tailscale access or the LAN route has actually changed.
+The later read-only Tailscale inspection above resolves host reachability and
+the bounded file/registration census, but not runtime firing, merge behavior,
+installed-control equivalence or migration acceptance.
 
 Required release profiles remain: isolated Linux Claude worker; standalone verifier;
 dogfood; distinct clean and populated consumer; real Claude/Codex portability case.
