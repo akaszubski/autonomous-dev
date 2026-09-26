@@ -6,7 +6,18 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
-Newest independently verified continuation: native final critic returned REVISE,
+Newest independently verified continuation: native critic returned PROCEED at
+05:12:34.649Z, exact export SHA-256
+`ae3af1bb46dda79030607cb49a58d85f4d4d84732f6cf2a155e36e8011255fcd`.
+Full returned reads of anchor6-final, association step2-final and updated manifest
+are independently verified. One selected-input exposure gap remains: critic full
+ledger79 Read has not yet been observed (previous full exposure was ledger73).
+Supervisor requested same-critic full ledger79 examination and bounded confirmation;
+test-master may prepare read-only until that gate closes. Manifest pin is not a read.
+The selected ledger79 snapshot is immutable; later log entries are history-only.
+No product/F0 acceptance or protected source edits are established by this verdict.
+
+The preceding native final critic returned REVISE,
 SHA-256 `b959a65ee9615b5271db17be33ae72156a013bd39cb4e6734d51933cb2ccfc88`.
 Planner replaced anchor6, SHA-256
 `2ac55f1023c3f01839c6812c8a8c9c046c3935fb2078c3217a2a60e9d30ca9eb`,
@@ -36,6 +47,17 @@ This is a qualified fixture physical-count fault, not the product verifier or D0
 acceptance. Independent native-result/parent joins, product closure, lifecycle and
 portability remain unmeasured. Only owned private acquisition paths were recoverably
 renamed; original successful and failed diagnostic evidence remains unchanged.
+Follow-up stock observers were also independently checked, preserving those bytes:
+private `d0-git-duplicate.fLoNWk/DEBUG-RESULT.md` establishes native cache registration
+but not command/event/session/hook-PID/result joins; execution SHA-256
+`d3affe8c65ecbbe9855230288c16c70cb1d847d09842e7c70a89d2b64ef7867a`.
+`STREAM-RESULT.md` records pinned init-only/print/stream flags accepted with explicit
+stdin EOF: one physical hook ran, but stdout and stderr were both zero bytes;
+step SHA-256 `419d56c26bcb868b1737900a81b1fdcd2d61bf3551e93b753ad25fcd6e8a1f5f`.
+Both starts exited zero with group absence, preserved settings/cache and unavailable
+acquisition sources. These profiles cannot close the independent native-result join;
+qualify native events on the authorized real-workflow path after prerequisites,
+not another unchanged init-only retry or custom logging service.
 
 Latest continuation: the same native parent `e3c14df7-da93-4232-8ccd-2ae6dcbd53db`
 and run `78988353f7287509` remain live on tmux `owner1807`; PID 63075 and lock
