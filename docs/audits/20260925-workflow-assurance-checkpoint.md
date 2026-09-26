@@ -6,7 +6,26 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (real S1 install and S2 production join observed)
 
-Newest observation: the same native planner `abdcaaab98a9014a9` returned
+Current action: same native `owner1807` session remains live and source-clean.
+The W1–W4 revision withdrew custom Bash containment and reconstruction-permit
+cases, but independent review still requires init-request replay/identity-loss
+refusal, all six protected expected bindings, nonmutating liveness observation,
+late completion refusal and genuine native positives. No implementation accepted.
+Canonical `CLAUDE.md` drift repair `8d30a072` is independently reviewed and pushed:
+current plan/PROJECT govern prerequisite repair, with R0/deploy/release/extra-F0
+attempt boundaries unchanged. Native baseline files were not silently copied.
+
+Credential-free Docker prerequisite built image
+`8cb968ea00101662287a25a12d1a82270864e3323336c53d0c4d1df5efef9f29`;
+loader smoke passed but unchanged-security SRT namespace creation failed exit 1.
+No signing/API cases ran. Evidence `adev-1807-srt-prep.jKlZGL/RESULT.md` digest
+`c8b24240f1da331558c888915e29e4b564968c74e013ccfb2193b6eccd6f0793`.
+The same artifact retains a separately isolated existing-VM proposal; reviews
+require inherited bind/writable-directory resets, old-state masks, private tmp,
+proc-support protection and scoped cleanup. No VM unit launched at this snapshot.
+Do not relax the Docker boundary or reuse old worker state to force a pass.
+
+Historical consolidated-report observation: the same native planner `abdcaaab98a9014a9` returned
 `planner_consolidated_FULL.md` (69,044 bytes; SHA-256
 `9a03ce1d3133aa877ebb1f9b595c165bfb703636b4840f01a533ecfa4c3b5835`).
 It explicitly leaves AC7/authenticated-owner authority OPEN; planned consistency
@@ -32,7 +51,7 @@ failure, source/counterfeit faults, protected mutation boundary, full closure,
 physical duplicate and update/rollback/uninstall requirements. This is a
 prospective profile selection only, not product or release acceptance.
 
-Latest restart action: qualifying full-input native critic
+Historical qualifying full-input native critic:
 `a8dad62f29eafa31e` completed in 3m14s with **BLOCKED**, composite 2.0/5.
 Actual tool records establish complete reads of the retained planner report,
 correction ledger and first critique; this closes review-input exposure, not
