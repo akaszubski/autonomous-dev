@@ -133,6 +133,16 @@ coordinator invocation was observed. The native coordinator was directed to
 close this exact gap while preserving the failed attempt. Report-content
 acceptance and reconstruction-boundary qualification remain separate and open.
 
+Subsequent native coordinator result `toolu_019Rb1Fm61wkaMMoY21RcFRT` at
+`2026-09-26T02:50:23.962Z` successfully returned `git show 178ed211 --stat`;
+this closes that examination gap, not report-content or implementation acceptance.
+Independent composed-prompt review found omitted explicit original-MAC tamper
+preservation, issue/subject bindings in correct-owner reconstruction, and the
+complete seven-branch heartbeat inventory. Mutable activity-log format evidence
+also cannot establish authentic current-session authority. These corrections and
+the complete fifteen-item ledger were sent to the native coordinator before
+plan acceptance; actual incorporation and later behavioral proof remain pending.
+
 Research actual-examination audit found gaps after both terminal reports: required
 `git show 178ed211 --stat` was omitted, affected tracker consumer bodies were
 searched but not read, and external research fetched TUF only (other standards
