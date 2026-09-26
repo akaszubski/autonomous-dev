@@ -10,10 +10,18 @@ Newest independently verified continuation: native critic returned PROCEED at
 05:12:34.649Z, exact export SHA-256
 `ae3af1bb46dda79030607cb49a58d85f4d4d84732f6cf2a155e36e8011255fcd`.
 Full returned reads of anchor6-final, association step2-final and updated manifest
-are independently verified. One selected-input exposure gap remains: critic full
-ledger79 Read has not yet been observed (previous full exposure was ledger73).
-Supervisor requested same-critic full ledger79 examination and bounded confirmation;
-test-master may prepare read-only until that gate closes. Manifest pin is not a read.
+are independently verified. The selected-input exposure gap subsequently closed:
+actual returned ledger79 reads cover lines 1–1142, completed at 05:15:56.994Z,
+matching SHA-256 `868fed220afd06361eddcc3133246116c4a505008c25a508b955817bd2b49fc0`.
+The same critic returned a fresh PROCEED at 05:16:47.015Z; exact report SHA-256
+`96c5655f71cf98870683f3bfedfc66cf82afd3f011d14f8a131490ee64128c02`.
+It examined whether any normative requirement existed only in the ledger and
+found counterparts in the frozen plan/anchors. The filename v79 contains numbered
+items 1–78; the count discrepancy is recorded, not silently treated as evidence.
+Test-master was cleared to write after confirmation; observed reconnaissance
+identified transcript-existence, dedup and cache conditions needed to prevent
+vacuous cases. Acceptance still requires actual RED behavior, implementation,
+independent validation and native workflow proof. Manifest pin is not a read.
 The selected ledger79 snapshot is immutable; later log entries are history-only.
 No product/F0 acceptance or protected source edits are established by this verdict.
 
