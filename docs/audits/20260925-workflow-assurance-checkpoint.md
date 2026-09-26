@@ -6,6 +6,30 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Successor observation supersedes the setup-only diagnosis below, without erasing
+it: native test-master changed only LN12-R setup to record independently held
+complete bindings. Original seal `9671ea7352f53777a0c88a940c9b6d2ae581ef4eb538fa2c53a70bdb2432e3f0`
+is retained; successor SHA-256 is
+`18f61805375f678258c78fea1dea7da209cab38edc214696a53160f1c644dc1d`.
+The 06:46:45Z run preceded the required fresh critique and is therefore diagnostic
+only, not qualifying RED/GREEN. It reports 53 passed / 1 failed, now because
+Bash, descendant and path-alias dispatch/promotion did not refuse complete,
+valid-MAC reconstruction. This is no longer the original setup KeyError, and
+does not establish a native escape or authenticated origin. MCP/write-tool and
+native AC7 remain UNMEASURED. See the preserved
+[diagnostic and sequencing finding](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844033309).
+
+Live revalidation confirmed parent PID63075 and keeper PID63602, with the same
+`adev-assurance:owner1807` session. The test-master returned and a fresh native
+critic is running. Coordinator reports missing ordering-gate verifier wiring and
+a governing contradiction between independent storage (not origin) and the
+complete-reconstruction refusal requirement; these causal claims are under
+separate independent review, including possible wrong-address completion refusal.
+Do not manufacture an origin check from self-declared labels, weaken the frozen
+refusal or treat a wrong-address failure as the required refusal. Fresh critique
+and successor binding must precede a qualifying rerun; no restart, deployment,
+release or F0 acceptance follows from this diagnostic.
+
 Latest native milestone: implementer returned after 49m43s; candidate is not
 accepted. Independently verified recapture retained complete raw files, pytest's
 own exits and unchanged pre/post sealed-test hashes: authority 33 passed/exit0;
