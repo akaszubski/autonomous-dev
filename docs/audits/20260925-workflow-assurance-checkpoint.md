@@ -6,6 +6,19 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Latest delivery diagnostic: a fresh private existing-transport trial reached clean
+source gate/stamp and successful settings replacement, but independently verified
+loss of an unrelated project hook and custom deny. Execution ERROR127 and
+preservation FAIL are separate; no install/native/product pass. Private
+`adev-populated-deploy2.9FLsak/RESULT.md` and immutable before/step/after/recheck
+records retain evidence. The prior `adev-populated-deploy.exaIQ6` failed envelope
+attempt is unchanged. Corrected preflight proved Git and literal `/dev/null`
+operation while network and outside-root persistent writes refused. No real
+consumer/global state, credentials or model were used. #1809 now has the bounded
+finding; qualifying populated omission remains blocked on a preserving installed
+route, not permission to remove its sentinels. Native #1807 parent/keeper remain
+live and source implementation continues; no restart or acceptance.
+
 Phase-one specification continuation: independent docs-only review accepted
 allocation columns on all 23 existing declaration shapes, preserving each event,
 matcher, owner and surface. Recovery/completion use WA-W3/WA-E2; supporting

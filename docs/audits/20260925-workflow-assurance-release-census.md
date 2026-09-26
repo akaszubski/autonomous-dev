@@ -798,6 +798,19 @@ first plausible declaration. The current startup-only fixture does not prove
 cross-layer permissions precedence, physical exactly-once execution, installed
 product behavior or Linux support. No row above authorizes deletion yet.
 
+Bounded actual transport observation (2026-09-26): private pinned source
+`3b85f3de` ran canonical `deploy-all.sh --local --no-global` into a disposable
+populated consumer, with no network or outside-root persistent writes. Independent
+review verified clean source gate/stamp and successful settings replacement, then
+loss of an unrelated SessionStart registration and custom deny rule; other
+declared sentinels survived. Execution ended127, so installation did not complete;
+preservation is separately FAIL. Original strict-equality observation and the
+required-member recheck are both retained, never rescored into a pass. See private
+`adev-populated-deploy2.9FLsak/RESULT.md`; this supports WA-L1d's existing defect,
+not native hook/product qualification. The earlier `exaIQ6` envelope ERROR remains
+preserved. Do not bypass preservation or manually repair the failed subject to
+qualify the populated omission case; fix the canonical writer and re-prove.
+
 ### #1809 mutation-route admission — draft, not installed proof
 
 Source-known routes below remain migration/retention candidates, not observed
