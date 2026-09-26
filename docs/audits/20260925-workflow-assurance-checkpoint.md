@@ -4,7 +4,34 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (sealed RED and native implementation)
+## Latest restart pointer — 2026-09-26, #1807 held for hook-deadlock decision
+
+Native Claude parent PID 63075 and lock keeper PID 63602 were live at the last
+check; `adev-assurance:owner1807` was paused at a question about an unapproved
+one-shot write-gate bypass. The marker `/tmp/skip_write_pipeline_gate` was absent
+at that check. Three earlier consumptions by `autonomous-dev:implementer` are
+logged with `reason: unspecified` (two edits of `pipeline_state.py`, one of
+`pipeline_completion_state.py`). The cause is the independently filed
+[#1811 namespaced-agent gate defect](https://github.com/akaszubski/autonomous-dev/issues/1811#issuecomment-5845428861).
+No further bypass is authorized without the user's specific decision; do not
+restart the live run or erase the landed work/evidence to tidy the checkout.
+
+The landed libraries are **unaccepted candidate edits**. Independent read-only
+review found a pending-step false completion and a direct batch terminal
+declaration that can clear obligation before work is complete; details are on
+[#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5845433293)
+and its [pending-step follow-up](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5845435853).
+An isolated HOME/USERPROFILE targeted test rerun collected 87 cases: 73 passed,
+14 failed, exit 1. Ten failures hit an undefined `_has_completion_stamps` helper;
+B-G5 and P3-prime remain substantive REDs. Ruff reports F821 plus an unused
+import. The real pipeline-secret file count remained 433 after the rerun.
+See the [raw-result summary](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5845444207).
+Native origin, Write/MCP and full F0 qualification remain unmeasured. After the
+specific hook decision, the next native repair must retain these failures and
+add pending/running/completed and batch-terminal negative/positive controls;
+no deployment or promotion follows from the partial green count.
+
+## Earlier pointer — 2026-09-26 (sealed RED and native implementation)
 
 The native #1807 test-master returned the completion/ledger amendment RED, and
 the coordinator independently reran all **five** existing #1807 test files.
