@@ -6,6 +6,19 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+The live native coordinator independently rechecked the #1807 test-cleanup
+repair with a lock-family canary that changed the inventory hash and restored
+it exactly. Its four-file pre/post run (Claude tool
+`toolu_01T6EAYgpZmwtZiou7XWMaVE`) returned raw exits 0/0/0/0 and
+33+54+34+18 = **139 passed**, with identical before/after inventory digest
+`43f1cfce3c397b3acf0e12fabd9474b99818066e366aac14a29c739f32e8b483`;
+the live lock pathname retained inode377266863. This qualifies the scoped
+cleanup measurement, **not** the control or F0: the measured active-obligation
+completion deletion dodge below remains open. The native coordinator has sent
+its bounded amendment for independent critique before test-master assertions
+and implementer source repair; no new acceptance case or source fix is approved
+by this cleanup result alone.
+
 Decisive new #1807 negative: a credential-free isolated probe against the
 candidate **actual completion writer** measured an active obligation with
 genuine intact sentinel → completion recorded, forged provenance/nonce →
@@ -21,14 +34,16 @@ no-obligation/terminal positives through independent review, and repair via
 native implementer. Neither the test-cleanup fix nor source-green suites close
 this security and workflow gap; #1807/F0/release remain open.
 
-Further native observation: the bounded consistency implementer returned and
+Earlier native observation, before the cleanup repair above: the bounded
+consistency implementer returned and
 the coordinator independently reran four scoped candidate test files. They
 reported `rc=0`/139 passed, but a discriminating `/tmp` before/after inventory
 found **84 new entries** (74 locks, 10 JSON) unrelated to the live run. The
 frozen cleanup helper constructed `.json.lock` while the real state writer
 creates `.lock`. This is [recorded on #1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844411371).
 The native test-master is repairing exact per-row cleanup; the green counts are
-provisional until the same measured run leaves no attributable artifacts.
+provisional until the same measured run leaves no attributable artifacts; the
+new four-file measurement above resolves this isolation caveat only.
 No broad GC or glob deletion is authorized while the keeper holds the live
 lock. A pytest-gate completion was recorded to unblock specialist ordering
 after actual zero exits, but **before** clean isolation; it is not accepted
