@@ -950,6 +950,29 @@ or authority to remove archived owners. Configured-route permit, meaningful
 refusal, missing-owner faults, installed proof and canonical registry selection
 remain open.
 
+WA-L3 contract selection (2026-09-26; not implementation or proof):
+`docs/HOOK-REGISTRY.md` is the single canonical hook inventory for selected
+identity, declared trigger/status, controlling configuration and detailed-behavior
+links. `docs/HOOKS.md` remains the behavior/architecture reference, not another
+inventory; preserve its distinct consolidation/history information. This follows
+their existing Purpose/See-also relationship, not an assertion that either stale
+document currently matches installed behavior. Neither proves native activation.
+
+Reuse WA-L3-01 for nonempty executable command implementation; WA-L3-02 for
+source/manifest missing-source and orphan reconciliation; WA-L3-03 for referenced
+hook source existence and manifest membership; WA-L3-04 for installed dependency
+integrity without source fallback; WA-L3-05 for canonical registry coverage and
+valid detailed-behavior links. WA-L3-01/02/03/05 inspect the selected commit tree
+and reference HEAD, including validator/configuration/document bytes, rather than
+ambient working-tree files. WA-L3-04 consumes its separately identified installed
+subject. Applicable missing validators, registry, required docs or selected source,
+and uninspectable subjects are non-pass; empty/inapplicable selections require an
+explicit profile reason. Preserve ordinary configured-route permit, invalid-subject
+refusal and missing-owner faults before archived-caller retirement. Later index or
+hook mutation must revalidate or refuse; this selection alone does not prove the
+eventual committed tree was checked. Generation remains preparation outside the
+check-only route. All five outcomes remain UNMEASURED for the replacement.
+
 ## Consumer population and support claims
 
 Declared current deploy targets are `autonomous-dev`, `realign`, `spektiv`,
