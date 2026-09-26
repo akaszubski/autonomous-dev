@@ -112,13 +112,18 @@ can be inferred from this Linux result.
 
 Current actionable pointer: native owner-repair session and holder remain live;
 alignment observation passed independent review and both research dispatches
-finished, with examination/content audits finding unresolved gaps below. Unchanged isolated
-Linux baseline is live at handle 58312 / `adev-baseline-run2-178ed211`; it has
-entered real test execution after Git-identity and disposable-GC controls passed.
-Do not duplicate or restart it on an observation timeout. Behavioral failures are
-already visible, but no terminal summary is available: no green or native/macOS
-equivalence claim. No source implementation or global rollout is accepted.
-Pushed documentation checkpoint/census commit is `0c3c43bd`.
+finished, with examination/content audits finding unresolved gaps below. Unchanged
+isolated Linux baseline is terminal exit 1 (not OOM), 565.90 seconds: 17,105 passed,
+1,222 failed, 684 skipped, 21 xfailed, 52 xpassed and 32 errors. Complete raw log
+SHA-256 `29be1bfe7bce7906f6a11bae0513e471d26e43264912c749d9dc41b905fb2376`
+is `baseline-run2.COMPLETE.log` in the existing wheelhouse artifact directory;
+`baseline-run2.SUMMARY.json` binds source/image/dependency/profile limitations.
+Do not rerun it or treat it as green/native/macOS equivalence. No failure was
+classified or waived. Host lock inode remains intact. Native planner returned;
+its required revision must incorporate the research/boundary corrections.
+No source implementation or global rollout is accepted.
+Plan clarification commit `05cc062a` passed ordinary commit checks and was pushed
+to `fix/1779-pipeline-evidence-integrity`; no runtime deployment was performed.
 
 Research actual-examination audit found gaps after both terminal reports: required
 `git show 178ed211 --stat` was omitted, affected tracker consumer bodies were
