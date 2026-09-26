@@ -540,7 +540,7 @@ current behavior is not automatically the replacement acceptance contract.
 | Candidate case / owner | Known declarations (not full population) | Candidate disposition / issue | Outcome to preserve and prove | Gap before freeze |
 |---|---|---|---|---|
 | WA-O1a — `enforce_file_organization.py` | PreToolUse Write/Edit/MultiEdit/NotebookEdit/MCP in `config/global_settings_template.json` and `templates/settings.autonomous-dev.json`; installed activation unmeasured | Migrate the refusal outcome to one proven installed owner, then retire the old registration; #1757 (historical #1034) | Permit allowed root names and below-root writes; refuse disallowed repository-root writes; preserve denial under emitter/telemetry dependency failure | `_repo_root()` conflates a genuine non-Git context with Git failure/timeout; malformed input permits; classifier-loss fallback covers native tools but not MCP. Applicable lost obligations are fault gaps, not permitted cases. |
-| WA-O1b — `validate_claude_md_size.py` | PostToolUse Write/Edit/MultiEdit/NotebookEdit in those same two declarations; no declared MCP matcher; installed activation unmeasured | Migrate any required refusal to an existing guarded transition, retaining the post-write diagnostic only if it adds distinct value; #1757 (historical #1648) | Detect over-ceiling/overlap findings, distinguish warnings, and retain absolute-ceiling fallback when the committed ratchet cannot be read | Runs after the write. A printed block envelope does not prove write prevention or a later guarded transition; no persistent gating state/later consumer was identified. Unreadable existing files and malformed payloads currently skip measurement. Select and observe the governed transition before claiming enforcement. |
+| WA-O1b — `validate_claude_md_size.py` | PostToolUse Write/Edit/MultiEdit/NotebookEdit in those same two declarations; no declared MCP matcher; installed activation unmeasured | Migrate any required refusal to an existing guarded transition, retaining the post-write diagnostic only if it adds distinct value; #1757 (historical #1648) | Detect over-ceiling/overlap findings, distinguish warnings, and retain absolute-ceiling fallback when the committed ratchet cannot be read. Preserve touched-context applicability: unrelated edits must not inherit an old oversized-file refusal. Freeze permitted absence per profile; changed subjects invalidate prior observations, and warnings remain distinct from required refusal. | Runs after the write. A printed block envelope does not prove write prevention or a later guarded transition; no persistent gating state/later consumer was identified. Unreadable existing files and malformed payloads currently skip measurement. Select and observe the governed transition before claiming enforcement; unmeasured applicable content cannot authorize it. |
 | WA-O1c — `validate_paid_dependency.py` | PreToolUse Write/Edit/MultiEdit/NotebookEdit/MCP in those same two declarations; installed activation unmeasured | Migrate the refusal outcome to one proven installed owner, then retire the old registration; #1757 | Permit clean production content and excluded test/non-Python targets; refuse prohibited production client construction and classifier import loss | Malformed JSON currently permits; the local `_emit` was missed by the scanner before the source-inventory correction. Native refusal and joined evidence remain unproven. |
 
 These are candidate per-control rows, not frozen acceptance or proof that a native
@@ -915,6 +915,9 @@ frameworks: ordinary permit, meaningful invalid-subject refusal and missing-owne
 fault through the actual configured commit route; full manifest reconciliation
 needs missing-source and orphan-entry arms. No validator was removed or relocated
 by this review. Consumer installation does not qualify maintainer commit controls.
+Installed-import integrity additionally needs deleted-dependency and counterfeit
+source-fallback faults; disappearance from the validator's selected inputs is not
+successful validation. These are prospective cases, not observed passes.
 
 ## Consumer population and support claims
 
@@ -1466,14 +1469,14 @@ Legacy Python dictionary declarations (nine bindings; native validity unresolved
 
 | Declaring owner | Event / matcher | Script / count | Proposed disposition and required retained outcome |
 |---|---|---|---|
-| `P/hooks/setup.py::setup_hooks` | PostToolUse / Write and Edit | auto_format.py / 2 | Migrate registration to the existing modern formatting route; preserve formatting and prove no duplicate execution before retiring the competing writer |
-| same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; pipeline tests alone do not qualify raw Git behavior |
+| `P/hooks/setup.py::setup_hooks` | PostToolUse / Write and Edit | auto_format.py / 2 | Migrate registration to the existing modern formatting route; preserve correct formatting and prove one physical formatter effect for each actual Write/Edit route, with duplicate execution and missing supported formatter non-pass, before retiring the competing writer |
+| same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Pipeline tests alone do not qualify raw Git behavior |
 | same | PreCommit / `*` | security_scan.py / 1 | Migrate security refusal to the configured commit/validation owner; preserve permit, invalid-subject refusal and missing-scanner non-pass |
 | `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
 | same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
-| same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion; invocation is not specialist success |
+| same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion and child-result identity; dispatch-only, missing result and wrong child refuse credit, while failed/unresolved required specialist outcomes cannot authorize progression. Invocation is not specialist success |
 | same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Explicitly decide whether to retain progress reporting through existing status/doc owners or retire automatic PROJECT mutation; completion logging is not equivalent |
-| same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; qualify separately from commit and pipeline success |
+| same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Qualify separately from commit and pipeline success |
 
 Independent read-only caller review: setup's `main → run → setup_hooks` automatic
 mode writes `.claude/settings.local.json` using `existing.update(hooks_config)`,
