@@ -37,6 +37,25 @@ composed file. No planner execution is credited for that refused dispatch.
 Restore the complete actual dispatch input through the required native template;
 do not bypass the hook or substitute a file-size claim for actual input exposure.
 
+Expanded native planner dispatch subsequently launched successfully. Independent
+execution-record audit proves complete retained plan/ledger/qualifying-critique
+Reads as of their read times. The ledger was extended afterward; queued native
+message delivery alone does not prove exposure to those later bytes, so verify
+recorded receipt or reread before accepting the revised result. The coordinator
+explicitly withdrew its environment-authenticity assertion and retained the
+boundary as OPEN. Source worktree remained clean at this observation.
+
+Parallel census contract clarification completed two independent critique rounds
+(REVISE, then PROCEED documentation-only). WA-L3 selects check-only actual commit
+validation of the committing tree/reference, with explicit preparation separate
+from validation and no automatic modification/staging. WA-O1b selects actual
+commit/pipeline-pre-git refusal, not post-write prevention, preserving touched
+context, warnings, ceilings, allowed absence and observation faults. Both include
+partial/alternate indexes, renames/deletions, changed-subject invalidation and
+preservation of unrelated edits. The census marks them prospective, unimplemented
+and unqualified; no runtime release, installed proof, archive retirement or
+whole-denominator freeze follows from this contract selection.
+
 Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
 `pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
 tests that invoke real global age-only state GC. The interrupted capture has no

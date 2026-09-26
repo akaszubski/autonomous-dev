@@ -561,6 +561,19 @@ Any selected persisted state governing a later transition must meet INV-7;
 diagnostic telemetry alone is not that state. Prefer an existing transition owner
 over adding a new gate or parallel state store.
 
+Prospective contract selection, not implemented or qualified: WA-O1b refusal
+belongs to the existing actual commit transition, shared with pipeline pre-git
+validation, rather than a claim of post-write prevention. Evaluate touched context
+in the selected committing tree against its pinned reference HEAD/ratchet,
+including partial staging, renames and deletions; permitted absence remains
+profile-specific. Do not inspect newer unstaged bytes as the committing subject.
+Preserve warning-only overlap findings separately from required ceiling refusal
+and the existing absolute fallback. Unmeasured applicable content cannot authorize
+the transition. Changed tree/reference invalidates earlier proof; prove the
+checked subject is the committed subject or revalidate/refuse. Qualify raw commit
+and pipeline routes separately, preserve unrelated staged/unstaged bytes, and
+reuse existing owners rather than a new post-write gate or state store.
+
 ## WA-O2 bounded source disposition (2026-09-25)
 
 Independent read-only review at `0decd8d3730982ab36cfdb42d7634076fac9ecd3`
@@ -918,6 +931,24 @@ by this review. Consumer installation does not qualify maintainer commit control
 Installed-import integrity additionally needs deleted-dependency and counterfeit
 source-fallback faults; disappearance from the validator's selected inputs is not
 successful validation. These are prospective cases, not observed passes.
+
+Prospective contract selection, not implemented or qualified: WA-L3 pre-commit
+is check-only. Explicit manifest generation/update is a separate preparation
+step before the committing tree and reference HEAD are frozen; the validator
+must neither modify the manifest nor stage any changes. Consolidate source
+membership, missing-source/orphan entries and referenced-hook existence under
+the existing live manifest reconciliation owner, retaining command-implementation
+and canonical hook-registry outcomes. Those checks consume the selected source
+commit snapshot, not ambient working-tree bytes. Source-free installed import
+proof instead consumes its independently identified installed consumer; neither
+subject substitutes for the other. Cover alternate indexes, partial staging,
+renames/deletions and later hook/index mutation: the actual commit route must
+prove the checked tree/reference is the committed one or revalidate/refuse.
+Preserve unrelated staged/unstaged edits byte-for-byte. This deliberately changes
+current automatic generation/staging behavior; it is not delivered reconciliation
+or authority to remove archived owners. Configured-route permit, meaningful
+refusal, missing-owner faults, installed proof and canonical registry selection
+remain open.
 
 ## Consumer population and support claims
 
