@@ -63,6 +63,22 @@ explicit authorized migration. Existing `/status` names a missing active
 `project-progress-tracker`; it remains unqualified and is not a substitute pass.
 No functional source edit, new specialist/store or retirement was performed.
 
+Bounded prior-art/native-contract research (2026-09-26) found source
+`unified_pre_tool.py:852–860` (#1137) explicitly treats `CLAUDE_SESSION_ID` as
+non-privileged correlation metadata and requires revoking its export exception
+if it gains authorization semantics. This contradicts treating the variable
+alone as authenticated owner authority. The supervisor supplied that exact
+source finding to the running revision. Official [hook input documentation](https://code.claude.com/docs/en/hooks)
+describes native JSON `session_id`; [sandbox documentation](https://code.claude.com/docs/en/sandboxing)
+describes configurable filesystem restrictions and tool descendants, with hooks/
+MCP outside that tool boundary; [settings precedence](https://code.claude.com/docs/en/settings)
+describes managed policy composition. These support qualifying the already
+approved composition, not another auth store or documentation-only proof.
+Fetched hook/sandbox text was capped near 50,000 characters; selected relevant
+sections were examined, not entire references. Search engines partly failed and
+returned irrelevant hits. Current docs describe later versions than this native
+2.1.236 run; no newer behavior is assumed accepted on the pinned executable.
+
 Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
 `pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
 tests that invoke real global age-only state GC. The interrupted capture has no
