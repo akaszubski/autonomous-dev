@@ -1725,8 +1725,8 @@ Legacy Python dictionary declarations (nine bindings; native validity unresolved
 | LEGACY-02 | same | PostToolUse / Edit | auto_format.py / 1 | Preserve the distinct Edit physical-effect arm with the same formatting, duplicate and missing-formatter obligations |
 | LEGACY-03 | same | PreCommit / `*` | auto_test.py / 1 | Migrate test/coverage requirements to the actual commit transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Pipeline tests alone do not qualify raw Git behavior |
 | LEGACY-04 | same | PreCommit / `*` | security_scan.py / 1 | Migrate security refusal to the configured commit/validation owner; preserve permit, invalid-subject refusal and missing-scanner non-pass |
-| LEGACY-05 | `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
-| LEGACY-06 | same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
+| LEGACY-05 | `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Select dangling default-registration retirement after supported-consumer reconciliation; preserve explicitly required useful-context presentation through qualified existing loading/recovery/status owners, never as examined-read evidence |
+| LEGACY-06 | same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Select obsolete fixed-15-command default-registration retirement for the current toolkit profile; retain any explicit consumer-owned cap until authorized migration/exemption, with no replacement arbitrary count gate |
 | LEGACY-07 | same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion and child-result identity; dispatch-only, missing result and wrong child refuse credit, while failed/unresolved required specialist outcomes cannot authorize progression. Invocation is not specialist success |
 | LEGACY-08 | same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Select migration to the existing read-only status/report path, preserving evidence-bound progress presentation; retire automatic PROJECT percentage mutation only after supported-consumer promises and replacement outcomes are qualified. Completion logging is not equivalent |
 | LEGACY-09 | same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Qualify separately from commit and pipeline success |
@@ -1742,6 +1742,25 @@ named rows until migrated or explicitly dispositioned; unknown remote/manual
 populations are not represented by fixture coverage. Reuse D0-02/03/04/08 for
 preservation, zero-mutation conflict refusal, physical execution and retirement.
 No variant here certifies native validity, execution or deletion authority.
+
+LEGACY-05/06 selections are prospective legacy-seeded POPULATED-3 updater
+variants, not effective normal-profile activation. For LEGACY-05, any required
+historical display keeps a named variant until its exact content/timing/source
+promise and observed replacement are frozen. Historical display content remains
+UNKNOWN; native intent loading or advisory recovery text is not already-proven
+equivalence. Missing/stale/wrong-project required guidance cannot pass, and
+actual PROJECT examination remains independently required by workflow cases.
+For LEGACY-06, preserve current simplicity through WA-M1's dependency-inclusive
+burden criteria and D0-01/02 actual command availability, not a new count gate.
+An explicit retained cap requires its separate permit/refuse policy variant;
+missing-subject non-pass is the proposed retained-profile requirement, not the
+old behavior: the archived hook permitted a missing command directory.
+Neither bare UserPromptSubmit declaration establishes native PreCommit refusal.
+For both variants, D0-02/08 must show exact owned-binding removal, unrelated
+same-event/settings preservation and stable repeats; D0-03 requires refusal
+before mutation for ambiguous/modified ownership or unresolved required consumer
+promises. D0-04 physical-effect obligations remain distinct. Source absence,
+archived labels and unknown remote membership authorize no deletion.
 
 Independent read-only caller review: setup's `main → run → setup_hooks` automatic
 mode writes `.claude/settings.local.json` using `existing.update(hooks_config)`,
