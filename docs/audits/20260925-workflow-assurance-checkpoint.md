@@ -4,7 +4,49 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current pointer — 2026-09-26 (local transport accepted; S1/S2 not run)
+## Current pointer — 2026-09-26 (capture correction accepted locally; S1/S2 not run)
+
+The new Claude `/implement --fix` run `4163c85f3c5a0353` is terminal and its
+lifetime lock released. Final-byte no-write spec-validator PASS, reviewer
+APPROVE, security PASS, doc-master PASS and scoped CIA PASS are recorded for
+that run; Codex independently reran its focused suite (`67 passed`, raw exit
+`0`). The capture profile now hardcodes
+`/opt/adev-probe/ordinal12-install-capture` and does not create it. Final
+SHA-256: frozen contract `2fd2591a592d450f6c3ac4d4be0e12e3bd395f75c16e1b328c4a8167f9323e88`,
+driver `26b69720669967078d6c5a2f0acd20aac8f8cc342e0afff37506f030ffa0c8d0`,
+profile `29788f1643e3f080bdbe1c67d75ea487391c6471b9918842451a8036d1da3c55`,
+tests `2cb55fcdce0652805bf9df514249fd366e7c359c51897cd423b729f1b685eebc`,
+P-prime manifest `678a10691ed923de165699bee404d152900b01553d0e5e183e2529046e7c671e`,
+loader-source manifest `f38271b4643b8830a5a2f7fa649841e6b5c2abcc75d65b638ef8f51a2da98434`.
+
+Independent read-only pre-S1 recheck matched those local bytes and the two
+corrected subjects (`build_binding.py` `aa2697b4…c09cedf1`, loader
+`4ab0b724…879236e5`). The worker installer remains pinned `76086c8d…a50bf7c7`
+and PUBLIC loader remains baseline `55567be0…64e8d73`, both root:root 0444;
+the old P source's five reusable leaves match all manifest digests and are
+root:root 0444. The two fresh staging roots and new capture path are absent;
+both named services are not-found/inactive/dead, no named installer/driver/native
+process is live, and all five installer runtime-collision paths are absent.
+This is a **PASS for the local source/evidence and before-state gate only**, not
+proof that S1 staging/install, S2 join, root-owned rollback or native F0 works.
+The historical nonempty capture remains untouched. S1 must recheck bytes and
+worker idleness at point of use, stage exact-six P-prime plus the separate
+loader/profile/manifest source, create the dedicated empty root:root 0700
+capture, then run the guarded installer. No worker write, credential read or
+native launch occurred in this checkpoint.
+
+### Superseded pre-fix pointer (historical)
+
+Pre-S1 independent source/evidence gate is currently **FAIL**: the pinned
+installer calls `fresh(require_empty_capture=True)` before mutation, and its
+existing root:root 0700 capture directory contains preserved historical raw
+outputs, telemetry and a driver result. The current ordinal12 profile does not
+select a separate capture directory; invoking it now would refuse. No capture
+was cleared. A fresh `/opt/adev-probe/ordinal12-install-capture` target was
+confirmed absent read-only. The scoped fix is a profile-only pin to that new
+empty root-owned directory, with real freshness opposite-arm proof and new
+final-byte review, before S1 is reconsidered; see
+[#1773](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5841511707).
 
 Claude `/implement --fix` run `81e2e577cbb3efc1` is terminal and its lifetime
 lock released. The final local ordinal12 transport under
