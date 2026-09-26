@@ -6,6 +6,21 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Decisive new #1807 negative: a credential-free isolated probe against the
+candidate **actual completion writer** measured an active obligation with
+genuine intact sentinel → completion recorded, forged provenance/nonce →
+refused, but sentinel **deleted, `{}`, or corrupt → completion recorded**.
+Tool `toolu_017Jd6oFRUDjGVf1GdGbXMLK` reported rc0/no residue and unchanged
+live lock inode377266863. The [measured result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844443485)
+supersedes any inference from 139 passing tests: the candidate has a
+completion-writer deletion dodge. Frozen B-G4 measured only dispatch; the
+LN12-R paired completion positive itself used an absent sentinel under an
+obligation, baking this permission into the test. Preserve the genuine/forged
+controls, add active absent/empty/corrupt completion negatives plus genuine
+no-obligation/terminal positives through independent review, and repair via
+native implementer. Neither the test-cleanup fix nor source-green suites close
+this security and workflow gap; #1807/F0/release remain open.
+
 Further native observation: the bounded consistency implementer returned and
 the coordinator independently reran four scoped candidate test files. They
 reported `rc=0`/139 passed, but a discriminating `/tmp` before/after inventory
