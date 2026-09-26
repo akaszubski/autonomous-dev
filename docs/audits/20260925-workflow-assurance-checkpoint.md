@@ -22,6 +22,21 @@ execution, and reduce duplication. No test-master/implementation acceptance,
 deployment or release is inferred. Re-poll that existing session; do not restart
 it merely because a review or observation interval expires.
 
+Parallel source audit found no existing owner independently retains all six
+expected fields: full STEP0 records the completion-ledger run before creating
+the sentinel but omits issue; base is captured into the sentinel only; separate
+pipeline state lacks owner; native dispatch/completion paths prefer environment.
+The ledger's surviving `current_run_id` is an obligation anchor, not authenticated
+native authority. Empty/stripped sentinel applicability therefore needs explicit
+reconciliation with ordinary absence, recovery and terminal/expiry semantics.
+The supervisor supplied this evidence to the same native session and explicitly
+rejected treating `CLAUDE_SESSION_ID` as authenticated merely by assertion.
+The first consolidated planner dispatch was refused by prompt integrity (933
+literal words versus 2,333 baseline, 60% shrinkage), despite a 3,104-word retained
+composed file. No planner execution is credited for that refused dispatch.
+Restore the complete actual dispatch input through the required native template;
+do not bypass the hook or substitute a file-size claim for actual input exposure.
+
 Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
 `pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
 tests that invoke real global age-only state GC. The interrupted capture has no
