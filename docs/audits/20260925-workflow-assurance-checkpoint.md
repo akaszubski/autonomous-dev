@@ -6,6 +6,22 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Independent native review rejected the first completion-authority amendment
+(REVISE 2.6): its proposed genuine-positive fixture lacked a sentinel witness,
+three named hosts tested dispatch rather than completion, and its negatives
+missed additional early-return forms. The revised amendment received PROCEED
+3.6, **not** control acceptance: the critic then found that the proposed
+absent-sentinel refusal depends on `_active_obligation`, whose apparent
+fail-closed exception arm is unreachable because `_read_state` converts
+unreadable/invalid state to `{}`. A controlled probe of the same active ledger
+also measured `_active_obligation=True` when fresh but `False` after changing
+only its mtime to 2h1m old; the actual live ledger was 340s old at that probe,
+so this is a reproducible stale-state case, not a claim of current live expiry.
+See the [#1807 finding](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5844564664).
+The in-scope decision is to test and repair this fail-closed dependency before
+qualifying #1807, rechecking its dispatch/alignment/pipeline consumers; no
+source repair or F0 promotion follows from the review verdict.
+
 The live native coordinator independently rechecked the #1807 test-cleanup
 repair with a lock-family canary that changed the inventory hash and restored
 it exactly. Its four-file pre/post run (Claude tool
