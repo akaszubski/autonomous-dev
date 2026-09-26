@@ -39,9 +39,19 @@ qualified-executor claim remain. A fresh specialist is authorized from fixed,
 fully read inputs after this completed-agent failure; do not restart the native
 parent/run or discard rejected reports. Fresh dispatch actually launched in the
 same parent/run. Independent transcript audit establishes all six frozen inputs
-returned in full by 04:18:53.337Z, matching the dispatch digest pins. Its native
-digest command and returned final report were not yet observed; exposure is not
-incorporation or acceptance. Source remains unmodified; acceptance is pending.
+returned in full by 04:18:53.337Z, matching the dispatch digest pins. Its actual
+final returned at 04:26:45.181Z; exported `planner_PLAN_v6.md` matches all 63,132
+UTF-8 bytes, SHA-256
+`4e34a9e493df1464e8051849f38877512bdebd571a34643bb005b694284142cd`.
+The child disclosed it had no Bash tool; coordinator hash verification returned
+at 04:27:01.455Z and matched all six pins. This is not a child digest command.
+Independent bounded design review still requires REVISE: absent-carrier init
+accepts model-declared mode/issue/subject without an established native-authorized
+expected source; active/terminal precedence and resume verification disagree;
+B-I4's ignored forged-mode claim contradicts request-selected mode. Name/qualify
+the existing authoritative route or keep that initialization unresolved/refused;
+two matching copies do not cure the gap. No implementation accepted. Source
+remains unmodified; genuine native critic and corrected design remain pending.
 Governing refusal scope is current-native authority/guarded effects,
 not an invented blanket requirement that every Python call raises an errno;
 the strict failed disposable probes are not retroactively passed by that fact.
