@@ -6,6 +6,35 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current pointer — 2026-09-26 (sealed RED and native implementation)
 
+Latest native milestone: implementer returned after 49m43s; candidate is not
+accepted. Independently verified recapture retained complete raw files, pytest's
+own exits and unchanged pre/post sealed-test hashes: authority 33 passed/exit0;
+identity 53 passed/1 failed/exit1; wiring 34 passed/exit0; legacy #358 7 passed/
+5 failed/exit1. Raw files in native session `e3c14df7-da93-4232-8ccd-2ae6dcbd53db`
+scratchpad have SHA-256:
+
+- `run1_authority_raw.txt`: `920c77c30d2fe4ab2f6dd6f87cc57bd58f40341ac5c1d2cc40f839c604ac7c2d`
+- `run2_identity_gates_raw.txt`: `509b2ce0227c3c26821be8e9eaec0130003d1c7212445bae0b76a5b4a795a052`
+- `run3_wiring_raw.txt`: `3f3fe68ca32f9b0065f54e089ea3b8e6bd9969d2c93a35e6aef946522d34d036`
+- `run4_issue358_raw.txt`: `d8acbac287c8cb2d87a00de2cdab3195ee33fd7073d0e2eee1c4b1378cbce6db`
+
+LN12-R fails during setup: `_obligation` supplies only owner/run/issue to the
+legacy recording API, then demands six expected fields. This is not an observed
+permit/refusal or failed genuine initializer. Narrow test-master successor
+preparation is [authorized](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5843988680):
+establish independently held complete bindings, preserve original seals/failure,
+retain every equality/signing/model-write/actual-guard assertion, independently
+critique and bind the successor before measurement. Do not invent expectations
+from sentinel/ambient data, edit tests via implementer, or relabel any ensuing
+refusal failure as success. Native/AC7 qualification remains outstanding.
+The four additional existing-test payload-key substitutions are narrowly
+[scope-bound](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5843976256),
+with assertions/golden expectations and differential-review gates preserved.
+Read-only JSON/byte checks attribute the five missing legacy ExitPlanMode
+registrations to pinned base `178ed211`; this is not an executed base-suite pass
+or waiver. Logging/history and LEGACY-05/06 prospective selections are now pushed
+as `5689f31d` / `306f2c0d`; finite census and release outcomes remain unaccepted.
+
 Safety intervention: actual implementer broad unit/integration tool
 `toolu_01PTukXtnRh9ucPgcBWS2qXG` was interrupted (recorded exit144), followed by
 two unsafe retries. Supervisor verified and terminated only test groups 48128,
