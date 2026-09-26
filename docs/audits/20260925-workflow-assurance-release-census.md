@@ -1506,7 +1506,7 @@ Legacy Python dictionary declarations (nine bindings; native validity unresolved
 | `P/lib/plugin_updater.py::_activate_hooks` | UserPromptSubmit / bare list | display_project_context.py / 1 | Retire dangling registration only after dispositioning any required context-presentation outcome; matching plugin source was not found |
 | same | UserPromptSubmit / bare list | enforce_command_limit.py / 1 | Propose retiring the archived 15-command policy registration, subject to consumer/intent disposition; do not revive a dangling path merely for registration parity |
 | same | SubagentStop / bare list | log_agent_completion.py / 1 | Migrate to existing session/completion consumers with joined actual completion and child-result identity; dispatch-only, missing result and wrong child refuse credit, while failed/unresolved required specialist outcomes cannot authorize progression. Invocation is not specialist success |
-| same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Explicitly decide whether to retain progress reporting through existing status/doc owners or retire automatic PROJECT mutation; completion logging is not equivalent |
+| same | SubagentStop / bare list | auto_update_project_progress.py / 1 | Select migration to the existing read-only status/report path, preserving evidence-bound progress presentation; retire automatic PROJECT percentage mutation only after supported-consumer promises and replacement outcomes are qualified. Completion logging is not equivalent |
 | same | PrePush / bare list | auto_test.py / 1 | Migrate test/coverage requirements to the actual push transition; passing applicable tests permit, failed tests refuse, and a missing runner cannot pass. Qualify separately from commit and pipeline success |
 
 Independent read-only caller review: setup's `main → run → setup_hooks` automatic
@@ -1520,3 +1520,18 @@ so update success cannot prove registration or execution. These caller obligatio
 belong to WA-L1/L2 and the corresponding workflow family, not a new installer.
 All dispositions remain proposals, not deletion authority or observed native
 activation; preserve unrelated settings and prove selected outcomes before removal.
+
+Progress disposition is prospective and unqualified. Closed historical
+[#40](https://github.com/akaszubski/autonomous-dev/issues/40) promised automatic
+PROJECT percentage writes; identify supported consumers relying on that promise
+and explicitly authorize/migrate it before retirement, rather than silently
+substitute a display. Current `commands/status.md` still names a missing active
+`project-progress-tracker` specialist, so it is not a working replacement.
+Reuse existing status/report and completion/evidence owners, not another agent or
+store. Displayed progress must name its denominator, accepted-case evidence,
+subject/version and limitations; failed/unmeasured outcomes grant no credit and
+missing required status ownership cannot report success. No automatic mutation
+of intent gate bytes follows from completion records. Explicit intent changes
+remain a separate authorized path. This selection preserves progress value while
+respecting PROJECT.md's gate-input purpose and one-topic/one-home rule; it grants
+neither consumer acceptance nor deletion authority.

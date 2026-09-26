@@ -56,6 +56,13 @@ preservation of unrelated edits. The census marks them prospective, unimplemente
 and unqualified; no runtime release, installed proof, archive retirement or
 whole-denominator freeze follows from this contract selection.
 
+The legacy progress row also completed two independent documentation-only reviews.
+It now selects evidence-bound status/reporting rather than automatic PROJECT
+percentage mutation, while preserving historical #40 consumer promises pending
+explicit authorized migration. Existing `/status` names a missing active
+`project-progress-tracker`; it remains unqualified and is not a substitute pass.
+No functional source edit, new specialist/store or retirement was performed.
+
 Latest safety hold: the fresh #1807 native run attempted the whole-suite baseline
 `pytest --tb=no -q`, then the supervisor interrupted it after identifying regression
 tests that invoke real global age-only state GC. The interrupted capture has no
