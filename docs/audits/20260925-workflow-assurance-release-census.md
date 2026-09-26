@@ -1037,6 +1037,17 @@ This is a **known current violation to remove before release**, not an approved
 exception to PROJECT.md and not a reason to delete the validators without
 preserving their distinct outcomes.
 
+The same effective `pre-commit` also unconditionally calls
+`scripts/validate_structure.py` under `set -e` (source hook line 22). The
+configured `core.hooksPath` points to the primary checkout's `.git/hooks`, and
+that effective `pre-commit` was byte-identical to `scripts/hooks/pre-commit` at
+this local inspection. `validate_structure.py` checks documentation locations,
+duplicate/root layout, tracked `.claude` files and component counts, returning
+nonzero on detected errors. This is an additional active commit-control route,
+not one of the five archived validators below; preserve and disposition its
+distinct outcomes in WA-L3. Registration/source behavior is established, but
+an installed commit-path refusal and ordinary permit have not been replayed.
+
 | Archived validator | Required value / disposition proposal | Evidence gap before retirement |
 |---|---|---|
 | `validate_commands.py` | Preserve refusal for missing/empty command implementation; reuse the active command-file validator that already extracts that section | Active validator delegates absence to the archived owner; no equivalent replacement yet |
