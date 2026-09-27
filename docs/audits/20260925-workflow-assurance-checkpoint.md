@@ -4,6 +4,33 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## Latest restart pointer — 2026-09-27, #1807 active; #1818 prep verified
+
+The live native Claude `authority1807v2` session (run
+`66523599c472f49a`, branch `fix/1807-authority-boundary-v2` at base
+`ac3e04c3`) remains in `/implement --fix`; its implementer is running a broad
+baseline in an isolated base checkout. Its edits are uncommitted and unaccepted.
+The library-route classifier now has an independently rechecked four-way
+owner result (blank/unknown refuse; genuine owner permits; intruder refuses),
+but native A7/A9 origin and containment remain **UNMEASURED**. Independent
+read-only review found additional missing synthetic `stop-*`/`test-*` refusals,
+a self-referential sentinel fallback for hook caller identity, and no completion-
+ledger target in the A9 manual probe. These findings were sent to the live
+coordinator and recorded on
+[#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851205598).
+The candidate was approximately +3,154 net lines at this checkpoint, including
+1,698 untracked test/probe lines; the final reviewer must measure subtraction
+and retire avoidable duplicates. No deployment, F0 or release promotion follows.
+
+The separate `fix/1818-evidence-gate-lean` worktree remains at base
+`59f6efb7` with only its untracked pre-edit prep artifact. Independent
+collection reproduced all 134 exact frozen IDs, and the focused baseline
+reproduced 132 passes and the same two inherited failures (raw exit 1).
+The artifact digest and limits are recorded on
+[#1818](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5851198800).
+Do not restart #1818 implementation until #1807 native identity/provenance is
+accepted; the earlier #1818 native run was aborted at F1 before protected edits.
+
 ## Latest restart pointer — 2026-09-26, #1807 held for hook-deadlock decision
 
 Native Claude parent PID 63075 and lock keeper PID 63602 were live at the last
