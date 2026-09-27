@@ -4,7 +4,28 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Latest restart pointer — 2026-09-27, #1807 active; #1818 prep verified
+## Latest restart pointer — 2026-09-27, #1807 run invalid for continuation
+
+The native `authority1807v2` implementer returned uncommitted candidate edits,
+but the live run's sentinel became an identity-less breadcrumb and its
+completion ledger's `current_run_id` was observed as `deadbeefcafe0001`, not
+run `66523599c472f49a`. The implementer associated this with its frozen
+12/12 test/probe pass; exact write attribution and the test-isolation cause
+remain under investigation. The green file result is **not** accepted as
+isolation or native A7/A9 proof. Do not reconstruct signed identity, reuse old
+specialist credit, dispatch more specialists in this run, deploy, or start F0.
+
+The scoped security decision is to amend A6's test implementation so its
+genuine-run positive supplies an independently sourced native caller, record
+the old-to-new obligation/digest mapping and independent review, and make
+`sentinel_self_referential` refuse. The existing candidate accepts that
+circular identity merely to keep A6 green; this does not satisfy #1807.
+Preserve the failed run and candidate evidence; resolve test isolation and
+the applicable #1806 overlap interlock, then start a fresh authorized
+`/implement --fix` and repeat required validation. See the
+[#1807 incident and decision](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851472682).
+
+## Earlier pointer — 2026-09-27, #1807 active; #1818 prep verified
 
 The live native Claude `authority1807v2` session (run
 `66523599c472f49a`, branch `fix/1807-authority-boundary-v2` at base
