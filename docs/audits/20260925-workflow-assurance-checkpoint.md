@@ -8,8 +8,19 @@ not acceptance evidence. Canonical scope remains the
 
 The live native Claude `authority1807v2` session (run
 `66523599c472f49a`, branch `fix/1807-authority-boundary-v2` at base
-`ac3e04c3`) remains in `/implement --fix`; its implementer is running a broad
-baseline in an isolated base checkout. Its edits are uncommitted and unaccepted.
+`ac3e04c3`) remains in `/implement --fix`; its implementer is comparing broad
+base/candidate runs and repairing the candidate. Its edits are uncommitted and
+unaccepted. The broad base ran under `/private/tmp/base1807` (144 failed,
+9,033 passed, 18 skipped); the candidate ran under a hidden `.codex` checkout
+(208 failed, 8,998 passed, 16 skipped, 12 errors). Exact-ID comparison found
+66 newly failing pre-existing IDs, but 49 ratchet and nine profiler failures
+are consistent with the different hidden ancestor; other path/CWD-sensitive
+failures also need a matched-root check. Five existing agent-ordering tests
+returned `deny` instead of expected `allow`, and all 12 new #1807 security-test
+errors stopped at fixture setup (`_session_id` resolved `test-918`). These are
+unresolved, not a net-regression verdict: rerun at matched neutral roots and
+focus the ordering/fixture cases serially before judging the candidate. See
+the [independent delta](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851332073).
 The library-route classifier now has an independently rechecked four-way
 owner result (blank/unknown refuse; genuine owner permits; intruder refuses),
 but native A7/A9 origin and containment remain **UNMEASURED**. Independent
