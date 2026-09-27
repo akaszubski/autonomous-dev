@@ -21,6 +21,15 @@ errors stopped at fixture setup (`_session_id` resolved `test-918`). These are
 unresolved, not a net-regression verdict: rerun at matched neutral roots and
 focus the ordering/fixture cases serially before judging the candidate. See
 the [independent delta](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851332073).
+Subsequently, the base completed under `/tmp/pathprobe/.codex/base2`, matching
+the candidate's hidden-ancestor class: 203 failed, 8,974 passed, 18 skipped,
+raw exit 1. Exact-ID comparison with the earlier candidate narrowed new
+pre-existing failures to eight: five agent-ordering cases and three path/CWD-
+sensitive cases; three base failures were absent in that candidate. The
+candidate's 12 new #1807 security-test errors still stopped at fixture setup.
+This supersedes the earlier unmatched-root *comparison*, not the security
+verdict; the current edited candidate needs its own matched rerun and focused
+serial checks. See the [matched follow-up](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851366464).
 The library-route classifier now has an independently rechecked four-way
 owner result (blank/unknown refuse; genuine owner permits; intruder refuses),
 but native A7/A9 origin and containment remain **UNMEASURED**. Independent
