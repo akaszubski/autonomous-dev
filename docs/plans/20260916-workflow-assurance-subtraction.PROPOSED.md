@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-09-25. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-09-27. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -48,7 +48,7 @@ new subject, independently review the changed cause and preflight, retain the
 R0 still requires authorization identifying the eventual frozen F0 commit/digest;
 a model cannot invent those future identities or record human adoption.
 
-### Verified starting point and first unresolved step
+### Verified starting point and current prerequisite
 
 Working branch: `fix/1779-pipeline-evidence-integrity`, checkout
 `autonomous-dev-1779`; planning base `6649685988a9f960784b55e3b031346e565183aa`.
@@ -56,6 +56,19 @@ The earlier PROJECT.md date-only edit was superseded by the authorized intent up
 preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
+
+Current execution pointer (2026-09-27): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+native run identity, origin and containment remain unaccepted; the
+[#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
+interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
+deployment/settings-preservation gate remain separate prerequisites at their
+respective transitions. Resolve #1807 before another native F0 attempt; do not
+convert a library-route green into native acceptance. The release denominator
+on #1757 is still a candidate, not frozen. Use the
+[restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
+current issue evidence for live order; the historical EX work below remains the
+next native F0 task after the prerequisite. Its isolated offline preparation
+may proceed in parallel; it is not native admission or acceptance.
 
 F0 is incomplete. Ordinal11 completed capture but failed required examination:
 three public Reads, fixture README Read and covers-first were absent.
@@ -81,8 +94,10 @@ verification and promotion authorization still apply; this clarification is no p
 The selected private construction baseline is 13 files / 11,218 physical lines,
 including 8,211 implementation and 3,007 test lines, excluding imported collectors.
 It is not a dependency-closed product size or a portable release.
-The first action is to prepare the single-contract correction, reusing capture and
-comparison code; do not restart sandbox construction or authentication by default.
+Prepare the single-contract EX correction in parallel where isolated, reusing
+capture and comparison code; do not restart sandbox construction or
+authentication by default. Do not admit or run the next native F0 case until
+#1807 and the applicable transition interlocks are accepted.
 
 Preparation minimalism: maintain one canonical staged successor at the existing
 import path. Preserve the frozen baseline and failed artifacts, and bind a complete
@@ -242,11 +257,15 @@ report the blocker; only an explicit user scope change can move it out of v1.
 
 ### 0. Freeze what “whole plan complete” includes
 
-Before another implementation phase, put one release table on #1757 at the planning
-base. Enumerate active controls from both source/policy entrypoints and shipped
-registrations/consumer discovery. Include shell, markdown, CLI and dynamic routes.
+Before implementing a replacement control family or delivery phase, put one
+release table on #1757 at the planning base. Enumerate active controls from
+both source/policy entrypoints and shipped registrations/consumer discovery.
+Include shell, markdown, CLI and dynamic routes.
 Reconcile discrepancies explicitly; a classifier cannot define its own coverage.
 Seed an omitted-route counterexample against the census.
+Prerequisite repairs such as #1807 may proceed under their own frozen issue
+acceptance scope while this census remains unfrozen; they neither freeze the
+release table nor authorize a replacement-family promotion.
 
 The [2026-09-25 two-source census](../audits/20260925-workflow-assurance-release-census.md)
 records exact source populations, shipping discrepancies and candidate acceptance
@@ -290,7 +309,7 @@ F0 native order remains the approved PR8 → EX1 → EX2 → RC2 → PR3–7/9 s
 reusing already qualified unchanged evidence. This plan does not invent new
 attempts or substitute an OS actor's observation for a documentation actor's reads.
 
-### Immediate EX correction
+### EX correction after current prerequisite
 
 Reuse no-overlay binding SHA-256
 `b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`.
@@ -609,8 +628,10 @@ is identified:
 
 No reinstall, relogin or plan reset is a planning prerequisite; execution preflight
 determines any concrete environment requirement.
-The assistant first reconciles scope/status/authority, completes the current EX
-correction and proves F0. The known remaining human checkpoint is the v12-required
+The assistant first reconciles scope/status/authority and may prepare EX
+offline in parallel; it proves the #1807 native boundary and applicable
+transition prerequisites before qualifying EX and F0. The known remaining
+human checkpoint is the v12-required
 R0 authorization naming the actual accepted F0 commit/digest, prepared at that time.
 Other explicit promotion boundaries remain unless the user adopts a specific
 standing conditional authority covering them; do not interpret a generic goal as
