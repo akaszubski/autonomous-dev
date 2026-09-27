@@ -9,21 +9,32 @@ not acceptance evidence. Canonical scope remains the
 The native `authority1807v2` implementer returned uncommitted candidate edits,
 but the live run's sentinel became an identity-less breadcrumb and its
 completion ledger's `current_run_id` was observed as `deadbeefcafe0001`, not
-run `66523599c472f49a`. The implementer associated this with its frozen
-12/12 test/probe pass; exact write attribution and the test-isolation cause
-remain under investigation. The green file result is **not** accepted as
-isolation or native A7/A9 proof. Do not reconstruct signed identity, reuse old
-specialist credit, dispatch more specialists in this run, deploy, or start F0.
+run `66523599c472f49a`. The preserved invalid-run receipt attributes two
+probe incidents: a foreign `CLAUDE_SESSION_ID` reached the live sentinel and
+the stale-session hook removed it; a smoke F1 cleared only that variable while
+`CLAUDE_CODE_SESSION_ID` remained, so `record_run_start` wrote a synthetic run
+ID into the live completion ledger. This attribution is from the probe record,
+not proof that the frozen pytest file itself made either write. Its green
+12/12 result is **not** accepted as isolation or native A7/A9 proof. Do not
+reconstruct signed identity, reuse old specialist credit, dispatch more
+specialists in this run, deploy, or start F0.
 
 The scoped security decision is to amend A6's test implementation so its
 genuine-run positive supplies an independently sourced native caller, record
 the old-to-new obligation/digest mapping and independent review, and make
 `sentinel_self_referential` refuse. The existing candidate accepts that
 circular identity merely to keep A6 green; this does not satisfy #1807.
-Preserve the failed run and candidate evidence; resolve test isolation and
-the applicable #1806 overlap interlock, then start a fresh authorized
-`/implement --fix` and repeat required validation. See the
-[#1807 incident and decision](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851472682).
+Preserve the failed run and candidate evidence. Before a fresh authorized
+`/implement --fix`, isolate *all* stateful probes in a disposable worker with
+private repo, HOME, temp, sentinel, ledger and signing-key paths; reject
+resolved live paths before mutation; control both Claude session environment
+carriers; and verify live-state digests before and after. Prove an intentional
+redirect escape is refused. The current in-process test helper does not cover
+subprocesses, and the #1807 security fixture still has global `/tmp` teardown
+paths. Reconcile the applicable #1806 overlap interlock and repeat required
+specialist validation on the combined subject. See the
+[#1807 invalid-run receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851478413)
+and [#1720 isolation-class finding](https://github.com/akaszubski/autonomous-dev/issues/1720#issuecomment-5851492603).
 
 ## Earlier pointer — 2026-09-27, #1807 active; #1818 prep verified
 
