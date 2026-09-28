@@ -4,6 +4,34 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## Current restart pointer — 2026-09-29
+
+Plan branch `fix/1779-pipeline-evidence-integrity` is pushed at `5a3bef35`;
+the pre-existing local `.claude/settings.json`, plugin metadata and `.Codex/`
+changes are unrelated and must be preserved. #1805's signed native
+`/implement --tdd-first` on clean base `199bf106` timed out its STEP 1 full
+baseline at 900 seconds and wrote `__TIMEOUT__`. The supervisor stopped before
+test-master/source Edit. This is UNMEASURED, not RED or accepted; its
+[#1805 receipt](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5874712853)
+names the session and preserved transcript. [#1846](https://github.com/akaszubski/autonomous-dev/issues/1846)
+owns the reusable, coherent test-scope/result contract needed before retry;
+do not substitute parsed failures or scoped tests for full acceptance.
+
+Parallel isolated signed fix-mode runs are active for [#1845](https://github.com/akaszubski/autonomous-dev/issues/1845)
+(stale three-agent test expectation) and [#1721](https://github.com/akaszubski/autonomous-dev/issues/1721)
+(append-writer scanner incorrectly applying excluded path parts to a `.codex`
+worktree ancestor). Both were focused-RED on the exact base; neither is
+committed or accepted yet. First drafts overgrew the tiny defects and were
+rejected for maintenance burden; only compact native implementer edits with
+raw focused results and required specialist reviews may advance. The #1845
+second interrupted implementer discarded only its own draft with `git
+checkout`, contrary to the supervisor's no-checkout rule; no pre-existing
+user file was affected, and its transcript/credit remain noncertifying. The
+#1721 interrupted in-place mutation was immediately repaired and likewise
+earns no proof credit. After those fixes, independently integrate and re-freeze
+the #1818/#1805 base and exact test denominator; F0 and release outcomes remain
+open. Consult current issue comments and live process handles before resuming.
+
 2026-09-29 #1818 HOLD: the signed same-session native fix run reached a genuine
 implementer Edit of `plugins/autonomous-dev/lib/test_runner.py`, but no
 same-process instrumented F2 was run. The implementer then attempted a denied
