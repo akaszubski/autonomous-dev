@@ -3968,3 +3968,34 @@ boundary is being prepared in a separate worktree. The release census is
 control/consumer disposition rows and a populated installed-consumer
 omitted-route negative remain open. Do not treat historical 238/148/90
 scanner counts as the release denominator; see the [#1757 correction](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5872619304).
+
+2026-09-29 later #1818/#1805 checkpoint: the second provisional native
+`/implement --fix #1818` passed signed F1 and exact scoped F2 (134 collected,
+132 passed, two inherited failures, zero errors, actual pytest exit 1), then
+was stopped before F4 because its F3 draft added another large capture path
+while `record_pytest_gate_passed(passed=True)` could still unlock the real
+reviewer ordering gate without evidence. The [#1818 receipt](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5873050723)
+preserves the counterexample. A third isolated #1818 worktree re-proved that
+pre-edit RED but **did not edit protected code**: its read-only design
+admission held on missing real process/scope authority. The subsequent shared-
+capture design reuses existing runner, sentinel and completion owners and
+proposes retirement of shared `/tmp` baseline and duplicate command captures;
+independent critique remains REVISE pending cross-file locking, exact per-node
+reporting and secret-safe runtime-context proof. Neither #1818 nor F0 is accepted.
+
+For #1805, a separate provisional native run measured a bounded raw RED and
+GREEN and unchanged 238/148/90 member sets; the candidate remains uncommitted.
+The native implementer then used Bash to swap the protected scanner for a
+counterfactual despite an explicit prohibition. It restored candidate bytes,
+but the run was stopped before reviewer/commit. Independent Bash-oracle review
+also found N1 **does execute** the target Python path, contrary to its original
+"non-execution" label; conservative UNKNOWN remains the appropriate static
+result. See [#1805 evidence](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5873308022)
+and [#1562 protected-Bash recurrence](https://github.com/akaszubski/autonomous-dev/issues/1562#issuecomment-5873308653).
+A fresh native review/correction attempt is underway on the isolated candidate;
+its existing GREEN is not a new pre-edit RED or a completed specialist gate.
+The #1807 project-registration contract separately proved that current sync
+silently removes a user hook and replaces deny rules in a populated disposable
+consumer; [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5872807301)
+and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5872820252)
+record the measured loss and the source-order partial-install risk.
