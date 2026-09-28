@@ -45,6 +45,15 @@ spec-blind reviewer is active. The final slice still needs quiescent tests,
 installed-root review, all specialist gates and a dependency-closed burden
 decision. Do not infer native approval or #1802 completion.
 
+2026-09-28 admission correction: the #1802 checkout starts from `ac3e04c3`,
+which does not contain the reviewed #1807 signed-identity substrate. Its live
+fix-mode state has no `issue_number`, `subject` or `hmac_version`; focused tests
+and specialist reviews are source evidence only, not an issue-bound native
+pass. A reviewer requested changes, the implementer remediated, and a
+re-review approved the source candidate, but this does not repair the run's
+legacy identity. Preserve the candidate and run a fresh bound acceptance on
+the prerequisite-integrated checkout before promoting S4 or #1802.
+
 For F0, the no-overlay EX-1 binding hash was independently rechecked as
 `b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`.
 The [#1773 offline scope freeze](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5864542259)
@@ -108,6 +117,24 @@ is owned by a separate active `/implement --fix` test-isolation worktree;
 preserve the contaminated run as non-certifying and integrate only an accepted
 #1821 fix before revalidating the clean #1801 policy subject. Both worktrees
 are uncommitted at this checkpoint; neither issue is complete.
+
+Further 2026-09-28 evidence: #1801's scoped test suite reported raw exit 0,
+but its gate recorded `issue=0`; read-only inspection found `recovered=true`
+with no run ID, issue number, mode or base commit in the signed sentinel.
+The one contaminated PROJECT.md line was restored by the Claude coordinator,
+and independent SHA-256 check returned the original `45c6c262...` with no
+remaining diff. The scanner patch is source evidence only and still requires
+size/redundancy review and a fresh issue-bound run. #1821's first test-only
+candidate likewise had an `issue=0` recovered sentinel and was marked
+NONCERTIFYING on [the issue](https://github.com/akaszubski/autonomous-dev/issues/1821#issuecomment-5865664177);
+its +321/-12 patch was preserved, not promoted. A new clean #1821 checkout at
+`27d1c497` has now initialized a V3-signed fix-mode state carrying run
+`24aa2e83d6180f25`, issue 1821, owner, mode and base commit. Independent
+strict-MAC probes accepted the genuine state and refused wrong-owner and
+tampered-issue copies both before and after the first specialist stop. This is
+only a successful admission/continuity check; its implementation and later
+acceptance gates are still in progress. The [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md)
+now requires this preflight for every parallel native run.
 
 ## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 

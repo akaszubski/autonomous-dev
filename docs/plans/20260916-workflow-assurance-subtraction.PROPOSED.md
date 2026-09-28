@@ -342,6 +342,21 @@ do not claim whole-program percentages or a credible ETA before that checkpoint.
 | M0 | Migrate remaining frozen families and evaluate priority skills; retire redundant paths/tests with each activation | Independent families may use isolated worktrees after their shared contracts stabilize |
 | Final retrofit | Dogfood plus distinct populated and clean installed consumer; lifecycle proof, re-proof, docs and subtraction report | All included families resolved; exact release/profile receipts current |
 
+**Parallel-run admission correction (2026-09-28).** A fresh native
+`/implement` or `/implement --fix` run for this release must start from a clean
+checkout containing the reviewed #1807 fix-mode signed-identity substrate
+(`27d1c497` or a separately reviewed integrated equivalent); merely naming an
+issue in the prompt is insufficient. Before specialist dispatch, verify the
+new sentinel's HMAC and current session owner, run ID, issue number, mode and
+base commit, with wrong-owner and tampered-issue refusal controls. Refuse a
+missing field, legacy/unsigned identity, `recovered=true`, or an `issue=0`
+gate receipt. Preserve any code patch and test output from such a run as
+**NONCERTIFYING source evidence**, but never reconstruct its missing identity,
+reuse its specialist completions, or promote it as issue-bound acceptance.
+Recheck the binding after the first specialist stop and before later gates.
+This is an execution precondition, not acceptance of #1807's still-unmeasured
+native A7/A9 outcomes or a relaxation of any case.
+
 F0 native order remains the approved PR8 → EX1 → EX2 → RC2 → PR3–7/9 sequence,
 reusing already qualified unchanged evidence. This plan does not invent new
 attempts or substitute an OS actor's observation for a documentation actor's reads.
