@@ -1352,6 +1352,52 @@ status; the private absolute path is a maintainer recovery pointer, not a consum
 dependency. Before implementation, materialize the selected portable recipe and
 its concrete pins in the existing delivery owner.
 
+Selected fixture contract (case definitions, **not** an accepted product profile):
+
+| Field | `CLEAN-0` | `POPULATED-3` |
+|---|---|---|
+| Roots | Fresh `<case>/consumer` Git repo, `<case>/home`, `<case>/config`, `<case>/tmp`; all outside source/catalog | A second, distinct set of those four roots; never the dogfood checkout |
+| Before install | No autonomous-dev executable, registration, enablement, cache, retained version or legacy hook in any layer | No autonomous-dev registration in the normal arm; D0-03 variants insert only their declared conflict |
+| Settings files | `<case>/config/settings.json` contains an unrelated nested sentinel and harmless hook; empty `<case>/consumer/.claude/settings.json` and `settings.local.json` | `<case>/config/settings.json`, `<case>/consumer/.claude/settings.json`, `<case>/consumer/.claude/settings.local.json` and `<case>/explicit-settings.json` all exist |
+| Unrelated sentinels | Preserve the original user-setting bytes and normalized unrelated-key projection | Give each of the four files a *distinct* unrelated permission, environment value, harmless hook registration and sentinel; use comments only where that file format preserves them |
+| Owned projection | Native marketplace/plugin enablement plus the exact legacy autonomous-dev hook entries approved for migration | The same limited projection; all other keys and ordering where meaningful remain consumer-owned |
+| Boundary | `env -i`, isolated HOME/CLAUDE_CONFIG_DIR/TMPDIR, source checkout unavailable, no ambient Python import, absolute supported Python with `-I` | Same boundary, independently recorded; an explicit `--settings <case>/explicit-settings.json` participates |
+
+Use the literal layer identifiers `CLEAN-0:user-unrelated` and
+`POPULATED-3:{user,project,local,explicit}-unrelated` in the fixture's harmless
+sentinel values and hook markers, so lost or duplicated layers are attributable.
+The exact JSON keys, harmless hook command, permission entries and scalar values
+must be committed with the *single* D0 runner fixture before a native attempt;
+this census selects their distinctness and preservation obligations but does not
+pretend currently unmaterialized fixture bytes have a digest. Record for each
+case the raw SHA-256 and mode of every settings file before/after, normalized
+unrelated projection, owned projection, Git root identity, executable path/version/
+SHA-256, Python path/version/SHA-256, OS/architecture, catalog commit/tree/ref,
+package and dependency-closure digests, exact argv/cwd/environment allowlist,
+installed/executing paths and bytes, and native-event/hook-process/result join
+keys. Refuse unsupported managed settings rather than guessing their precedence.
+`CLAUDE_PROJECT_DIR`, `PYTHONPATH`, `PYTHONHOME`, `VIRTUAL_ENV`,
+`XDG_CONFIG_HOME` and `XDG_CACHE_HOME` must be absent. No credentials, login,
+model inference or paid calls enter the credential-free lifecycle fixture.
+The known Darwin startup-only Claude/Python executable digests below are
+diagnostic pins, **not** the missing release package, Linux closure or
+last-known-good product/profile digest. These latter pins remain **UNRESOLVED**.
+
+WA-O3 installed-consumer claim pair, on the *same* `POPULATED-3` registered
+invocation and immutable extension files:
+
+| Claim | Selected inventory | Independent result required |
+|---|---|---|
+| Full | Every eligible concrete `*.py` extension in the effective invocation-relative hook-adjacent/project directories, including the marker-deny and neighbor-permit entries with path and SHA-256 | Eligible-file inventory, execution markers, native tool result and hook decision reconcile; denied target is refused and ordinary neighbor allowed |
+| One omitted | Identical claim except **only** the neighbor-permit inventory entry is removed; no file, registration, switch, process environment, invocation or observed runtime record changes | The same independent eligible-file comparison refuses the claim as incomplete; the unchanged real invocation still shows the same allow/deny behavior |
+
+Freeze the actual extension basenames, paths, SHA-256 values, hook path/cwd,
+effective `HOOK_EXTENSIONS_ENABLED`, discovered/executed order, shadow/symlink
+exclusions and native join keys with the installed case *before* its run. A
+missing carrier is **UNMEASURED**, not an empty passing inventory; a declared
+valid-empty carrier is separate. Existing source-fixture and disposable native
+observations above do not satisfy this isolated, installed `POPULATED-3` pair.
+
 Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
 `CLEAN-0` and `POPULATED-3` as disposable fixture IDs, with separate standalone,
 dogfood, isolated-Linux and Claude/Codex process-result profiles; OS/tool versions
