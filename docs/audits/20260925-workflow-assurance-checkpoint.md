@@ -3840,3 +3840,24 @@ source-fallback fault or signed admission has yet passed. Next copy the
 byte-verified installed carrier into a separate isolated native subject,
 freeze its bytes/profile/cases, then run the native positive and negatives.
 [#1807 staging receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870084868).
+
+2026-09-28 native preflight correction and A9 hold: the canonical manifest is
+`plugins/autonomous-dev/config/install_manifest.json` (445 entries, all
+present in the staged carrier), not the stale root `install_manifest.json`
+orphan; the first missing-file count against that orphan was withdrawn. The
+disposable native subject received all 445 canonical installed files and
+byte-identical project settings. An empty `CLAUDE_CONFIG_DIR` loaded the
+command but had no Max-plan login; the authenticated CLI with project-only
+settings worked, but does not satisfy the empty-config acceptance profile.
+Default project settings omit both `SubagentStop` and `UserPromptExpansion`.
+An explicit test-only overlay added those events; with tools disabled, a typed
+`/implement --fix` caused one observed `UserPromptExpansion` start/response
+and signed witness. Strict HMAC check was true for the native session and
+false for a wrong owner. This is **NONCERTIFYING**: the overlay is not the
+installed default, no OS confinement or complete effective-owner proof exists,
+and the witness key was written under the real user's global
+`~/.claude/pipeline_secrets/`. The exact test ledger and key were deleted after
+the observed result was recorded; their absence was checked, so this witness
+is no longer replay-verifiable. Independent preflight refused a full
+`/implement --fix` run because its possible git/deploy effects exceed the
+fixture. [#1807 diagnostic and cleanup](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870280958).
