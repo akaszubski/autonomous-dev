@@ -4102,3 +4102,22 @@ silently removes a user hook and replaces deny rules in a populated disposable
 consumer; [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5872807301)
 and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5872820252)
 record the measured loss and the source-order partial-install risk.
+
+2026-09-29 quota-interruption checkpoint after `5308e728`: two fresh signed
+native `/implement --fix` candidates remain isolated and **unaccepted**. The
+#1846 coverage candidate in `prereq-integration-1757` has source and test
+edits, but an independent counterfactual still makes the overall quality gate
+report PASS for a `nonzero_exit` coverage result with raw return code 2;
+specialist gates did not complete and no commit was made. Its native Claude
+process handle 16685 is absent. The #1848 retirement candidate in
+`retire-1848-scaffolds` stages the two historical Issue #72 integration test
+files for deletion and adds a source-guidance replacement; focused replacement
+tests passed 9/9 (raw exit 0), but exact candidate integration collection is
+1,786 IDs (raw exit 0), below the current CI truncation floor of 1,824.
+Neither candidate may be promoted from those narrow observations. The
+replacement test also needs a simplicity review, and the floor needs a fresh
+CI-environment measurement plus a retained omitted/truncated-run negative,
+not an unmeasured arithmetic adjustment. The supervising Codex subagents hit
+the account usage limit before native specialist acceptance. Preserved issue
+receipts: [#1846](https://github.com/akaszubski/autonomous-dev/issues/1846#issuecomment-5879771768)
+and [#1848](https://github.com/akaszubski/autonomous-dev/issues/1848#issuecomment-5879770409).
