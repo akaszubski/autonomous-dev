@@ -2,8 +2,8 @@
 """
 Plan Gate - Pre-implementation planning enforcement hook.
 
-Blocks complex file-mutating operations when no valid plan exists in
-.claude/plans/. Follows stick+carrot pattern: blocks with a clear
+Refuses complex file-mutating operations when no valid plan exists in
+.claude/plans/. Follows stick+carrot pattern: refuses with a clear
 REQUIRED NEXT ACTION directive pointing to /plan.
 
 Detection strategy:
@@ -13,13 +13,22 @@ Detection strategy:
 2. Exempt documentation files (.md, CHANGELOG, README, docs/)
 3. Check complexity threshold against the CHANGE, not the transport
    (simple edits < 100 lines pass through)
-4. Validate plan exists in .claude/plans/ with required sections
-5. Block if no valid plan, with actionable message
+4. Permit a certified fix-mode run (Issue #1589) — see _fix_mode_permit
+5. Validate plan exists in .claude/plans/ with required sections
+6. Refuse with permissionDecision "deny" if no valid plan, with an
+   actionable message
 
 Escape hatch: SKIP_PLAN_CHECK=1 environment variable disables all checks.
 
+Issue #1589: the refusal sites emitted "block", outside the documented
+PreToolUse enum allow|deny|ask, so Claude Code rejected the envelope and ran
+the tool anyway — the refusals failed OPEN, measured live twice. They now emit
+"deny", _output_decision refuses any out-of-enum value at the emitter, and
+because that ACTIVATES a gate that never fired, the same change adds fix-mode
+awareness (see _fix_mode_permit).
+
 Exit codes:
-    0: Allow (plan valid, doc file, simple edit, or exception/fail-open)
+    0: always (the decision travels in the stdout JSON, never the exit code)
 
 Output: JSON to stdout with hookSpecificOutput for Claude Code hook protocol.
 
@@ -74,12 +83,11 @@ from pathlib import Path
 # callers depend on. A refusal that changed shape because it started recording is
 # exactly the trade this migration must not make.
 #
-# ``refusal_values={"block"}`` records the out-of-enum value this hook
-# actually emits. That divergence (PreToolUse's enum is ``allow|deny|ask``) is
-# real and is Issue #1589's to resolve; it is named here rather than silently
-# preserved, and it is NOT fixed here — changing "block" to "deny" would alter
-# what Claude Code receives, which is a separate change with a separate blast
-# radius.
+# ``refusal_values={"deny"}`` names the value this hook emits. #1611 recorded
+# the out-of-enum ``"block"`` and deferred the change to #1589, which measured
+# its cost: the client rejects the envelope and runs the tool, so the refusal
+# never took effect. The fix therefore ACTIVATES an inert gate — hence the
+# fix-mode permit that ships with it.
 try:
     from hook_telemetry import block_event_decorator
 except ImportError:  # pragma: no cover — stale-install fallback
@@ -141,6 +149,12 @@ except ImportError:  # pragma: no cover — stale-install fallback
 # Simple edit threshold -- edits with fewer lines than this are never blocked
 SIMPLE_EDIT_LINE_THRESHOLD = 100
 
+#: The decision values a ``PreToolUse`` hook may emit (``docs/HOOKS.md``).
+#: Derived from the contract, not from the two call sites #1589 found wrong,
+#: so ``_output_decision`` refuses the whole out-of-enum class rather than one
+#: literal.
+VALID_PERMISSION_DECISIONS = frozenset({"allow", "deny", "ask"})
+
 # Issue #1503 follow-up: write transports whose changed_content() does not
 # BOUND the size of the change. replace_in_files rewrites an unbounded set of
 # files from one small ``repl``, so content length says nothing about blast
@@ -196,14 +210,14 @@ DOC_FILENAMES = {"CHANGELOG", "README", "LICENSE", "CONTRIBUTING", "AUTHORS"}
 #: positive count that may be counting refusals the client never honoured — a
 #: third direction of error, in an issue about an instrument wrong in two.
 #:
-#: ``honoured: "unverified"`` is the load-bearing field. It is not a hedge: the
-#: value ``"block"`` is outside ``PreToolUse``'s ``allow|deny|ask`` enum, and
-#: nothing in this repo has observed what Claude Code does with it. #1589 owns
-#: answering that. Until it does, these rows are separable from the verified
-#: ones by a single query, and the claim stays as strong as the evidence.
+#: ``honoured: "unverified"`` SURVIVES Issue #1589 and is permanent. The
+#: emitted value is now conformant, but a ``PreToolUse`` hook emits and exits:
+#: it never observes whether the client acted. An ``honoured: true`` written
+#: here would be a claim the writing process cannot see. Honour is established
+#: only by a separate joined receipt (row + observed absent effect).
 REFUSAL_METADATA = {
-    "permission_decision": "block",
-    "protocol_enum_divergence": "PreToolUse enum is allow|deny|ask",
+    "permission_decision": "deny",
+    "protocol_enum": "allow|deny|ask (docs/HOOKS.md; conformant since #1589)",
     "honoured": "unverified",
     "issue": 1589,
 }
@@ -212,7 +226,7 @@ REFUSAL_METADATA = {
 @block_event_decorator(
     "plan_gate.py",
     decision_shape="dict",
-    refusal_values=frozenset({"block"}),
+    refusal_values=frozenset({"deny"}),
     metadata=REFUSAL_METADATA,
 )
 def _output_decision(
@@ -224,10 +238,14 @@ def _output_decision(
     """Print hook "decision" as JSON to stdout.
 
     Uses the Claude Code hook protocol format with permissionDecision field.
-    The "decision" value is either "allow" or "block".
+    The "decision" value MUST be one of :data:`VALID_PERMISSION_DECISIONS` —
+    anything else raises ``ValueError`` BEFORE the envelope is printed. That
+    guard, not the two corrected call sites, is what closes Issue #1589: an
+    envelope the client cannot parse fails OPEN *silently* (print, exit 0, row
+    recorded, tool runs), so nothing downstream of ``print`` could catch it.
 
     This is plan_gate's SOLE refusal emitter — all 11 decision sites route
-    through it (9 allow, 2 block). Decorating it with
+    through it (9 allow, 2 deny). Decorating it with
     ``block_event_decorator`` (Issue #1611)
     therefore fuses recording to refusal by construction: there is no path on
     which this hook can block a write and leave no row. The decorator does not
@@ -236,10 +254,23 @@ def _output_decision(
     alike.
 
     Args:
-        decision: "allow" or "block"
+        decision: One of ``allow``, ``deny``, ``ask``.
         reason: Human-readable reason for the decision
         system_message: Optional message shown to the user
+
+    Raises:
+        ValueError: If *decision* is outside :data:`VALID_PERMISSION_DECISIONS`.
+            Raised before anything is written to stdout.
     """
+    if decision not in VALID_PERMISSION_DECISIONS:
+        raise ValueError(
+            f"plan_gate refuses to emit permissionDecision={decision!r}: the "
+            f"PreToolUse protocol accepts only "
+            f"{sorted(VALID_PERMISSION_DECISIONS)} (docs/HOOKS.md). Claude "
+            f"Code rejects an out-of-enum envelope and RUNS THE TOOL ANYWAY, "
+            f"so emitting one is a silent fail-open, not a refusal "
+            f"(Issue #1589)."
+        )
     output = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -341,6 +372,126 @@ def _is_simple_edit(tool_name: str, tool_input: dict) -> bool:
         return False
     content = changed_content(tool_name, tool_input)
     return content.count("\n") < SIMPLE_EDIT_LINE_THRESHOLD
+
+
+def _fix_mode_permit(input_data: dict) -> "str | None":
+    """Return a permit reason when the caller holds certified fix-mode authority.
+
+    WHY (Issue #1589): making the refusal enum-conformant ACTIVATES a gate
+    that never fired, including against ``/implement --fix`` — which has no
+    plan document by design and routinely writes >100-line test modules. The
+    enum fix and this permit are one change, not two.
+
+    AUTHORITY IS NOT DECIDED HERE. ``pipeline_state
+    .classify_current_run_authority`` is the sole current-run authority
+    decision in this system, and this permit DELEGATES to it: the permit is
+    granted only for an ``AuthorityVerdict`` whose authority is
+    ``AUTHORIZED``. That is the same two-carrier conjunction every other
+    authority consumer uses — an owner-bound MAC verified under
+    ``strict=True`` AND a run-start receipt naming the same ``run_id``,
+    stamped by ``record_run_start`` at STEP 0 before any agent ran.
+
+    Required, all four:
+
+    1. A sentinel that parses as a dict (a type guard, not an authority test).
+    2. ``mode == "fix"`` — fix SCOPE, which the classifier does not judge.
+    3. No ``recovered`` key — a reconstruction is not an authorization
+       (#1512), which the classifier also does not judge.
+    4. ``classify_current_run_authority(state, session_id).authorized``, with
+       the caller identity taken from THIS hook's native stdin.
+
+    Conditions 2 and 3 are the ONLY local pre-checks, and each is retained
+    because the classifier provably does NOT refuse that shape:
+    ``TestPermitDelegatesAuthority
+    .test_kept_pre_checks_refuse_what_the_classifier_authorizes`` asserts the
+    classifier returns ``AUTHORIZED`` for a ``mode="full"`` state and for a
+    ``recovered`` state, so removing either pre-check would widen the permit.
+
+    WHAT WAS REMOVED as redundant, each with a test asserting the classifier
+    refuses the shape on its own (``TestPermitDelegatesAuthority
+    .test_classifier_alone_refuses_every_deleted_check``):
+    the ``hmac``-presence test (classifier: ``UNSIGNED_LEGACY``), and the
+    presented/declared identity-determinacy tests (classifier:
+    ``IDENTITY_UNAVAILABLE`` / ``OWNER_UNAVAILABLE``, via
+    ``_is_usable_owner_identity``, which covers placeholders, synthetic
+    ``stop-N``/``test-*`` ids and an absent owner). A local re-check the
+    classifier already performs is a second definition waiting to drift — the
+    security-auditor's BLOCKING finding was exactly that drift, between
+    ``hook_stdin.extract_session_id`` (two placeholder spellings) and
+    ``pipeline_state._INDETERMINATE_SESSION_IDS`` (four).
+
+    COST, measured on the full hook subprocess AFTER this change (15 runs per
+    path, median): deny with no sentinel 41.7ms, permit via the classifier
+    42.7ms, deny on a sentinel with no receipt 42.6ms — against the 3000ms
+    registration budget in ``config/hook_time_budgets.json``. The classifier
+    route costs about 1ms of a 3000ms budget. An earlier revision of this
+    docstring claimed the classifier was skipped to fit that budget; the claim
+    was FALSE and is withdrawn, not softened.
+
+    NO NEW AUTHORITY SCHEME — no new secret, store or file. The #1807 residual
+    is UNCHANGED and is the classifier's own, restated here so no reader takes
+    an ``AUTHORIZED`` verdict for provenance: both carriers are ordinary files
+    writable by the principal this gate constrains, so the conjunction removes
+    the single-artifact forgery and is still self-mintable by a caller willing
+    to write both. The ORIGIN boundary that would close it is #1807 A9, OPEN
+    and UNMEASURED.
+
+    FAILS CLOSED on every failure including unexpected exceptions — the
+    opposite of the hook's outer handler, which fails OPEN. An unreadable
+    sentinel is not a reason to permit; an unreadable hook is not a reason to
+    block all work.
+
+    Args:
+        input_data: The parsed PreToolUse stdin payload.
+
+    Returns:
+        A reason string naming the permit route, or ``None`` for no permit.
+    """
+    try:
+        from hook_stdin import extract_session_id
+
+        # The caller identity comes from THIS hook's native stdin. It is NOT
+        # screened locally: the classifier refuses every unusable identity
+        # (placeholder, synthetic, absent) as IDENTITY_UNAVAILABLE, and a
+        # second local definition of "unusable" is what drifted in the first
+        # place.
+        session_id = extract_session_id(input_data)
+
+        import pipeline_state
+
+        sentinel = pipeline_state.get_legacy_sentinel_path()
+        if not sentinel.exists():
+            return None
+
+        state = json.loads(sentinel.read_text(encoding="utf-8"))
+        if not isinstance(state, dict):
+            return None
+
+        # FIX SCOPE — the two questions the authority classifier does not ask.
+        if state.get("mode") != "fix":
+            return None
+        if "recovered" in state:
+            return None
+
+        # AUTHORITY — delegated entire. Never raises; every malformed shape
+        # yields an unauthorized verdict rather than an exception.
+        verdict = pipeline_state.classify_current_run_authority(state, session_id)
+        if not verdict.authorized:
+            return None
+
+        run_id = state.get("run_id", "unknown")
+        issue = state.get("issue_number", "unknown")
+        return (
+            f"Plan gate: fix-mode permit — certified /implement --fix run "
+            f"{run_id} (issue {issue}) owned by this session; a fix run has no "
+            f"plan document by design"
+        )
+    except Exception as exc:  # noqa: BLE001 - a permit must never fail open
+        print(
+            f"Plan gate: fix-mode permit check failed closed ({exc})",
+            file=sys.stderr,
+        )
+        return None
 
 
 def main() -> int:
@@ -452,7 +603,15 @@ def main() -> int:
         latest_plan = find_latest_plan(plans_dir)
 
         if latest_plan is None:
-            # No plan file exists -- block
+            # Issue #1589: a certified fix-mode run has no plan BY DESIGN.
+            # Checked here, on the refusal path only, so the sentinel read and
+            # MAC verification cost nothing on the 9 allow paths.
+            permit = _fix_mode_permit(input_data)
+            if permit:
+                _output_decision("allow", permit)
+                return 0
+
+            # No plan file exists -- refuse
             block_msg = (
                 "No planning document found. Complex code changes require a validated plan.\n\n"
                 "REQUIRED NEXT ACTION: run /plan to create a planning document before making "
@@ -463,13 +622,21 @@ def main() -> int:
                 "  - Minimal Path\n\n"
                 "Escape hatch: set SKIP_PLAN_CHECK=1 to bypass this check."
             )
-            _output_decision("block", "Plan gate: no plan file found", system_message=block_msg)
+            _output_decision("deny", "Plan gate: no plan file found", system_message=block_msg)
             return 0
 
         # Validate plan contents
         result = validate_plan(latest_plan)
 
         if not result.valid:
+            # Issue #1589: same fix-mode permit as the no-plan site. A fix run
+            # that happens to sit beside someone else's stale, incomplete plan
+            # must not be refused for it.
+            permit = _fix_mode_permit(input_data)
+            if permit:
+                _output_decision("allow", permit)
+                return 0
+
             missing = ", ".join(result.missing_sections)
             block_msg = (
                 f"Plan file exists but is missing required sections: {missing}\n\n"
@@ -482,7 +649,7 @@ def main() -> int:
                 "Escape hatch: set SKIP_PLAN_CHECK=1 to bypass this check."
             )
             _output_decision(
-                "block",
+                "deny",
                 f"Plan gate: plan missing sections: {missing}",
                 system_message=block_msg,
             )

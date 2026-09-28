@@ -174,7 +174,10 @@ class TestPlanValidation:
             plans_dir=plans_dir,
         )
         decision = output["hookSpecificOutput"]["permissionDecision"]
-        assert decision == "block"
+        # Issue #1589: was "block", which is outside the documented PreToolUse
+        # enum allow|deny|ask. The client rejected that envelope and ran the
+        # tool anyway, so this test passed while the gate did nothing.
+        assert decision == "deny"
 
     def test_block_message_contains_required_next_action(self, tmp_path):
         """Block message must include REQUIRED NEXT ACTION directive."""
@@ -244,7 +247,7 @@ class TestPlanValidation:
             plans_dir=plans_dir,
         )
         decision = output["hookSpecificOutput"]["permissionDecision"]
-        assert decision == "block"
+        assert decision == "deny"  # Issue #1589: enum-conformant refusal
         system_msg = output.get("systemMessage", "")
         assert "Existing Solutions" in system_msg
 

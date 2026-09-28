@@ -212,8 +212,9 @@ class TestSpec814AC5HookBlocksWithoutPlan:
                 assert len(json_calls) > 0, "Hook must produce JSON output"
                 output = json.loads(json_calls[0].args[0])
                 decision = output["hookSpecificOutput"]["permissionDecision"]
-                assert decision == "block", \
-                    f"Write without plan should be blocked, got: {decision}"
+                # Issue #1589: the refusal value is the enum-conformant "deny".
+                assert decision == "deny", \
+                    f"Write without plan should be refused, got: {decision}"
 
 
 # ---------------------------------------------------------------------------
@@ -380,8 +381,9 @@ class TestSpec814AC9MissingExistingSolutions:
                 ]
                 output = json.loads(json_calls[0].args[0])
                 decision = output["hookSpecificOutput"]["permissionDecision"]
-                assert decision == "block", \
-                    f"Plan missing Existing Solutions should be blocked, got: {decision}"
+                # Issue #1589: the refusal value is the enum-conformant "deny".
+                assert decision == "deny", \
+                    f"Plan missing Existing Solutions should be refused, got: {decision}"
 
 
 # ---------------------------------------------------------------------------

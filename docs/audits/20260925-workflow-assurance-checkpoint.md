@@ -2606,3 +2606,37 @@ instead of weakening the refusal. No rollout, native F0 completion or migration
 credit follows from the 157 passing cases. Next: collect the test-master result,
 freeze the new RED arms, repair source through the live `/implement` specialists,
 and independently rerun affected behavior and assurance gates before promotion.
+
+## 2026-09-28 — #1589 plan_gate candidate: source-only acceptance (no deploy)
+
+Supervisor chose source-only acceptance of the reviewed #1589 candidate from
+worktree `plan-gate-1589` (base `9c678b54`), committed on `fix/1589-plan-gate`.
+Final source digest `b116825cbc8d1fa1e92594af7106d492d9c5d39721f773fc6a9e5eda25dd265a`;
+the installed `~/.claude/hooks/plan_gate.py` remains the pre-fix bytes
+`6be21c5b…` and the live global gate therefore STILL FAILS OPEN until a
+separately authorized controlled deploy + restart. What the acceptance covers:
+enum-valid refusals (deny), an emitter guard refusing the out-of-enum class,
+and a fix-mode permit that delegates entirely to
+`classify_current_run_authority` (two-carrier: signed sentinel + run-start
+receipt), after one security remediation cycle closed a [High] cross-owner
+permit reuse via indeterminate presented ids ("none"/"null"). Proof classes:
+62/62 scoped tests (serial and -n 4, real exits) with fails-before receipts
+(12F/51P vs the pre-remediation candidate; 36F/26P vs original bytes), and
+[native-isolated-profile] arms on the final bytes — RED (deny emitted, gated
+Write refused, file absent) and GREEN (receipt+sentinel → permit, four-conjunct
+transcript join) — in a settings-isolated, NOT home-isolated venue.
+
+**Missing, named, and next**: the full-profile proof — the fixed hook running
+in the user's real installed profile (all hooks, orderings, 3s timeout) after a
+controlled deploy + restart, observed refusing AND permitting natively. Nothing
+in this acceptance claims it; #1589 stays OPEN carrying it. Also explicit:
+frozen-case R2 wording mismatch (the RED case says "exactly one telemetry row"
+per run; the hook's invariant is per attempt — a denied child retried and
+produced two honest rows; supervisor ruling pending), and the whole-repo suite
+remains inherited-RED (~1083 frozen failing IDs, per-ID membership
+nondeterministic at ±112 IDs across venues) — the pytest gate certified only
+the scoped ID set, never repo-wide non-regression. No F0 or #1807-A9
+completion is claimed or implied; AUTHORIZED is not provenance. Run receipts
+(frozen cases sha 46bb11e8…, native arms, validator artifacts, CIA report)
+live in that worktree's gitignored `.claude/local/` and survive only as long
+as the worktree does.

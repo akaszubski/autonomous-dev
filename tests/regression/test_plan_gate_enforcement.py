@@ -76,7 +76,10 @@ class TestPlanGateEnforcement:
         )
 
         hook_output = output["hookSpecificOutput"]
-        assert hook_output["permissionDecision"] == "block"
+        # Issue #1589: "block" is not in the PreToolUse enum (allow|deny|ask).
+        # Claude Code rejected the envelope and executed the write regardless,
+        # so the pre-#1589 expectation pinned a refusal that never refused.
+        assert hook_output["permissionDecision"] == "deny"
         assert hook_output["hookEventName"] == "PreToolUse"
         assert "REQUIRED NEXT ACTION" in output.get("systemMessage", "")
 
@@ -125,4 +128,8 @@ class TestPlanGateEnforcement:
         assert "permissionDecision" in hook_output
         assert "permissionDecisionReason" in hook_output
         assert hook_output["hookEventName"] == "PreToolUse"
-        assert hook_output["permissionDecision"] in ("allow", "block")
+        # Issue #1589: the protocol enum is allow|deny|ask (docs/HOOKS.md).
+        # Asserting membership in the enum rather than in a hand-kept tuple is
+        # the point — the old tuple ACCEPTED the out-of-enum value that made
+        # every refusal fail open.
+        assert hook_output["permissionDecision"] in ("allow", "deny", "ask")

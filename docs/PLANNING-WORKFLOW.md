@@ -108,13 +108,37 @@ gated identically — the hook is transport-independent:
 2. **Documentation files** (.md, CHANGELOG, README, docs/): Always allowed
 3. **Simple edits** (<100 lines of changed content, measured via
    `tool_intent.changed_content()` regardless of transport): Always allowed
-4. **Complex edits without plan**: Blocked with actionable message
-5. **Complex edits with valid plan**: Allowed
-6. **Expired plan** (>72h): Allowed with warning
+4. **Certified fix-mode run** (Issue #1589): Allowed — a sentinel with
+   `mode == "fix"`, no `recovered` key, and an AUTHORIZED verdict from
+   `pipeline_state.classify_current_run_authority()` for the calling session
+   grants an explicit permit, since `/implement --fix` has no plan document by
+   design. The permit does not decide authority itself: the classifier is the
+   sole current-run authority decision and requires BOTH carriers — an
+   owner-bound MAC verified under `strict=True` AND the run-start receipt
+   `record_run_start()` stamps at STEP 0 naming the same `run_id`. So a
+   self-minted signed sentinel with no receipt is refused, as are placeholder
+   (`none`/`null`/`unknown`/blank), synthetic (`stop-N`, `test-*`) and absent
+   owner or caller identities. Checked only on the two refusal paths below, so
+   the paths above pay nothing for it (measured: 42.7ms median on the permit
+   path against a 3000ms budget).
+5. **Complex edits without plan**: Refused (`permissionDecision: "deny"`)
+   with an actionable message
+6. **Complex edits with valid plan**: Allowed
+7. **Expired plan** (>72h): Allowed with warning
 
-### Block Message
+### Refusal Message
 
-When blocked, the message includes:
+**Issue #1589**: both refusal sites previously emitted
+`permissionDecision: "block"`, a value outside the `allow|deny|ask` enum
+documented in [HOOKS.md](HOOKS.md). Claude Code rejects that envelope and
+runs the tool anyway, so every refusal failed open — measured live before
+the fix. Both sites now emit `"deny"`, and `_output_decision` raises
+`ValueError` before printing anything if a caller ever passes a value
+outside the enum again. The refusal's telemetry row still records
+`honoured: "unverified"` permanently: a `PreToolUse` hook exits before the
+client acts, so it can never observe whether its decision was honoured.
+
+When refused, the message includes:
 - What's wrong (no plan or missing sections)
 - **REQUIRED NEXT ACTION: run /plan**
 - Required plan sections list

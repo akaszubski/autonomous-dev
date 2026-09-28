@@ -440,10 +440,13 @@ class TestPlanGateRecordsItsRefusals:
 
         # The refusal still reaches Claude Code, byte-for-byte as before.
         assert hso["hookEventName"] == "PreToolUse"
-        assert hso["permissionDecision"] == "block", (
-            "plan_gate's emitted decision value changed. Whether 'block' is "
-            "correct on a PreToolUse event is Issue #1589's question; "
-            "changing it HERE alters live enforcement behaviour."
+        assert hso["permissionDecision"] == "deny", (
+            "plan_gate's emitted decision value changed. #1611 pinned 'block' "
+            "and deferred the enum question to Issue #1589; #1589 answered it "
+            "— the client REJECTS an out-of-enum envelope and runs the tool, "
+            "so 'block' was a refusal that never refused. 'deny' is now the "
+            "pinned value, and plan_gate's emitter raises on anything outside "
+            "allow|deny|ask."
         )
         assert hso["permissionDecisionReason"] == "Plan gate: no plan file found"
         assert "REQUIRED NEXT ACTION" in envelope["systemMessage"]
@@ -460,7 +463,7 @@ class TestPlanGateRecordsItsRefusals:
     def test_reproducer_invalid_plan_block_is_recorded(self):
         proc, rows = self._drive(plan_text="# Plan\n\nno required sections\n")
         hso = json.loads(proc.stdout)["hookSpecificOutput"]
-        assert hso["permissionDecision"] == "block"
+        assert hso["permissionDecision"] == "deny"  # Issue #1589
         assert hso["permissionDecisionReason"].startswith(
             "Plan gate: plan missing sections:"
         )
@@ -907,12 +910,15 @@ class TestPlanGateRefusalsAreSeparableFromHonouredOnes:
         finally:
             sys.path.remove(str(HOOKS_DIR))
         meta = plan_gate.REFUSAL_METADATA
-        assert meta["permission_decision"] == "block", (
-            "the recorded metadata must name the value actually emitted"
+        assert meta["permission_decision"] == "deny", (
+            "the recorded metadata must name the value actually emitted "
+            "(Issue #1589 changed it from the out-of-enum 'block')"
         )
         assert meta["honoured"] == "unverified", (
-            "claiming a refusal is honoured is exactly what #1589 has not "
-            "yet established"
+            "#1589 answered what the client does with 'block', but a "
+            "PreToolUse hook still emits and exits — it never observes "
+            "whether its decision was honoured, so this field must never "
+            "become a positive claim (frozen AMENDMENT 1)"
         )
         assert meta["issue"] == 1589, "the open question must be traceable"
 
@@ -953,8 +959,9 @@ class TestPlanGateRefusalsAreSeparableFromHonouredOnes:
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
-        # The envelope is still byte-for-byte the pre-#1611 one.
-        assert hso["permissionDecision"] == "block"
+        # The envelope's SHAPE is still the pre-#1611 one; its refusal VALUE
+        # moved to the enum-conformant "deny" in Issue #1589.
+        assert hso["permissionDecision"] == "deny"
         assert len(rows) == 1
         meta = rows[0]["metadata"]
         assert meta["permission_decision"] == hso["permissionDecision"], (
