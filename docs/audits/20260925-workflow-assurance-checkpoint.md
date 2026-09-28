@@ -3720,3 +3720,34 @@ not raw-exit or installed proof. `deploy-all.sh`, plugin updater/HookActivator
 and other install/update routes remain OPEN. The draft's substantial net code
 and test growth is an explicit F4 proportionality question; D0 and the release
 remain unaccepted. Neither live worktree has been merged into this branch.
+
+## 2026-09-28 continuation — held origin reader; source-only plan gate
+
+The #1807 origin-reader telemetry-only remediation was **HELD**, not accepted:
+the measured cardinality repair needed 121 executable production lines across
+two owners plus an unsigned ledger field and more than 566 test lines, without
+a load-bearing consumer or native A7/A9 proof. The production checkout was
+verified byte-identical to committed `27d1c497`; the rejected patch and
+frozen cases remain in the #1807 worktree and the
+[#1807 HOLD record](https://github.com/akaszubski/autonomous-dev/issues/1807).
+The next candidate should connect the existing origin classification to the
+actual #1802 approval/refusal consumer before adding observation machinery.
+The #1802 v3 interim S4 candidate remains uncommitted and NONCERTIFYING after
+its old-substrate run; genuine human-approval permit and its negatives remain
+unmeasured. Neither candidate admits a native F0 attempt.
+
+The #1589 plan-gate correction was committed and pushed as `cf06d3c2` on
+`fix/1589-plan-gate` after scoped reviewer, security, documentation and real
+Claude isolated-profile deny/permit evidence. It is **source-only**: the global
+installed hook remains old fail-open bytes, and the full installed-profile
+deploy/restart proof is missing; [#1589 remains open](https://github.com/akaszubski/autonomous-dev/issues/1589).
+The native report preserves a denied child's extra retry as a frozen-case
+per-run/per-attempt wording mismatch, not a pass. Five run-scoped keys and two
+receipt files were removed by exact name after proof. The post-cleanup four
+residual IDs passed, while the whole suite remained inherited red (1,067
+failures and 32 errors, raw exit 1), so no whole-repo regression claim follows.
+The source commit adds 1,358 lines and removes 56, including a 1,050-line
+test module: it fixes a real fail-open defect but does **not** yet demonstrate
+the plan's net-maintenance-reduction outcome. The issue comment and committed
+#1589 worktree checkpoint name the exact digests and receipt limits. F0, the
+release census, R0/D0 and consumer retrofit remain OPEN.
