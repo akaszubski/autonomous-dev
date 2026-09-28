@@ -3781,3 +3781,17 @@ an honest unknown value also needs a coordinated downstream contract. The
 [#1751 HOLD record](https://github.com/akaszubski/autonomous-dev/issues/1751#issuecomment-5869468262)
 preserves the noncertifying worktree and next native control. No deployment or
 F0/provenance acceptance follows.
+
+Correction to the preceding #1751 outcome inference: the current
+[Claude Code hook contract](https://code.claude.com/docs/en/hooks) states that
+`PostToolUse` runs after successful execution, while a started tool that fails
+emits `PostToolUseFailure` with top-level error information. A success event's
+missing Bash exit-status field is therefore expected; it does not require an
+UNKNOWN success verdict. Source `session_activity_logger.hook.json` and the
+inspected settings templates register only `PostToolUse`, not
+`PostToolUseFailure`. The proper next slice is one event-type-based success/
+failure collector, native `tool_response`/`tool_use_id` parsing, and a distinct
+permission-denied-before-execution arm, followed by installed proof. The
+[#1751 correction](https://github.com/akaszubski/autonomous-dev/issues/1751#issuecomment-5869500721)
+supersedes the earlier unknown-status recommendation; it does not promote the
+held WIP or the unobserved native failure arm.
