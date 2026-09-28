@@ -686,6 +686,18 @@ docs mapping and isolated family work. Never overlap native runs sharing credent
 configuration, fixture state or evidence. Run the affected proof once after a change;
 repeat broader proof only for changed dependencies, new failures or final release.
 
+**Measured test-gate prerequisite (#1846, 2026-09-29).** A genuine #1805
+`/implement --tdd-first` STEP 1 full-suite baseline timed out at its configured
+900-second bound and wrote `__TIMEOUT__`; it supplied neither a green baseline
+nor targeted RED evidence, so the run stopped before test-master/source edits.
+The current command has no accepted bounded, digest-bound substitute for its
+STEP 8 full-suite gate and its absolute-green wording conflicts with later
+inherited-red fix-forward wording. Preserve UNKNOWN and failed-run evidence;
+do not advance #1805 by treating routed or parsed tests as full-suite proof.
+Resolve #1846 with an independently reviewed, coherent scope/result contract,
+then re-freeze #1805/#1818 on the repaired base. This is a delivery dependency,
+not permission to weaken final release or security coverage.
+
 Keep one current status block on #1757 linking the exact plan commit, release
 denominator, accepted receipts, current action, next missing evidence, blocker and
 measured elapsed/remaining work. #1737 is navigation, #1773 owns F0, existing family
