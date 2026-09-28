@@ -3933,3 +3933,18 @@ was documented and restored; the isolated branch is clean at `199bf106`.
 No registration fix, gate waiver, deployment or native acceptance followed.
 See [#1807 HOLD](https://github.com/akaszubski/autonomous-dev/issues/1807)
 and [#1818 capture defect](https://github.com/akaszubski/autonomous-dev/issues/1818).
+
+2026-09-29 #1818 prerequisite attempt: the independently anchored focused
+denominator at base `59f6efb7`/prep SHA-256 `c60fd1169b698d9ce13ee0ffe32c5574a4fb3e032d42a6eef731b41a71f42351`
+collected exactly 134 IDs and completed with 132 pass, the same two inherited
+failures and zero errors. Repeat stdout digest drift is expected from elapsed
+time; the frozen contract compares complete results and exact IDs, not raw
+stdout bytes. An independent reviewer confirmed that reading. Nevertheless
+the **same native Claude session** `989f5b78-083b-4a34-992f-977cee692d26`
+then showed `recovered: true`, `alignment_passed: true`, but no `run_id`,
+`mode`, `issue_number` or `base_commit` in its sentinel. Claude formally HELD
+before implementer or protected edits; no identity was reconstructed or
+re-signed. The isolated #1818 worktree remains unchanged except its original
+untracked prep. #1807 is again the critical prerequisite; F2 measurement does
+not confer current-run authority or #1818 acceptance. See [#1807 native
+recurrence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5872030249).
