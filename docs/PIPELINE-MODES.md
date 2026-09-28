@@ -362,6 +362,21 @@ Fix mode previously wrote `{mode, explicitly_invoked, start_time}` — no owner,
 run id, unsigned — which is exactly the shape (2) above used to be destroyed over.
 The divergence was fix-mode-only; this is parity restored, not a new mechanism.
 
+**Native-origin witness consumption (Issue #1807 A7/A9).** Immediately after
+signing the sentinel, both STEP 0 (`implement.md`) and STEP F1
+(`implement-fix.md`) call
+`pipeline_completion_state.append_native_origin_progression()` to bind any
+witness the runtime may already have recorded (via `hooks/native_run_origin.py`
+on `UserPromptExpansion`) to this run's bindings — a SILENT no-op when no
+witness exists. This block is itself MODEL-OWNED Bash: it consumes a witness,
+it never mints one, and a run initialized only from here classifies as
+`RunOrigin.MODEL_BOOTSTRAP` — still a fully AUTHORIZED run, since origin is
+strictly additive to authority (see above). Only the native hook, invoked by the
+runtime on a TYPED `/implement`-family command, can produce
+`RunOrigin.TYPED_USER_WITNESSED`. This does not close the EVIDENCE LIMIT above:
+all 21 frozen native-venue arms remain UNMEASURED and #1807 acceptance case A9
+stays OPEN.
+
 **Neither mode assigns `PIPELINE_STATE_FILE`.** That variable is protected by the
 #557/#606 spoofing guard, which REFUSES an inline assignment — measured against
 `_detect_env_spoofing`, with `echo hello` and a renamed variable as negative

@@ -1,0 +1,17 @@
+{
+  "name": "native_run_origin",
+  "type": "lifecycle",
+  "description": "Records a native-origin witness when the runtime initiates an /implement run (Issue #1807 A7/A9). Non-blocking: records, never gates.",
+  "interpreter": "python3",
+  "active": true,
+  "registrations": [
+    {
+      "event": "UserPromptExpansion",
+      "matcher": "*"
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Skill"
+    }
+  ]
+}

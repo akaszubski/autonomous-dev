@@ -1657,6 +1657,19 @@ def main() -> int:
         except Exception:
             pass  # Non-blocking: heartbeat is a recovery guard, never a gate
 
+        # Native-origin progression (Issue #1807 A7/A9). This hook is invoked by
+        # the RUNTIME on SubagentStop, so an append from here is progression
+        # evidence a native process contributed. It binds to the run's existing
+        # native-origin witness and is a SILENT no-op for the model-owned bootstrap
+        # path, which has no witness. Additive only — never a gate.
+        try:
+            from pipeline_completion_state import (
+                append_native_origin_progression_from_sentinel,
+            )
+            append_native_origin_progression_from_sentinel(session_id)
+        except Exception:
+            pass  # Non-blocking: progression evidence is additive, never a gate
+
         # Plan-critic stage advance (Staged Plan-Exit Pipeline)
         if agent_name == "plan-critic":
             suggestion = _advance_plan_mode_stage()

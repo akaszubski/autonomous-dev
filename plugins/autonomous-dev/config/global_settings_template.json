@@ -126,6 +126,16 @@
           }
         ],
         "matcher": "*"
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/native_run_origin.py",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [
@@ -184,6 +194,18 @@
           }
         ],
         "matcher": "*"
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/native_run_origin.py",
+            "timeout": 5
+          }
+        ]
       }
     ]
   },

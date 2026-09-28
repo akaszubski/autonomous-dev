@@ -148,9 +148,21 @@ if not record_run_start(sid, '$RUN_ID'):
 state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time()), 'session_start': '$(date +%Y-%m-%dT%H:%M:%S)', 'run_id': '$RUN_ID', 'session_id': sid, 'issue_number': os.environ.get('ISSUE_NUMBER', ''), 'subject': os.environ.get('FEATURE_DESCRIPTION', '')}
 state = sign_state(state, sid)
 atomic_write_json(sentinel, state)
+# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
+# one when this command was typed. This is the only place the witness (minted
+# before any run id existed) is bound to this run. It is a SILENT no-op when there
+# is no witness, which is the model-owned bootstrap path below — additive, never a
+# gate, and it cannot CREATE origin: only a native hook writes a witness.
+try:
+    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
+    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
+except ImportError:
+    pass
 print('Pipeline state initialized for fix mode: run=' + state['run_id'] + ' owner=' + sid)
 "
 ```
+
+**ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9)**: this is MODEL-OWNED bootstrap. `classify_current_run_authority` reports `RunOrigin.MODEL_BOOTSTRAP` for a run initialized only from here, and that stays a fully AUTHORIZED run — the origin level is strictly additive. It is classified as bootstrap because the principal the controls constrain is the one writing the carriers. Only `hooks/native_run_origin.py`, invoked by the runtime on a TYPED `/implement --fix`, can produce `RunOrigin.TYPED_USER_WITNESSED`. Do NOT write a witness from here, and do not treat a green origin verdict as provenance: the OS boundary that would make it unforgeable is not yet in place (A9 OPEN, UNMEASURED).
 
 This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
 

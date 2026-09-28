@@ -452,7 +452,27 @@ atomic_write_json(
     Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))),
     state,
 )
+# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
+# one when this command was typed. This is the only place the witness (minted
+# before any run id existed) is bound to this run. SILENT no-op when there is no
+# witness — additive, never a gate, and it cannot CREATE origin: only a native
+# hook writes a witness.
+try:
+    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
+    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
+except ImportError:
+    pass
 "
+
+# ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9): MODEL-OWNED bootstrap.
+# classify_current_run_authority reports RunOrigin.MODEL_BOOTSTRAP for a run
+# initialized only from here, and that remains a fully AUTHORIZED run — the origin
+# level is strictly additive. It is bootstrap because the principal the controls
+# constrain is the one writing the carriers. Only hooks/native_run_origin.py,
+# invoked by the runtime on a TYPED /implement, can produce
+# RunOrigin.TYPED_USER_WITNESSED. Do NOT write a witness from here, and do not read
+# a green origin verdict as provenance — the OS boundary that would make it
+# unforgeable is not in place (A9 OPEN, UNMEASURED).
 
 # PIPELINE_BASE_COMMIT capture (Issue #1069). REQUIRED: anchors all downstream
 # `git diff --name-only` invocations (acceptance criteria, spec-validator

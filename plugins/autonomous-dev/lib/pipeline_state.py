@@ -956,6 +956,38 @@ class RunAuthority(str, Enum):
     RECEIPT_UNAVAILABLE = "receipt_unavailable"
 
 
+class RunOrigin(str, Enum):
+    """WHO initiated the run — a question authority does not answer.
+
+    :class:`RunAuthority` answers "may this state authorize the current run?" and
+    both its carriers are written by the principal the gate constrains. Origin
+    answers "did a NATIVE hook process witness this run starting, and which kind?"
+    It is STRICTLY ADDITIVE: a run with no witness keeps exactly the authority it
+    had before Issue #1807's origin work, so the model-owned bootstrap path stays
+    the compatibility route rather than becoming a refusal.
+
+    The two witnessed classes are NOT interchangeable, and collapsing them would
+    undo the point. A user-typed ``/implement`` fires ``UserPromptExpansion`` — a
+    human chose it, so it can carry user authorization. A ``Skill`` tool call
+    fires ``PreToolUse`` — the MODEL chose it, so it is a native EVENT that confers
+    no user authorization and is never promotable to the typed class. There is
+    deliberately NO code path that upgrades one to the other.
+
+    Every non-witnessed member is a NON-PASS with a distinct cause, so an operator
+    can tell "no witness at all" (the bootstrap path, or a hook the harness
+    discarded on timeout) from "a witness that failed verification".
+
+    Issues: #1802, #1807
+    """
+
+    TYPED_USER_WITNESSED = "typed_user_witnessed"
+    MODEL_SKILL_WITNESSED = "model_skill_witnessed"
+    MODEL_BOOTSTRAP = "model_bootstrap"
+    WITNESS_REFUSED = "witness_refused"
+    WITNESS_UNAVAILABLE = "witness_unavailable"
+    NOT_EVALUATED = "not_evaluated"
+
+
 @dataclass(frozen=True)
 class AuthorityVerdict:
     """The outcome of :func:`classify_current_run_authority`.
@@ -967,16 +999,45 @@ class AuthorityVerdict:
             authorized only because its owner claim is corroborated by the
             independent run-start receipt; callers SHOULD log it.
         detail: Operator-facing explanation naming the seam.
+        origin: Which principal's native event witnessed this run starting.
+            Defaults to :attr:`RunOrigin.NOT_EVALUATED`, which is what every
+            REFUSAL carries: an unauthorized run has no origin to attribute, and
+            saying so beats guessing. Only the AUTHORIZED path evaluates it.
+        origin_detail: Operator-facing explanation of the origin verdict.
     """
 
     authority: RunAuthority
     legacy_mac: bool
     detail: str
+    origin: RunOrigin = RunOrigin.NOT_EVALUATED
+    origin_detail: str = ""
 
     @property
     def authorized(self) -> bool:
         """Whether this state may act as the current run."""
         return self.authority is RunAuthority.AUTHORIZED
+
+    @property
+    def native_origin(self) -> bool:
+        """Whether a NATIVE hook process witnessed this run's initiation.
+
+        True for both witnessed classes. It says the event was native; it does
+        NOT say a user authorized the run — for that, read
+        :attr:`typed_user_origin`.
+        """
+        return self.origin in (
+            RunOrigin.TYPED_USER_WITNESSED,
+            RunOrigin.MODEL_SKILL_WITNESSED,
+        )
+
+    @property
+    def typed_user_origin(self) -> bool:
+        """Whether a USER-TYPED slash command witnessed this run's initiation.
+
+        The only origin class that may stand for user authorization (#1802). A
+        model-invoked Skill origin returns False here, always.
+        """
+        return self.origin is RunOrigin.TYPED_USER_WITNESSED
 
 
 def _run_start_receipt(session_id: str) -> Optional[str]:
@@ -1005,11 +1066,104 @@ def _run_start_receipt(session_id: str) -> Optional[str]:
         return None
 
 
+def _native_origin_check(session_id: str, state: dict) -> Any:
+    """Read the native-origin witness for *session_id*, or ``None``.
+
+    Extracts the run bindings from *state* using the ledger module's OWN key
+    tuple, so the set of bindings a witness covers has one home. Lazily imported
+    for the same reason :func:`_run_start_receipt` is: the ledger module imports
+    THIS one at module scope.
+
+    Args:
+        session_id: The owner presenting the run.
+        state: The sentinel contents whose bindings the witness must match.
+
+    Returns:
+        A ``pipeline_completion_state.NativeOriginCheck``, or ``None`` when the
+        reader is unavailable — which callers MUST treat as "cannot tell", not as
+        a verdict about the witness.
+    """
+    try:
+        try:
+            from .pipeline_completion_state import (  # type: ignore
+                NATIVE_ORIGIN_BINDING_KEYS,
+                check_native_origin,
+            )
+        except ImportError:
+            from pipeline_completion_state import (  # type: ignore
+                NATIVE_ORIGIN_BINDING_KEYS,
+                check_native_origin,
+            )
+    except ImportError:
+        return None
+    bindings = {key: state.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS}
+    return check_native_origin(session_id, bindings)
+
+
+def _classify_run_origin(
+    owner: str, state: dict, origin_lookup: Any = None
+) -> Tuple[RunOrigin, str]:
+    """Map the witness check onto the single origin vocabulary.
+
+    This is the ONLY place a native EVENT NAME becomes an origin CLASS. The ledger
+    module reports facts (present / valid / event) and never names a class, so the
+    typed-versus-Skill distinction cannot drift between two homes.
+
+    Fails closed in every direction: a raising or absent reader is
+    :attr:`RunOrigin.WITNESS_UNAVAILABLE` (an instrument failure, reported as
+    such), an absent witness is :attr:`RunOrigin.MODEL_BOOTSTRAP` (the
+    compatibility path — a NON-PASS for origin, not a refusal of the run), and
+    anything else is :attr:`RunOrigin.WITNESS_REFUSED`.
+
+    Args:
+        owner: The verified run owner.
+        state: The sentinel contents.
+        origin_lookup: Callable ``(owner, state)``, for tests. Defaults to
+            :func:`_native_origin_check`.
+
+    Returns:
+        ``(origin, detail)``.
+    """
+    lookup = origin_lookup or _native_origin_check
+    try:
+        check = lookup(owner, state)
+    except Exception as exc:  # noqa: BLE001 - a probe must not raise into a gate
+        return (
+            RunOrigin.WITNESS_UNAVAILABLE,
+            f"the native-origin reader raised {type(exc).__name__}: {exc}. "
+            "'cannot tell' is not 'native' (INV-7)",
+        )
+
+    if check is None or not getattr(check, "instrument_ok", False):
+        return (
+            RunOrigin.WITNESS_UNAVAILABLE,
+            getattr(check, "detail", None)
+            or "the native-origin reader is unavailable, so no origin can be judged",
+        )
+    if not getattr(check, "present", False):
+        return RunOrigin.MODEL_BOOTSTRAP, check.detail
+    if not getattr(check, "valid", False):
+        return RunOrigin.WITNESS_REFUSED, check.detail
+    if check.event == "UserPromptExpansion":
+        return RunOrigin.TYPED_USER_WITNESSED, check.detail
+    if check.event == "PreToolUse":
+        return (
+            RunOrigin.MODEL_SKILL_WITNESSED,
+            f"{check.detail} — a MODEL-invoked Skill call: native event, NOT user "
+            "authorization",
+        )
+    return (
+        RunOrigin.WITNESS_REFUSED,
+        f"witness reports event {check.event!r}, which maps to no origin class",
+    )
+
+
 def classify_current_run_authority(
     state: Any,
     presented_session_id: str,
     *,
     receipt_lookup: Any = None,
+    origin_lookup: Any = None,
 ) -> AuthorityVerdict:
     """Classify whether *state* may authorize the CURRENT pipeline run.
 
@@ -1170,11 +1324,20 @@ def classify_current_run_authority(
             f"not {run_id!r}",
         )
 
+    # ORIGIN is evaluated ONLY here, on the authorized path (Issue #1807 A7/A9).
+    # An unauthorized run has no origin to attribute, and a WITNESS_REFUSED
+    # verdict deliberately does NOT demote `authority`: the origin level is
+    # strictly additive, so a corrupt or forged witness must not become a
+    # denial-of-service lever that kills a legitimate live run. It refuses the
+    # ORIGIN CLAIM and nothing else.
+    origin, origin_detail = _classify_run_origin(owner, state, origin_lookup)
     return AuthorityVerdict(
         RunAuthority.AUTHORIZED,
         legacy_mac,
         f"run {run_id} authorized for owner {owner}"
         + (" (legacy v1 MAC: owner corroborated by receipt only)" if legacy_mac else ""),
+        origin,
+        origin_detail,
     )
 
 
