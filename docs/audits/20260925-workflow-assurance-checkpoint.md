@@ -19,6 +19,15 @@ names the session and preserved transcript. [#1846](https://github.com/akaszubsk
 owns the reusable, coherent test-scope/result contract needed before retry;
 do not substitute parsed failures or scoped tests for full acceptance.
 
+Independent read-only alignment review found one current authority wording
+conflict: `CLAUDE.md` says a prerequisite repair grants no additional native F0
+attempt, whereas the adopted plan preserves the September 18 standing
+changed-cause authorization subject to fresh frozen subject, independent
+review, preflight, #1807 and transition interlocks. Treat the plan's narrower
+conditions as controlling; clarify `CLAUDE.md` through its normal governed
+edit route before relying on it for attempt admission. No new attempt is
+authorized by this checkpoint alone.
+
 Parallel isolated signed fix-mode work targets [#1845](https://github.com/akaszubski/autonomous-dev/issues/1845)
 (stale three-agent test expectation) and [#1721](https://github.com/akaszubski/autonomous-dev/issues/1721)
 (append-writer scanner incorrectly applying excluded path parts to a `.codex`
@@ -35,7 +44,11 @@ its required F6 CIA report Write was denied at the command-mandated path;
 the run is HOLD before git pending exact-file user approval. #1721's compact
 candidate is 64/64 module-green and 21/21 frozen-case-green, but [#1847](https://github.com/akaszubski/autonomous-dev/issues/1847)
 records an invalid spec-validator completion stamped before execution; the
-source review remains noncertifying while its CIA is active. After these
+source review remains noncertifying. Its CIA reached the required F6 report
+Write, but Claude's sensitive-file permission denied that exact path as well;
+the native process has exited without report, commit, push or deploy. Neither
+candidate may be promoted by treating a specialist's chat text as the missing
+persisted artifact. After these
 prerequisites, independently integrate and re-freeze #1818/#1805; F0 and
 release outcomes remain open. Check live issue comments/process handles on
 resume rather than treating this paragraph as a final state.
@@ -47,6 +60,25 @@ completed in 939.55 seconds with raw exit 1: 17,557 passed, 1,068 failed,
 records the exact command and limits. These are unresolved test IDs, not
 1,098 classified product regressions; sampled cause triage is underway.
 Merely raising the 900-second baseline budget cannot make this tree green.
+The [#1848 test-population issue](https://github.com/akaszubski/autonomous-dev/issues/1848)
+now owns contract-grounded disposition of those 1,098 IDs. A focused current
+route check collected 113 tests and exited 1 (110 pass, three deviation-log
+fixture failures): the three expected cwd fallback even though #1726's
+canonical resolver requires a project root. An isolated valid-root probe wrote
+the actual deviation log. This distinguishes a stale test fixture from a
+missing product behavior, not a release-wide green result. The same audit
+reproduced a live `/sync --env` false-success result from the shipped mock
+AgentInvoker; [#1849](https://github.com/akaszubski/autonomous-dev/issues/1849)
+owns that product defect. No legacy test cluster has been retired yet.
+
+Independent census recheck on this HEAD still finds #1801/#1803/#1804/#1805
+open: assignment-only source rows can falsely classify as REACHED; #1805's
+last native run ended before source edit. The historical 238/148/90 is a
+scanner snapshot, not a frozen release denominator. The consumer arm must
+still reconcile active registrations and dynamic/legacy routes, pin distinct
+CLEAN-0 and POPULATED-3 profiles and run the same-installed-invocation
+omitted-row control. Do not run the currently settings-destructive installer
+for that control before #1809's preservation repair qualifies.
 
 2026-09-29 #1818 HOLD: the signed same-session native fix run reached a genuine
 implementer Edit of `plugins/autonomous-dev/lib/test_runner.py`, but no
