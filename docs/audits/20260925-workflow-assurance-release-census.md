@@ -11,6 +11,19 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-09-29 status correction: the three active prerequisite issues remain open.
+The #1805 candidate has unchanged 238/148/90 source-member arrays, but an
+independent review rejected its Bash execution oracle: it omitted executing
+positive rows and did not assert process status or the exact target. Those
+arrays therefore cannot freeze the denominator. #1807's credential-free
+installed-consumer probe found that per-repo settings sync silently replaced a
+user SessionStart hook and permissions; project registration and populated
+settings preservation remain unproved. #1818's shared pytest capture design
+is admitted for implementation, not accepted as an instrument or release gate;
+the required same-process, per-node F2 proof has not passed. Preserve these
+distinctions when updating the release table: a source classification, a design
+review, and a native process start are different evidence types.
+
 2026-09-28 continuation: the #1806/#1807 library-route hardening checkpoint
 is committed and pushed as
 [`8efcd57f`](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39).
