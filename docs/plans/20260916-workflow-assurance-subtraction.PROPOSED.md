@@ -459,6 +459,19 @@ disabled required telemetry; forged or altered evidence; empty/missed selection;
 partial update; consumer-settings clobber; source fallback; always-NO_DOC_IMPACT.
 Existing tests cover many of these: reuse their owners and fixtures.
 
+Choose the native implementation mode from the *observed starting state*, not
+the issue title. The current `/implement --fix` command exits after F2 when
+all selected tests pass and its implementer expects existing failing output.
+A missing-control or missing-test case with a green baseline therefore uses
+`/implement --tdd-first`: the test-master adds the frozen case, its focused
+run must be RED before the implementation edit, and the full specialist gates
+remain required. Reserve `--fix` for an already-observed failing case. The
+[#1805 failed-attempt record](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5874400425)
+is the negative control: repeated green baseline runs and scratch probes did
+not create a checked-in refusal test. Keep signed run/issue identity separate
+from the single-issue specialist-completion bucket, which is `0` by the
+existing command contract; do not turn either field into the other.
+
 For every frozen acceptance row, record the claim, required observation and its
 authority, observation method, subject/run identity, temporal validity where
 applicable, result, limitation and decision. These are fields of the existing
