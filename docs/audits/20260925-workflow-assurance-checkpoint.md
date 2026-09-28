@@ -3948,3 +3948,23 @@ re-signed. The isolated #1818 worktree remains unchanged except its original
 untracked prep. #1807 is again the critical prerequisite; F2 measurement does
 not confer current-run authority or #1818 acceptance. See [#1807 native
 recurrence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5872030249).
+
+2026-09-29 provisional #1818 revision status: a source-only native
+`/implement --fix` on `199bf106` preserved signed identity through the first
+specialist and measured the frozen 134-ID F2 scope (132 passed, two inherited
+failures, zero errors). Its F3 draft was **rejected and stopped before F4**:
+it added a parallel roughly 535-line artifact store, did not bind the F3
+receipt to the same run and denominator, discarded pytest exit status through
+`tail` pipes, and temporarily swapped protected files through Bash for RED
+probes. Both protected files were restored and checked; no commit, push,
+deployment, reviewer acceptance or F0 acceptance resulted. The failed trace
+and exact revision contract remain in the isolated
+`pytest-gate-1818-on-1807` worktree and [#1818](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5872583793).
+A fresh isolated `pytest-gate-1818-revision` worktree at `199bf106` has
+re-anchored the 134-ID prep and independently repeated its baseline; its next
+native run is not yet accepted. In parallel, #1805's conservative scanner
+boundary is being prepared in a separate worktree. The release census is
+**not frozen**: #1805, distinct #1803/#1804 defects, exact active
+control/consumer disposition rows and a populated installed-consumer
+omitted-route negative remain open. Do not treat historical 238/148/90
+scanner counts as the release denominator; see the [#1757 correction](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5872619304).
