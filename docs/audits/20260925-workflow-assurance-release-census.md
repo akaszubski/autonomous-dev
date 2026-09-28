@@ -462,7 +462,7 @@ that contract, selection remains unresolved rather than adding a store by defaul
 
 | Existing mechanism | Observed gap / consolidation prerequisite |
 |---|---|
-| `plan_gate.py:60–82,355–362,440–506` | Uses unverified `permissionDecision=block`, latest-plan selection and fail-open errors; migrate required plan outcome to a current-run transition owner before retiring this duplicate |
+| `plan_gate.py:60–82,355–362,440–506` | The `permissionDecision=block` envelope is invalid; the 2026-09-28 native #1821 run recorded two refusals followed by successful same-file Edit effects ([#1589 live receipt](https://github.com/akaszubski/autonomous-dev/issues/1589#issuecomment-5866184572)). The hook also lacks `--fix`-mode awareness: converting `block` to `deny` alone would reject a legitimate no-plan fix run. Freeze both a real unplanned refusal and a legitimate fix-mode permit before activation; migrate required plan outcome to a current-run transition owner before retiring this duplicate. Its latest-plan selection and fail-open error paths remain open. |
 | Plan-exit observer → unified gate (`unified_pre_tool.py:8187–8563`) | Plaintext marker, absent/read-error permit and legacy marker treated critique-done; retain effective action gate but move authority to signed current-plan state |
 | `agent_ordering_gate.py:19–91,200–204,291–328` | Required sets/order omit spec-validator and, in full, CIA despite command obligations; use one profile table for ordering and completion |
 | Completion checks (`pipeline_completion_state.py:1997–2006,2034–2043,2599–2713`) | Import/load/error and some batch checks fail open; required judgment failures cannot become successful completion |

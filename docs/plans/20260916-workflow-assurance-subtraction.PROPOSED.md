@@ -437,6 +437,14 @@ explanatory prose does not add decision states.
 Keep execution status, supported claim scope and action authority as separate
 fields in those existing records: exit zero is neither acceptance nor permission.
 Agent reports may propose conclusions but cannot issue trusted gate receipts.
+Treat a hook's logged refusal as intent until the same tool attempt is shown
+to have been stopped; a subsequent successful effect contradicts enforcement.
+The live `plan_gate.py` #1589 failure now belongs in the finite WA-W2 case set:
+its invalid `permissionDecision=block` was followed by successful edits in a
+native `--fix` run. Freeze both the unplanned-edit refusal and the legitimate
+no-plan `--fix` permit before activating an enum-valid denial. Do not repair
+the response value alone or count this source run as hook-enforcement proof;
+reuse the existing case/observation/decision/receipt vocabulary.
 Qualify each applicable observer with both a disabled control and an always-refuse
 control, so refusing legitimate work cannot masquerade as safety. Where an opt-out
 is supported, record enforcement as inactive and preserve the non-optional floor;
