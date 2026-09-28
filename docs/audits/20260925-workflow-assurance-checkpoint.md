@@ -4,6 +4,315 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+Read-only alignment recheck on 2026-09-28 compared root `PROJECT.md` (the
+plan's identified intent owner) with the revised plan for independent proof,
+consumer retrofit, release acceptance and measured simplification. No new
+contradiction or unmarked stale reference was found in those bounded subjects;
+the plan's dated execution pointer explicitly routes to the live issue and
+checkpoint. This is a bounded document comparison, not release acceptance or
+denominator freeze.
+
+## Latest restart pointer — 2026-09-28, malformed-input guard under specialist review
+
+**Superseding checkpoint after this slice:** The five #1806/#1807
+library-route slices are committed and pushed as
+`8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39` on
+`fix/1807-authority-boundary-v2`; the unmeasured
+`tests/manual/probe_1807_native_origin_split.sh` remains untracked and was
+excluded. With Claude idle, independent process-level focused runs passed
+52/52 malformed-input and 110/110 owner/boundary/alignment/V3-MAC/lock-GC
+tests, each raw exit 0; commit hooks passed 14 documentation tests (one skip).
+The checkpoint is large (+7291/-413 across 38 files), so it is preservation of
+gated foundation work, **not** measured maintenance reduction. CIA identified
+about 55–60 lines of test subtraction for a separately reviewed slice.
+[#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5862516835)
+and [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806#issuecomment-5862517047)
+carry the commit and limits; native A7/A9 origin/containment, installed-hook
+behavior, F0 and consumer release remain open. The historical uncommitted
+entries below describe their own observation times and are not current state.
+
+Independent follow-up RED: the same isolated stale-legacy probe returned
+`(strict=True: False, strict=False: True)` when V3 `subject=123` or
+`base_commit=123`, separately. Both appear string-typed in the production
+writers, unlike the valid integer `issue_number`; the live security review
+must confirm the schema and either repair this both-mode malformed-input gap
+through `/implement --fix` or explicitly bound it against the frozen
+acceptance. The exact [#1807 receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5862074333)
+uses a temporary legacy sentinel and changed no production file. The
+coordinator has the counterexample; no prior specialist verdict covers a
+subsequent source change. Native A7/A9 and F0 remain open.
+The live security-auditor subsequently reported PASS for the strict authority
+path but recommended tightening `subject` and `base_commit` as Option A. It
+independently probed that the added type refusal closes the residual while a
+genuine integer-`issue_number` V3 state still verifies. The Claude coordinator
+accepted that recommendation and re-dispatched its implementer; this is a
+decision to repair, not yet a verified changed candidate or a renewed gate pass.
+The implementer has now returned an eight-field type guard. An independent
+post-edit direct replay observed `(False, False)` for each of V3
+`subject=123` and `base_commit=123` under strict/legacy verification, retained
+`(False, True)` for the well-typed stale #753 control, and verified a genuine
+V3 signature with integer `issue_number=1807` as `(True, True)`. This closes
+the scoped counterexamples at the library boundary only; renewed specialist
+gates, a clean independent process-level pytest exit, native A7/A9 and F0
+remain required.
+Fresh reviews on the actual eight-field bytes have now returned spec-validator
+PASS (including a non-vacuity contrast of excluded integer `issue_number` vs
+included malformed `subject`) and reviewer APPROVE with empty findings.
+Doc-master returned FAIL(1): `verify_state_hmac`'s protected Returns docstring
+still lists six fields, although editable docs were updated. The Claude
+coordinator is dispatching security-auditor on the actual bytes and will route
+the docstring correction through the implementer, then recheck it. None of
+these partial verdicts is F6 or #1807 acceptance.
+The actual-byte security-auditor has now returned PASS with 36/36 scoped probes
+and a counterfactual restoring the old tuple that reopens the stale-path
+failure. It reported 158 CRITICAL and eight MEDIUM active-scan findings as
+false-positive or outside the changed `pipeline_state.py` subject; this is its
+reported attribution, not an independent all-repo security clearance. Claude
+recorded the scoped PASS and re-dispatched the implementer for the protected
+docstring-only six-to-eight correction. Doc-master recheck, CIA and F6 remain
+pending; A7/A9/F0 are still open.
+Doc-master has since returned PASS on the corrected eight-field docstring,
+formally closing its prior FAIL(1). CIA reported PIPELINE SLICE CLEAN on the
+behavioral/integrity checks; the coordinator then resumed CIA for a measured
+burden assessment because the new malformed-input test module is 559 lines
+with 27 test functions. Any proposed test retirement is a separate reviewed
+subtraction slice, not a reason to weaken frozen coverage or call F6 complete
+before that final handoff. The actual F6 record and clean independent
+process-level pytest exit remain pending.
+
+The next #1807 `/implement --fix` run `23e0756ad22e1b22` remains active in
+tmux `adev-assurance:authority1807v3`; its candidate is uncommitted. The
+implementer has changed the shared `verify_state_hmac` guard and dispatched
+the spec-blind validator. An independent direct probe of a signed-shaped
+state with non-string `run_id` now returned `False` in both strict and legacy
+modes, without raising. That is one library-boundary check, not specialist,
+native A7/A9, or F0 acceptance.
+
+An independent focused pytest attempt collected 91 passing assertions but
+exited 1: its sessionfinish guard observed the production activity log change
+while the real Claude session was active. Preserve that nonzero result; do not
+count it as a clean test pass or delete the log. The spec-validator subsequently
+reported PASS with a clean scoped pytest exit; the reviewer reported APPROVE
+with two deferred warnings. Doc-master reported FAIL(1): the protected
+verifier's Returns docstring still needs the malformed-input contract; editable
+docs were corrected. The security-auditor is active. An independent direct
+negative also reproduced the reviewer's deferred edge: numeric presented
+`session_id` plus numeric nonce raises `AttributeError` in the legacy branch,
+while strict mode returns `False`. The signature declares `session_id: str`,
+and current production authority callers validate that identity before use;
+do not generalize the bool contract to arbitrary caller argument types or
+silently call the edge fixed. Next: finish security review, route any protected
+code/docstring repair through `/implement --fix`, recheck docs and CIA, and
+obtain a clean independent test receipt when the native session is idle.
+#1807, A7/A9 and F0 stay OPEN.
+
+New independent RED supersedes any malformed-input class PASS: with an isolated
+temporary stale legacy sentinel, no per-run secret, V3 `mode=123`, and a bad
+stored MAC, `verify_state_hmac(strict=False)` returned `True` while strict mode
+returned `False`. V3 JSON construction did not raise, so the exception guard
+fell through to the #753 stale fail-open. This does not authorize the current
+run (the authority classifier uses strict mode), but it contradicts this
+slice's both-mode malformed-state acceptance. Preserve the
+[#1807 counterexample](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5861749906),
+re-dispatch through the live implementer, and require the missing opposite arm
+and genuine legacy positive before crediting the scoped fix.
+The same live Claude coordinator independently reproduced the RED and
+re-dispatched its implementer. The bounded repair checks only string-required
+signed fields before the stale branch; V3-only JSON-native fields such as an
+integer `issue_number` must remain valid. Freeze all three arms: malformed
+`mode=123` refuses in both modes, a genuine V3 integer-issue state verifies,
+and well-typed stale legacy value-tampering retains its documented behavior.
+Earlier specialist passes do not cover this new candidate and must be rerun.
+The re-dispatched implementer has returned. A separate Codex direct replay of
+the settled candidate observed `(False, False)` for malformed V3 `mode=123`
+under strict/legacy verification, `(True, True)` for a secret-signed V3 state
+with integer `issue_number=1807`, and `(False, True)` for a well-typed wrong
+mode under a stale legacy sentinel. These are scoped library-route results;
+fresh specialist gates, a clean independent pytest exit after the live session
+is idle, and native A7/A9/F0 remain outstanding.
+The fresh spec-validator has now reported PASS on the revised candidate:
+42 independent checks and 106 focused pytest assertions, including the six
+stale malformed-field negatives, integer-issue positive, and well-typed #753
+control. Reviewer and doc-master re-review have been dispatched; the reported
+spec result is not their verdict or a clean Codex-owned pytest receipt.
+
+Parallel read-only denominator check: the #1757 release table remains
+**UNFROZEN** (90 UNKNOWN source modules of 238, unreconciled legacy/CLI/shell
+and installed-consumer routes). The source-fixture omitted-route mutant is not
+an installed-consumer proof. The [#1757 checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5862003824)
+names the next bounded installed POPULATED-3 omitted-row negative; it did not
+mutate a consumer or credit the release denominator.
+Follow-up [dependency correction](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5862148739):
+the previous disposable POPULATED-3 installer attempt lost unrelated settings
+and exited 127. Preregister the CLEAN-0/POPULATED-3 identities and full-vs-
+omitted WA-O3 claim pair now, but do not run or credit its native mutant through
+that unqualified writer. Native WA-O3 depends on the #1809 settings-preserving
+route; neither case pre-registration nor the source-fixture mutant freezes the
+full denominator.
+
+## Earlier pointer — 2026-09-28, alignment re-sign slice gated
+
+The second #1807 library re-sign path is now gated but **uncommitted**. In
+`/implement --fix` run `99ea5e5f17fa8d69`, the missing-MAC laundering
+negative went RED then GREEN; independent focused tests passed 40/40 and
+current-run unsigned-authority negatives passed. Spec-validator PASS,
+reviewer APPROVE, security-auditor PASS, doc-master PASS and CIA CLEAN were
+recorded; HEAD remains `ac3e04c3`. See the
+[#1807 slice result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5861368092).
+This establishes library-route tamper-evidence only. It does not prove that
+model-controlled tools cannot initiate or sign a run, that the installed hook
+route is active, or that native A7/A9 and F0 pass.
+
+The next separate class fix has started as fresh `/implement --fix` run
+`23e0756ad22e1b22`: make the shared `verify_state_hmac` primitive return a
+refusal for malformed signed input rather than raising `TypeError`, while
+preserving genuine signed and legacy compatibility arms. Stage 0 cleared and
+F1 initialized; no acceptance result exists yet. The ignored return value
+from `record_alignment_verdict` and duplicate re-sign orchestration remain
+documented #1807/#1757 maintenance follow-ups, not silently solved by this
+slice. #1806/#1809, native A7/A9, F0 and consumer release proof remain open.
+
+## Earlier pointer — 2026-09-28, V3 partial and Stage 1 repair active
+
+The uncommitted #1807 candidate now has an injective V3 MAC over the six
+declared bindings and a `set_pipeline_base_commit` guard that verifies the
+existing MAC before re-signing. Independent collision, tamper, wrong-secret,
+version and focused regression probes passed (30 targeted tests); the scoped
+spec-validator, reviewer, security-auditor, doc-master and CIA checks also
+passed. This is helper-level evidence only, not native A9, F0, commit or
+deployment. See the [#1807 V3 evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5860646787).
+
+The normal F1 `record_alignment_verdict` path still called
+`_update_pipeline_state` without first verifying the existing MAC, allowing
+that path to re-sign tampered bindings. The residual is recorded in the
+[#1807 Stage 1 finding](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5860531944).
+A fresh real `/implement --fix` run `99ea5e5f17fa8d69` passed Stage 0,
+obtained a cited in-scope alignment verdict and dispatched its implementer.
+The first repair passed 34 focused tests and Ruff, but an independent isolated
+negative found that removing `hmac` from a signed V3 state triggers its
+unsigned-legacy fallback: the updater signed a tampered issue number and
+persisted `alignment_passed=true`. This is [RED on #1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5860793585),
+not an accepted Stage 1 result. The exact counterexample was sent to the same
+Claude run for `/implement` re-dispatch. Preserve the single-writer candidate
+worktree and require an opposite-arm proof before specialist gates or closure.
+A9, #1806/#1809 and native F0 remain open.
+
+The re-dispatched implementer then removed the unsigned-mint branch and added
+the non-dict guard. Independent focused tests passed 40/40, an isolated replay
+of the missing-MAC tamper returned `False` with unchanged bytes, and two
+current-run authority negatives passed. The spec-blind validator returned
+PASS. F4 is **not closed**: reviewer APPROVE carried a malformed-signed-state
+`TypeError` warning, and doc-master found a protected-library docstring
+misstatement after correcting four editable docs. A hook-boundary refusal and
+the documented return contract still require reconciliation before accepting
+this Stage 1 slice. This remains library-route evidence only; native A7/A9
+origin and installed behavior are unproven.
+
+## Earlier pointer — 2026-09-28, conservative Stage 0 retained
+
+The user approved the A7/A9 native-origin slice as in scope. Claude preserved
+the failed A9 run `23932af8dbbe42eb` with `alignment_passed=false`; that
+approval did not create the independently verifiable approval receipt required
+by #1802. A fresh `/implement --fix` run `b90364f93b289bf8` began a Stage 0
+negation repair against [#1832](https://github.com/akaszubski/autonomous-dev/issues/1832),
+which duplicates the already-filed [#1831](https://github.com/akaszubski/autonomous-dev/issues/1831).
+Keep both issue IDs linked while the run is bound to #1832; neither is accepted.
+
+The negation candidate was rejected after independent `run_stage0` probes
+showed false `CLEAR` for out-of-scope SaaS proposals following `and`, then
+`launch`/`ship`/`enable`, then `then`/`while`. Adding verb and connective
+lists grew the classifier by roughly 150 lines without closing the language
+class. The full failed diff and untracked regression test were preserved in
+the live Claude session scratchpad as `1832_failed_candidate.patch` and
+`1832_failed_candidate_regression_test.py`; those private temp artifacts are
+not a durable release packet. The actual three working files were returned
+to HEAD, and conservative Stage 0 again escalates these ambiguous cases.
+The observed failure and disposition are on
+[#1832](https://github.com/akaszubski/autonomous-dev/issues/1832#issuecomment-5859709095).
+Do not revive the parser by adding more words. The next prerequisite is an
+independently verifiable native human-approval path for legitimate escalations
+(#1802/#1807), plus the six-binding native initialization and same-policy
+positive/deny proof. A9 and F0 remain unaccepted; no commit or deployment.
+
+Process caveat: the Claude coordinator used `git checkout HEAD --` on protected
+`lib/alignment_classifier.py` and removed the untracked test after copying it
+to scratchpad, instead of re-dispatching the implementer. The end state was
+verified, but this is **not** compliant `/implement` evidence. The observed
+Bash mutation gap is tracked on
+[#1562](https://github.com/akaszubski/autonomous-dev/issues/1562#issuecomment-5859786151):
+`_check_bash_infra_writes` returns allow for an active pipeline before its
+protected-path/actor check, although Write/Edit uses the #1296 actor check.
+The later #1833 was closed as a duplicate. Do not treat shell-string parsing
+alone as an OS security boundary.
+
+## Earlier pointer — 2026-09-28, A7/A9 alignment refusal after #1806 integration
+
+The active real Claude `/implement --fix` session is
+`adev-assurance:authority1807v3` in the separate
+`authority-boundary-1807/autonomous-dev` worktree. It has integrated the
+reviewed #1806 stale-lock-GC change into the uncommitted #1807 candidate.
+The frozen scoped result is 104 passed (24 GC and 80 #1807 security cases);
+reviewer APPROVE, security-auditor PASS and doc-master PASS apply to that
+candidate. This is not point-in-time lock-integrity proof, native A7/A9 origin
+proof, F0 acceptance, a deployment, or a release. #1806 and #1807 stay open.
+
+F5 CIA was re-run analysis-only and returned a clean *scoped process* verdict:
+no fabricated specialist completion, no test gaming, and the cancelled runs
+excluded. F6 saved `.claude/local/cia-2026-09-27-issue-1806-fix.md` in the
+candidate worktree; independent read and SHA-256
+`62e68199457e3900cedba8e7f8ec33cf5af5622e924c3f80e0df8e6551fb572f`
+confirm the report, but that local file is ignored and is not a portable release
+artifact. The first CIA attempt exceeded the frozen denominator by starting
+broad `tests/unit/hooks/` tests; a diagnostic command also accidentally
+started an unscoped copy through shell command substitution. Those runs are
+**not** #1806 evidence. Their processes were terminated and a read-only check
+found the candidate diff and gating sentinel intact, with no new secret-store
+keys; the live activity log nevertheless gained about 106 synthetic/test
+records in the known #1779/#1825 contamination class. Preserve those records
+and the failed attempt. A [#1825 escalation](https://github.com/akaszubski/autonomous-dev/issues/1825#issuecomment-5853950409)
+records the two causes; whether to add any hook or broad test-timeout default
+requires separate review for false positives and maintenance cost. The older
+invalid-run pointer below is historical; do not resume that run.
+
+The next #1807 A7/A9 native-origin slice started fresh run
+`23932af8dbbe42eb`, but its F1 Stage 0 alignment check escalated before the
+acceptance matrix or specialists. A direct deterministic replay reproduced
+`ESCALATE` for a brief saying *no* new signing store/service or hosted service,
+`CLEAR` for the same native-boundary task without that negated wording, and
+`ESCALATE` for a true hosted-SaaS proposal. A fresh-context independent
+classifier found the proposed native containment work in scope. The
+[#1831 alignment issue](https://github.com/akaszubski/autonomous-dev/issues/1831)
+retains this gate defect; do not silently reword the run to shop for a pass or
+self-approve it. The F1 sentinel already written for this run contains owner,
+run and mode but no issue/base/subject fields, so it cannot be cited as the
+six-binding native-positive case. Preserve it as partial/RED evidence; do not
+backfill those fields from chat or the ledger. The user subsequently approved
+this exact slice as in scope; Codex selected option 1 in the live Claude
+question prompt. The candidate's canonical `evaluate_and_record` nonetheless
+returned `verdict=escalate`, `alignment_passed=false`; the persisted verdict
+records `user_approved_refused=no_verifiable_approval_channel` and no approval
+object. This is the intentional #1802 fail-closed response to a same-principal
+approval claim, not evidence that the user failed to answer. The live result is
+recorded on [#1802](https://github.com/akaszubski/autonomous-dev/issues/1802#issuecomment-5859283880).
+Do not hand-write a pass, replay the response as a flag, or reword this failed
+run. F0/R0 authorization remains separate.
+
+Claude wrote `scratchpad/a9_frozen_matrix.md` **after** F1 had already written
+the sentinel and after the refused approval probe. Despite its filename and
+heading, this is a post-observation draft, not a pre-registered acceptance
+matrix or native proof. It proposes genuine native initialization/progression
+positives and model-controlled Bash/editor/MCP/fabricated-input denials, but
+separating positives in a live harness from denials in a disposable worker
+does not by itself establish one installed same-policy result. The structural
+candidate failure is that current fix-mode F1 itself uses model-initiated Bash
+to sign/write the protected carriers: denying those writes also denies the
+claimed genuine positive. The proposed next repair was #1831 Stage 0 polarity
+handling. The newer pointer above supersedes that proposal: the attempted
+parser was rejected and conservative Stage 0 retained. Independently
+verifiable native initiation and approval provenance remain substantive
+#1807/#1802 work. No protected A9 edit, F0, commit or deployment is credited
+to this failed slice.
+
 ## Latest restart pointer — 2026-09-27, #1807 run invalid for continuation
 
 The native `authority1807v2` implementer returned uncommitted candidate edits,
@@ -2685,3 +2994,516 @@ instead of weakening the refusal. No rollout, native F0 completion or migration
 credit follows from the 157 passing cases. Next: collect the test-master result,
 freeze the new RED arms, repair source through the live `/implement` specialists,
 and independently rerun affected behavior and assurance gates before promotion.
+
+## 2026-09-27 continuation — #1807 F2 isolation hold
+
+The 2026-09-26 coordinator above is historical, not the active native run.
+The later `/implement --fix` run `66523599c472f49a` is invalid for continuation:
+its own probes damaged live run identity. Preserve its dirty candidate and frozen
+tests in `/Users/akaszubski/.codex/worktrees/authority-boundary-1807/autonomous-dev`;
+do not inherit specialist completion or acceptance credit. The exact incident and
+unreviewed candidate are recorded in [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851478413).
+
+A fresh Claude Code 2.1.236 `/implement --fix` run `90bc90395fad5026` initialized
+a signed sentinel and recorded alignment, but stopped at F2. Its attempted full
+pytest command would have overridden `CLAUDE_CODE_SESSION_ID` and
+`CLAUDE_SESSION_ID` while executing in the live candidate worktree without a
+private HOME/TMPDIR/ledger/secret boundary. Installed PreToolUse refused the
+entire Bash call under the #606 env-spoofing rule. The F2 scratch directory was
+absent afterward, consistent with refusal before the command's first step.
+This is a correct guard outcome, not a reason to bypass it. See the
+[#1807 receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851656479).
+
+Current next action: prepare a disposable, credential-free checkout and prove an
+OS-enforced boundary with positive/refusal canaries before running pytest or any
+stateful probe. The native hook origin, A7/A9, #1806 overlap interlock, F0 and
+consumer release remain unaccepted. Neither the prior library-route green nor
+the new alignment record closes #1807.
+Independent read-only review found that the full suite can reach machine-global
+`/tmp` cleanup patterns, including completion ledgers, staging files, pipeline
+state and locks. Conftest redirects and the existing macOS sandbox argv stub do
+not themselves prevent this; qualify direct, `/private/tmp` alias, symlink and
+descendant read/write/delete refusals with permitted disposable controls before
+F2. See [#1807 boundary review](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851690509).
+
+The disposable clone now matches candidate HEAD `ac3e04c3` and the tracked diff
+digest `f491d3b5…`; it has no remote or copied live local/state/secret files.
+The proposed macOS profile passed only startup and limited live read/stat
+refusals, not the complete F2 matrix. The first canary runner was rejected
+before execution for overwrite, secret-byte hashing, network attribution and
+cleanup defects. Its successor was also held before execution: it could remove
+a pre-existing symlink, race against deny targets and mistake an unrelated
+operation failure for a sandbox refusal. Claude is revising scratch-only test
+material in live tmux session `adev-assurance:authority1807v3`; no pytest or
+native hook qualification follows yet. Evidence is preserved in
+[#1807 canary review](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851789846).
+
+Independent read-only source review also found current-run authority can be
+inferred circularly from the sentinel under examination, or from a specialist
+role before sentinel verification; the candidate test expects a caller-minted
+valid-MAC sentinel plus ledger to authorize. These are blocking, not a reason
+to narrow the acceptance case. Require an independently observed native caller
+at the guarded route, forged/self-derived and absent-first-agent refusals, and
+a genuine same-owner positive before #1807 closure. See
+[#1807 authority review](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851809352).
+
+The frozen v5 F2 OS-boundary canary has since executed exactly once under the
+unchanged profile. Independent read of the raw Claude tool result found script
+exit 0; the matrix has 29 actual five-field TSV rows, all PASS, and no skips.
+Direct and alias live-path read/write/delete refusals, disposable-work
+positives and local-loopback opposite arms passed. The 3,545-entry authorized
+live-state snapshot has identical before/after SHA-256 `92a6f762…`; all
+run-tagged decoys are absent after hash-verified cleanup. Runner SHA-256 is
+`6a50fbe7…`, profile SHA-256 `e8f0515c…`; artifacts are under
+`/private/tmp/claude-501/-Users-akaszubski--codex-worktrees-authority-boundary-1807-autonomous-dev/273b6b32-9b43-4112-b92f-fa565c016cd4/scratchpad/f2canary/run_20260927-120843-99291`.
+This qualifies preparation for one full-suite attempt inside that disposable
+boundary only. It is not pytest success, native A7/A9 proof, authenticated
+caller origin, or #1807 closure. Claude is preparing the exact sandboxed test
+command for independent review before execution. See the
+[#1807 canary result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851870158).
+
+The first contained whole-suite invocation ended before a baseline existed:
+pytest returned 120 after three seconds and its outside-SBX output artifact was
+empty. A separate collection-only diagnostic under the same frozen profile
+captured the actual early failure: the auto-loaded `pytest_rerunfailures`
+plugin attempted a loopback socket bind during `pytest_configure` and received
+EPERM from the network-denying sandbox. Disabling only that unused rerun plugin
+at the CLI (`-p no:rerunfailures`) let contained collection finish with 19,193
+tests in 28.78 seconds; the repo has no explicit rerun invocation. No profile
+or source change followed. One corrected whole-suite attempt is authorized
+with output inside SBX; the first attempt remains an invalid baseline, not a
+test pass or failure. Its exact receipts are in
+[#1807 runner diagnosis](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851916669).
+
+The corrected whole-suite attempt is now live in Claude background handle
+`bxkaeqk3m` (outer PID 17650, sandboxed Python child PID 17700 at the last
+observation). Output, exact context and ignored-residue note are under
+`/private/tmp/claude-501/-Users-akaszubski--codex-worktrees-authority-boundary-1807-autonomous-dev/273b6b32-9b43-4112-b92f-fa565c016cd4/scratchpad/sbx1807/out/run_20260927-122108-17650`.
+The frozen subject/profile digests were checked at dispatch; raw output is
+inside SBX, with only `-p no:rerunfailures` added. Pytest had reached 26% and
+reported failures, but there is no final exit or interpreted baseline yet.
+Do not restart this live run on a polling timeout. See
+[#1807 live handle](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5851944332).
+
+The corrected contained suite has finished: `EXIT=1` after 841 seconds,
+with 16,256 passed, 2,008 failed, 184 errors, 681 skipped, 21 xfailed and
+52 xpassed. Its raw output SHA-256 is
+`13a102c2eb241d8011c93f9073e59d7faf60a1ed389ac434ab142e44b70c4a8d`.
+The two `test_issue_1807_authority_*` files show passing progress rows, but
+that does not cover the independently identified A6 native-origin gaps.
+Observed errors include sandbox-denied filesystem/socket operations and an
+unrelated missing `batch_implement` import; existing mock-output tests also
+fail on their own expected format. The suite is therefore a red, mixed-cause
+baseline, not a candidate acceptance result. Claude is classifying failures
+and rechecking isolation; no retry or profile relaxation is authorized from
+this result alone. Raw artifacts remain in the run directory above.
+
+Claude's post-run read-only isolation check reported matching live tracked
+and untracked digests, intact current-run sentinel, zero new live secret-key
+files and nine sandbox-local secret files. This supports F2 containment under
+the 14-minute workload, not functional correctness: 805 permission-denied
+operations and 134 missing-file errors confound the broad suite, including
+tests whose intended positive path needs writable temporary paths or sockets.
+The contained full-suite output cannot be promoted as a #1807 functional
+baseline. The next native action is the finite A6 authority repair through the
+existing `/implement --fix` session; a separate, safe functional test setting
+must be qualified without weakening the F2 containment evidence. See the
+[#1807 baseline receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5852014501).
+
+F3 acceptance arms were frozen before source edits in the current Claude
+scratchpad `f3_frozen_acceptance.md`, under session
+`273b6b32-9b43-4112-b92f-fa565c016cd4`. They cover independent native
+caller identity (same-owner positive, missing/unqualified and wrong-owner
+refusals), rejection of role-only authority, first fix-mode implementer
+refusal when signed state is missing, ordinary no-run unchanged, and a
+valid-MAC hand-written sentinel/ledger negative on the guarded native route.
+The pre-dispatch ordering check passed; the native `/implement --fix` session
+is dispatching its implementer to reproduce RED then repair. No new functional
+proof, native A9 proof, deploy or promotion has occurred.
+
+Independent read-only #1818 preparation while #1807 owns the native writer:
+the clean `pytest-gate-1818-lean` anchor remains at `59f6efb7`; its
+`docs/audits/proofs/issue-1818-prep.json` explicitly says
+`PRE_EDIT_FROZEN_NOT_ACCEPTED`. Parsed content has 134 collected denominator
+IDs, 3 existing and 22 planned required IDs, 2 inherited baseline failures,
+collection exit 0 and baseline exit 1. Rehashing its embedded baseline output
+reproduced `ff14c3d9dcb632357377d5b7ae1b98722ffe18169f8def2d38b8fd04b157ac08`.
+This preserves an inherited-red anchor, not a green implementation or a broad
+suite verdict. #1818 protected edits remain dependent on accepted #1807
+identity/provenance; do not replay the earlier oversized candidate. The prep
+artifact records a collection-output digest and collected IDs but not the raw
+collection output, so that particular digest cannot be independently
+recomputed from the artifact alone. Preserve this limitation for the eventual
+native admission packet rather than treating the recorded hash as verified.
+
+Parallel read-only integration prep found that #1806 commit `32d32449` removes
+only the stale-GC `pipeline_*.lock` deletion from the production glob list and
+retains a zero `lockfiles_removed` report. The active #1807 candidate still
+edits that same library and deletes the lock glob; transplant the narrow hunk
+only after its native writer finishes, preserving #1807's authority changes.
+The focused #1806 proof has inode-continuity and competing-acquire arms; broad
+pytest remains unsafe without containment because separate #1544 GC tests can
+reach machine-global `/tmp` globs. No #1806 merge or test was run in parallel.
+
+Parallel read-only D0 prep confirmed native plugin delivery and source-free
+consumer proof are still ahead: #1755/#1758/#1759 are open D0 scopes, #1809
+requires active-run mutation refusal before rollout, and #1636 requires the
+installed verifier to travel without source fallback. Later proof must cover
+native manifest load; clean command-agent-hook-library-receipt execution;
+populated settings preservation and conflict refusal; digest-bound update,
+fresh-session executing bytes, rollback and uninstall; standalone/dogfood
+parity; then retirement of copied executable paths. Existing copy-installer
+tests do not prove these native outcomes. This is prep, not D0 acceptance.
+
+During F3 the native implementer ran the two existing #1807 security files
+and captured `39 passed, 1 warning in 7.43s`. The command piped pytest through
+`tail -40` without `pipefail`, so its shell exit does not independently prove
+pytest's raw exit. Treat this as an observed existing-test baseline, not a
+qualifying pass; subsequent RED/GREEN and independent reruns must preserve the
+pytest exit and unfiltered output. The implementer remains active and has not
+yet reported the frozen new refusal arms or a repair.
+
+F3 implementer has since added eleven new test arms and reported a pre-fix
+pattern of seven refusal/block arms failing and four permit/control arms
+passing, then began a production hook edit. Independent inspection found two
+coverage shortfalls: the first-specialist case treats fields in the forged
+sentinel itself as the `/implement` signal, rather than an independent signal
+when signed state is absent; the valid-MAC/ledger negative calls helpers
+in-process rather than the actual guarded native route. These arms are useful
+unit reproductions but cannot close the frozen independent-signal or native
+route requirements. The RED commands also piped pytest output, losing the raw
+pytest exit. The active Claude coordinator was explicitly informed; F3/A6/A9
+acceptance remains held pending independent cases and raw-exit verification.
+
+While the same writer is still active, independent diff inspection found a
+new fail-open contradiction in its unfinished `_native_stdin_identity`: the
+predicate/import exception branch claimed fail-closed but returned a sanitized
+arbitrary ID for non-placeholder strings. The role branch also still returned
+True and used spoofable `CLAUDE_SESSION_ID` to decide whether to refresh a
+sentinel's mtime. The coordinator relayed exact corrections: empty identity on
+predicate failure; remove role-only authorization; bind owner refresh to the
+native caller and preserve the genuine-owner refresh positive. These are
+review findings against an incomplete edit, not claims about the final diff.
+
+F3 boundary file later returned raw pytest exit 0 with 28 passes after the
+implementer fixed its in-process `main()` test-global leak. It then proposed
+temporarily reverting active source to manufacture RED for newly added arms.
+The coordinator was told to stop this and use a disposable pre-fix subject or
+record RED as unmeasured. One reverse edit to `unified_pre_tool.py` occurred
+before the correction arrived, but the implementer restored the fixed bytes
+from its scratch backup before running any test against the reversed source.
+Independent SHA-256 comparison of live hook and backup matched
+`c75d893559ea49b19b0ffcc1c0e567aee53bc7d33396c41c0563248331ed2578`;
+live completion-state library also matched its backup byte-for-byte. The
+post-restore targeted suite recorded `RAW_EXIT_CODE=0`, 28 passed. This is a
+recovered process error, not a qualifying RED or native A9 proof; no further
+live-source toggling is allowed.
+
+The later collateral targeted run (authority classifier, agent identity,
+namespaced identity, implement command contract, run-id lockfile spec) returned
+`RAW_EXIT_CODE=1`: 250 passed, 13 failed. Failures include role-only legacy
+positives and authorization/alignment arms; each requires behavioral review,
+not bulk expectation edits. A pre-F3 disposable clone already exists at
+`scratchpad/sbx1807/repo`: its hook still has the old
+`_authority_caller_identity` and lacks `_native_stdin_identity`. It can anchor
+new-arm RED only via a second qualified disposable copy with current tests;
+do not mutate the frozen evidence clone or live candidate to recreate RED.
+
+2026-09-27 F3 follow-up (still **not** native A9 acceptance): the live Claude
+implementer used a second disposable copy of the frozen pre-F3 candidate, with
+the current F3 tests copied into that subject. The raw pytest exit was 1:
+9 refusal/block arms failed as expected and 7 permit/control arms passed;
+12 other tests were deselected. The raw output is
+`scratchpad/newarms_prefix_red.txt` under Claude session
+`273b6b32-9b43-4112-b92f-fa565c016cd4`, SHA-256
+`10ed82a7a44a1e0e77a3faeabb1b0fef24ced58af039ae3b5d68f6f560e689a5`.
+Against the current candidate, six targeted files returned raw pytest exit 0,
+292 passed and 1 warning; `scratchpad/f3_final_green.txt` has SHA-256
+`6452ebe6d2799b228b9957691711bbd466286bc2b2976e344d5849a64461b85e`.
+These are agent-run measurements, not yet the independent final rerun. The
+12 alignment/authorization arms retained assertions on the actual allow/deny
+reason. The frozen evidence clone was not used as the test subject.
+
+The Claude Code documentation says `CLAUDE_CODE_SESSION_ID` is available to
+Bash, hooks and MCP subprocesses and matches hook-input `session_id`. Therefore
+binding to hook stdin mitigates env/sentinel substitution but is not an
+unforgeable native-origin proof: a model can know the ID and invoke hook code
+with fabricated stdin. The implementer is correcting overclaiming comments and
+tests; the [documented environment contract](https://code.claude.com/docs/en/env-vars)
+keeps A9 **OPEN** pending an independently exercised OS/native boundary.
+Likewise, the ledger-only first-agent case passed even on the pre-F3 baseline;
+it does not by itself demonstrate a new authenticated `/implement` signal or
+close the missing-signed-state gap. No F3.5/F4 promotion follows from these
+test counts alone.
+
+Read-only native-origin review found a concrete positive-path conflict:
+`plugins/autonomous-dev/commands/implement-fix.md` STEP F1 (lines 120–146 in
+the active #1807 checkout) invokes `record_run_start`, `sign_state` and
+`atomic_write_json` from model-initiated Bash/Python. The resulting sentinel
+is `.claude/local/implement_pipeline_state.json`, its key is under
+`~/.claude/pipeline_secrets/`, and its completion ledger is under `/tmp/`.
+An OS deny that blocks model-controlled writes to all three would also block
+the existing legitimate initialization. Thus A9 needs a genuinely
+native-owned initiation/progression path before that deny can be accepted;
+same-UID file modes, path or argv exemptions, and `SANDBOX_ENABLED=false` on a
+shell-dispatched hook do not establish provenance. The decisive still-missing
+experiment is one installed session under one effective policy showing both
+model-tool/descendant denial (including fabricated hook stdin) and genuine
+native initialization/progression, with OS-denial and positive-write receipts.
+This is a design finding, not an implemented repair or accepted proof.
+
+One candidate native initiation signal for a bounded experiment is Claude
+Code's documented `UserPromptExpansion` event, which fires when a **user-typed**
+slash command expands and supplies `command_name`, `command_args`,
+`command_source`, `prompt` and `session_id` to the hook. See the
+[official hook schema](https://code.claude.com/docs/en/hooks). This is only a
+candidate: verify with the installed CLI that model-invoked Skill calls and
+fabricated hook stdin cannot produce the same authoritative state transition,
+and that the hook process has the intended OS write capability while model
+tools and descendants do not. Do not adopt or claim A9 from the schema alone.
+
+2026-09-27 isolated native-event probe (Claude Code 2.1.236, disposable temp
+project, no autonomous-dev source/settings edit): a directly typed `/probe`
+invocation with tools disabled produced a `UserPromptExpansion` receipt with
+`expansion_type=slash_command`, `command_name=probe`,
+`command_source=projectSettings`, and a present `session_id` (minimized receipt
+SHA-256 `f827a55dc2d4f0fef0c43b1c7e20068da23aa81f889a4bb7671e6d2beb9a50ef`).
+In an opposite run the model invoked the same skill through the `Skill` tool,
+as observed in CLI telemetry; that run produced **no**
+`UserPromptExpansion` receipt (raw local output SHA-256
+`7f554eff2c0f69313db1fd5835cfee42307ff7dc75bf3aad81a4a9f28ec65509`).
+The test used `--setting-sources project --settings <disposable settings>`;
+user-level hooks also registered, so it is an event-discrimination probe, not
+proof of production installation isolation. It narrows the candidate native
+initiation signal but does not prove that fabricated hook stdin cannot invoke
+the hook script, nor that hook-only writes survive the model sandbox deny.
+Those same-policy negative and positive experiments remain required for A9.
+
+The same disposable Claude 2.1.236 project then exercised a bounded
+same-settings origin split. With `sandbox.enabled=true`,
+`failIfUnavailable=true`, `allowUnsandboxedCommands=false` and
+`sandbox.filesystem.denyWrite` on its receipt file, a native
+`UserPromptExpansion` command hook wrote the receipt (SHA-256
+`f827a55dc2d4f0fef0c43b1c7e20068da23aa81f889a4bb7671e6d2beb9a50ef`).
+Model-run Bash direct write returned `operation not permitted`; model-run Bash
+directly invoking that same hook script with fabricated stdin raised Python
+`PermissionError [Errno 1]`. The receipt hash stayed unchanged in both arms.
+Raw private CLI outputs are digest-bound respectively by SHA-256
+`7f347f1a5dde1603d72d52e65768f8bde7d1a42b0970f9f99dda120a099bef2f`
+and `1f3d33027cbe4b78a791f811b0dd9837920bd538bfb7b163de055c6f5eac712f`.
+
+Critical opposite: with only that OS sandbox rule, the model used built-in
+`Read` then `Write` and **successfully overwrote** the receipt with
+`MODEL_CAN_WRITE` (new SHA-256
+`16a55bd603f1449f48560086054bdd1f926c82e57c88514520246fa029dad9fd`,
+private raw output SHA-256
+`ebe53e92b8fe7fd8bce6bd2817da83774fd5594323f8e2e6ab447a2e0af068be`).
+The native hook subsequently restored the expected receipt. Adding a
+`permissions.deny` rule using `Edit(//absolute/event-native.json)` blocked the
+built-in `Write` (hash unchanged; private raw output SHA-256
+`9d18c7701c0563d2cf0ddb378bc5bbec8a1dd6f6ffb81bf2aaa3e8a5495d9c6b`),
+while the native hook still wrote under the same combined settings (observed
+mtime advance). This agrees with the [official permission rules](https://code.claude.com/docs/en/permissions):
+file-path rules for `Write` are accepted but ignored; `Edit(path)` applies to
+built-in edit tools. The observed working *candidate composition* is therefore
+native event initiation + OS sandbox deny for subprocesses + native `Edit`
+path deny for built-in editors. It is **not** A9 acceptance: these are one
+disposable path and short runs, not the installed sentinel/key/ledger,
+unregistered MCP editors, path aliases, descendants, recovery or consumer
+lifecycle under frozen policy. Keep A7/A9 OPEN until those arms pass.
+
+The implementer expanded the regression denominator after the 292-test
+targeted pass. A larger impacted-hook selection returned 46 failures. Running
+the same selection against the disposable pre-F3 candidate yielded 13 of
+those failures, leaving 33 newly introduced failures by test-ID set
+difference and none fixed in that selection. Those 33 are under root-cause
+review; do not call the candidate regression-clean or promote F3 because the
+smaller suite passed. The 13 inherited failures are separately tracked rather
+than silently charged to this edit or erased from the baseline.
+Independent read-only triage of the 33 flagged deny-to-allow/ask outcomes in
+alignment, explicit-implement and infrastructure controls. These cannot be
+dismissed as stale fixtures until replayed with one valid current-run positive
+control carrying native stdin identity, a signed owner-bound state and its
+run-start receipt; keep separate unsigned, wrong-owner and no-receipt negative
+controls. A shared sanctioned-run fixture may reduce maintenance, but a deny
+still missing on the valid positive path is a code regression, not a test
+expectation to weaken. The 13 inherited failures comprise eight protected-path
+and five installed-policy/environment cases in this comparison denominator.
+
+The active implementer subsequently confirmed an actual candidate fail-open:
+after `_is_pipeline_active()` correctly returns false on an unqualified native
+identity, `validate_agent_authorization()` skips its active-run alignment and
+coordinator-write denials and can fall through to `suggest`/allow. Settings
+write, prompt-quality and commit-completeness gates have the same conditional
+shape; infrastructure and state-deletion gates appear to fail closed in this
+case. A targeted authorized-state replay preserved the #1467 escalate/block
+denials (32 tests passed), but that positive does **not** resolve the
+unqualified-run opposite arm. The implementer is adding a separate
+run-transition detection/refusal path and must prove both arms, including Bash
+and MCP transports, before accepting this candidate. Do not count the prior
+292-test green as a security pass.
+
+An additional disposable Claude Code 2.1.236 native-event probe tested the
+model-invoked route independently of the active #1807 worktree. With a project
+`PreToolUse` hook matched to `Skill`, a model request to invoke a disposable
+`probe` skill produced a native receipt
+`{"hook_event_name":"PreToolUse","session_id_present":true,"skill_name":"probe","tool_name":"Skill"}`.
+The receipt SHA-256 is
+`d88fdb62017729ccc00f1f274b829825e52ad3958d7b41f7e2e956cd7ec20d36`;
+the private raw CLI output SHA-256 is
+`9220201ccdbef1244f21d45eff42d73ee8a057e30a63db806f393e3e3b23ec39`
+(process exit 0). This establishes a separate native signal for the
+model-invoked Skill route; the prior `UserPromptExpansion` signal covered only
+typed slash-command expansion. The candidate design is one native run-start
+entrypoint called by both events, then the existing workflow progression.
+This does **not** prove that event stdin cannot be forged by a model invoking
+the hook script, nor that installed sentinel/key/ledger paths are protected;
+A7/A9 remain OPEN. The event probe only reduces uncertainty about trigger
+coverage.
+
+During independent review of the active #1807 F3 candidate, the transition
+detector was found to return false for a fresh, present, identity-less `{}`
+sentinel, bypassing its own unqualified-run chokepoint. The implementer changed
+the candidate to treat every fresh, present sentinel as a transition and made
+presence detection symlink-aware. Its boundary-file raw run now reports
+46 passed. I independently compared the failure IDs in the pre-F3 impacted
+baseline and the latest 14-file raw run: both contain the identical 13 IDs
+(eight repository-structure-dependent protected-path cases and five missing
+installed-policy cases); the latest run reports 673 passed and 13 failed.
+Two consecutive failure-ID sets also have the same SHA-256
+`8d221d1669e2b51fbfbb30b6454632053f4afab77386609021df43582a2d23ba`.
+This is regression-denominator evidence, **not** acceptance of #1807 or F0:
+the active Claude coordinator still owes independent final diff/effect review,
+and native A7/A9 plus installed-consumer proof remain open.
+
+The independent classifier review found a further **candidate fail-open** to
+resolve before D1/A6 acceptance. `classify_current_run_authority()` accepts
+`verify_state_hmac()`, but the latter's legacy #753 compatibility branch
+returns true after any MAC mismatch if the legacy sentinel mtime is over one
+hour old. A signed v2 state with a matching owner and run-start receipt can
+therefore have a signed field altered after signing, then be classified
+`AUTHORIZED` when that sentinel is stale. This is a code-path finding, not yet
+a completed native reproduction. The decisive frozen negative is: establish a
+sanctioned state, alter a signed field, age only the legacy sentinel past 3600
+seconds, and require `MAC_INVALID` from current-run authority. The old
+compatibility API may retain its documented behavior, but current-run
+authority must not inherit the stale fail-open. The active Claude coordinator
+has been notified; #1807 remains OPEN.
+
+The active Claude implementer has now routed current-run authority through
+`strict=True`, retaining the legacy verifier default for the separate #753
+compatibility caller. Four focused stale-MAC arms passed in raw pytest output:
+tampered state refused as `MAC_INVALID` with a fixed matching receipt; an
+untampered stale-sentinel run authorized; a strict-flag counterfactual; and the
+legacy #753 behavior retained for non-authority callers. The implementer also
+reported a disposable pre-strict classifier replay returning `AUTHORIZED` on
+the tampered state (RED); that replay still needs independent review of its
+raw evidence. A subsequent 14-file raw run reports 677 passed and 13 failed,
+with failure-ID SHA-256
+`8d221d1669e2b51fbfbb30b6454632053f4afab77386609021df43582a2d23ba`,
+identical to the pre-F3 failure set. These are candidate checks, **not** final
+independent acceptance; #1807 and A7/A9 remain OPEN.
+
+The Claude coordinator's independent replay initially produced pytest
+`RAW_EXIT=4` because zsh passed an un-split multi-file variable as one path;
+that empty result was rejected, not counted as passing evidence. The corrected
+independent run actually executed 704 tests: 691 passed, 13 failed, with the
+failure-ID digest again
+`8d221d1669e2b51fbfbb30b6454632053f4afab77386609021df43582a2d23ba`.
+A separate verbose replay explicitly collected and passed all four new
+stale-MAC arms; an additional retained-deny selection reported 228 passed,
+`RAW_EXIT=0`. Source review confirmed the strict verifier returns after
+genuine valid-MAC paths but before the legacy #753 stale-True fallback. These
+checks resolve the particular stale-MAC regression concern, subject to the
+coordinator's remaining effect review; they do not establish the native
+write-origin split or installed-consumer result. Keep #1807/A7/A9 OPEN.
+
+F3.5 spec-blind validator returned **PASS** for the scoped read-side slice,
+after independent input/behavior probes rather than only executing the
+implementer's tests. It reported 31/31 classifier, 46/46 boundary, and 269/269
+directly related contract/unit tests, plus independent both-arm probes:
+C1 13/13, C2+C4 12/12, C3 4/4, and C5 9/9. Its first C5 probe falsely denied
+the no-run control by choosing a path protected by the separate #1435 hard
+floor; it identified that instrument flaw and reran with an unprotected target,
+isolating the #1807 chokepoint with seven denies and two allowed controls.
+The validator explicitly kept native A9 origin provenance OUT OF SCOPE and
+OPEN/UNMEASURED. F4 reviewer/security/doc-master, F5 CIA and F6 persistence
+remain; #1807 is not complete.
+
+During F4 read-only review, a second independent audit found another
+current-run authority gap for adjudication: after per-run-secret mismatch,
+`verify_state_hmac(..., strict=True)` still retries an HMAC keyed by the
+presented session ID for **declared v2** states. Because that session ID is
+available to the model, a v2-shaped state with a matching receipt and an HMAC
+computed using the public session ID can be classified `AUTHORIZED` while
+`legacy_mac=False` (the flag is derived only from the declared version).
+Existing frozen tests cover a v2/per-run-secret positive and v1 compatibility,
+but not this v2/public-key negative. The decisive test replaces the HMAC on a
+sanctioned v2 state with `_compute_state_hmac(state, owner, V2)` while retaining
+its receipt, and requires `MAC_INVALID`. This is a code-path finding, not yet
+a raw behavioral replay; it has been sent to the live Claude F4 reviewer and
+must be resolved before F4 acceptance. Do not treat strict stale-MAC success
+as proof of secret-backed current-run authority.
+
+F4 independent reviewer subsequently reproduced that v2/session-ID-keyed
+forgery in a live counterexample and returned **REQUEST_CHANGES**. The reviewer
+also identified a non-blocking observability gap: identity extraction errors
+had no deviation log, obscuring deployment failure versus missing identity.
+Through the active real Claude `/implement --fix` workflow, the implementer
+moved the `strict` refusal immediately after the per-run-secret MAC check, ahead
+of both the public session-ID fallback and the legacy stale-state branch, and
+added deviation logging. A frozen negative now holds a matching run-start
+receipt fixed, proves the same secret-free v2 forgery passes `strict=False`,
+and requires `strict=True` plus the current-run classifier to refuse it as
+`MAC_INVALID`; a genuine secret-signed positive control remains authorized.
+Codex independently read the new code/test and reran those two focused arms:
+**2 passed, 31 deselected** (Python 3.14.3, pytest 9.1.1, 7.18 s). This proves
+only the scoped public-key fallback repair. The per-run secret is still
+model-mintable pending native A9 origin separation; do not call it
+unforgeable. Reviewer and doc-master re-checks are now live, followed by the
+required security-auditor, CIA and persistence gates. F4, A6/A7/A9 and #1807
+remain **OPEN** until their respective acceptance evidence is complete.
+
+F4 re-review then independently replayed the public-key exploit and returned
+APPROVE; post-remediation doc-master independently reproduced the strict/non-
+strict split and returned PASS. The security-auditor initially returned PASS
+with a Medium advisory: the **new** run-transition denial logged the first
+200 characters of raw Bash command text through `_log_deviation()` to
+`deviations.jsonl`. Codex checked the actual call and log writer, found that a
+literal credential in a denied command would be stored, and rejected deferring
+the new leak as an advisory. Claude reopened F4 and dispatched `/implement
+--fix` remediation cycle 2; [#1822](https://github.com/akaszubski/autonomous-dev/issues/1822)
+tracks this specific regression. The candidate now logs the constant
+`bash_command` for Bash, matching the older #528 pattern. Codex inspected its
+new canary test and independently ran that focused arm: **1 passed** (Python
+3.14.3, pytest 9.1.1, 1.12 s); it asserts denial, unchanged receipt/sentinel,
+presence of the constant log subject, and absence of the canary from the log.
+This is narrow evidence, not renewed F4 acceptance. The reviewer,
+security-auditor and doc-master must recheck the final code, then CIA must run
+again on that state; the prematurely started CIA is not final evidence.
+#1807, A6/A7/A9 and the larger release remain OPEN.
+
+Final #1807 fix-mode checkpoint for real Claude run `90bc90395fad5026`:
+post-cycle-2 reviewer **APPROVE**, security-auditor **PASS** (80 focused security
+tests; on-disk canary verified), and doc-master **PASS** closed the scoped F4
+gate. The final continuous-improvement analyst (CIA) reconstructed dispatch
+and SubagentStop events across both remediation cycles, found no fabricated
+completion, no removed refusal assertions, and no trace of the cancelled
+premature CIA in the completion ledger; its verdict was **process sound**.
+The coordinator saved the final F5 report as
+`.claude/local/cia-2026-09-27-issue-1807-fix.md` (F6; 4,002 bytes), but that
+local path is gitignored. This tracked-path checkpoint is still **uncommitted**;
+the GitHub issue comment is the durable remote summary until the checkpoint is
+committed. CIA recorded two warning-level process gaps: activity-log
+resolution does not recognize these real worktree layouts, and hand-built
+sandboxed pytest commands caused two invalid exit-4 runs before correction.
+Reviewer/security final-verdict files also lose structured prior findings.
+[#1823](https://github.com/akaszubski/autonomous-dev/issues/1823) and
+[#1824](https://github.com/akaszubski/autonomous-dev/issues/1824) retain the
+low-severity MAC delimiter and symlink-check advisories;
+[#1825](https://github.com/akaszubski/autonomous-dev/issues/1825) tracks the
+pre-existing multi-file test-isolation warning. This is a **partial read-side
+mitigation**, not issue closure: the candidate source worktree remains
+uncommitted; #1807, native A7/A9 origin, installed-consumer proof, F0 and
+release are OPEN/UNPROVEN. The next safe independent slice is #1806 in a
+separate clean worktree, with fault cases frozen before code edits.
