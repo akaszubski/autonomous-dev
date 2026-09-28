@@ -11,6 +11,18 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-09-28 continuation: the #1806/#1807 library-route hardening checkpoint
+is committed and pushed as
+[`8efcd57f`](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39).
+It does not freeze this census, prove native A7/A9 origin/containment or accept
+F0. The proposed manual native probe failed independent safety preflight and
+was not run; see the [restart checkpoint](20260925-workflow-assurance-checkpoint.md)
+and [#1807 decision record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5862560992).
+The source-denominator scanner issues #1801/#1803/#1804/#1805 remain open,
+and the installed POPULATED-3 omitted-row arm must not use the current
+settings-destructive installer before #1809 is resolved. The historical
+sections below retain their point-in-time observations, not current verdicts.
+
 Instrument progress since the population snapshot: source-route correction
 `01a13368ab068536493a45299ca8c46b6adad910` is committed and pushed on
 `fix/1757-census-carriers` and integrated here as `d6e76665`.
