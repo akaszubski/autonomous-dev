@@ -697,6 +697,10 @@ do not advance #1805 by treating routed or parsed tests as full-suite proof.
 Resolve #1846 with an independently reviewed, coherent scope/result contract,
 then re-freeze #1805/#1818 on the repaired base. This is a delivery dependency,
 not permission to weaken final release or security coverage.
+Also resolve #1847's observed same-run premature spec-validator credit: a
+case-freeze return was stamped complete before execution. Neither coordinator
+prose nor SubagentStop alone may certify that stage; reuse #1818's bound
+execution evidence and make all completion readers reject unbound old stamps.
 
 Keep one current status block on #1757 linking the exact plan commit, release
 denominator, accepted receipts, current action, next missing evidence, blocker and
