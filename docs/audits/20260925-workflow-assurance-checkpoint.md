@@ -4,6 +4,25 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+2026-09-28 continuation: #1821's test-isolation source correction is committed
+and pushed as `9c678b545a195854e8688f6e5b1b6c8180544fe2`; its focused
+34-test run and specialist reviews passed, but it is not installed-workflow or
+F0 acceptance. The same native run exposed a plan-gate refusal log followed by
+an apparent successful Edit, so #1589 is under a fresh signed `/implement --fix`
+run from that commit. At this checkpoint its implementer is live, source hook
+bytes are unchanged, and the required pre-edit native refusal/effect probe has
+not yet been captured. Do not promote a source-only patch or a refusal log
+without the joined observed effect and a legitimate fix-mode permit arm.
+
+The post-#1821 `/improve --auto-file` run opened nine issues despite #1790's
+duplicate-corpus prerequisite. Six issues created by that run (#1836, #1837,
+#1838, #1840, #1841, #1843) were closed as historical, duplicate or contradicted
+by current source; those closures are recoverable. #1839, #1842 and #1844
+remain open as hypotheses requiring fresh exact-case proof and consolidation
+with existing owners. Do not use `--auto-file` again until #1790's corpus gate
+is shown green; report-only analysis remains available. None of these issue
+actions freezes the release census or advances F0.
+
 Read-only alignment recheck on 2026-09-28 compared root `PROJECT.md` (the
 plan's identified intent owner) with the revised plan for independent proof,
 consumer retrofit, release acceptance and measured simplification. No new
