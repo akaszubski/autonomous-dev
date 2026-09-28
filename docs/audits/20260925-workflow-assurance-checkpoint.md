@@ -12,6 +12,37 @@ the plan's dated execution pointer explicitly routes to the live issue and
 checkpoint. This is a bounded document comparison, not release acceptance or
 denominator freeze.
 
+## Current restart pointer — 2026-09-28, two source prerequisites checkpointed
+
+The #1807 native-origin witness substrate is committed and pushed as
+`27d1c4973413db49287d67b503cdf7c834459c51` on
+`fix/1807-authority-boundary-v2`. Its [issue checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5864044572)
+records the reviewed source-only result, the clean quiescent 225-test raw-exit-0
+run, two earlier invalid isolation measurements, and the unsafe untracked manual
+probe excluded from the commit. The substrate added roughly 3,000 lines and is
+**not** measured maintenance reduction. The `RunOrigin` verdict still needs a
+real downstream consumer; all native A7/A9 arms, installed event/effect joins,
+containment and F0 remain UNMEASURED. A fresh Claude `/implement --fix` run
+`eafd6b2623987f5b` is working on the smallest origin-reader consumer; its
+baseline exposed worktree-dependent infrastructure-protection test failures,
+which are recorded separately rather than counted as new acceptance failures.
+
+The #1809 settings-preservation source slice is committed and pushed as
+`79d85f1bf459052c0c03c90de23ce5c64d112f22` on
+`fix/1809-settings-preservation-v2`. Its [issue checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5864105155)
+records the corrected final-tree 36-test raw-exit-0 regression, broader focused
+scope, reviewer/security/doc verdicts and four Low advisories. It is a
+source-only partial fix, with net added code and tests: no deployment, native
+plugin reconciliation or installed-consumer proof. A shared run-start/update
+transaction interlock, other source-owned mutation routes and D0 lifecycle
+cases remain OPEN; a point-in-time admission check is not an interlock.
+
+The [release census](20260925-workflow-assurance-release-census.md) remains
+UNFROZEN. Its current selected lists and UNKNOWNs must be reconciled against
+source and installed consumers, then the omitted-route installed negative must
+be proven before publishing a finite #1757 acceptance denominator. Neither
+source checkpoint promotes F0/R0/D0 or authorizes replacement-family rollout.
+
 ## Latest restart pointer — 2026-09-28, malformed-input guard under specialist review
 
 **Superseding checkpoint after this slice:** The five #1806/#1807
