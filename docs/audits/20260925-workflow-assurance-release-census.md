@@ -247,7 +247,7 @@ claims that the installed owner has already been chosen or qualified.
 | WA-O1 additional refusers | `P/hooks/enforce_file_organization.py`, `validate_claude_md_size.py`, `validate_paid_dependency.py` | Each real allow/refuse/fault route; include paid dependency emitter despite scanner omission | M0, #1757 |
 | WA-O2 unresolved source controls | `P/hooks/enforce_orchestrator.py`, `enforce_prunable_threshold.py`, `enforce_regression_test.py`, `enforce_tdd.py` | Resolve caller/consumer and retain/migrate/retire with outcome coverage; unknown is not silent exclusion | Census/M0, #1757 |
 | WA-O3 dynamic extensions | `P/hooks/unified_pre_tool.py::_run_extensions` and selected consumer extensions | Discover effective extension population; deny/permit, disabled/missing carrier and omitted-census-entry refusal | Census/M0, #1757 |
-| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; 97 UNKNOWN libraries in the original `401c1ff0` snapshot, 90 under corrected walk `d6e76665` (later integrations not yet rerun) | Reconcile callers and decision/evidence dependencies rather than classifying unused by filename; preserve each required outcome or justify retirement. Neither count is a frozen current denominator | Census/M0, #1757 |
+| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; 97 UNKNOWN libraries in the original `401c1ff0` snapshot, 90 on a fresh 2026-09-28 corrected walk (not a frozen denominator) | Reconcile callers and decision/evidence dependencies rather than classifying unused by filename; preserve each required outcome or justify retirement. Neither count proves installed execution | Census/M0, #1757 |
 | WA-L1 plugin lifecycle | Config/native/plugin manifests, `P/lib/settings_merger.py`, existing installers/updaters/resolvers | Source-free installed root, one version/registration owner; clean/populated install/update/repeat/interruption/rollback/uninstall preserves unrelated configuration | D0, #1755/#1758/#1759/#1521/#1522 |
 | WA-L2 delivery routes | `install.sh`, `P/scripts/install.py`, deploy scripts, `P/lib/sync_dispatcher/`, setup/sync commands | Every affected active transport/consumer migrated or explicitly dispositioned; no source fallback or stale extra copy | D0/M0, #1757/#1521/#1522 |
 | WA-L3 commit controls | Configured active `scripts/hooks/pre-commit` and its five archived-hook invocations | Prove applicable shell-branch behavior; each required outcome remains covered before relocating/retiring an archived owner | Census/M0, #1757 |
@@ -879,7 +879,7 @@ Claude; settings preservation remains with its existing scoped merge owner.
 ## Bounded lifecycle-library disposition
 
 The existing reachability ratchet's three library checks passed on 2026-09-25;
-its live and pinned UNKNOWN set remains 97. Sixteen lifecycle/verification members
+its then-pinned UNKNOWN set was 97. Sixteen lifecycle/verification members
 were inspected further, without equating an ungrounded caller with dead code:
 
 | Proposed treatment | Audited members (under `P/lib/`) |
@@ -895,7 +895,7 @@ imports copy/validator; installation analyzer imports staging; update plugin imp
 plugin updater; align-project-retrofit imports retrofit verifier. These edges do
 not establish live entrypoints. None of the sixteen has a settings binding found
 by the existing walker. At that point 81 UNKNOWN members still awaited inspection; all
-97 retain their current machine verdict pending actual route/disposition proof.
+97 retained their machine verdict in that historical scan pending actual route/disposition proof.
 
 A second bounded cohort inspected 12 workflow/evidence libraries. The static walker
 missed a real dynamic shell edge: `P/templates/settings.autonomous-dev.json:101`
@@ -918,7 +918,7 @@ profile must preserve evidenced process/session limits; cancellation and cleanup
 become acceptance arms only where the consumer contract promises them. WA-W3-05
 may support separately established workflow-lifetime effects, not prove that this
 helper has been replaced. After both cohorts, 69 members have
-not had this additional inspection; all 97 retain the machine UNKNOWN verdict.
+not had this additional inspection; all 97 retained the machine UNKNOWN verdict in that scan.
 A concurrent ratchet rerun passed its three assertions but its session-finish
 guard detected activity/dispatch files changing; the overall run is not a clean
 pass. No state was reverted and no further concurrent pytest was run.
@@ -992,10 +992,17 @@ or count an unobserved outcome as covered. Exact limits, ordering policies,
 memory budgets, retention duties and training thresholds remain unresolved until
 an actual consumer/policy promise is identified and independently tested.
 
-All 97 machine-UNKNOWN members now have bounded additional source inspection.
-This closes the uninspected-library cohort, not the release denominator: every
-machine verdict remains unchanged, and consumer/manual/runtime proof, unique
-outcome decisions and explicit per-control acceptance remain outstanding.
+All 97 members of the historical machine-UNKNOWN cohort received bounded
+additional source inspection. A fresh integrated scanner run on 2026-09-28
+(`library_reachability(PROJECT_ROOT, use_cache=False)`, raw exit 0) enumerated
+238 modules: 148 REACHED and 90 UNKNOWN. The exact 97-member cohort reconciles
+to all 90 current UNKNOWNs plus seven now REACHED by source-route witnesses:
+`batch_resume_helper`, `claude_md_updater`, `daily_aggregate_manager`,
+`flaky_tests`, `retrospective_analyzer`, `selector_stall_detector`, and
+`test_routing`. No current UNKNOWN member is missing from that cohort. These
+static witnesses do not prove execution, and the #1801 false-REACHED case still
+prevents freezing the denominator. Consumer/manual/runtime proof, unique outcome
+decisions and explicit per-control acceptance remain outstanding.
 
 ## Shipping routes requiring explicit disposition
 
