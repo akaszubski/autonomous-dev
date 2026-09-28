@@ -4,6 +4,22 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+Latest 2026-09-28 restart: the isolated #1807 carrier and disposable native
+subject remain test-only. The test overlay SHA-256 is
+`085c3f6cd71b0e20adadc630962d8b70ec287c650ccf9501f667df7f9affd90c`;
+the subject's local baseline for the harmless editor-denial probe is
+`1fe2ab2972f6746e802dc2de8f71e72e40d8997d`. A real native
+UserPromptExpansion hook wrote its witness key to an isolated hook home; a
+real Claude Bash attempt against that home failed at the OS sandbox, and a
+real Claude Write attempt failed at the editor permission rule. Independent
+checks found both attempted markers absent. See the [Bash/hook](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870424628)
+and [editor](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870458850)
+issue records. This does not accept A9, #1807 or F0: default hook
+registration, authenticated isolated configuration, remaining editor/MCP
+routes, subagent inheritance and complete native run/effect provenance are
+still unproven. Do not repeat the first editor prompt as evidence: it was
+a model refusal, not an executed tool denial. Preserve unrelated dirty files.
+
 2026-09-28 continuation: #1821's test-isolation source correction is committed
 and pushed as `9c678b545a195854e8688f6e5b1b6c8180544fe2`; its focused
 34-test run and specialist reviews passed, but it is not installed-workflow or

@@ -103,9 +103,12 @@ disposable subject; a real native hook wrote there, while a real Claude Bash
 attempt to write the same home failed with `Operation not permitted` and left
 no marker. This is evidence for the Bash boundary only. The native command
 still needs effective default hook registration, authenticated config
-isolation, built-in-editor/MCP containment and end-to-end run/effect proof.
-Do not equate the agent's refusal to call Write with an enforced denial, or
-promote this test overlay into the product installation.
+isolation, other built-in-editor/MCP paths and end-to-end run/effect proof.
+The initial Write prompt yielded only a model refusal, so the disposable
+fixture explicitly authorized one harmless probe; the next real Write
+tool call was denied by settings and the marker was independently absent
+([#1807 editor arm](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870458850)).
+Do not promote this test overlay into the product installation.
 
 The #1807 V3 helper, F1 alignment re-sign and shared malformed-input slices
 are gated and committed as **library-route hardening only, not native
