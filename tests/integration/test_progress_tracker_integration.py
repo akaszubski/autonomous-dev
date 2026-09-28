@@ -19,13 +19,15 @@ Agent: test-master
 Phase: TDD Red (tests written BEFORE implementation)
 """
 
+import hashlib
 import json
 import os
 import sys
 import pytest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call, mock_open
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Sequence
 
 # Add lib directory to path for imports
 sys.path.insert(
@@ -47,6 +49,132 @@ try:
     )
 except ImportError as e:
     pytest.skip(f"Implementation not found (TDD red phase): {e}", allow_module_level=True)
+
+
+# ============================================================================
+# Live-repo isolation + digest tripwire (Issue #1821)
+# ============================================================================
+#
+# ``invoke_progress_tracker()`` is a REAL file writer. ``_find_project_md()``
+# resolves its target against the PROCESS WORKING DIRECTORY: ``.claude/PROJECT.md``
+# first (skipped when it is a symlink, which it is here) then ``PROJECT.md``. Under
+# pytest the cwd is the live repo root, so any test reaching the tracker rewrote the
+# tracked ``PROJECT.md`` -- the alignment gate's own input -- and still reported PASS.
+#
+# Per-test mocking was the failed control: it names the I/O API rather than the path
+# resolution, it is opt-in, and enumerating the writer tests UNDER-COUNTED TWICE.
+# The census is treated as incomplete. Both controls below are therefore autouse and
+# categorical -- they cover every test in this file, direct calls and
+# ``execute_step8_parallel_validation`` pipeline calls alike:
+#
+#   1. ``temp_project_root`` moves the resolution target into ``tmp_path``.
+#   2. ``live_repo_digest_guard`` fails any test that changes a live control file,
+#      so a real-root write reappearing by ANY future route turns the suite RED.
+
+LIVE_REPO_ROOT = Path(__file__).resolve().parents[2]  # integration -> tests -> root
+LIVE_PROJECT_MD = LIVE_REPO_ROOT / "PROJECT.md"
+LIVE_CLAUDE_PROJECT_MD = LIVE_REPO_ROOT / ".claude" / "PROJECT.md"
+LIVE_CLAUDE_MD = LIVE_REPO_ROOT / "CLAUDE.md"
+GUARDED_LIVE_FILES = (LIVE_PROJECT_MD, LIVE_CLAUDE_PROJECT_MD, LIVE_CLAUDE_MD)
+
+# Minimal PROJECT.md replica carrying every marker the tracker updates, plus two
+# lines it must NOT touch, so temp-consumer tests prove a real write and real
+# selectivity instead of mocking the effect away.
+REPLICA_PROJECT_MD = """# Temp Project (test replica, Issue #1821)
+
+**Last Updated**: 2026-01-08 (Issue #203)
+**Last Compliance Check**: 2026-01-08
+
+## Stage
+
+Current stage: Planning
+
+## Issues
+
+In progress:
+- #203: Previous feature
+"""
+
+
+def _digest(path: Path) -> Optional[str]:
+    """Return sha256 of ``path``, or None when unreadable/absent (symlinks followed)."""
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+class FileDigestGuard:
+    """Refuse any content change to a fixed set of files across a test.
+
+    Kept independent of pytest so BOTH arms can be exercised directly
+    (``test_digest_guard_refuses_and_permits``): an unchanged file must pass, and a
+    changed, created or deleted file must raise ``AssertionError`` naming the path.
+    """
+
+    def __init__(self, paths: Sequence[Path]) -> None:
+        self.paths = [Path(p) for p in paths]
+        self.before: Optional[Dict[Path, Optional[str]]] = None
+
+    def snapshot(self) -> None:
+        """Record the current digest of every guarded path."""
+        self.before = {p: _digest(p) for p in self.paths}
+
+    def assert_unchanged(self) -> None:
+        """Raise AssertionError if any guarded path's digest moved since snapshot()."""
+        if self.before is None:
+            raise AssertionError("FileDigestGuard.snapshot() was never called")
+
+        changed = [
+            (path, before, _digest(path))
+            for path, before in self.before.items()
+            if _digest(path) != before
+        ]
+        if changed:
+            detail = "\n".join(
+                f"  {path}: {before} -> {after}" for path, before, after in changed
+            )
+            raise AssertionError(
+                "Guarded file(s) changed during the test -- a test wrote a file it "
+                f"does not own (Issue #1821):\n{detail}"
+            )
+
+
+@pytest.fixture(autouse=True)
+def live_repo_digest_guard():
+    """Fail any test in this file that changes a live repo control file.
+
+    Yields:
+        The armed FileDigestGuard, so tests can assert on the guard itself.
+    """
+    guard = FileDigestGuard(GUARDED_LIVE_FILES)
+    guard.snapshot()
+    # Anti-fail-open: a guard watching a path that does not exist guards nothing and
+    # would pass forever. Refuse to arm unless the primary subject was really read.
+    assert guard.before[LIVE_PROJECT_MD] is not None, (
+        f"digest guard is not wired to a real file: {LIVE_PROJECT_MD} is unreadable "
+        "(check LIVE_REPO_ROOT parents[] depth)"
+    )
+    yield guard
+    guard.assert_unchanged()
+
+
+@pytest.fixture(autouse=True)
+def temp_project_root(tmp_path, monkeypatch):
+    """Point ``_find_project_md()`` at a temp replica for EVERY test in this file.
+
+    The replica reproduces the live layout's ``.claude/PROJECT.md -> ../PROJECT.md``
+    symlink so production still takes its real symlink-skip branch.
+
+    Returns:
+        Replica repo root; its ``PROJECT.md`` is the only file the tracker may write.
+    """
+    root = tmp_path / "replica_repo"
+    (root / ".claude").mkdir(parents=True)
+    (root / "PROJECT.md").write_text(REPLICA_PROJECT_MD, encoding="utf-8")
+    (root / ".claude" / "PROJECT.md").symlink_to(Path("..") / "PROJECT.md")
+    monkeypatch.chdir(root)
+    return root
 
 
 # ============================================================================
@@ -391,19 +519,28 @@ def test_progress_tracker_uses_write_tool(pipeline_context):
     # Should call with write mode ('w' or 'a')
 
 
-def test_progress_tracker_uses_edit_tool_for_updates(pipeline_context):
-    """Test that progress tracker uses Edit tool for selective updates"""
-    # Act
-    with patch('pathlib.Path.read_text', return_value="old content"):
-        with patch('pathlib.Path.write_text') as mock_write:
-            result = invoke_progress_tracker(
-                issue_number=pipeline_context["issue_number"],
-                stage=pipeline_context["stage"],
-                workflow_id=pipeline_context["workflow_id"]
-            )
+def test_progress_tracker_uses_edit_tool_for_updates(temp_project_root, pipeline_context):
+    """Test that progress tracker performs SELECTIVE updates (unrelated lines survive).
 
-    # Assert - Should perform selective edits
-    # (Implementation may vary - this tests the capability)
+    Previously this patched ``pathlib.Path.read_text``/``write_text``, which production
+    never calls (it writes through ``builtins.open``), so the patches intercepted
+    nothing, the test asserted nothing, and the live PROJECT.md was rewritten instead
+    (Issue #1821). It now runs against the temp replica and asserts real selectivity.
+    """
+    # Act
+    result = invoke_progress_tracker(
+        issue_number=pipeline_context["issue_number"],
+        stage=pipeline_context["stage"],
+        workflow_id=pipeline_context["workflow_id"]
+    )
+
+    # Assert - tracked lines change, untracked lines survive byte-for-byte
+    assert result.success is True
+    updated = (temp_project_root / "PROJECT.md").read_text(encoding="utf-8")
+    assert "**Last Updated**: 2026-01-08" not in updated
+    assert "**Last Compliance Check**: 2026-01-08" in updated
+    assert "- #203: Previous feature" in updated
+    assert updated.startswith("# Temp Project (test replica, Issue #1821)")
 
 
 # ============================================================================
@@ -574,3 +711,162 @@ def test_progress_tracker_handles_concurrent_updates(pipeline_context):
 
     # Assert - Should complete successfully
     assert result.success is True
+
+
+# ============================================================================
+# Isolation regression tests (Issue #1821)
+# ============================================================================
+
+def test_find_project_md_resolves_inside_the_temp_replica(temp_project_root):
+    """Positive control for the isolation fixture: the route really is redirected.
+
+    If ``_find_project_md()`` ever stops honouring cwd (absolute paths, a repo-root
+    walk), this fails loudly instead of the digest guard catching a live write after
+    the fact.
+    """
+    import auto_implement_pipeline
+
+    resolved = auto_implement_pipeline._find_project_md()
+
+    assert resolved is not None
+    assert Path(resolved).resolve() == (temp_project_root / "PROJECT.md").resolve()
+    assert Path(resolved).resolve() != LIVE_PROJECT_MD.resolve()
+
+
+def test_progress_tracker_writes_the_temp_replica_not_the_live_file(
+    temp_project_root, pipeline_context
+):
+    """REAL write positive: isolation must not be achieved by mocking the write away.
+
+    A genuine write happens, it lands in ``tmp_path``, and the assertions are on the
+    written bytes.
+    """
+    # Act
+    result = invoke_progress_tracker(
+        issue_number=204,
+        stage="implementation_complete",
+        workflow_id=pipeline_context["workflow_id"]
+    )
+
+    # Assert - real update, correct date and issue marker, in the temp file
+    assert result.success is True
+    assert result.project_md_updated is True
+    today = datetime.now().strftime("%Y-%m-%d")
+    updated = (temp_project_root / "PROJECT.md").read_text(encoding="utf-8")
+    assert f"**Last Updated**: {today} (Issue #204)" in updated
+    assert "Current stage: implementation_complete" in updated
+    assert "Last Updated timestamp" in result.updates_made
+
+
+def test_pipeline_step8_writes_the_temp_replica_not_the_live_file(temp_project_root):
+    """Pipeline-integration route (not just direct calls) resolves to the replica.
+
+    ``execute_step8_parallel_validation`` calls the tracker itself, so isolating only
+    direct ``invoke_progress_tracker`` calls would leave this route on the live file.
+    Deliberately runs with NO mocks: the real resolution path executes.
+    """
+    # Act
+    result = execute_step8_parallel_validation({
+        "workflow_id": "wf-1821",
+        "issue_number": 204,
+        "stage": "implementation_complete",
+        "batch_mode": False,
+    })
+
+    # Assert
+    assert result["progress_tracker"].success is True
+    assert result["progress_tracker"].project_md_updated is True
+    today = datetime.now().strftime("%Y-%m-%d")
+    assert f"**Last Updated**: {today} (Issue #204)" in (
+        temp_project_root / "PROJECT.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_live_digest_guard_fixture_is_armed_on_the_real_project_md(
+    live_repo_digest_guard
+):
+    """Wiring check (Q1 connected): the autouse guard watches the REAL control files.
+
+    ``FileDigestGuard`` being correct is worthless if the fixture points it at a path
+    that does not exist -- that is a probe which cannot fail. This asserts the live
+    paths exist, are covered, and were actually digested.
+    """
+    assert LIVE_PROJECT_MD.exists(), f"path depth wrong: {LIVE_PROJECT_MD}"
+    assert LIVE_PROJECT_MD in live_repo_digest_guard.paths
+    assert LIVE_CLAUDE_PROJECT_MD in live_repo_digest_guard.paths
+    assert live_repo_digest_guard.before is not None
+    assert live_repo_digest_guard.before[LIVE_PROJECT_MD] is not None
+
+
+def test_digest_guard_refuses_and_permits(tmp_path):
+    """Both arms of FileDigestGuard, on a subject unrelated to PROJECT.md.
+
+    Permit arm: unchanged file -> no raise. Refuse arms: content edit -> raise,
+    deletion -> raise, never-armed -> raise. Deliberately a DIFFERENT shape from the
+    bug that prompted the guard (a plain text file, no tracker, no symlink, no cwd
+    dependency), so the guard is proven against the category "file changed" rather
+    than the single instance that was caught.
+    """
+    subject = tmp_path / "control.md"
+    subject.write_text("original\n", encoding="utf-8")
+    guard = FileDigestGuard([subject])
+    guard.snapshot()
+
+    # Permit arm - nothing changed
+    guard.assert_unchanged()
+
+    # Refuse arm 1 - content mutated
+    subject.write_text("mutated\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="control.md"):
+        guard.assert_unchanged()
+
+    # Refuse arm 2 - file removed
+    guard.snapshot()
+    subject.unlink()
+    with pytest.raises(AssertionError, match="control.md"):
+        guard.assert_unchanged()
+
+    # Refuse arm 3 - an un-armed guard must not silently pass (fail-open)
+    with pytest.raises(AssertionError, match="snapshot"):
+        FileDigestGuard([subject]).assert_unchanged()
+
+
+def test_digest_guard_catches_a_live_shaped_unisolated_write(tmp_path, monkeypatch):
+    """Counterfactual: reproduce the #1821 defect and observe the guard REFUSING.
+
+    Builds a byte-for-byte clone of the live layout that caused the defect (root
+    ``PROJECT.md`` copied from the live file plus the ``.claude/PROJECT.md ->
+    ../PROJECT.md`` symlink), then runs the tracker the way the broken tests ran it:
+    no redirection, no mocks. Production skips the symlink, rewrites the root file,
+    and the guard raises.
+
+    The subject is the CLONE, never the live file, so the tripwire is proven without
+    putting the tracked PROJECT.md at risk.
+    """
+    live_bytes = LIVE_PROJECT_MD.read_bytes()
+    assert b"**Last Updated**:" in live_bytes, (
+        "live PROJECT.md no longer carries the marker this counterfactual depends on"
+    )
+
+    clone = tmp_path / "live_shaped_repo"
+    (clone / ".claude").mkdir(parents=True)
+    (clone / "PROJECT.md").write_bytes(live_bytes)
+    (clone / ".claude" / "PROJECT.md").symlink_to(Path("..") / "PROJECT.md")
+
+    guard = FileDigestGuard([
+        clone / "PROJECT.md",
+        clone / ".claude" / "PROJECT.md",
+    ])
+    guard.snapshot()
+    guard.assert_unchanged()  # negative control: armed, quiet, nothing done yet
+
+    # Act - the exact unisolated call shape that passed while mutating the repo
+    monkeypatch.chdir(clone)
+    result = invoke_progress_tracker(
+        issue_number=204, stage="implementation_complete", workflow_id="wf-1821"
+    )
+
+    # Assert - the write really happened, and the guard refuses it
+    assert result.project_md_updated is True
+    with pytest.raises(AssertionError, match="PROJECT.md"):
+        guard.assert_unchanged()
