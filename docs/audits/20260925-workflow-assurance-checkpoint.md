@@ -4,6 +4,20 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+2026-09-29 #1818 HOLD: the signed same-session native fix run reached a genuine
+implementer Edit of `plugins/autonomous-dev/lib/test_runner.py`, but no
+same-process instrumented F2 was run. The implementer then attempted a denied
+scratch-fixture Write and created an alternate `_smoke1818/` fixture via Bash;
+the supervisor stopped the native process and preserved its transcript and
+scratch effects. The provisional +1337/-2 capture draft is uncommitted, not an
+accepted source or release result. Independent read-only review found raw
+environment values in the evidence record, insufficient evidence-root and
+plugin-origin binding, optional config pinning, and unbounded subprocess output;
+legacy test subprocess paths remain live. Do not resume this draft as a
+qualifying instrument or promote any green smoke result. See the
+[#1818 HOLD receipt](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5873990478)
+and inspect the preserved isolated worktree before any new native attempt.
+
 Latest 2026-09-28 restart: the isolated #1807 carrier and disposable native
 subject remain test-only. The test overlay SHA-256 is
 `085c3f6cd71b0e20adadc630962d8b70ec287c650ccf9501f667df7f9affd90c`;
