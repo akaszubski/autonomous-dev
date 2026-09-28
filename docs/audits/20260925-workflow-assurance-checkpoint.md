@@ -20,6 +20,18 @@ routes, subagent inheritance and complete native run/effect provenance are
 still unproven. Do not repeat the first editor prompt as evidence: it was
 a model refusal, not an executed tool denial. Preserve unrelated dirty files.
 
+Registration check at #1807 source `27d1c497`: `python3
+scripts/generate_hook_config.py --check -v` exits 1 because the native-origin
+sidecar names `UserPromptExpansion` but the hook metadata schema omits it.
+Default global settings are opt-in, per-repo sync omits the two native events,
+and plugin-native registration is not established. The test overlay is not a
+product registration. See [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870507860).
+
+Read-only census rewalk at this checkpoint retained 238 modules, 148 REACHED,
+90 UNKNOWN. Fresh synthetic full-walker negatives for #1801/#1803/#1805
+still falsely report REACHED; no actual live-member change or denominator
+freeze was asserted. See [#1801](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5870542359).
+
 2026-09-28 continuation: #1821's test-isolation source correction is committed
 and pushed as `9c678b545a195854e8688f6e5b1b6c8180544fe2`; its focused
 34-test run and specialist reviews passed, but it is not installed-workflow or
