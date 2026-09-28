@@ -57,6 +57,12 @@ import unified_pre_tool as hook  # noqa: E402
 from path_utils import ACTIVITY_LOG_DIR_ENV  # noqa: E402
 from pipeline_state import sign_state  # noqa: E402
 
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+
 PLUGIN_MANIFEST = REPO_ROOT / "plugins" / "autonomous-dev" / ".claude-plugin" / "plugin.json"
 LIVE_LOGS_DIR = REPO_ROOT / ".claude" / "logs"
 
@@ -182,44 +188,66 @@ def no_state(tmp_path, monkeypatch):
     return missing
 
 
+#: Owner of the sanctioned runs these fixtures build (Issue #1807).
+_ID_OWNER = "sess-regression-1811"
+
+
 @pytest.fixture
 def plain_state(tmp_path, monkeypatch):
-    """Write an UNSIGNED, fresh, explicitly-invoked pipeline state."""
+    """Write a SANCTIONED, fresh, explicitly-invoked pipeline state.
+
+    Issue #1807: this fixture used to write an UNSIGNED state, and the SUBJECT of
+    the arms using it is agent-identity normalization — they need an ACTIVE
+    pipeline to reach the identity branches at all. An unsigned state is now
+    classified UNSIGNED_LEGACY and is not active, so those arms would have
+    measured authority refusal instead of #1811 identity handling.
+    """
+    import pipeline_completion_state as _pcs
 
     def _make(**fields) -> Path:
-        state = {
-            "session_start": datetime.now().isoformat(),
-            "mode": "full",
-            "run_id": "regression-1811",
-            "explicitly_invoked": True,
-        }
-        state.update(fields)
+        redirect_pipeline_state(monkeypatch, tmp_path, pipeline_state, _pcs, hook)
         path = tmp_path / "implement_pipeline_state.json"
-        path.write_text(json.dumps(state))
+        write_sanctioned_sentinel(
+            path, _ID_OWNER, "regression-1811", **fields
+        )
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", _ID_OWNER)
+        # Issue #1807 (defect 1): current-run authority binds to the NATIVE stdin
+        # identity, not CLAUDE_SESSION_ID. A genuine run's native session id equals
+        # its owner, so pin it — otherwise _is_pipeline_active() (and the
+        # authorization gates that consume it) correctly refuse a run with no
+        # native caller identity.
+        monkeypatch.setattr(hook, "_session_id", _ID_OWNER, raising=False)
         return path
 
-    return _make
+    yield _make
+    clear_run_artifacts(_ID_OWNER)
 
 
 @pytest.fixture
 def signed_state(tmp_path, monkeypatch):
-    """Write an HMAC-signed pipeline state and point the hook at it."""
+    """Write a SANCTIONED pipeline state (explicitly_invoked False) for the hook.
+
+    Issue #1807: previously signed with ``session_id`` ABSENT from the state,
+    which is the unverifiable-owner shape A1c refuses.
+    """
+    import pipeline_completion_state as _pcs
 
     def _make(**fields) -> Path:
-        state = {
-            "session_start": datetime.now().isoformat(),
-            "mode": "full",
-            "run_id": "regression-1811-signed",
-            "explicitly_invoked": False,
-        }
-        state.update(fields)
+        redirect_pipeline_state(monkeypatch, tmp_path, pipeline_state, _pcs, hook)
         path = tmp_path / "implement_pipeline_state.json"
-        path.write_text(json.dumps(sign_state(state, "test-session")))
+        fields.setdefault("explicitly_invoked", False)
+        write_sanctioned_sentinel(
+            path, _ID_OWNER, "regression-1811-signed", **fields
+        )
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", _ID_OWNER)
+        # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+        monkeypatch.setattr(hook, "_session_id", _ID_OWNER, raising=False)
         return path
 
-    return _make
+    yield _make
+    clear_run_artifacts(_ID_OWNER)
 
 
 def _as_agent(monkeypatch, name) -> None:
@@ -232,8 +260,15 @@ def _as_agent(monkeypatch, name) -> None:
 
 
 def _write_payload() -> dict:
+    # Issue #1807: carry the run owner's session id on the native stdin payload,
+    # as a real coordinator tool call does. main() sets _session_id from it, so
+    # _is_pipeline_active() sees a QUALIFIED run and the in-pipeline #528
+    # "WORKFLOW ENFORCEMENT" coordinator block is what fires — not the
+    # run-bearing-transition chokepoint (which would deny an UNqualified caller
+    # first, with a different reason). The owner matches plain_state's _ID_OWNER.
     return {
         "tool_name": "Write",
+        "session_id": _ID_OWNER,
         "tool_input": {"file_path": CODE_TARGET, "content": "def f():\n    return 1\n"},
     }
 
@@ -335,15 +370,41 @@ class TestNormalizationContract:
 
 
 class TestPositiveAPipelineActiveNameBranch:
-    """With NO state file, only the agent-name branch can report an active pipeline."""
+    """The ``_is_pipeline_active()`` name branch after Issue #1807 (defect 2).
 
-    def test_namespaced_implementer_is_pipeline_active(self, monkeypatch, no_state):
+    Issue #1807 AMENDMENT. Pre-#1807 this class asserted that a pipeline-agent
+    NAME alone (with NO state file) reported an active pipeline — which was
+    exactly defect 2: role/name alone conferring current-run authority. The name
+    branch now only refreshes the OWNING session's sentinel mtime (keyed on the
+    NATIVE stdin identity) and falls through; it NEVER returns True on role alone.
+
+    So with NO signed state EVERY identity — namespaced implementer, unprefixed,
+    spoof, coordinator — reads as NOT active; and WITH a signed current-run
+    sentinel owned by the native session the run is active regardless of the agent
+    name. The #1811 normalization contract itself is proven by
+    ``TestNormalizationContract``; this class now guards that the #1807 tightening
+    neither reintroduces role-authority nor breaks the namespaced positive case.
+    """
+
+    def test_namespaced_implementer_without_state_is_not_active(self, monkeypatch, no_state):
+        """Issue #1807 (defect 2): a namespaced pipeline role + NO signed state
+        => NOT active. Was ``is True`` pre-#1807 (the defect)."""
         _as_agent(monkeypatch, "autonomous-dev:implementer")
-        assert hook._is_pipeline_active() is True
+        assert hook._is_pipeline_active() is False
 
-    def test_unprefixed_implementer_is_pipeline_active(self, monkeypatch, no_state):
-        """Positive control: the instrument reports True for the known-good identity."""
+    def test_unprefixed_implementer_without_state_is_not_active(self, monkeypatch, no_state):
+        """Same for the unprefixed role: name alone confers no authority."""
         _as_agent(monkeypatch, "implementer")
+        assert hook._is_pipeline_active() is False
+
+    def test_namespaced_implementer_with_signed_state_is_active(self, monkeypatch, plain_state):
+        """POSITIVE control: the namespaced case still works inside a genuine run.
+
+        The instrument can still report True — with a signed current-run sentinel
+        owned by the native session, a namespaced pipeline agent is recognized and
+        the run is active. Proves the #1807 tightening did not break #1811."""
+        plain_state()
+        _as_agent(monkeypatch, "autonomous-dev:implementer")
         assert hook._is_pipeline_active() is True
 
     @pytest.mark.parametrize("identity", ["main", None])
@@ -362,9 +423,10 @@ class TestPositiveAPipelineActiveNameBranch:
         assert hook._is_pipeline_active() is False
 
     def test_name_branch_does_not_manufacture_a_sentinel(self, monkeypatch, no_state):
-        """Issue #1779 (AC3) must survive the fix: refresh, never create."""
+        """Issue #1779 (AC3) survives, and Issue #1807 (defect 2) is enforced:
+        role alone neither creates a sentinel nor reports active."""
         _as_agent(monkeypatch, "autonomous-dev:implementer")
-        assert hook._is_pipeline_active() is True
+        assert hook._is_pipeline_active() is False
         assert not no_state.exists()
 
 

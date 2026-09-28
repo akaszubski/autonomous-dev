@@ -36,14 +36,56 @@ if HOOK_DIR not in sys.path:
 
 import unified_pre_tool
 
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    sanctioned_state,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_run_artifacts(monkeypatch, tmp_path):
+    """Redirect sentinel, secret store and completion ledger into tmp_path.
+
+    Issue #1807: building a sanctioned run writes a key under ``$HOME`` and a
+    ledger under ``/tmp``. ``redirect_pipeline_state`` is the ONE canonical
+    redirect for all of it, and ``sanctioned_run`` REFUSES to build without it.
+    """
+    import pipeline_completion_state as _pcs
+    import pipeline_state as _ps
+
+    redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, unified_pre_tool)
+
 
 def _write_state_file(path: Path, state: dict) -> None:
     """Helper to write a pipeline state JSON file."""
     path.write_text(json.dumps(state))
 
 
-def _make_valid_state(session_id: str = "session-A") -> dict:
-    """Create a valid pipeline state dict with a recent timestamp."""
+#: Every session id this module builds a sanctioned run for, so the /tmp ledger
+#: receipts can be reaped. /tmp is NOT cleared between pytest invocations
+#: (Issue #1184).
+_SANCTIONED_SESSIONS = ("session-A", "session-B", "old-session", "current-session")
+
+
+@pytest.fixture(autouse=True)
+def _reap_run_receipts():
+    """Remove run-start receipts this module writes, before and after each test."""
+    for session_id in _SANCTIONED_SESSIONS:
+        clear_run_artifacts(session_id)
+    yield
+    for session_id in _SANCTIONED_SESSIONS:
+        clear_run_artifacts(session_id)
+
+
+def _make_unsigned_state(session_id: str) -> dict:
+    """Build an UNSIGNED state whose owner may be indeterminate.
+
+    Issue #1807: ``sanctioned_state`` refuses a blank/"unknown" owner by design,
+    but ``_is_stale_session`` must still be exercised with those spellings —
+    that comparison runs BEFORE any authority question and is what these arms
+    measure.
+    """
     return {
         "session_start": datetime.now().isoformat(),
         "mode": "full",
@@ -51,6 +93,24 @@ def _make_valid_state(session_id: str = "session-A") -> dict:
         "explicitly_invoked": True,
         "session_id": session_id,
     }
+
+
+def _make_valid_state(session_id: str = "session-A") -> dict:
+    """Create a valid pipeline state dict with a recent timestamp.
+
+    Issue #1807: "valid" now means SANCTIONED — owner bound into the MAC and a
+    run-start receipt recorded. The pre-#1807 version returned a bare unsigned
+    dict, which ``_is_pipeline_active()`` accepted; that shape is exactly the
+    forgery the authority classifier now refuses, so a fixture using it would
+    have measured the refusal rather than the staleness logic under test.
+    """
+    return sanctioned_state(
+        session_id,
+        "test-run",
+        session_start=datetime.now().isoformat(),
+        mode="full",
+        explicitly_invoked=True,
+    )
 
 
 class TestIsStaleSession:
@@ -98,7 +158,7 @@ class TestIsStaleSession:
     def test_unknown_stored_session_id_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Stored 'unknown' -> False."""
         state_path = tmp_path / "state.json"
-        state = _make_valid_state("unknown")
+        state = _make_unsigned_state("unknown")
         _write_state_file(state_path, state)
 
         monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
@@ -123,7 +183,7 @@ class TestIsStaleSession:
     def test_empty_stored_session_id_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Stored '' -> False."""
         state_path = tmp_path / "state.json"
-        state = _make_valid_state("")
+        state = _make_unsigned_state("")
         _write_state_file(state_path, state)
 
         monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
@@ -219,6 +279,8 @@ class TestPipelineActiveWithStaleness:
 
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
         monkeypatch.setenv("CLAUDE_SESSION_ID", "current-session")
+        # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+        monkeypatch.setattr(unified_pre_tool, "_session_id", "current-session")
         monkeypatch.setattr(unified_pre_tool, "_agent_type", "")
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
 
@@ -257,6 +319,14 @@ class TestIssue1384RecoveryBreadcrumbNotActive:
         os.utime(state_path, (old, old))
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
         monkeypatch.setenv("CLAUDE_SESSION_ID", state.get("session_id", "current-session"))
+        # Issue #1807 (defect 1): _is_pipeline_active() binds authority to the
+        # NATIVE stdin identity, not CLAUDE_SESSION_ID. Pin it to the state owner so
+        # the PERMIT arms exercise the run-bearing-AND-authorized path; the refuse
+        # arms (unsigned / no run identity) still deny because the state itself
+        # fails the classifier, not because identity is absent.
+        monkeypatch.setattr(
+            unified_pre_tool, "_session_id", state.get("session_id", "current-session")
+        )
         monkeypatch.setattr(unified_pre_tool, "_agent_type", "")
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
         return state_path
@@ -266,26 +336,45 @@ class TestIssue1384RecoveryBreadcrumbNotActive:
         self._setup(tmp_path, monkeypatch, self._bare_recovery())
         assert unified_pre_tool._is_pipeline_active() is False
 
-    def test_sentinel_with_run_id_still_active(self, tmp_path, monkeypatch):
-        """Genuine sentinel carrying run_id remains active (backwards-compat)."""
-        state = self._bare_recovery()
-        state["run_id"] = "test-run"
+    def test_genuine_step0_sentinel_still_active(self, tmp_path, monkeypatch):
+        """PERMIT arm: a genuine STEP-0 sentinel remains active.
+
+        Issue #1807 AMENDMENT. This node replaces three earlier ones
+        (``test_sentinel_with_run_id_still_active``,
+        ``..._with_mode_...``, ``..._with_explicitly_invoked_...``) which each
+        asserted that adding ONE of run_id/mode/explicitly_invoked to a recovery
+        breadcrumb promoted it back to "active". That rule was the #1384 rule and
+        it is now strictly stronger: being run-bearing is NECESSARY but not
+        SUFFICIENT — the state must also name a determinate owner, carry an
+        owner-bound MAC, and be corroborated by a run-start receipt. A
+        mode-only or explicitly_invoked-only state has no ``run_id``, so it
+        identifies no run and cannot be authority for one. The refusal half of
+        that amendment is the next test, so nothing was merely deleted.
+        """
+        state = sanctioned_state(
+            "current-session",
+            "test-run",
+            session_start=datetime.now().isoformat(),
+            mode="full",
+            explicitly_invoked=True,
+        )
         self._setup(tmp_path, monkeypatch, state)
         assert unified_pre_tool._is_pipeline_active() is True
 
-    def test_sentinel_with_mode_still_active(self, tmp_path, monkeypatch):
-        """Genuine sentinel carrying mode remains active."""
-        state = self._bare_recovery()
-        state["mode"] = "full"
-        self._setup(tmp_path, monkeypatch, state)
-        assert unified_pre_tool._is_pipeline_active() is True
+    def test_run_bearing_but_unsigned_sentinel_is_not_active(self, tmp_path, monkeypatch):
+        """REFUSE arm (Issue #1807): run-bearing alone does not authorize.
 
-    def test_sentinel_with_explicitly_invoked_still_active(self, tmp_path, monkeypatch):
-        """Genuine sentinel carrying explicitly_invoked remains active."""
+        The counterfactual for the amendment above, and a DIFFERENT shape from
+        the bare breadcrumb arms: this state carries run_id, mode AND
+        explicitly_invoked — everything the #1384 rule asked for — but no MAC and
+        no run-start receipt. Pre-#1807 it was accepted for 30 minutes on mtime
+        alone.
+        """
         state = self._bare_recovery()
-        state["explicitly_invoked"] = True
+        state.update({"run_id": "test-run", "mode": "full", "explicitly_invoked": True})
+        state.pop("recovered", None)
         self._setup(tmp_path, monkeypatch, state)
-        assert unified_pre_tool._is_pipeline_active() is True
+        assert unified_pre_tool._is_pipeline_active() is False
 
     def test_breadcrumb_with_spurious_extra_field_not_active(self, tmp_path, monkeypatch):
         """A recovery breadcrumb with an unrelated extra field is still inactive.
@@ -308,14 +397,20 @@ class TestIssue1384RecoveryBreadcrumbNotActive:
         assert unified_pre_tool._is_pipeline_active() is False
 
     def test_no_recovered_flag_uses_ttl_path(self, tmp_path, monkeypatch):
-        """Without a 'recovered' flag, a fresh state uses the TTL path -> active."""
-        state = {
-            "session_id": "current-session",
-            "mode": "full",
-            "run_id": "r",
-            "explicitly_invoked": True,
-            "session_start": datetime.now().isoformat(),
-        }
+        """Without a 'recovered' flag, a fresh SANCTIONED state uses the TTL path -> active.
+
+        Issue #1807: the state is signed and receipt-backed now. The pre-#1807
+        literal dict reached the TTL branch on nothing but its own assertion of
+        ``explicitly_invoked``; the run-bearing-but-unsigned counterfactual above
+        pins that refusal.
+        """
+        state = sanctioned_state(
+            "current-session",
+            "r",
+            mode="full",
+            explicitly_invoked=True,
+            session_start=datetime.now().isoformat(),
+        )
         self._setup(tmp_path, monkeypatch, state)
         assert unified_pre_tool._is_pipeline_active() is True
 

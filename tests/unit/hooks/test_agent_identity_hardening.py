@@ -28,6 +28,12 @@ sys.path.insert(0, str(LIB_DIR))
 
 import unified_pre_tool as hook
 
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -240,24 +246,64 @@ class TestStateFileHmac:
         state_file.write_text(json.dumps(state_data))
         return str(state_file)
 
-    def test_valid_hmac_state_accepted(self, tmp_path, monkeypatch):
-        """State with valid HMAC should be accepted by _is_pipeline_active."""
-        from pipeline_state import sign_state
-        session_id = "test-session-123"
-        state = {
-            "session_start": datetime.now().isoformat(),
-            "mode": "full",
-            "run_id": "test-run",
-            "explicitly_invoked": True,
-        }
-        sign_state(state, session_id)
-        state_file = self._write_state_file(tmp_path, state)
+    def test_sanctioned_state_accepted(self, tmp_path, monkeypatch):
+        """A SANCTIONED state is accepted by _is_pipeline_active.
 
-        monkeypatch.setenv("PIPELINE_STATE_FILE", state_file)
+        Issue #1807 AMENDMENT (was ``test_valid_hmac_state_accepted``). A valid
+        MAC is no longer sufficient on its own: ``sign_state`` CREATES the secret
+        it signs with, so the caller this gate constrains can mint one. The state
+        must also name its owner and be corroborated by a run-start receipt. The
+        PERMIT arm therefore builds both carriers; the refusal counterpart for a
+        self-minted MAC is
+        ``tests/security/test_issue_1807_authority_boundary.py::test_a3_forged_valid_mac_state_is_not_current_run_authority``.
+        """
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        session_id = "sess-identity-hardening"
+        state_file = tmp_path / "pipeline_state.json"
+        write_sanctioned_sentinel(state_file, session_id, "test-run")
+
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_file))
         monkeypatch.setenv("CLAUDE_SESSION_ID", session_id)
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity,
+        # not CLAUDE_SESSION_ID. A genuine run's native session id equals its
+        # owner, so pin it — the env var alone must NOT confer authority (its
+        # refusal counterpart is
+        # tests/security/test_issue_1807_authority_boundary.py::
+        # test_f3_d1_refuse_env_substitutes_for_native).
+        monkeypatch.setattr(hook, "_session_id", session_id, raising=False)
+        try:
+            assert hook._is_pipeline_active() is True
+        finally:
+            clear_run_artifacts(session_id)
 
-        assert hook._is_pipeline_active() is True
+    def test_signed_state_without_receipt_rejected(self, tmp_path, monkeypatch):
+        """REFUSE arm (Issue #1807): a self-minted MAC is not provenance.
+
+        Same construction as the PERMIT arm above with ONE variable changed — no
+        run-start receipt — so the pair isolates the receipt as the deciding
+        carrier rather than leaving "signed" and "sanctioned" conflated.
+        """
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        session_id = "sess-identity-hardening-forged"
+        state_file = tmp_path / "pipeline_state.json"
+        write_sanctioned_sentinel(
+            state_file, session_id, "test-run-forged", record_receipt=False
+        )
+
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_file))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", session_id)
+        monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
+        try:
+            assert hook._is_pipeline_active() is False
+        finally:
+            clear_run_artifacts(session_id)
 
     def test_tampered_hmac_state_rejected(self, tmp_path, monkeypatch):
         """State with tampered HMAC should be rejected by _is_pipeline_active."""
@@ -279,27 +325,43 @@ class TestStateFileHmac:
 
         assert hook._is_pipeline_active() is False
 
-    def test_missing_hmac_backward_compat(self, tmp_path, monkeypatch):
-        """State without HMAC should be accepted (backward compat)."""
+    def test_missing_hmac_is_recognized_but_not_authorized(self, tmp_path, monkeypatch):
+        """An UNSIGNED state is legacy-RECOGNIZED, never current-run authority.
+
+        Issue #1807 AMENDMENT (was ``test_missing_hmac_backward_compat``, which
+        asserted ``is True``). Accepting an unsigned state was not backward
+        compatibility, it was the defect: with no ``hmac`` field the integrity
+        branch was SKIPPED rather than satisfied, and that is the route
+        ``--fix`` mode actually wrote (``commands/implement-fix.md`` F1). Legacy
+        RECOGNITION survives — ``verify_state_hmac`` still returns True for an
+        unsigned state, and ``pipeline_state.RunAuthority.UNSIGNED_LEGACY`` names
+        the classification explicitly — but recognition is not authorization.
+        """
         state = {
             "session_start": datetime.now().isoformat(),
             "mode": "full",
             "run_id": "test-run",
             "explicitly_invoked": True,
+            "session_id": "sess-unsigned-legacy",
         }
         state_file = self._write_state_file(tmp_path, state)
 
         monkeypatch.setenv("PIPELINE_STATE_FILE", state_file)
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-unsigned-legacy")
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
 
-        assert hook._is_pipeline_active() is True
+        assert hook._is_pipeline_active() is False
 
-    def test_missing_session_id_with_hmac_verifies_via_secret(self, tmp_path, monkeypatch):
-        """With secret-file HMAC, missing session_id still verifies via secret file.
+    def test_deleted_session_id_does_not_verify_via_secret(self, tmp_path, monkeypatch):
+        """An OWNERLESS signed state does not authorize, secret file or not.
 
-        The HMAC key now comes from the per-run secret file, not from session_id.
-        So even when CLAUDE_SESSION_ID is absent, verification succeeds as long
-        as the secret file exists for the run_id.
+        Issue #1807 AMENDMENT (was
+        ``test_missing_session_id_with_hmac_verifies_via_secret``, asserting
+        ``is True``). The secret file proves the bytes were signed by something
+        holding the key; it says nothing about WHO the run belongs to. Since the
+        owner is now inside the signed message, a state whose ``session_id`` was
+        deleted after signing no longer recomputes — and an absent owner is an
+        unverifiable owner, which INV-7 reads as "not passed".
         """
         from pipeline_state import sign_state
         state = {
@@ -307,15 +369,16 @@ class TestStateFileHmac:
             "mode": "full",
             "run_id": "test-run-hmac-session",
             "explicitly_invoked": True,
+            "session_id": "original-session",
         }
         sign_state(state, "original-session")
+        del state["session_id"]  # the shape fix-mode F1 used to write
         state_file = self._write_state_file(tmp_path, state)
 
         monkeypatch.setenv("PIPELINE_STATE_FILE", state_file)
         monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
-        # Secret file exists for the run_id, so HMAC verification succeeds
-        assert hook._is_pipeline_active() is True
+        assert hook._is_pipeline_active() is False
 
     def test_missing_secret_file_and_wrong_session_fails(self, tmp_path, monkeypatch):
         """Without secret file AND wrong session_id, verification fails closed."""

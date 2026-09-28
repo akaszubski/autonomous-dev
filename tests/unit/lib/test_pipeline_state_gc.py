@@ -1,10 +1,11 @@
 """
 Tests for _gc_stale_states() in pipeline_completion_state.py.
 
-Verifies that stale state files, sentinel files, and orphaned lockfiles are
-removed while fresh files are preserved.
+Verifies that stale state files and sentinel files are removed while fresh
+files are preserved, and that lockfiles are NEVER removed (#1806 — unlinking a
+held lock's pathname splits run authority across two inodes).
 
-Issues: #1041 #1048
+Issues: #1041 #1048 #1806
 """
 
 import glob
@@ -90,18 +91,22 @@ class TestGCStaleStateFiles:
         assert result["state_files_removed"] == 0
 
     # ------------------------------------------------------------------
-    # test_gc_removes_orphaned_lockfiles
+    # test_gc_retains_old_lockfiles (#1806)
     # ------------------------------------------------------------------
-    def test_gc_removes_orphaned_lockfiles(self, tmp_path: Path) -> None:
-        """Old orphaned lockfiles are removed."""
+    def test_gc_retains_old_lockfiles(self, tmp_path: Path) -> None:
+        """Old lockfiles are RETAINED — deleting them splits lock authority (#1806)."""
         lock = self._make_file(tmp_path, "pipeline_abc12345.lock", age_seconds=9000)
         assert lock.exists()
 
         with self._patch_glob(tmp_path):
             result = _gc_stale_states(max_age_seconds=7200)
 
-        assert not lock.exists(), "Stale lockfile should have been removed"
-        assert result["lockfiles_removed"] == 1
+        assert lock.exists(), (
+            "Old lockfile must NOT be removed: an mtime is no evidence of "
+            "liveness, and unlinking a held lock's pathname lets a second "
+            "process lock a new inode under it (#1806)"
+        )
+        assert result["lockfiles_removed"] == 0
         assert result["errors"] == []
 
     # ------------------------------------------------------------------
@@ -131,7 +136,9 @@ class TestGCStaleStateFiles:
         self._make_file(
             tmp_path, "implement_pipeline_ccc00003.json", age_seconds=9000
         )
-        self._make_file(tmp_path, "pipeline_ddd00004.lock", age_seconds=9000)
+        old_lock = self._make_file(
+            tmp_path, "pipeline_ddd00004.lock", age_seconds=9000
+        )
         # One fresh file that should NOT be removed
         self._make_file(
             tmp_path, "pipeline_agent_completions_fresh9999.json", age_seconds=100
@@ -142,7 +149,10 @@ class TestGCStaleStateFiles:
 
         assert result["state_files_removed"] == 2
         assert result["sentinels_removed"] == 1
-        assert result["lockfiles_removed"] == 1
+        # #1806: lockfiles are never reaped; the key stays 0 for callers that
+        # sum the counts.
+        assert result["lockfiles_removed"] == 0
+        assert old_lock.exists(), "old lockfile must be retained (#1806)"
         assert result["errors"] == []
 
     # ------------------------------------------------------------------

@@ -484,6 +484,138 @@ def describe_sentinel_corruption(sentinel_path: Optional[str] = None) -> str:
     )
 
 
+def run_credit_refusal(
+    session_id: str,
+    *,
+    sentinel_path: Optional[str] = None,
+) -> Optional[str]:
+    """Why completions must NOT be credited to the CURRENT run, or ``None``.
+
+    Two refusals, one per direction of Issue #1807's forgery pair. Both are
+    about the SENTINEL and the LEDGER disagreeing about what the current run is:
+
+    1. The sentinel EXISTS but identifies no run (no ``run_id``/``mode``/
+       ``explicitly_invoked``) — the shape the repair path used to write over a
+       live run. "Exists and parses" is not "identifies a run", so dispatch and
+       completion credit both refuse (A5a, A4b). An ABSENT sentinel is NOT this
+       case: absent is the normal state of every session outside a pipeline, and
+       refusing it would block ordinary work.
+    2. The ledger CLAIMS a current run (``current_run_id`` from
+       :func:`record_run_start`) that no authorized sentinel corroborates. The
+       ledger is unsigned, so a retained run id must never rebuild current-run
+       credit for a run whose sentinel is gone or replaced (A4a). When the ledger
+       claims no run at all, this function is silent: that is the pre-#1045
+       session-scoped path, which #1807 does not change.
+
+    Args:
+        session_id: The session whose completions would be credited.
+        sentinel_path: Sentinel to inspect. Defaults to ``PIPELINE_STATE_FILE``
+            when set, else :func:`get_legacy_sentinel_path` — the same
+            resolution :func:`sentinel_integrity` uses.
+
+    Returns:
+        A refusal message naming the seam and the required next action, or
+        ``None`` when current-run credit is permitted. NEVER raises.
+
+    Issue: #1807
+    """
+    if sentinel_path is None:
+        sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(
+            get_legacy_sentinel_path()
+        )
+
+    sentinel: Optional[dict] = None
+    try:
+        target = Path(sentinel_path)
+        if target.exists():
+            raw = target.read_text(encoding="utf-8")
+            parsed = json.loads(raw)
+            sentinel = parsed if isinstance(parsed, dict) else {}
+    except (OSError, ValueError):
+        # Unreadable-but-present is SentinelIntegrity.CORRUPT, which the caller
+        # refuses on its own path. Treat it as identity-less here too.
+        sentinel = {}
+
+    if sentinel is not None and not _state_carries_run_identity(sentinel):
+        return (
+            f"RUN IDENTITY DESTROYED: the pipeline sentinel at {sentinel_path} "
+            f"exists but carries no run identity (keys={sorted(sentinel)}), so "
+            "no agent dispatch or completion can be attributed to a current "
+            "run.\nINV-7: a verification failure is 'not passed', never "
+            "'passed' (Issue #1807).\nREQUIRED NEXT ACTION: start a fresh "
+            "/implement run. Do NOT hand-write the missing identity fields and "
+            "do NOT rebuild them from the completion ledger or from chat."
+        )
+
+    # Issue #1807 (defect 3): a sentinel that DOES carry a run identity is a
+    # genuine /implement SIGNAL, and it must be AUTHORIZED, not merely present.
+    # Classify it here even when NO run-start receipt exists for the crediting
+    # session. A run-bearing sentinel with no receipt is precisely the A3/A7
+    # self-mint, and the pre-F3 early ``return None`` on a missing receipt (below,
+    # for the absent-sentinel path) was the FREE PASS that dispatched the first
+    # fix-mode implementer from an unverified run. ``classify_current_run_authority``
+    # performs the full check — owner bound to the PRESENTED session id, MAC
+    # verified, receipt corroborating the run_id — so an UNSIGNED (UNSIGNED_LEGACY),
+    # receiptless (RECEIPT_UNAVAILABLE), tampered (MAC_INVALID) or wrong-owner
+    # (UNQUALIFIED_OWNER) run-bearing sentinel all classify as NOT authorized and
+    # refuse here.
+    if sentinel is not None:  # _state_carries_run_identity(sentinel) is True here
+        try:
+            from pipeline_state import classify_current_run_authority  # type: ignore
+        except ImportError:
+            try:
+                from .pipeline_state import classify_current_run_authority  # type: ignore
+            except ImportError:
+                return (
+                    "RUN AUTHORITY UNVERIFIABLE: pipeline_state."
+                    "classify_current_run_authority is unavailable, so whether the "
+                    f"run-bearing sentinel at {sentinel_path} authorizes session "
+                    f"{session_id!r} cannot be determined (fail closed, Issue "
+                    "#1807)."
+                )
+
+        # Read the receipt ONCE and reuse it for the owner. Keyed on the owner,
+        # NOT unconditional: the sentinel's owner and the crediting session can
+        # differ, and handing the classifier one session's receipt for another's
+        # owner would be a false corroboration rather than a saved read.
+        receipt = get_run_start_receipt(session_id)
+
+        def _reuse_receipt(owner: str) -> Optional[str]:
+            """Return the receipt already read for *session_id*, else read afresh."""
+            return receipt if owner == session_id else get_run_start_receipt(owner)
+
+        verdict = classify_current_run_authority(
+            sentinel, session_id, receipt_lookup=_reuse_receipt
+        )
+        if not verdict.authorized:
+            return (
+                f"UNCORROBORATED RUN CLAIM: the pipeline sentinel at "
+                f"{sentinel_path} identifies a run but does not authorize it for "
+                f"session {session_id!r} ({verdict.authority.value}: "
+                f"{verdict.detail}).\nA genuine /implement signal without verified "
+                "current-run authority must not credit completions or dispatch "
+                "agents (Issue #1807 defect 3).\nREQUIRED NEXT ACTION: start a "
+                "fresh /implement run. Do NOT hand-write the missing identity "
+                "fields and do NOT rebuild them from the completion ledger."
+            )
+        return None
+
+    # sentinel is None (ABSENT): the pre-#1045 permissive / ledger-only split.
+    # An absent sentinel with NO run claim is ordinary non-pipeline work — the
+    # CONTROL case #1807 defect 3 must leave ungated. A retained ledger run id
+    # with no sentinel to authorize it is A4's ledger-only forgery.
+    receipt = get_run_start_receipt(session_id)
+    if not receipt:
+        return None  # No current-run claim to corroborate (pre-#1045 path).
+    return (
+        f"LEDGER-ONLY RUN CLAIM: the completion ledger still names run "
+        f"{receipt!r} for session {session_id!r}, but there is no pipeline "
+        f"sentinel at {sentinel_path} to authorize it. The ledger is unsigned; a "
+        "retained run id is not run authority (Issue #1807 A4).\nREQUIRED NEXT "
+        "ACTION: start a fresh /implement run."
+    )
+
+
 def resolve_session_id(
     *,
     sentinel_path: Optional[str] = None,
@@ -1268,6 +1400,51 @@ def record_run_start(
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _report_run_start_failure(session_id, str(run_id), f"{type(exc).__name__}: {exc}")
         return False
+
+
+def get_run_start_receipt(session_id: str) -> Optional[str]:
+    """Return the run id :func:`record_run_start` stamped for *session_id*.
+
+    This is the read half of the run-start receipt — the second of the two
+    carriers ``pipeline_state.classify_current_run_authority`` requires (Issue
+    #1807). It exists so the authority check has ONE canonical reader instead of
+    every consumer re-deriving ``/tmp/pipeline_agent_completions_*`` paths.
+
+    Read-only by design, with one deliberate side effect inherited from
+    :func:`_read_state`: a successful read refreshes the ledger's mtime, so a
+    long run whose authority is checked on every hook invocation cannot age past
+    the 2-hour staleness window and lose its own receipt mid-flight (#1413).
+
+    A receipt is NOT proof of provenance — the ledger is UNSIGNED and lives in
+    ``/tmp``, and ``record_run_start`` is reachable from model-controlled Bash,
+    so a caller willing to write both carriers can mint the receipt and then the
+    signed sentinel. #1807's A4 pins that a retained run id must never rebuild
+    authority by itself; this reader closes that single-carrier route and
+    NOTHING more. The receipt path's trust depends on an ORIGIN boundary that
+    refuses model-controlled writes to this ledger while native hook processes
+    keep writing it — acceptance case A9, currently OPEN and UNMEASURED. Do not
+    read a green authority verdict as provenance, and do not "fix" that by
+    adding a second store: the existing ledger stays the carrier (INV-7).
+
+    Args:
+        session_id: The owning session whose receipt to read.
+
+    Returns:
+        The recorded run id, or ``None`` when the session has no receipt, the
+        ledger is absent/stale/unreadable, or *session_id* is unusable.
+
+    Issues: #1045, #1807
+    """
+    if not isinstance(session_id, str) or not session_id.strip():
+        return None
+    try:
+        state = _read_state(session_id.strip())
+    except Exception:  # noqa: BLE001 - state code never raises into a gate
+        return None
+    value = state.get("current_run_id")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _completion_is_success(entry) -> bool:
@@ -2813,17 +2990,21 @@ def _locked_rmw(
 
     Issues: #1170, #1188, #1544
     """
-    if run_id:
-        if not _RUN_ID_RE.match(run_id):
-            raise ValueError(
-                f"run_id contains invalid characters: {run_id!r}\n"
-                f"Expected: 1-64 characters matching [a-zA-Z0-9_-]\n"
-                f"See: docs/ARCHITECTURE-OVERVIEW.md"
-            )
-        key = run_id
-    else:
-        key = hashlib.sha256(session_id.encode()).hexdigest()[:8]
-    lock_path = Path(f"/tmp/pipeline_agent_completions_{key}.lock")
+    # Issue #1807: derive the lock from _state_file_path instead of rebuilding
+    # the literal. Two paths for one artifact is two things to keep in sync, and
+    # they had already drifted: the lock was pinned to machine-global /tmp, so a
+    # test that redirected the ledger still created a real /tmp lockfile —
+    # MEASURED as 9 residual `/tmp/pipeline_agent_completions_*.lock` files after
+    # an otherwise fully-isolated suite. The file name changes from
+    # `<key>.lock` to `<ledger>.json.lock`; the name stays `pipeline_*.lock`-shaped
+    # for consistency, but as of #1806 `_gc_stale_states` no longer reaps any lock
+    # pattern, so this file is retained under the same accepted tradeoff as run
+    # lockfiles. The only cost is that a process still
+    # running pre-#1807 code during a deploy would take a different mutex for the
+    # same session. That window is one deploy long, the write it guards is already
+    # atomic (#1544), and this function's documented failure mode is fail-open
+    # anyway — cheaper than a second source of truth for the path.
+    lock_path = Path(str(_state_file_path(session_id, run_id=run_id)) + ".lock")
 
     def _rmw() -> None:
         """Read, mutate, write — with the raw-write guard held (#1544).
@@ -3062,6 +3243,58 @@ def _is_synthetic_session_id(session_id: str) -> bool:
     return False
 
 
+#: Fields whose presence means "this sentinel represents a RUN", not merely a
+#: recovery note. This is the SOLE owner of that predicate: the equivalent inline
+#: trio in ``unified_pre_tool._is_pipeline_active`` (the #1384 recovery-record
+#: branch) was RETIRED by Issue #1807 in favour of
+#: ``pipeline_state.classify_current_run_authority``.
+#:
+#: Deliberately GENEROUS where the authority classifier is STRICT, because the two
+#: answer different questions. Here: "is this file worth preserving?" — any run
+#: field is enough, so a partially-written run is never discarded. There: "may
+#: this authorize the current run?" — a usable ``run_id`` is required, because a
+#: state with only ``mode`` identifies no run to authorize. Preserve generously,
+#: authorize strictly; collapsing them either destroys runs or authorizes
+#: non-runs.
+_RUN_BEARING_FIELDS = ("run_id", "mode", "explicitly_invoked")
+
+
+def _state_carries_run_identity(state: dict) -> bool:
+    """Whether *state* identifies a pipeline run.
+
+    Args:
+        state: Parsed sentinel contents.
+
+    Returns:
+        True when any of :data:`_RUN_BEARING_FIELDS` carries a truthy value.
+
+    Issue: #1807
+    """
+    if not isinstance(state, dict):
+        return False
+    return any(state.get(field) for field in _RUN_BEARING_FIELDS)
+
+
+def is_synthetic_session_id(session_id: str) -> bool:
+    """Public spelling of the synthetic-session-id test.
+
+    Identical to :func:`_is_synthetic_session_id` — it delegates, so there is
+    still ONE implementation of the rule. It exists because coordinator
+    snippets in ``commands/*.md`` must fail closed on a synthetic owner (Issue
+    #1807, fix-mode F1) and a command file importing a private name would be
+    both fragile and a bad example.
+
+    Args:
+        session_id: Candidate session id.
+
+    Returns:
+        True when the id is synthetic, derived, or unusable as an owner.
+
+    Issues: #1481, #1807
+    """
+    return _is_synthetic_session_id(session_id)
+
+
 def ensure_sentinel_heartbeat(
     session_id: str,
     state_path: Optional[str] = None,
@@ -3084,9 +3317,13 @@ def ensure_sentinel_heartbeat(
       (Issue #1481).
     - If ``state_path`` exists, is parseable JSON, and its ``session_id``
       field matches ``session_id`` → sentinel is healthy, return ``True``.
-    - Otherwise (missing, corrupt, or existing-owner is synthetic) → emit a
-      structured log line to stderr, recreate a minimal sentinel, and
-      return ``False``.
+    - If ``state_path`` exists and CARRIES A RUN (``run_id``/``mode``/
+      ``explicitly_invoked``) but its owner is absent or synthetic, preserve it,
+      emit ``[SENTINEL-HEARTBEAT-RUN-PRESERVED]`` and return ``False`` — an
+      absent owner is not licence to discard a run (Issue #1807).
+    - Otherwise (missing, corrupt, or an identity-less record whose owner is
+      synthetic) → emit a structured log line to stderr, recreate a minimal
+      sentinel, and return ``False``.
 
     The function NEVER raises.  All failure modes degrade gracefully.
 
@@ -3137,6 +3374,37 @@ def ensure_sentinel_heartbeat(
                 existing = data.get("session_id")
                 if existing == session_id:
                     return True  # Sentinel healthy.
+                # Issue #1807 guard #3 — the run survives repair. A state that
+                # CARRIES A RUN (run_id or mode) is gating state, and an absent
+                # or synthetic OWNER is not licence to discard it: the recovery
+                # record below has no run_id, no mode, no issue_number and no
+                # base_commit, so replacing a live run with it destroys exactly
+                # the identity the MAC failed to bind. MEASURED pre-fix against
+                # a signed run-bearing ownerless sentinel: return=False, bytes
+                # changed=True, run_id after=None.
+                #
+                # Both triggers of the old single branch are covered here
+                # (owner ABSENT — the fix-mode F1 shape — and owner SYNTHETIC,
+                # e.g. "stop-7"), because a guard keyed on the missing-owner
+                # spelling alone would leave the synthetic route destroying
+                # runs. A diagnostic is emitted instead: missing identity is
+                # reported, never invented (Issue #1807).
+                if _state_carries_run_identity(data):
+                    try:
+                        import sys as _sys_hb
+
+                        _sys_hb.stderr.write(
+                            f"[SENTINEL-HEARTBEAT-RUN-PRESERVED] state_path={state_path}"
+                            f" run_id={data.get('run_id')!r}"
+                            f" mode={data.get('mode')!r}"
+                            f" existing_owner={existing!r}"
+                            f" caller_session={session_id!r}"
+                            " refusing identity-less replacement (Issue #1807)\n"
+                        )
+                        _sys_hb.stderr.flush()
+                    except Exception:
+                        pass
+                    return False
                 # Issue #1481 guard #2: existing sentinel with a valid
                 # non-synthetic owner MUST NOT be clobbered by heartbeat.
                 # The heartbeat is a recovery guard, not a takeover
@@ -3195,7 +3463,7 @@ def ensure_sentinel_heartbeat(
 
 
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
-    """Garbage-collect stale state files and orphaned lockfiles in /tmp.
+    """Garbage-collect stale state and sentinel files in /tmp.
 
     Deletes files older than ``max_age_seconds``:
 
@@ -3204,7 +3472,17 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     - ``/tmp/pipeline_agent_completions_*.json.*.tmp`` (orphaned ``os.replace``
       staging files left by a process killed mid-write, #1544)
     - ``/tmp/implement_pipeline_*.json`` (per-run sentinel files)
-    - ``/tmp/pipeline_*.lock`` (orphaned lockfiles)
+
+    Lockfiles are NEVER deleted (#1806).  ``/tmp/pipeline_*.lock`` paths are the
+    pathnames ``acquire_run_lock()`` and ``_locked_rmw()`` open and ``flock``.
+    Unlinking a *held* lock's pathname leaves the holder on an orphan inode
+    while the next process creates and locks a new inode under the same
+    pathname — two processes each believing they own the run.  An mtime is no
+    evidence of liveness (``flock`` never touches mtime, so a lock held for
+    hours looks stale), and a nonblocking-flock probe before the unlink does not
+    close the hole either: another process can open the old inode between the
+    probe and the unlink (TOCTOU).  A few empty lockfiles left in /tmp is the
+    cheaper failure, so no lockfile deletion happens here at all.
 
     Default is 2× the existing ``STALE_UNKNOWN_TTL_SECONDS`` (3600 → 7200).
 
@@ -3218,11 +3496,14 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
             {
                 'state_files_removed': int,
                 'sentinels_removed': int,
-                'lockfiles_removed': int,
+                'lockfiles_removed': int,  # always 0 since #1806
                 'errors': list[str],
             }
 
-    Issues: #1041 #1048
+        ``lockfiles_removed`` is retained at a constant 0 for callers that sum
+        the counts (``commands/implement.md`` STEP 0).
+
+    Issues: #1041 #1048 #1806
     """
     now = time.time()
     cutoff = now - max_age_seconds
@@ -3230,6 +3511,8 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     counts: dict = {
         "state_files_removed": 0,
         "sentinels_removed": 0,
+        # #1806: kept at 0 permanently so callers that sum the counts keep
+        # working. No lockfile pattern is scanned — see the docstring.
         "lockfiles_removed": 0,
         "errors": [],
     }
@@ -3241,11 +3524,11 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
         # above does not match it, so reap it on the same cadence.
         ("/tmp/pipeline_agent_completions_*.json.*.tmp", "state_files_removed"),
         ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
-        # The "pipeline_*.lock" glob also matches the per-session R-M-W
-        # lockfiles introduced in #1170
-        # (/tmp/pipeline_agent_completions_*.lock), so orphaned R-M-W
-        # locks are reaped on the same cadence as state files.
-        ("/tmp/pipeline_*.lock", "lockfiles_removed"),
+        # #1806: "/tmp/pipeline_*.lock" deliberately absent. It matched both the
+        # run lockfiles (acquire_run_lock) and the #1170 per-session R-M-W
+        # lockfiles (_locked_rmw); unlinking either while held splits lock
+        # authority across two inodes. Do NOT re-add it, and do not "fix" it
+        # with a pre-unlink flock probe (TOCTOU).
     ]
 
     for pattern, key in patterns:

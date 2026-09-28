@@ -315,7 +315,25 @@ export RUN_ID
 # /tmp/implement_pipeline_${RUN_ID}.json, which broke the hook's mode-aware
 # agent-completeness gate in --light mode (hook reads <repo>/.claude/local/,
 # coordinator wrote to /tmp/, mode="light" invisible to hook).
-PIPELINE_STATE_FILE="$(python3 -c "
+#
+# Issue #1807: the resolved path lands in PIPELINE_SENTINEL, a NON-protected
+# variable. Pre-#1807 this block assigned the PROTECTED sentinel-path variable
+# and then exported it, and the DEPLOYED #557/#606 spoofing guard REFUSES that
+# shape. MEASURED against hooks/unified_pre_tool.py::_detect_env_spoofing on
+# 2026-09-27: assign-then-export -> "BLOCKED: Inline env var spoofing detected";
+# `echo hello` and the PIPELINE_SENTINEL form -> None (negative controls); a
+# known inline `VAR=value python3 script.py` -> BLOCKED (positive control). So
+# STEP 0 could not run as written without tripping the guard, and the guard is
+# correct — it is NOT to be narrowed to admit this.
+#
+# Nothing downstream breaks, because that export was never the mechanism that
+# made hooks agree: hook processes do not inherit a Bash-tool subshell's
+# environment (#779), and every reader already defaults to the canonical
+# get_legacy_sentinel_path() — the SAME per-repo path this block computes
+# (#1376). An operator who sets the variable BEFORE launching the CLI still
+# wins: that is an inherited variable, not an inline assignment, and every read
+# honours it.
+PIPELINE_SENTINEL="$(python3 -c "
 import sys, os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
@@ -323,8 +341,8 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
 from pipeline_state import get_legacy_sentinel_path
 print(get_legacy_sentinel_path())
 ")"
-export PIPELINE_STATE_FILE
-mkdir -p "$(dirname "$PIPELINE_STATE_FILE")"
+# REQUIRED: atomic_write_json needs the parent directory to exist.
+mkdir -p "$(dirname "$PIPELINE_SENTINEL")"
 PIPELINE_START=$(date +%s)
 
 # Acquire exclusive non-blocking run lock (Issue #1047)
@@ -400,7 +418,14 @@ state = {
     'mode': 'MODE',
     'run_id': '$RUN_ID',
     'explicitly_invoked': True,
-    'session_id': sid
+    'session_id': sid,
+    # Issue #1807 (all-six binding): issue_number and subject are signed too, so
+    # the sentinel is tamper-evident across every required binding. Read from the
+    # environment with '' defaults so this never crashes when the coordinator did
+    # not export them, and so untrusted feature text is never interpolated into
+    # this source.
+    'issue_number': os.environ.get('ISSUE_NUMBER', ''),
+    'subject': os.environ.get('FEATURE_DESCRIPTION', '')
 }
 state = sign_state(state, sid)
 # ATOMIC. open(path,'w') truncates at OPEN time, so a kill between the open
@@ -408,7 +433,11 @@ state = sign_state(state, sid)
 # gone; ensure_sentinel_heartbeat() then failed json.loads and recreated it as
 # a bare {session_id, recovered, recovered_at}, which _is_pipeline_active()
 # classifies NOT-active by design (#1384) — blocking STEP 11 issue filing
-# during a genuinely live pipeline. atomic_write_json mkstemps IN THE
+# during a genuinely live pipeline. Since #1807 that breadcrumb also refuses
+# agent DISPATCH and completion credit, and the only valid outcome is a FRESH
+# run: do NOT hand-write the missing identity fields and re-sign, because a
+# valid MAC after a coordinator rewrite proves a signing-capable API was used,
+# not that the identity is authentic. atomic_write_json mkstemps IN THE
 # DESTINATION DIRECTORY (same filesystem, or os.replace raises EXDEV), chmods
 # 0o600 before the rename, and os.replace is atomic per rename(2).
 # The mkdir -p above is REQUIRED: atomic_write_json needs the parent to exist.

@@ -585,15 +585,38 @@ class TestWriteAlignmentVerdict:
 class TestRecordAlignmentVerdict:
     """Sole writer of alignment_passed."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_secret_store(self, monkeypatch, tmp_path: Path) -> None:
+        """Redirect the per-run HMAC secret store into tmp_path (Issue #1807).
+
+        ``_state_file`` now writes a SIGNED state because ``_update_pipeline_state``
+        records an alignment pass ONLY over an already-validly-signed state — the
+        mint-on-unsigned branch was a laundering oracle and was removed. Signing
+        touches ``~/.claude/pipeline_secrets/``; isolating ``$HOME`` keeps it in
+        tmp_path so parallel workers cannot collide on a shared run-id key.
+        """
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(home))
+
     def _state_file(self, tmp_path: Path) -> Path:
-        state_path = tmp_path / "pipeline_state.json"
-        state_path.write_text(json.dumps({
+        """A SIGNED signed-state target so the alignment write is exercised.
+
+        Was unsigned; the alignment write now fails closed on unsigned input
+        (Issue #1807), so an unsigned target would never record ``alignment_passed``.
+        """
+        from pipeline_state import sign_state
+
+        state = {
             "session_start": "2026-08-09T00:00:00",
             "mode": "full",
             "run_id": "test-1467",
             "explicitly_invoked": True,
             "session_id": "sess-1467",
-        }))
+        }
+        sign_state(state, "sess-1467")
+        state_path = tmp_path / "pipeline_state.json"
+        state_path.write_text(json.dumps(state))
         return state_path
 
     def test_auto_pass_sets_alignment_passed_true(self, tmp_path: Path) -> None:
@@ -732,15 +755,33 @@ class TestUserApprovalAutonomyGate:
     citation-verified AUTO_PASS.
     """
 
+    @pytest.fixture(autouse=True)
+    def _isolate_secret_store(self, monkeypatch, tmp_path: Path) -> None:
+        """Redirect the per-run HMAC secret store into tmp_path (Issue #1807).
+
+        ``_state_file`` writes a SIGNED state (the alignment write fails closed on
+        unsigned input), so isolate ``$HOME`` to keep signing out of the real
+        ``~/.claude/pipeline_secrets/``. Autonomy detection is env/marker-driven,
+        not ``$HOME``-driven, so this does not perturb these gate tests.
+        """
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(home))
+
     def _state_file(self, tmp_path: Path) -> Path:
-        state_path = tmp_path / "pipeline_state.json"
-        state_path.write_text(json.dumps({
+        """A SIGNED signed-state target so the alignment write is exercised."""
+        from pipeline_state import sign_state
+
+        state = {
             "session_start": "2026-08-09T00:00:00",
             "mode": "full",
             "run_id": "test-1467-gate",
             "explicitly_invoked": True,
             "session_id": "sess-1467",
-        }))
+        }
+        sign_state(state, "sess-1467")
+        state_path = tmp_path / "pipeline_state.json"
+        state_path.write_text(json.dumps(state))
         return state_path
 
     def test_autonomous_context_refuses_the_upgrade(

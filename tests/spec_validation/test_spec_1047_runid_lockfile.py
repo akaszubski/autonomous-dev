@@ -41,7 +41,16 @@ def test_ac1_implement_md_step0_generates_runid_and_exports_envvars():
     Spec-derived: AC1 is a file-shape check. We require:
       - implement.md sets RUN_ID via secrets.token_hex(8) (16-char hex spec).
       - implement.md exports RUN_ID.
-      - implement.md exports PIPELINE_STATE_FILE.
+      - implement.md resolves the sentinel path from the canonical resolver.
+
+    Issue #1807 AMENDMENT, and a PRE-EXISTING RED this repairs. The third
+    assertion was ``re.search(r"^export\s+PIPELINE_STATE_FILE=", impl)``, which
+    never matched: the file carried the bare ``export PIPELINE_STATE_FILE`` with
+    no ``=``, so this node was FAILING before any #1807 change (measured at
+    ac3e04c3). #1807 then removed the assignment entirely, because the deployed
+    #557/#606 spoofing guard REFUSES an inline assignment of that protected
+    variable. What AC1 actually needs — a sentinel path downstream consumers can
+    find — is delivered by the canonical resolver, which every reader defaults to.
     """
     impl = (REPO_ROOT / "plugins" / "autonomous-dev" / "commands" / "implement.md").read_text()
     assert "secrets.token_hex(8)" in impl, (
@@ -50,8 +59,13 @@ def test_ac1_implement_md_step0_generates_runid_and_exports_envvars():
     assert re.search(r"^export\s+RUN_ID\b", impl, re.MULTILINE), (
         "STEP 0 must `export RUN_ID` so child processes inherit it"
     )
-    assert re.search(r"^export\s+PIPELINE_STATE_FILE=", impl, re.MULTILINE), (
-        "STEP 0 must `export PIPELINE_STATE_FILE=...` so hooks can find the state file"
+    assert "export PIPELINE_STATE_FILE" not in impl, (
+        "STEP 0 must NOT assign the protected PIPELINE_STATE_FILE inline — the "
+        "deployed spoofing guard refuses it (Issue #1807)"
+    )
+    assert re.search(r"^PIPELINE_SENTINEL=", impl, re.MULTILINE), (
+        "STEP 0 must resolve the canonical sentinel path into a non-protected "
+        "variable so hooks and coordinator agree (Issues #1376, #1807)"
     )
 
 

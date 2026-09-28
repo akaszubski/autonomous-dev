@@ -1564,37 +1564,161 @@ def _update_pipeline_state(
     alignment_passed: bool,
     verdict_value: str,
 ) -> bool:
-    """Write the alignment fields into signed pipeline state and re-sign it.
+    """Record the alignment fields into an ALREADY-SIGNED pipeline state, fail closed otherwise.
+
+    This is a SIGNING ORACLE and is guarded exactly like
+    ``pipeline_state.set_pipeline_base_commit`` (Issue #1807, the SECOND re-sign
+    path — this one runs on EVERY F1 alignment). Recording an alignment pass
+    means MINTING a signature, so it is permitted ONLY on a state that ALREADY
+    holds a valid one. Every not-validly-signed shape it CAN CLASSIFY returns
+    ``False`` with NO write and NO mint (see the MALFORMED-INPUT CAVEAT below for
+    the one shape that currently RAISES instead of returning). Order (any
+    classified failure returns False, no mutation, no write):
+
+        not a dict -> reject
+        no ``hmac`` -> reject (see FAIL CLOSED ON UNSIGNED below)
+        indeterminate owner -> reject
+        unrecognized declared MAC version -> reject
+        strict verify fails at that version -> reject
+        per-run secret unreadable -> reject
+        else: set alignment fields, re-sign AT THE DECLARED VERSION, write.
+
+    MALFORMED-INPUT CAVEAT (return-contract honesty): the "returns False" contract
+    holds for every not-validly-signed shape this function can CLASSIFY. It does
+    NOT yet hold for a MALFORMED signed state — a non-str signed field (e.g.
+    ``mode=123``) or a non-str ``hmac`` — WITH a live per-run secret: the strict
+    verify then reaches the shared ``verify_state_hmac`` / ``_compute_state_hmac``
+    primitive, whose v1/v2 ``"|".join`` / ``compare_digest`` are not type-guarded,
+    and RAISES ``TypeError`` out of this function. That raise is FAIL-CLOSED on
+    authority/effects — it is NOT a permit: the hook consumer
+    ``_load_pipeline_state_verified`` catches ``Exception`` and denies. It does,
+    however, abort a DIRECT ``record_alignment_verdict`` caller. The durable narrow
+    malformed-input guard belongs in ``verify_state_hmac`` itself (so it also fixes
+    ``classify_current_run_authority``'s "never raises" contract) and is tracked
+    separately (#1807/#1757); it is deliberately NOT bolted on here.
+
+    FAIL CLOSED ON UNSIGNED (Issue #1807, second-order laundering oracle). An
+    arbitrary unsigned JSON file and a signed state whose ``hmac`` was DELETED are
+    OBSERVATIONALLY IDENTICAL at this call site — there is no trustworthy
+    in-process criterion to tell "genuine legacy" from "attacker stripped the
+    hmac". The former ``else: sign_state(...)`` unsigned-legacy branch was itself
+    a laundering oracle: stripping ``hmac`` from a tampered signed state routed to
+    it and was handed a FRESH VALID signature carrying ``alignment_passed=True``
+    (returned True, verified True, the tampered field survived). It has been
+    REMOVED. Any state that is not validly signed — no ``hmac``, unrecognized
+    version, indeterminate owner, failed strict-verify — is refused.
+
+    BACKWARD-COMPAT CONSEQUENCE (named, justified reduction — NOT weakening): a
+    genuinely-unsigned historical pipeline state is no longer auto-signed by the
+    alignment path. Migrating one is NOT this function's job; it requires a
+    SEPARATE explicitly-authenticated / reinitialized path (a fresh run that
+    signs its state BEFORE alignment, which is what the normal F1 flow already
+    does). No heuristic legacy-positive is attempted, by design: any such shape
+    check would be exactly the criterion an attacker forges.
+
+    Re-signing is done at the DECLARED version, NOT upgraded to the current one:
+    ``sign_state`` always targets ``_STATE_MAC_CURRENT`` (v3), which binds
+    ``issue_number``/``subject``/``base_commit`` — fields ABSENT from the v1/v2
+    signed message — so upgrading would launder those still-unauthenticated
+    values into an authenticated v3. ``alignment_passed``/``alignment_verdict``
+    are in the signed message at ALL versions, so re-signing at the declared
+    version still covers the two fields written here. The MAC is recomputed
+    directly (mirroring ``verify_state_hmac``'s version dispatch) because
+    ``sign_state`` cannot target a specific version; ``hmac_version`` and
+    ``nonce`` are left untouched so the state stays at its declared version.
+
+    FAIL-CLOSED downstream: on refuse the on-disk state is left unchanged (no new
+    alignment pass is minted), so ``record_alignment_verdict``'s consumers refuse
+    it — but the refusal MECHANISM differs by shape. A TAMPERED signed state fails
+    strict verify here (MAC_INVALID). An UNSIGNED / no-hmac state is refused as
+    UNSIGNED_LEGACY by ``classify_current_run_authority`` (authorized=False),
+    reached via ``unified_pre_tool._has_alignment_passed`` ->
+    ``_load_pipeline_state_verified`` -> ``_state_authorizes_current_run`` — NOT by
+    ``verify_state_hmac``, which still returns True on an ABSENT hmac (legacy
+    recognition, not authority). Either way ``alignment_passed=True`` is never
+    persisted into a valid signature over a state that failed strict verify.
 
     Args:
         state_path: Path to the pipeline state JSON.
-        session_id: Session id passed to ``sign_state``.
+        session_id: Retained for API compatibility. The re-sign binds the state's
+            OWN declared owner (mirroring ``set_pipeline_base_commit``), never
+            this argument, so it can no longer mint an owner onto a state.
         alignment_passed: Value for the ``alignment_passed`` gate field.
         verdict_value: Value for the ``alignment_verdict`` audit field.
 
     Returns:
-        True when the state file was updated and re-signed.
+        True when the state file was updated and re-signed; False (with NO write)
+        when the file is absent/unreadable, not a dict, unsigned, lacks a
+        determinate owner, declares an unrecognized version, fails strict verify,
+        or has no readable per-run secret. Does NOT return on a MALFORMED signed
+        state with a live secret — it RAISES ``TypeError`` from the shared verify
+        primitive (fail-closed at the hook, but aborts a direct caller); see the
+        MALFORMED-INPUT CAVEAT above (durable guard tracked in #1807/#1757).
     """
     if not state_path.exists():
         return False
     try:
-        from pipeline_state import sign_state
+        from pipeline_state import (
+            _compute_state_hmac,
+            _declared_mac_version,
+            _is_determinate_session_id,
+            _read_pipeline_secret,
+            verify_state_hmac,
+        )
     except ImportError:
         try:
             if str(_THIS_DIR) not in sys.path:
                 sys.path.insert(0, str(_THIS_DIR))
-            from pipeline_state import sign_state
+            from pipeline_state import (
+                _compute_state_hmac,
+                _declared_mac_version,
+                _is_determinate_session_id,
+                _read_pipeline_secret,
+                verify_state_hmac,
+            )
         except ImportError:
             return False
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+
+    # Hole B: a non-dict payload ([1,2,3], a scalar, null) has no ``.get`` and is
+    # not a pipeline state — refuse rather than raise AttributeError below.
+    if not isinstance(state, dict):
+        return False
+
+    # Hole A: FAIL CLOSED on anything not validly signed. Minting a signature
+    # (recording an alignment pass) is permitted ONLY over a state that already
+    # holds a valid one, verified BEFORE any mutation.
+    if state.get("hmac") is None:
+        return False
+    owner = state.get("session_id")
+    if not _is_determinate_session_id(owner):
+        return False
+    version = _declared_mac_version(state)
+    if version is None:
+        return False
+    if not verify_state_hmac(state, owner, strict=True):
+        return False
+    run_id = state.get("run_id", "")
+    secret = _read_pipeline_secret(run_id) if run_id else None
+    if secret is None:
+        return False
+
+    try:
         state["alignment_passed"] = alignment_passed
         state["alignment_verdict"] = verdict_value
-        state = sign_state(state, session_id)
-        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
-        return True
-    except (OSError, ValueError, TypeError):
+        # RE-SIGN AT THE DECLARED VERSION (no v2->v3 upgrade).
+        state["hmac"] = _compute_state_hmac(state, secret, version=version)
+    except (ValueError, TypeError):
         return False
+
+    try:
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
