@@ -31,6 +31,22 @@ carry the commit and limits; native A7/A9 origin/containment, installed-hook
 behavior, F0 and consumer release remain open. The historical uncommitted
 entries below describe their own observation times and are not current state.
 
+**Native A7/A9 preflight — NO-GO, 2026-09-28:** Independent read-only review
+of the excluded `tests/manual/probe_1807_native_origin_split.sh` found it unsafe
+and insufficient as native proof. It creates staging before preflight and has
+no abort trap; its canary and signing-key cleanup can remove pre-existing
+files; it checks a caller-declared deny glob rather than effective installed
+policy; it classifies OS denial from stderr text; and it interpolates a
+caller-controlled path into `sh -c`. The script explicitly leaves the
+built-in/MCP/fabricated-stdin negative and native-owned positive cases
+UNMEASURED. Do not run this script or treat it as A7/A9 evidence. Reuse the
+existing native assurance instruments where possible; require exact resource
+pre/post checks, effective-policy inspection, argv-safe invocation and
+authentic route receipts before a credential-free probe or real Claude trial.
+The detailed [#1807 preflight](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5862560992)
+is the issue-side decision record. This does not reopen the committed
+library-route result, nor does it close native A7/A9, #1802 or F0.
+
 Independent follow-up RED: the same isolated stale-legacy probe returned
 `(strict=True: False, strict=False: True)` when V3 `subject=123` or
 `base_commit=123`, separately. Both appear string-typed in the production
