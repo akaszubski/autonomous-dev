@@ -465,12 +465,22 @@ all selected tests pass and its implementer expects existing failing output.
 A missing-control or missing-test case with a green baseline therefore uses
 `/implement --tdd-first`: the test-master adds the frozen case, its focused
 run must be RED before the implementation edit, and the full specialist gates
-remain required. Reserve `--fix` for an already-observed failing case. The
+remain required. Reserve `--fix` for an already-observed failing case **that
+the requested change is meant to repair**; unrelated inherited failures do
+not turn a new capability into a test fix. The
 [#1805 failed-attempt record](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5874400425)
 is the negative control: repeated green baseline runs and scratch probes did
 not create a checked-in refusal test. Keep signed run/issue identity separate
 from the single-issue specialist-completion bucket, which is `0` by the
 existing command contract; do not turn either field into the other.
+
+[#1818's native mode review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5874475425)
+is the opposite negative control: two unrelated inherited-red tests let fix
+mode proceed, but its F3 instructions then conflicted with adding a new pytest
+capture instrument. Re-route that instrument through the proper feature mode
+only after resolving the full pipeline's existing exit-zero prerequisite, or
+retain its work as explicitly provisional; do not reinterpret those two red
+tests as validation of the capture feature.
 
 For every frozen acceptance row, record the claim, required observation and its
 authority, observation method, subject/run identity, temporal validity where
