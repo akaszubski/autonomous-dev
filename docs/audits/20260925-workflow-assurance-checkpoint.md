@@ -6,6 +6,19 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current restart pointer — 2026-09-29
 
+Source-prerequisite integration is now pushed at `702ed1af` on the plan branch:
+the reviewed #1807 signed-identity substrate (`27d1c497`) and #1821
+progress-tracker test isolation (`9c678b54`) are both ancestors. In an
+isolated candidate integration, 34 progress-tracker tests and 205 focused
+#1807 security tests exited 0; `PROJECT.md` remained byte-identical. This is
+source integration, not accepted native A7/A9, F0 or installed-consumer proof.
+The prior #1846 native attempt ran from `99393520`, before this integration;
+its broad pytest began 19 seconds before `PROJECT.md` changed to the known
+test-writer string `Issue #204`. No direct Claude edit was recorded, but the
+exact pytest worker was not captured. The run stopped before source edit and
+is noncertifying; its dirty isolated worktree is preserved. Re-freeze a clean
+subject at or after `702ed1af` before another native attempt.
+
 Plan branch `fix/1779-pipeline-evidence-integrity` contains the measured
 test-gate prerequisite at `5a3bef35` and the independently reviewed proposed
 contract at `1940e915`;
