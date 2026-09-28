@@ -27,6 +27,16 @@ Default global settings are opt-in, per-repo sync omits the two native events,
 and plugin-native registration is not established. The test overlay is not a
 product registration. See [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870507860).
 
+The isolated schema correction is HELD, uncommitted and undeployed at
+`/Users/akaszubski/.codex/worktrees/1807-schema-registration/autonomous-dev`.
+Focused tests pass 68/68; schema validation now proceeds, but generator
+`--check` still exits 1 on a separate `PreToolUse` settings drift. Native
+`/implement --fix` reached specialist approval but F6 CIA report persistence
+was refused by Claude's sensitive-file permission for its one `.claude/local`
+report; the sentinel and four-file diff remain. The doc enum heading still
+needs a precise wording correction. No bypass, cleanup, commit, push or
+acceptance occurred. See [#1807 hold](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5871242791).
+
 Read-only census rewalk at this checkpoint retained 238 modules, 148 REACHED,
 90 UNKNOWN. Fresh synthetic full-walker negatives for #1801/#1803/#1805
 still falsely report REACHED; no actual live-member change or denominator
