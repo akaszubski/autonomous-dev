@@ -6,6 +6,14 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current census continuation — 2026-09-29
 
+Follow-up at pushed base `ac92e2ac`: direct `jq` traversal of the same eight
+current JSON inputs yielded 75 hook groups, 77 command entries and 25 distinct
+event/literal-matcher/owner shapes (including one inline echo). The tracked
+25-row table accounts for these exact declared shapes after expanding its W/E
+aliases. The earlier 73/23 counts remain explicitly historical. This closes
+only the checked-in JSON declaration comparison, not legacy/dynamic/installed
+or native firing inventory, and not the release denominator.
+
 At the start of this correction the pushed plan branch was `b7c050c7`;
 pre-existing dirty `.claude/settings.json`, plugin manifest and untracked
 `.Codex/` were left untouched. Independent structural parsing found two

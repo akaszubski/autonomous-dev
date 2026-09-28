@@ -169,7 +169,7 @@ Configuration, inventory, native behavior and outcome
 evidence are not interchangeable. Time proximity never supplies identity; historical
 receipts remain historical when no longer valid for a current transition.
 
-## Observed populations and instrument limits
+## Observed populations and instrument limits — 2026-09-25 baseline
 
 | Instrument / source | Result | What it does not establish |
 |---|---|---|
@@ -199,7 +199,20 @@ the integrated owner functions on this checkout, not the older table snapshot.
 JSON census inputs: `plugins/autonomous-dev/config/global_settings_template.json`,
 `templates/settings.{autonomous-dev,default,granular-bash,local,permission-batching,strict-mode}.json`
 under that plugin, and `.claude-plugin/default-settings.json`.
-Their respective binding counts are 17, 18, 8, 9, 0, 9, 11 and 1.
+At the `401c1ff0` baseline their respective group counts were 17, 18, 8, 9,
+0, 9, 11 and 1 (73 total). Current structurally parsed group counts are 19,
+18, 8, 9, 0, 9, 11 and 1 (75 total); hook-command counts are 19, 20, 8, 9,
+0, 9, 11 and 1 (77 total). The G increase includes the two #1807 event
+shapes; A still totals 18 groups but now declares those shapes too. A
+matching aggregate does not establish identical historical members. These
+numbers count declarations only, not effective native firing.
+An independent `jq` traversal of all eight current JSON files, using event,
+literal matcher and command basename (one inline echo) as the shape key,
+returned 25 distinct tuples; the 25-row table below accounts for those same
+tuples after its documented W/E aliases are expanded. This closes the
+checked-in JSON declaration-shape comparison only. It does not enumerate
+legacy Python registrations, dynamic callers, installed settings composition
+or a hook event that actually ran.
 No individual surface repeats an event/matcher/owner tuple. Global/default surfaces
 share seven such tuples and overlapping logger matchers; these are duplicate-execution
 candidates, not observed double execution.
@@ -1620,7 +1633,7 @@ site customization or that a stdlib canary proves the whole installed product.
 
 ### Remaining release reconciliation
 
-1. Preserve all 23 JSON route shapes, nine legacy declarations, source refusers,
+1. Preserve all current 25 JSON route shapes, nine legacy declarations, source refusers,
    CLI/Markdown/root-shell routes, archived invocations and consumer extension slots.
 2. Reconcile each to an actual caller/profile or an explicit retirement disposition;
    map every selected control to exact acceptance cases and current owner.
