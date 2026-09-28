@@ -686,6 +686,17 @@ docs mapping and isolated family work. Never overlap native runs sharing credent
 configuration, fixture state or evidence. Run the affected proof once after a change;
 repeat broader proof only for changed dependencies, new failures or final release.
 
+Before a native `/implement` attempt, validate the **same checkout's**
+`plugins/autonomous-dev/.claude-plugin/plugin.json` with the pinned Claude CLI
+and observe that its command provider actually loads. A valid manifest in a
+different checkout is not same-source provenance; a failed provider load is a
+preflight refusal, not a pipeline attempt or a specialist result. The separate
+`marketplace.json` directory-level schema/installation route belongs to D0 and
+must be qualified there as well; do not confuse its validation result with
+`plugin.json` validation or count session-only `--plugin-dir` loading as an
+installed-consumer proof. The 2026-09-29 source manifest failure and distinct
+marketplace failure are recorded on #1757.
+
 **Measured test-gate prerequisite (#1846, 2026-09-29).** A genuine #1805
 `/implement --tdd-first` STEP 1 full-suite baseline timed out at its configured
 900-second bound and wrote `__TIMEOUT__`; it supplied neither a green baseline
