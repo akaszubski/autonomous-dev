@@ -6,7 +6,9 @@ not acceptance evidence. Canonical scope remains the
 
 ## Current restart pointer — 2026-09-29
 
-Plan branch `fix/1779-pipeline-evidence-integrity` is pushed at `5a3bef35`;
+Plan branch `fix/1779-pipeline-evidence-integrity` contains the measured
+test-gate prerequisite at `5a3bef35` and the independently reviewed proposed
+contract at `1940e915`;
 the pre-existing local `.claude/settings.json`, plugin metadata and `.Codex/`
 changes are unrelated and must be preserved. #1805's signed native
 `/implement --tdd-first` on clean base `199bf106` timed out its STEP 1 full
@@ -17,7 +19,7 @@ names the session and preserved transcript. [#1846](https://github.com/akaszubsk
 owns the reusable, coherent test-scope/result contract needed before retry;
 do not substitute parsed failures or scoped tests for full acceptance.
 
-Parallel isolated signed fix-mode runs are active for [#1845](https://github.com/akaszubski/autonomous-dev/issues/1845)
+Parallel isolated signed fix-mode work targets [#1845](https://github.com/akaszubski/autonomous-dev/issues/1845)
 (stale three-agent test expectation) and [#1721](https://github.com/akaszubski/autonomous-dev/issues/1721)
 (append-writer scanner incorrectly applying excluded path parts to a `.codex`
 worktree ancestor). Both were focused-RED on the exact base; neither is
@@ -28,9 +30,23 @@ second interrupted implementer discarded only its own draft with `git
 checkout`, contrary to the supervisor's no-checkout rule; no pre-existing
 user file was affected, and its transcript/credit remain noncertifying. The
 #1721 interrupted in-place mutation was immediately repaired and likewise
-earns no proof credit. After those fixes, independently integrate and re-freeze
-the #1818/#1805 base and exact test denominator; F0 and release outcomes remain
-open. Consult current issue comments and live process handles before resuming.
+earns no proof credit. #1845's compact candidate is 15/15 focused-green, but
+its required F6 CIA report Write was denied at the command-mandated path;
+the run is HOLD before git pending exact-file user approval. #1721's compact
+candidate is 64/64 module-green and 21/21 frozen-case-green, but [#1847](https://github.com/akaszubski/autonomous-dev/issues/1847)
+records an invalid spec-validator completion stamped before execution; the
+source review remains noncertifying while its CIA is active. After these
+prerequisites, independently integrate and re-freeze #1818/#1805; F0 and
+release outcomes remain open. Check live issue comments/process handles on
+resume rather than treating this paragraph as a final state.
+
+The uncapped diagnostic full suite on the frozen `199bf106` base later
+completed in 939.55 seconds with raw exit 1: 17,557 passed, 1,068 failed,
+30 errors, 670 skipped, 21 xfailed and 52 xpassed. Raw output/status are
+`/tmp/adev-fullbaseline-1846-20260929.{log,status}`; [#1846](https://github.com/akaszubski/autonomous-dev/issues/1846#issuecomment-5875300655)
+records the exact command and limits. These are unresolved test IDs, not
+1,098 classified product regressions; sampled cause triage is underway.
+Merely raising the 900-second baseline budget cannot make this tree green.
 
 2026-09-29 #1818 HOLD: the signed same-session native fix run reached a genuine
 implementer Edit of `plugins/autonomous-dev/lib/test_runner.py`, but no
