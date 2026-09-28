@@ -43,7 +43,7 @@ source and installed consumers, then the omitted-route installed negative must
 be proven before publishing a finite #1757 acceptance denominator. Neither
 source checkpoint promotes F0/R0/D0 or authorizes replacement-family rollout.
 
-## Latest restart pointer — 2026-09-28, malformed-input guard under specialist review
+## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 
 **Superseding checkpoint after this slice:** The five #1806/#1807
 library-route slices are committed and pushed as
@@ -360,7 +360,7 @@ verifiable native initiation and approval provenance remain substantive
 #1807/#1802 work. No protected A9 edit, F0, commit or deployment is credited
 to this failed slice.
 
-## Latest restart pointer — 2026-09-27, #1807 run invalid for continuation
+## Historical pointer — 2026-09-27, #1807 run invalid for continuation
 
 The native `authority1807v2` implementer returned uncommitted candidate edits,
 but the live run's sentinel became an identity-less breadcrumb and its
@@ -439,7 +439,7 @@ The artifact digest and limits are recorded on
 Do not restart #1818 implementation until #1807 native identity/provenance is
 accepted; the earlier #1818 native run was aborted at F1 before protected edits.
 
-## Latest restart pointer — 2026-09-26, #1807 held for hook-deadlock decision
+## Historical pointer — 2026-09-26, #1807 held for hook-deadlock decision
 
 Native Claude parent PID 63075 and lock keeper PID 63602 were live at the last
 check; `adev-assurance:owner1807` was paused at a question about an unapproved
