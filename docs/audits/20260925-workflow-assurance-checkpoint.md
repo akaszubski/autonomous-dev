@@ -34,20 +34,34 @@ preserves the patch, failed measurement and limits, including that the surviving
 test file errors rather than cleanly REDs against base. The next useful route
 is #1802's genuine-response approval/refusal path, not more telemetry.
 
-An isolated Claude Max checkout `fix/1802-approval-positive-v3` is reading the
-existing #1802 source candidate at `ac3e04c3` and freezing a real-human-response
-positive plus forged/missing/stale negatives before `/implement --fix`. This is
-preparation, not accepted native approval or a completed #1802 fix.
+An isolated Claude Max checkout `fix/1802-approval-positive-v3` started a
+`/implement --fix` partial subject-binding slice from `ac3e04c3`. Its
+implementer has returned uncommitted edits; the coordinator and independent
+review have not accepted them. The candidate adds roughly 248 production
+lines and a 733-line regression file while genuine human-response PERMIT
+remains unavailable. The supervisor identified a CRLF digest mismatch between
+writer and hook; the candidate was revised but still needs quiescent tests,
+installed-root review and a dependency-closed burden decision. Do not infer
+native approval or #1802 completion from this partial slice.
 
 For F0, the no-overlay EX-1 binding hash was independently rechecked as
 `b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`.
 The [#1773 offline scope freeze](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5864542259)
 records a staged successor and the missing pinned v3 case-data file; the old
 1,127-line semantic overlay remains active pending replay and fault proof. The
-separate `/implement --fix` run `d84fb9d91e8599cc` reached Stage 0 ESCALATE.
-It must not convert a standing instruction or model assertion into approval:
-the supervisor stopped it before implementer dispatch and requested preservation
-of the exact verdict. Offline preparation and native F0 acceptance remain distinct.
+separate `/implement --fix` run `d84fb9d91e8599cc` reached Stage 0 ESCALATE;
+a second legacy-lineage attempt `28bc2542db5450b2` refused wrong-owner and
+tampered-issue inputs. Both stopped before implementer dispatch and remain
+NONCERTIFYING. A fresh prerequisite checkout at `27d1c497` passed 30/30
+offline source-admission arms, but its probe run `ddc902804f318195` authorizes
+no later `/implement` run. The retained ordinal11 capture has no per-command
+stdout for five of the six local semantic pairs, so their hashes are not yet
+independently frozen. The six commands match the first six in the frozen
+seven-command allowlist; command seven is the separately owned protected-nonce
+probe. Claude is regenerating the six outputs from the bound preparation and
+must stop on a mismatch before a fresh `/implement --fix` run. That derivation
+would establish offline consistency, not historical ordinal11 provenance or
+native F0 acceptance.
 
 The #1809 settings-preservation source slice is committed and pushed as
 `79d85f1bf459052c0c03c90de23ce5c64d112f22` on
@@ -64,6 +78,10 @@ UNFROZEN. Its current selected lists and UNKNOWNs must be reconciled against
 source and installed consumers, then the omitted-route installed negative must
 be proven before publishing a finite #1757 acceptance denominator. Neither
 source checkpoint promotes F0/R0/D0 or authorizes replacement-family rollout.
+For #1801, [the bounded redesign note](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5865001376)
+proposes one conservative command-span boundary shared by hook and library
+reachability, rather than an eighth regex exception. This is a read-only design
+hypothesis, not a fixed scanner or a frozen denominator.
 
 ## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 
