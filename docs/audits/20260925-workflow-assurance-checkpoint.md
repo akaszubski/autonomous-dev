@@ -4,7 +4,44 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Current restart pointer — 2026-09-29
+## Latest restart pointer — 2026-09-29, signed #1846 F1 refusal
+
+Plan branch `fix/1779-pipeline-evidence-integrity` is pushed at `e8176211`.
+That commit corrects plan sequencing, not product acceptance. Preserve the
+pre-existing dirty `.claude/settings.json`, plugin manifest and untracked
+`.Codex/`; do not reset or overwrite them.
+
+The main checkout's signed fix-mode #1846 run `cc864247aa5cb076`, Claude
+session `f797fd52-8fe2-4b4f-b437-f47aad685bbc`, started on `952831af` and
+stopped at F1. Its sentinel remains at
+`.claude/local/implement_pipeline_state.json` with
+`alignment_passed=false`, `alignment_verdict=escalate`, issue `1846` and the
+same session/run IDs. Observed file SHA-256:
+`3bf7b12c189916190ca711cc5eef9d87365d07211048a15269460e666f6423be`.
+The CLI process for that exact session was absent on recheck; no implementer
+or protected edit occurred. Preserve the sentinel and audit/log rows as
+failed evidence, never reusable specialist completion.
+
+Conservative Stage 0 matched a negated bypass phrase in the full #1846 issue
+body. Stage 1 found the task in scope, but #1802's verdict writer rejects
+both a caller approval flag and a caller-supplied record, so a chat approval
+cannot re-sign this run. The complete, unaltered #1802 issue title/body
+returned Stage 0 `clear` against current `.claude/PROJECT.md` in a read-only
+check. Next qualifying native work is #1802's independently observed
+human-response channel, including forged/missing/replayed refusals, before
+retrying #1846 F1. Preserve the existing source-only #1802 candidate for
+review, not acceptance. The old `approval1802v3` tmux Claude process was
+observed alive but its pane idle at a prompt after a NONCERTIFYING handoff;
+that is not a live implementer or authorization. Recheck process, HEAD,
+provider, sentinel and issue before another native run. Do not overwrite the
+failed sentinel without an explicit preservation/retirement step.
+
+The release census remains provisional, and F0/R0/D0/migrations/retrofit are
+unaccepted. #1757's [current status](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5879993607)
+and [plan-commit pointer](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5880009333)
+are the external handoff; older dated sections below are historical.
+
+## Historical restart pointer — 2026-09-29
 
 Source-prerequisite integration is now pushed at `702ed1af` on the plan branch:
 the reviewed #1807 signed-identity substrate (`27d1c497`) and #1821
