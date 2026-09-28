@@ -3899,3 +3899,19 @@ the observed result was recorded; their absence was checked, so this witness
 is no longer replay-verifiable. Independent preflight refused a full
 `/implement --fix` run because its possible git/deploy effects exceed the
 fixture. [#1807 diagnostic and cleanup](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870280958).
+
+2026-09-28 continuation correction: the isolated #1807 sidecar-schema slice is
+now committed and pushed on `fix/1807-schema-registration` at `199bf106`, not
+held as uncommitted work. It admits `UserPromptExpansion` to the sidecar event
+enum, adds an existing-sidecar positive and bogus-event negative check, and
+corrects the bounded changelog/schema documentation. Independent checks passed:
+schema JSON parse, `git diff --check`, and 68 focused tests. The generator's
+initial sidecar-schema error is gone, but `generate_hook_config.py --check -v`
+still exits 1 on a separate `PreToolUse` settings drift. This is source-only:
+neither native registration, installed behavior, A7/A9 origin, #1807, nor F0
+is accepted. The real Claude fix-mode run produced specialist reports, but its
+CIA report contains unsupported source-command and hook-denial claims; raw
+tool records and the actual command bytes remain the authority. The CIA report
+write was allowed by autonomous-dev hooks after a native user-rejected attempt;
+the subsequent interactive retry ran in auto mode, so no explicit one-time
+approval is claimed. See [#1807 source-only receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5871356143).
