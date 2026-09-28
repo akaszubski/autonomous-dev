@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-09-27. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-09-28. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -57,7 +57,7 @@ preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
-Current execution pointer (2026-09-27): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+Current execution pointer (2026-09-28): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
 native run identity, origin and containment remain unaccepted; the
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
@@ -69,6 +69,43 @@ on #1757 is still a candidate, not frozen. Use the
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
+
+The scoped #1806 lock-GC repair is included in the pushed
+[#1806/#1807 library checkpoint](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39)
+and passed its frozen isolated regression and specialist review.
+[#1806 remains open](https://github.com/akaszubski/autonomous-dev/issues/1806#issuecomment-5853957935):
+the point-in-time held-lock proof immediately before F0 is still required.
+Native A7/A9 origin and containment, installation and release are also unproven;
+do not infer them from the integrated unit result.
+
+The #1807 V3 helper, F1 alignment re-sign and shared malformed-input slices
+are gated and committed as **library-route hardening only, not native
+promotion**. The six-binding MAC, guarded base-commit
+re-sign and guarded alignment re-sign passed independent positives and
+negatives plus scoped `/implement` reviews. The first alignment repair had a
+missing-MAC laundering bypass despite 34 focused greens; the preserved
+[RED case](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5860793585)
+led to a fail-closed correction and the
+[gated library-route result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5861368092).
+The shared `verify_state_hmac` malformed-input class fix completed its
+separate `/implement --fix` run `23e0756ad22e1b22`; its scoped specialist
+gates and independently rerun focused process-level tests passed. The
+[checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) records
+the exact evidence and limits. None of these library results establishes
+native A7/A9, installed behavior or F0.
+
+The 2026-09-28 Stage 0 negation-parser attempt (#1831/#1832) is **rejected**, not
+a new prerequisite implementation. Independent prose variants made it falsely
+clear out-of-scope hosted-SaaS proposals despite selected green tests; adding
+verb/connective lists expanded maintenance without closing the class. Retain
+conservative Stage 0 escalation. Resolve the independently verifiable native
+human-approval route (#1802/#1807) for legitimate escalations, then repeat the
+original A7/A9 brief and same-installed-policy positive/deny proof. The
+[#1562 active-pipeline Bash bypass](https://github.com/akaszubski/autonomous-dev/issues/1562)
+also makes protected-file effect control an explicit A9 review input; #1833
+was closed as a duplicate after the existing gate was inspected. Do not treat
+shell-command parsing as a proven security boundary. See the restart checkpoint
+for exact failed runs and preserved evidence.
 
 F0 is incomplete. Ordinal11 completed capture but failed required examination:
 three public Reads, fixture README Read and covers-first were absent.
