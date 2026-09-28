@@ -1425,13 +1425,22 @@ Selected fixture contract (case definitions, **not** an accepted product profile
 | Roots | Fresh `<case>/consumer` Git repo, `<case>/home`, `<case>/config`, `<case>/tmp`; all outside source/catalog | A second, distinct set of those four roots; never the dogfood checkout |
 | Before install | No autonomous-dev executable, registration, enablement, cache, retained version or legacy hook in any layer | No autonomous-dev registration in the normal arm; D0-03 variants insert only their declared conflict |
 | Settings files | `<case>/config/settings.json` contains an unrelated nested sentinel and harmless hook; empty `<case>/consumer/.claude/settings.json` and `settings.local.json` | `<case>/config/settings.json`, `<case>/consumer/.claude/settings.json`, `<case>/consumer/.claude/settings.local.json` and `<case>/explicit-settings.json` all exist |
-| Unrelated sentinels | Preserve the original user-setting bytes and normalized unrelated-key projection | Give each of the four files a *distinct* unrelated permission, environment value, harmless hook registration and sentinel; use comments only where that file format preserves them |
+| Unrelated sentinels | Preserve the original user-setting bytes and normalized unrelated-key projection | Give each of the four files a *distinct* unrelated permission, environment value, harmless hook registration and sentinel; also set the same harmless `env.ADEV_D0_PRECEDENCE` key to its layer name in all four files, so a wrong precedence winner is observable; use comments only where that file format preserves them |
 | Owned projection | Native marketplace/plugin enablement plus the exact legacy autonomous-dev hook entries approved for migration | The same limited projection; all other keys and ordering where meaningful remain consumer-owned |
 | Boundary | `env -i`, isolated HOME/CLAUDE_CONFIG_DIR/TMPDIR, source checkout unavailable, no ambient Python import, absolute supported Python with `-I` | Same boundary, independently recorded; an explicit `--settings <case>/explicit-settings.json` participates |
 
 Use the literal layer identifiers `CLEAN-0:user-unrelated` and
 `POPULATED-3:{user,project,local,explicit}-unrelated` in the fixture's harmless
 sentinel values and hook markers, so lost or duplicated layers are attributable.
+For POPULATED-3, the overlapping `env.ADEV_D0_PRECEDENCE` values are `user`,
+`project`, `local` and `explicit` in the matching layers. With no managed source
+and no shell variable of that name, the pinned CLI profile's `--settings` layer
+must win (`explicit`); removing only that key must expose `local`, then `project`,
+then `user` as keys are removed in precedence order. One harmless native observer
+records the effective value for these arms; a file-preservation check or a model
+report does not prove the winner. This follows the documented CLI > local >
+project > user order for settings keys, but the pinned native CLI must confirm it
+before D0-02 can pass: <https://code.claude.com/docs/en/settings>.
 The exact JSON keys, harmless hook command, permission entries and scalar values
 must be committed with the *single* D0 runner fixture before a native attempt;
 this census selects their distinctness and preservation obligations but does not

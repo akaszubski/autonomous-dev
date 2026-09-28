@@ -4,6 +4,12 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+2026-09-29 D0-02 matrix correction: POPULATED-3 now freezes one overlapping,
+harmless environment key across user/project/local/explicit settings, its expected
+winner order and a native observer requirement. Distinct unrelated values alone
+tested preservation, not precedence. This is a case-definition correction only;
+fixture bytes, pinned native behavior and D0 acceptance remain outstanding.
+
 ## Current census continuation — 2026-09-29
 
 Follow-up at pushed base `ac92e2ac`: direct `jq` traversal of the same eight
