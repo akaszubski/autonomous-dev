@@ -96,6 +96,17 @@ full-run cross-target exclusion or retires that route after an active-use
 census. Do not add a global marker, daemon or registry merely to obtain the
 isolated #1807 test.
 
+The 2026-09-28 isolated native diagnostic is recorded on
+[#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870424628).
+The test-only overlay moved the origin hook's signing-key home outside the
+disposable subject; a real native hook wrote there, while a real Claude Bash
+attempt to write the same home failed with `Operation not permitted` and left
+no marker. This is evidence for the Bash boundary only. The native command
+still needs effective default hook registration, authenticated config
+isolation, built-in-editor/MCP containment and end-to-end run/effect proof.
+Do not equate the agent's refusal to call Write with an enforced denial, or
+promote this test overlay into the product installation.
+
 The #1807 V3 helper, F1 alignment re-sign and shared malformed-input slices
 are gated and committed as **library-route hardening only, not native
 promotion**. The six-binding MAC, guarded base-commit
