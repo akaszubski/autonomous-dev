@@ -708,6 +708,17 @@ do not advance #1805 by treating routed or parsed tests as full-suite proof.
 Resolve #1846 with an independently reviewed, coherent scope/result contract,
 then re-freeze #1805/#1818 on the repaired base. This is a delivery dependency,
 not permission to weaken final release or security coverage.
+The first signed native #1846 fix run (`cc864247aa5cb076`, 2026-09-29) stopped
+at F1 before implementation: conservative Stage 0 matched a negated gate-bypass
+phrase in the full issue body. Stage 1 found the work in scope but cannot
+override Stage 0. The current #1802 verdict writer refuses both a bare
+`user_approved=True` and a caller-supplied approval record; an approval in chat
+therefore cannot qualify this run or set `alignment_passed=true`. Preserve the
+failed run and full issue input. Qualify #1802's independently observed,
+current-run human-response route with forged/missing/replayed refusals before
+retrying #1846's native F1, or use another genuinely in-scope native repair
+subject whose complete unaltered input clears Stage 0. Neither route waives F1,
+the specialist sequence or #1846's behavioral acceptance.
 The uncapped base suite subsequently finished with 1,068 failures and 30
 errors; #1848 separately owns contract-grounded disposition of that test
 population. Neither a longer timeout nor a historical failure whitelist is
