@@ -35,14 +35,15 @@ test file errors rather than cleanly REDs against base. The next useful route
 is #1802's genuine-response approval/refusal path, not more telemetry.
 
 An isolated Claude Max checkout `fix/1802-approval-positive-v3` started a
-`/implement --fix` partial subject-binding slice from `ac3e04c3`. Its
-implementer has returned uncommitted edits; the coordinator and independent
-review have not accepted them. The candidate adds roughly 248 production
-lines and a 733-line regression file while genuine human-response PERMIT
-remains unavailable. The supervisor identified a CRLF digest mismatch between
-writer and hook; the candidate was revised but still needs quiescent tests,
-installed-root review and a dependency-closed burden decision. Do not infer
-native approval or #1802 completion from this partial slice.
+`/implement --fix` partial subject-binding slice from `ac3e04c3`. The initial
+candidate grew by about 1,000 raw code/test lines without a genuine human
+PERMIT. The [recorded staging decision](https://github.com/akaszubski/autonomous-dev/issues/1802#issuecomment-5865050672)
+retains only the immediately load-bearing PROJECT.md digest/staleness refusal
+for this interim slice; S1–S5 and real-human-PERMIT remain OPEN, not removed
+from acceptance. The implementer returned reduced uncommitted bytes and the
+spec-blind reviewer is active. The final slice still needs quiescent tests,
+installed-root review, all specialist gates and a dependency-closed burden
+decision. Do not infer native approval or #1802 completion.
 
 For F0, the no-overlay EX-1 binding hash was independently rechecked as
 `b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`.
@@ -55,13 +56,18 @@ tampered-issue inputs. Both stopped before implementer dispatch and remain
 NONCERTIFYING. A fresh prerequisite checkout at `27d1c497` passed 30/30
 offline source-admission arms, but its probe run `ddc902804f318195` authorizes
 no later `/implement` run. The retained ordinal11 capture has no per-command
-stdout for five of the six local semantic pairs, so their hashes are not yet
-independently frozen. The six commands match the first six in the frozen
-seven-command allowlist; command seven is the separately owned protected-nonce
-probe. Claude is regenerating the six outputs from the bound preparation and
-must stop on a mismatch before a fresh `/implement --fix` run. That derivation
-would establish offline consistency, not historical ordinal11 provenance or
-native F0 acceptance.
+stdout for five of the six local semantic pairs. The original Linux worker's
+ordinal11 EX-1 tree was independently matched against all 707 frozen non-nonce
+file digests: zero mismatches or extras, raw exits 0/0. Under the recorded mount,
+five commands reproduce their local expected stdout hashes, but the covers-first
+command produces `5a35263f...` instead of local v1's `a20cf0da...`. The same
+`5a35263f...` independently follows from v1's own embedded POLICY.md text;
+no alternate docs directory in the frozen tree yields the v1 hash. The
+[#1773 RED receipt](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5865298673)
+and private `PREREQ-V2-ROUTE-B-SIXPAIR-RED.json` preserve this mismatch. F0 EX
+offline is blocked: prepare an explicit one-field old-to-new case mapping and
+fresh independent review before any case amendment, new `/implement` run or
+native F0 attempt. No historical ordinal11 stdout provenance is claimed.
 
 The #1809 settings-preservation source slice is committed and pushed as
 `79d85f1bf459052c0c03c90de23ce5c64d112f22` on
@@ -82,6 +88,10 @@ For #1801, [the bounded redesign note](https://github.com/akaszubski/autonomous-
 proposes one conservative command-span boundary shared by hook and library
 reachability, rather than an eighth regex exception. This is a read-only design
 hypothesis, not a fixed scanner or a frozen denominator.
+Its fresh `/implement --fix` baseline exposed an unrelated dirty PROJECT.md
+timestamp naming Issue #204 while broad tests were active in the isolated
+checkout. Preserve that contaminated run as non-certifying; identify the exact
+writer and revalidate the clean policy subject before scanner promotion.
 
 ## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 
