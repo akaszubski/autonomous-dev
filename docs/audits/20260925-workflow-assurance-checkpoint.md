@@ -3523,3 +3523,37 @@ mitigation**, not issue closure: the candidate source worktree remains
 uncommitted; #1807, native A7/A9 origin, installed-consumer proof, F0 and
 release are OPEN/UNPROVEN. The next safe independent slice is #1806 in a
 separate clean worktree, with fault cases frozen before code edits.
+
+## 2026-09-28 continuation — native-origin reviewer rejection and parallel settings slice
+
+The new #1807 native-origin candidate is being worked through real Claude
+`/implement --fix` in the `origin1807` tmux session, run
+`911dccd853dd2a28`, worktree
+`/Users/akaszubski/.codex/worktrees/authority-boundary-1807/autonomous-dev`.
+Its spec-blind review found no production gate reading `RunOrigin` or
+`typed_user_origin`, no caller of `cleanup_native_origin`, and a potentially
+redundant `witness_path_verdict` chain. All native A6/A7/A9 arms remain
+**OPEN/UNMEASURED**: source classification is not a demonstrated decision.
+
+F4 reviewer returned **REQUEST_CHANGES**. Its blocking counterexample found
+that the progression refinement compares append 3 with `chain[0]` rather than
+the latest accepted `chain[-1]`; a field legitimately bound at append 2 can
+therefore be rebound at append 3. It also rejected the unwired cleanup routine
+and its false teardown claim. The correction requires a frozen three-append
+conflicting-rebind refusal and same-value permit, plus removal or real wiring
+of cleanup; independent reviewer/spec-validator and security checks must run
+again on final bytes. A first remediation dispatch was refused by the prompt-
+integrity hook for a 47.1% prompt shrink (1,576 to 834 words). Claude retained
+that failed receipt and started a full-context implementer retry without a
+bypass. No #1807 acceptance, native promotion, deployment or closure follows
+from the present evidence.
+
+In parallel, #1809 settings-preservation work is active in `settings1809v2`,
+worktree `/Users/akaszubski/.codex/worktrees/settings-preserve-1809/autonomous-dev`.
+The draft now calls one shared admission check at the start of the dispatcher
+route, before its file copies, and includes a whole-`.claude`-tree no-mutation
+negative and a permitting opposite arm. These are **candidate** improvements,
+not raw-exit or installed proof. `deploy-all.sh`, plugin updater/HookActivator
+and other install/update routes remain OPEN. The draft's substantial net code
+and test growth is an explicit F4 proportionality question; D0 and the release
+remain unaccepted. Neither live worktree has been merged into this branch.
