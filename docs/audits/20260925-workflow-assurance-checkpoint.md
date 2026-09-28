@@ -4,6 +4,21 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## Current census continuation — 2026-09-29
+
+At the start of this correction the pushed plan branch was `b7c050c7`;
+pre-existing dirty `.claude/settings.json`, plugin manifest and untracked
+`.Codex/` were left untouched. Independent structural parsing found two
+active `native_run_origin.py` registration shapes missing from the release
+census table: `PreToolUse/Skill` and `UserPromptExpansion/*`, each declared
+in global and autonomous-dev settings templates. The table now allocates 25
+shapes, but both new rows remain source-registration observations only:
+native event firing and protected A9 origin are UNMEASURED. The private
+D0 lifecycle proposal's selected eight distinct case obligations are now
+materialized in the tracked census; concrete fixture bytes, product identity
+and profile pins still need freezing before D0 implementation. No stage or
+release denominator was accepted by these documentation corrections.
+
 ## Latest restart pointer — 2026-09-29, #1802 F2 interruption
 
 Plan branch's latest verified pushed head was `f95cd514` before the current

@@ -34,6 +34,11 @@ groups. These are read-only structure counts, not an effective registration
 precedence check, an installed-plugin event, or evidence that any hook fired.
 The extra source groups and the actual consumer route remain reconciliation
 obligations, not silent exclusions or automatic duplicate-execution claims.
+The exact-shape table below now includes the two `native_run_origin.py` event
+shapes previously omitted from its 23-row snapshot: `PreToolUse/Skill` and
+`UserPromptExpansion/*`, each declared in both G and A. This corrects a
+source-registration omission only; native support, physical firing and the
+protected A9 origin witness remain UNMEASURED.
 
 2026-09-29 status correction: the three active prerequisite issues remain open.
 The #1805 candidate has unchanged 238/148/90 source-member arrays, but an
@@ -1387,15 +1392,18 @@ read. No numeric line cap or additional parser owner is introduced.
 
 ### Consumer-profile selection (proposed, not frozen digests)
 
-Recipe source: the retained private proposal is
+Historical proposal: the retained private proposal is
 `/Users/akaszubski/.codex/artifacts/d0-consumer-lifecycle-matrix.lTBaCz/D0-CONSUMER-LIFECYCLE-MATRIX.PROPOSED.md`,
-sections 2–4 (profiles and D0-01…D0-08). Reuse those definitions rather than
-creating another matrix. Its macOS `CLAUDE-D0-2.1.236` envelope and four-file
+sections 2–4 (profiles and D0-01…D0-08). The selected portable profiles and
+eight distinct fault families are materialized below in this tracked release
+owner; the private path is provenance, not a runtime or acceptance dependency.
+Its macOS `CLAUDE-D0-2.1.236` envelope and four-file
 fixture restoration are exploratory evidence, not the Linux product profile or
 a last-known-good product release. This section supersedes its stale observation
 status; the private absolute path is a maintainer recovery pointer, not a consumer
-dependency. Before implementation, materialize the selected portable recipe and
-its concrete pins in the existing delivery owner.
+dependency. Before implementation, freeze the still-unmaterialized fixture
+bytes, product/package identity and concrete profile pins in the existing
+delivery owner; the case selection below is already tracked here.
 
 Selected fixture contract (case definitions, **not** an accepted product profile):
 
@@ -1462,7 +1470,20 @@ one selected test passed, raw pytest exit 0. That result qualifies only its
 source predicate; the installed arm remains UNMEASURED until the settings-
 preserving installation and native event boundary are available.
 
-Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
+The selected D0 cases, before product/profile digests are frozen, are:
+
+| Case | Distinct failure mechanism | Required permit/ordinary result | Required refusal/fault result |
+|---|---|---|---|
+| D0-01 package/provenance | Invalid package or source/ambient fallback | Strict native validation and install; executed hook/imports resolve only recorded installed bytes | Invalid/missing member, counterfeit source or wrong executing root cannot pass |
+| D0-02 composition/preservation | Layer precedence or collateral settings mutation | Reproduce declared participating layers; change only owned projection in CLEAN-0 and POPULATED-3 | Lost unrelated value/hook/permission, wrong winner or whole-file replacement fails |
+| D0-03 conflict refusal | Ambiguous owner or compare-before-write race | Non-conflicting populated retrofit activates | Duplicate/overlapping registration, higher-precedence conflict or changed baseline refuses before mutation |
+| D0-04 physical exactly-once | Registration or dedup receipt mistaken for execution | One native event joins one physical hook process and result/decision in both consumer profiles | Missing carrier is UNMEASURED; duplicate registration yields two processes and fails |
+| D0-05 repeat/update/restart | Non-idempotent update or stale executing version | Repeat stays singular; native v1→v2 and restart execute v2 | Stale cache/registry/executing root or second registration fails |
+| D0-06 interruption/recovery | Mixed owners after interrupted transition | Kill at each stable observed transition boundary; recover to prior-complete or new-complete before governed use | Mixed, dual, zero or unknown owner/epoch refuses automatic continuation |
+| D0-07 rollback | Bytes restored without owner/execution restoration | Retain v1; from accepted v2 stop sessions, restore owned settings and v1, restart and execute v1 exactly once | Changed backup, missing retained version, ambiguous live session or failed canary refuses |
+| D0-08 uninstall/standalone/subtraction | Active owner or legacy route survives removal | Remove owned active registration; preserve consumer data/unrelated settings; standalone runs source-free | Executing retained cache, data loss, missing/extra standalone member or restored legacy route fails |
+
+Reuse these D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
 `CLEAN-0` and `POPULATED-3` as disposable fixture IDs, with separate standalone,
 dogfood, isolated-Linux and Claude/Codex process-result profiles; OS/tool versions
 belong in each digest-bound profile rather than implying cross-platform parity.
@@ -1889,11 +1910,13 @@ Effective native event support and settings composition remain unverified.
 | PreToolUse | W | plan_gate.py | G,A | WA-W2-02/03 | Migrate current-plan owner; wrong envelope and absent required plan cannot pass |
 | PreToolUse | W | validate_paid_dependency.py | ALL | WA-O1c | Preserve paid-content refusal; computed `_emit` source UNKNOWN is not observed refusal |
 | PreToolUse | `*` | unified_pre_tool.py | ALL | WA-W1a…e; WA-W2…W5; WA-O3 | Existing concrete subcontrols own distinct obligations; no single case certifies dispatcher |
+| PreToolUse | `Skill` | native_run_origin.py | G,A | Candidate WA-E1/WA-E2; #1807 A7/A9 | Record model-initiated Skill origin separately from typed-user origin; registration does not establish event firing, identity or authority |
 | Stop | `*` | session_activity_logger.py | G,B,P,S | Supporting WA-W3-04/05 session-end observation | Prospectively retain selected declared layers pending measured replacement; Stop never establishes terminal success |
 | Stop | `*` | conversation_archiver.py | G,A | WA-O4-01 history/reporting diagnostic | Retain queryable history in explicitly archival-enabled variants; disabled, missing, unavailable or corrupt transcript is not successful archival |
 | SubagentStop | `*` | unified_session_tracker.py | G,A | WA-E2; WA-W3-04/05 | Migrate joined actual result/current-run credit; wrong-child/unsigned-dispatch refuses credit |
 | TaskCompleted | `*` | task_completed_handler.py | G,A | WA-E2; WA-W3-04/05 | Preserve joined completion authority, not legacy completion-record success |
 | UserPromptSubmit | `*` | unified_prompt_validator.py | G,A | WA-W4-01 | Retain human routing; routing never grants later action authorization |
+| UserPromptExpansion | `*` | native_run_origin.py | G,A | Candidate WA-E1/WA-E2; #1807 A7/A9 | Record typed-command origin only when the native event and protected witness are independently observed; stdin shape alone is forgeable and A9 remains UNMEASURED |
 | SessionStart | `*` | SessionStart-batch-recovery.sh | A | WA-W3-05 | Preserve batch recovery identity and useful context; no reconstructed signed authority |
 | PreToolUse | `Task\|Agent\|Bash` | session_activity_logger.py | A,D,B,P,S | Supporting WA-W3-02…04 dispatch/request observation | Retain each separately selected project surface and guarded Bash request diagnostics; request records never authorize completion |
 | PostToolUse | `Write\|Edit` | auto_format.py | A,S | WA-L2b formatting outcome; D0-04 | Qualify modern Write/Edit effects and duplicate/missing-formatter faults; LEGACY-01/02 remain distinct declarations below |
@@ -1901,7 +1924,8 @@ Effective native event support and settings composition remain unverified.
 | UserPromptSubmit | `*` | inline strict-mode echo | S | WA-O4-01 advisory presentation | Select redundant-guarantee retirement after strict functional/profile proof; optional presentation must describe actual selected profile, never certify enforcement |
 | PreCommit | absent | auto_fix_docs.py | N | WA-L3-05 / WA-D1 preparation | Select deterministic repair in explicit preparation, never commit-time mutation/staging; qualify promised effects and caller/event before retirement |
 
-These are allocations of the existing 23 declaration shapes, not new acceptance
+These are allocations of the current 25 declaration shapes (the earlier 23-row
+table omitted both #1807 native-origin registrations), not new acceptance
 IDs or evidence of activation. Each keeps its exact surface/matcher parameters;
 applicable CLEAN-0/POPULATED-3 variants require separately frozen installed
 profiles. Supporting logging/history rows do not receive frozen Linux F0 WA-E1
