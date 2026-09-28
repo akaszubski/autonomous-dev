@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -129,6 +129,8 @@ class Stage0Outcome(str, Enum):
 
 #: Verdicts that mean the gate PASSED. Consumers MUST test membership here
 #: rather than comparing against a single verdict literal (Amendment 2).
+#: ``user_approved`` is retained ONLY so historical pre-#1802 signed states
+#: still read as passing; no code path can produce a new one (see #1802).
 ALLOWED_VERDICTS = frozenset({Verdict.AUTO_PASS.value, Verdict.USER_APPROVED.value})
 
 #: Classifications Stage 1 is allowed to return.
@@ -197,14 +199,24 @@ class AlignmentVerdict:
     autonomous_context: bool = False
     issue_number: str = ""
     timestamp: str = ""
-    #: Evidentiary trail for an APPLIED human approval. Present only when an
-    #: ``ESCALATE`` was upgraded to ``USER_APPROVED``, so a real approval is
-    #: distinguishable from a bare ``user_approved=True`` flag flip.
+    #: Evidentiary trail for an APPLIED approval. Since Issue #1802 closed the
+    #: upgrade path this is ALWAYS None on verdicts this library produces; the
+    #: field survives so historical artifacts still deserialize.
     approval: Optional[Dict[str, Any]] = None
-    #: Why an attempted ``user_approved`` upgrade was REFUSED (currently only
-    #: ``"autonomous_context"``). Non-empty means somebody tried to approve
-    #: with no human present; the attempt stays visible in the audit trail.
+    #: Why an attempted ``user_approved`` upgrade was REFUSED —
+    #: ``"autonomous_context"`` (nobody was there to ask) or
+    #: ``"no_verifiable_approval_channel"`` (Issue #1802: nobody can prove who
+    #: answered). The attempt stays visible in the audit trail.
     user_approved_refused: str = ""
+    #: True when a caller tried to approve this escalation by any means.
+    #: Recorded so repeated approval attempts are countable in the audit trail
+    #: rather than inferable only from the refusal string (Issue #1802).
+    attempted_user_approval: bool = False
+    #: True when :func:`record_alignment_verdict` removed caller-supplied
+    #: approval metadata from this verdict before persisting it (Issue #1802,
+    #: comment 5849895757). The strip is recorded rather than silent so a
+    #: tampering attempt on a non-approval verdict stays visible to an auditor.
+    approval_metadata_stripped: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to the schema-versioned artifact payload.
@@ -232,6 +244,10 @@ class AlignmentVerdict:
             payload["approval"] = dict(self.approval)
         if self.user_approved_refused:
             payload["user_approved_refused"] = self.user_approved_refused
+        if self.attempted_user_approval:
+            payload["attempted_user_approval"] = True
+        if self.approval_metadata_stripped:
+            payload["approval_metadata_stripped"] = True
         return payload
 
 
@@ -1134,8 +1150,6 @@ def map_verdict(
     classification: Optional[str],
     cited_clause: Optional[str],
     doc: ProjectDoc,
-    *,
-    user_approved: bool = False,
 ) -> Verdict:
     """Fold Stage 0 and Stage 1 into the final verdict.
 
@@ -1156,36 +1170,43 @@ def map_verdict(
     \\* Downgraded to the ``in_scope`` path when the repo documents no
     invariants.
 
-    ``user_approved`` upgrades ``ESCALATE`` to ``USER_APPROVED`` and nothing
-    else — a ``BLOCK`` is never upgradable (INV-7). This function is pure and
-    reads no environment: the autonomy gate that decides whether an approval may
-    take effect at all lives at the recording choke point
-    (:func:`record_alignment_verdict`), which refuses the upgrade — and
-    downgrades an already-``USER_APPROVED`` verdict — when no human is present.
+    **This function can never return** :attr:`Verdict.USER_APPROVED`. It once
+    took a ``user_approved`` keyword that upgraded ``ESCALATE``; Issue #1802
+    REMOVED that parameter and the upgrade branch outright rather than leaving
+    them unreachable-by-convention. ``map_verdict`` has no leading underscore,
+    so it is part of this module's public surface: any external caller that
+    imported it, passed the flag and inspected the result would have seen a
+    ``USER_APPROVED`` that never passed through
+    :func:`record_alignment_verdict`'s refusal. Keeping the parameter safe only
+    because the one production call site declined to use it is exactly the
+    "guard scoped to the wired path" shape this fix exists to remove.
+
+    Removal was chosen over retention because the blast radius is zero — no
+    production caller passed the flag — and because a deleted parameter fails
+    LOUDLY (``TypeError``) for any future caller, where an ignored one would
+    fail silently and look like it had worked. Approval now has exactly one
+    home: :func:`record_alignment_verdict`, which refuses it.
 
     Args:
         stage0: Deterministic pre-check result.
         classification: Stage 1 classification, or None on classifier failure.
         cited_clause: Clause Stage 1 cited from PROJECT.md.
         doc: Parsed PROJECT.md.
-        user_approved: True when a human explicitly approved the escalation.
 
     Returns:
-        The final :class:`Verdict`.
+        The final :class:`Verdict` — one of ``BLOCK``, ``AUTO_PASS`` or
+        ``ESCALATE``, never ``USER_APPROVED``.
     """
     if stage0.outcome is Stage0Outcome.BLOCK:
         return Verdict.BLOCK
 
-    def _escalate() -> Verdict:
-        return Verdict.USER_APPROVED if user_approved else Verdict.ESCALATE
-
     # INV-6: the deterministic outcome cannot be overridden by Stage 1.
     if stage0.outcome is Stage0Outcome.ESCALATE:
-        return _escalate()
+        return Verdict.ESCALATE
 
     if not classification or classification not in _KNOWN_CLASSIFICATIONS:
         # Classifier failure, timeout, or an invented label: fail closed.
-        return _escalate()
+        return Verdict.ESCALATE
 
     effective = classification
     if effective == "architecture_delta" and not doc.has_invariants:
@@ -1193,10 +1214,10 @@ def map_verdict(
         effective = _IN_SCOPE_CLASSIFICATION
 
     if effective != _IN_SCOPE_CLASSIFICATION:
-        return _escalate()
+        return Verdict.ESCALATE
 
     if not verify_citation(cited_clause, doc):
-        return _escalate()
+        return Verdict.ESCALATE
 
     return Verdict.AUTO_PASS
 
@@ -1251,6 +1272,49 @@ def is_autonomous_context(
 _ARTIFACT_REL = Path(".claude") / "alignment_verdict.json"
 _AUDIT_LOG_REL = Path(".claude") / "logs" / "alignment_verdicts.jsonl"
 
+# ---------------------------------------------------------------------------
+# The escalate -> USER_APPROVED upgrade is fail-closed AT THIS API (Issue #1802)
+#
+# SCOPE OF THE CLAIM: "closed" below means closed at the canonical library
+# surface — record_alignment_verdict, evaluate_and_record, map_verdict. It does
+# NOT mean the property holds system-wide. A caller that bypasses this choke
+# point and writes .claude/alignment_verdict.json or re-signs pipeline state
+# itself is outside everything described here, and runs as the same principal,
+# so that ceiling stays OPEN (#1807). The genuine human-approval positive arm
+# is UNMEASURED. Issue #1802 remains OPEN: this is a partial fix.
+#
+# ``user_approved`` was a caller-supplied boolean, and the library synthesized
+# ``approval = {"source": "ask_user_question", ...}`` from it. The approval
+# sub-object was therefore manufactured from the same assertion it was supposed
+# to evidence, and any coordinator acting on standing instructions could turn a
+# deterministic ESCALATE into a pass. Observed live on 2026-09-25 (run
+# 01e99c0efb9202ae) and 2026-09-27 (run 5b7478ef3af7718e).
+#
+# No receipt object fixes this. Anything the coordinator can hand to this
+# library, the coordinator can also manufacture: it runs as the same principal,
+# so it can reach any signing key this process can reach. Nor is there a
+# response SHAPE that proves a human — AskUserQuestion ``updatedInput.answers``
+# may be supplied programmatically. A signed, bound, single-use record would
+# only relocate the self-attestation and dress it up as evidence.
+#
+# So the upgrade is refused outright until an INDEPENDENTLY verifiable receipt
+# channel exists (#1807). Refusing an unknown is the fail-closed answer;
+# labelling it honestly and then permitting it is not.
+# ---------------------------------------------------------------------------
+
+#: Refusal recorded when any caller tries to approve an escalation.
+APPROVAL_UNAVAILABLE = "no_verifiable_approval_channel"
+
+#: Model-visible explanation. Names the issue and the routes that remain open,
+#: so a refused coordinator has somewhere to go instead of retrying the flag.
+APPROVAL_UNAVAILABLE_MESSAGE = (
+    "user approval cannot be recorded (Issue #1802): this library has no "
+    "independently verifiable approval receipt, and a caller-supplied flag or "
+    "receipt object is indistinguishable from a forged one because the caller "
+    "runs as the same principal. Remaining options: narrow the change to stay "
+    "in scope, update PROJECT.md scope and re-run the gate, or stop."
+)
+
 
 def write_alignment_verdict(
     verdict: AlignmentVerdict,
@@ -1302,6 +1366,58 @@ def write_alignment_verdict(
                 pass
 
 
+def _sanitize_approval_metadata(
+    verdict: AlignmentVerdict,
+) -> Tuple[AlignmentVerdict, bool]:
+    """Remove caller-supplied approval metadata and report what WAS removed.
+
+    This library never CREATES any of these fields, so anything arriving in
+    them is caller-supplied and cannot be evidence of anything.
+
+    ``approval_metadata_stripped`` is itself caller-supplied trust state — the
+    marker added to record tampering was forgeable by the same route it was
+    meant to record (Issue #1802, comment 5850061581). The inbound value is
+    therefore NEVER read into the result: the marker is computed exactly once,
+    here, from the SUBSTANTIVE fields this call actually cleared, and returned
+    alongside so the caller of this helper cannot disagree with it either.
+
+    Semantics chosen, and the trade-off: a lone forged marker on an otherwise
+    clean verdict is discarded and reported as ``False``, NOT as tampering.
+    Counting it as tampering would also satisfy "derived, never read", but it
+    would make a forged ``True`` and a derived ``True`` indistinguishable by
+    observation — there would be no test that can tell pass-through from
+    derivation. Reporting ``False`` makes the ignore-invariant directly
+    provable in both directions. The cost is that faking the marker alone
+    leaves no audit record; accepted because a lone marker asserts nothing
+    about approval, so nothing is laundered by discarding it quietly.
+
+    Args:
+        verdict: The inbound verdict, trusted for nothing but its ``verdict``
+            enum and its Stage 0 / Stage 1 evidence fields.
+
+    Returns:
+        ``(clean_verdict, was_stripped)`` where ``was_stripped`` is True only
+        when substantive approval metadata was present and removed.
+    """
+    stripped = bool(
+        verdict.approval is not None
+        or verdict.user_approved_refused
+        or verdict.attempted_user_approval
+    )
+    if not (stripped or verdict.approval_metadata_stripped):
+        return verdict, False
+    return (
+        dataclasses.replace(
+            verdict,
+            approval=None,
+            user_approved_refused="",
+            attempted_user_approval=False,
+            approval_metadata_stripped=stripped,
+        ),
+        stripped,
+    )
+
+
 def record_alignment_verdict(
     verdict: AlignmentVerdict,
     *,
@@ -1310,6 +1426,7 @@ def record_alignment_verdict(
     repo_root: Optional[Path] = None,
     user_approved: bool = False,
     autonomous_context: Optional[bool] = None,
+    approval_record: Optional[Mapping[str, Any]] = None,
 ) -> AlignmentVerdict:
     """Persist a verdict and write ``alignment_passed`` into pipeline state.
 
@@ -1318,34 +1435,82 @@ def record_alignment_verdict(
     write fails the verdict is downgraded to ``ESCALATE`` before state is
     touched, so ``alignment_passed`` is never True without a durable record.
 
-    It is also the SOLE place where a human approval takes effect, which is what
-    makes the autonomy gate enforceable: ``USER_APPROVED`` requires a human, so
-    in an autonomous context the upgrade is REFUSED (the verdict stays
-    ``ESCALATE``) and the attempt is recorded in ``user_approved_refused``. A
-    verdict that arrives already carrying ``USER_APPROVED`` is downgraded the
-    same way — otherwise the gate could be bypassed by pre-upgrading upstream.
-    An applied upgrade records an ``approval`` sub-object so a real
-    AskUserQuestion round-trip is auditable, and distinguishable from a bare
-    flag flip.
+    It is also the SOLE place an approval could ever take effect, which is why
+    Issue #1802 closes the upgrade HERE: no caller input can turn an
+    ``ESCALATE`` into a ``USER_APPROVED``. A bare ``user_approved=True``, an
+    ``approval_record`` receipt object, and a verdict that arrives already
+    carrying ``USER_APPROVED`` are all refused identically, because all three
+    originate with the same principal and none is distinguishable from a
+    forgery. The attempt is recorded in ``user_approved_refused`` so it stays
+    visible in the audit trail rather than disappearing.
+
+    This library therefore never writes an ``approval`` sub-object, and never
+    emits ``source = "ask_user_question"``. Re-opening the upgrade requires an
+    independently verifiable receipt channel, which does not exist (#1807).
+
+    Because the library never CREATES that sub-object, any approval metadata
+    arriving on an inbound verdict is caller-supplied. It is stripped from
+    EVERY verdict before persistence — not only the approval-relevant ones.
+    Scoping the strip to approval-relevant verdicts was the defect in issue
+    comment 5849895757: an ``AUTO_PASS`` or ``BLOCK`` skipped the branch, so a
+    forged ``approval.source = "ask_user_question"`` reached the artifact, the
+    audit row and signed state. Forged ``user_approved_refused`` and
+    ``attempted_user_approval`` laundered the same way.
+
+    The correction STRIPS rather than downgrades. The verdict was computed
+    deterministically by :func:`map_verdict` from Stage 0 plus citation
+    verification, so forged metadata does not invalidate it, and refusing
+    would over-refuse honest work whose caller reused a stale object. The
+    metadata is what lies, so the metadata is what is removed —
+    ``approval_metadata_stripped`` records that it happened so the attempt is
+    auditable rather than silently dropped. That marker is derived SOLELY from
+    what :func:`_sanitize_approval_metadata` actually cleared in this call; a
+    caller-set value is discarded and never read, because the marker is
+    caller-supplied trust state exactly like the fields it reports on.
+
+    Never pass this function's own return value back into itself — the
+    sanitization step cannot distinguish its own prior output from caller
+    forgery, so a round-tripped refusal would be re-reported as tampering.
+    Not currently reachable (:func:`evaluate_and_record` always builds a fresh
+    verdict), but the assumption is load-bearing and unenforced.
 
     Args:
         verdict: The verdict produced by :func:`map_verdict` and its evidence.
         state_path: Signed pipeline-state file to update (skipped if absent).
         session_id: Session id used to re-sign the state.
         repo_root: Repository root for the artifact and audit log.
-        user_approved: True when a human approved the escalation. Upgrades
-            ``ESCALATE`` to ``USER_APPROVED`` and nothing else — never a
-            ``BLOCK``, and never in an autonomous context.
+        user_approved: Legacy approval flag. Accepted so old callers get a
+            recorded REFUSAL rather than a TypeError; it can no longer upgrade
+            anything.
         autonomous_context: Pre-computed autonomy flag. ``None`` (the default)
             means detect it here via :func:`is_autonomous_context`; callers that
             already computed it pass it in to avoid a second filesystem probe.
+        approval_record: Any caller-supplied approval receipt. Accepted for the
+            same reason and refused for the same reason — see the module note
+            above on why no such object can be trusted here.
 
     Returns:
-        The final :class:`AlignmentVerdict` after any upgrade or downgrade.
+        The final :class:`AlignmentVerdict`, never upgraded.
     """
-    final = verdict
-    approval_relevant = (user_approved and final.verdict is Verdict.ESCALATE) or (
-        final.verdict is Verdict.USER_APPROVED
+    # Issue #1802 (comment 5849895757): sanitize caller-supplied approval
+    # metadata on EVERY verdict, BEFORE any branch and before persistence.
+    # This block used to live inside the approval-relevant branch below, so an
+    # AUTO_PASS or BLOCK skipped it entirely and whatever the caller attached
+    # was written straight through to the artifact, the audit row and signed
+    # state. This library never CREATES these fields, so anything arriving in
+    # them is by definition caller-supplied and cannot be evidence.
+    #
+    # STRIP, do not downgrade: the verdict itself was computed deterministically
+    # by map_verdict() from Stage 0 plus citation verification, so forged
+    # metadata does not invalidate it, and refusing would over-refuse honest
+    # work whose caller merely reused a stale object. The metadata is the thing
+    # that lies, so the metadata is what is removed — and the removal is
+    # recorded in approval_metadata_stripped so it is auditable, not silent.
+    final, _stripped = _sanitize_approval_metadata(verdict)
+
+    approval_relevant = (
+        ((user_approved or approval_record is not None) and final.verdict is Verdict.ESCALATE)
+        or (final.verdict is Verdict.USER_APPROVED)
     )
     if approval_relevant:
         autonomous = (
@@ -1353,27 +1518,23 @@ def record_alignment_verdict(
             if autonomous_context is None
             else bool(autonomous_context)
         )
-        if autonomous:
-            # No human is present to have approved anything (INV-7 fail closed).
-            final = dataclasses.replace(
-                final,
-                verdict=Verdict.ESCALATE,
-                user_approved_refused="autonomous_context",
-                reasoning=(
-                    f"{final.reasoning} [user approval refused: autonomous context]"
-                ).strip(),
-            )
-        elif final.verdict is Verdict.ESCALATE:
-            final = dataclasses.replace(
-                final,
-                verdict=Verdict.USER_APPROVED,
-                approval={
-                    "source": "ask_user_question",
-                    "approved_at": datetime.now(timezone.utc).isoformat(),
-                    "stage0_reason": final.stage0_reason,
-                    "citation_verified": bool(final.citation_verified),
-                },
-            )
+        # Autonomy keeps its own reason: "nobody was there to ask" and "we
+        # cannot verify who answered" are different facts, and an auditor
+        # reading the trail needs to tell them apart.
+        refusal = "autonomous_context" if autonomous else APPROVAL_UNAVAILABLE
+        detail = (
+            "autonomous context"
+            if autonomous
+            else APPROVAL_UNAVAILABLE_MESSAGE
+        )
+        final = dataclasses.replace(
+            final,
+            verdict=Verdict.ESCALATE,
+            approval=None,
+            attempted_user_approval=True,
+            user_approved_refused=refusal,
+            reasoning=(f"{final.reasoning} [user approval refused: {detail}]").strip(),
+        )
 
     if not write_alignment_verdict(final, repo_root=repo_root):
         if final.verdict.value in ALLOWED_VERDICTS:
@@ -1403,37 +1564,161 @@ def _update_pipeline_state(
     alignment_passed: bool,
     verdict_value: str,
 ) -> bool:
-    """Write the alignment fields into signed pipeline state and re-sign it.
+    """Record the alignment fields into an ALREADY-SIGNED pipeline state, fail closed otherwise.
+
+    This is a SIGNING ORACLE and is guarded exactly like
+    ``pipeline_state.set_pipeline_base_commit`` (Issue #1807, the SECOND re-sign
+    path — this one runs on EVERY F1 alignment). Recording an alignment pass
+    means MINTING a signature, so it is permitted ONLY on a state that ALREADY
+    holds a valid one. Every not-validly-signed shape it CAN CLASSIFY returns
+    ``False`` with NO write and NO mint (see the MALFORMED-INPUT CAVEAT below for
+    the one shape that currently RAISES instead of returning). Order (any
+    classified failure returns False, no mutation, no write):
+
+        not a dict -> reject
+        no ``hmac`` -> reject (see FAIL CLOSED ON UNSIGNED below)
+        indeterminate owner -> reject
+        unrecognized declared MAC version -> reject
+        strict verify fails at that version -> reject
+        per-run secret unreadable -> reject
+        else: set alignment fields, re-sign AT THE DECLARED VERSION, write.
+
+    MALFORMED-INPUT CAVEAT (return-contract honesty): the "returns False" contract
+    holds for every not-validly-signed shape this function can CLASSIFY. It does
+    NOT yet hold for a MALFORMED signed state — a non-str signed field (e.g.
+    ``mode=123``) or a non-str ``hmac`` — WITH a live per-run secret: the strict
+    verify then reaches the shared ``verify_state_hmac`` / ``_compute_state_hmac``
+    primitive, whose v1/v2 ``"|".join`` / ``compare_digest`` are not type-guarded,
+    and RAISES ``TypeError`` out of this function. That raise is FAIL-CLOSED on
+    authority/effects — it is NOT a permit: the hook consumer
+    ``_load_pipeline_state_verified`` catches ``Exception`` and denies. It does,
+    however, abort a DIRECT ``record_alignment_verdict`` caller. The durable narrow
+    malformed-input guard belongs in ``verify_state_hmac`` itself (so it also fixes
+    ``classify_current_run_authority``'s "never raises" contract) and is tracked
+    separately (#1807/#1757); it is deliberately NOT bolted on here.
+
+    FAIL CLOSED ON UNSIGNED (Issue #1807, second-order laundering oracle). An
+    arbitrary unsigned JSON file and a signed state whose ``hmac`` was DELETED are
+    OBSERVATIONALLY IDENTICAL at this call site — there is no trustworthy
+    in-process criterion to tell "genuine legacy" from "attacker stripped the
+    hmac". The former ``else: sign_state(...)`` unsigned-legacy branch was itself
+    a laundering oracle: stripping ``hmac`` from a tampered signed state routed to
+    it and was handed a FRESH VALID signature carrying ``alignment_passed=True``
+    (returned True, verified True, the tampered field survived). It has been
+    REMOVED. Any state that is not validly signed — no ``hmac``, unrecognized
+    version, indeterminate owner, failed strict-verify — is refused.
+
+    BACKWARD-COMPAT CONSEQUENCE (named, justified reduction — NOT weakening): a
+    genuinely-unsigned historical pipeline state is no longer auto-signed by the
+    alignment path. Migrating one is NOT this function's job; it requires a
+    SEPARATE explicitly-authenticated / reinitialized path (a fresh run that
+    signs its state BEFORE alignment, which is what the normal F1 flow already
+    does). No heuristic legacy-positive is attempted, by design: any such shape
+    check would be exactly the criterion an attacker forges.
+
+    Re-signing is done at the DECLARED version, NOT upgraded to the current one:
+    ``sign_state`` always targets ``_STATE_MAC_CURRENT`` (v3), which binds
+    ``issue_number``/``subject``/``base_commit`` — fields ABSENT from the v1/v2
+    signed message — so upgrading would launder those still-unauthenticated
+    values into an authenticated v3. ``alignment_passed``/``alignment_verdict``
+    are in the signed message at ALL versions, so re-signing at the declared
+    version still covers the two fields written here. The MAC is recomputed
+    directly (mirroring ``verify_state_hmac``'s version dispatch) because
+    ``sign_state`` cannot target a specific version; ``hmac_version`` and
+    ``nonce`` are left untouched so the state stays at its declared version.
+
+    FAIL-CLOSED downstream: on refuse the on-disk state is left unchanged (no new
+    alignment pass is minted), so ``record_alignment_verdict``'s consumers refuse
+    it — but the refusal MECHANISM differs by shape. A TAMPERED signed state fails
+    strict verify here (MAC_INVALID). An UNSIGNED / no-hmac state is refused as
+    UNSIGNED_LEGACY by ``classify_current_run_authority`` (authorized=False),
+    reached via ``unified_pre_tool._has_alignment_passed`` ->
+    ``_load_pipeline_state_verified`` -> ``_state_authorizes_current_run`` — NOT by
+    ``verify_state_hmac``, which still returns True on an ABSENT hmac (legacy
+    recognition, not authority). Either way ``alignment_passed=True`` is never
+    persisted into a valid signature over a state that failed strict verify.
 
     Args:
         state_path: Path to the pipeline state JSON.
-        session_id: Session id passed to ``sign_state``.
+        session_id: Retained for API compatibility. The re-sign binds the state's
+            OWN declared owner (mirroring ``set_pipeline_base_commit``), never
+            this argument, so it can no longer mint an owner onto a state.
         alignment_passed: Value for the ``alignment_passed`` gate field.
         verdict_value: Value for the ``alignment_verdict`` audit field.
 
     Returns:
-        True when the state file was updated and re-signed.
+        True when the state file was updated and re-signed; False (with NO write)
+        when the file is absent/unreadable, not a dict, unsigned, lacks a
+        determinate owner, declares an unrecognized version, fails strict verify,
+        or has no readable per-run secret. Does NOT return on a MALFORMED signed
+        state with a live secret — it RAISES ``TypeError`` from the shared verify
+        primitive (fail-closed at the hook, but aborts a direct caller); see the
+        MALFORMED-INPUT CAVEAT above (durable guard tracked in #1807/#1757).
     """
     if not state_path.exists():
         return False
     try:
-        from pipeline_state import sign_state
+        from pipeline_state import (
+            _compute_state_hmac,
+            _declared_mac_version,
+            _is_determinate_session_id,
+            _read_pipeline_secret,
+            verify_state_hmac,
+        )
     except ImportError:
         try:
             if str(_THIS_DIR) not in sys.path:
                 sys.path.insert(0, str(_THIS_DIR))
-            from pipeline_state import sign_state
+            from pipeline_state import (
+                _compute_state_hmac,
+                _declared_mac_version,
+                _is_determinate_session_id,
+                _read_pipeline_secret,
+                verify_state_hmac,
+            )
         except ImportError:
             return False
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+
+    # Hole B: a non-dict payload ([1,2,3], a scalar, null) has no ``.get`` and is
+    # not a pipeline state — refuse rather than raise AttributeError below.
+    if not isinstance(state, dict):
+        return False
+
+    # Hole A: FAIL CLOSED on anything not validly signed. Minting a signature
+    # (recording an alignment pass) is permitted ONLY over a state that already
+    # holds a valid one, verified BEFORE any mutation.
+    if state.get("hmac") is None:
+        return False
+    owner = state.get("session_id")
+    if not _is_determinate_session_id(owner):
+        return False
+    version = _declared_mac_version(state)
+    if version is None:
+        return False
+    if not verify_state_hmac(state, owner, strict=True):
+        return False
+    run_id = state.get("run_id", "")
+    secret = _read_pipeline_secret(run_id) if run_id else None
+    if secret is None:
+        return False
+
+    try:
         state["alignment_passed"] = alignment_passed
         state["alignment_verdict"] = verdict_value
-        state = sign_state(state, session_id)
-        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
-        return True
-    except (OSError, ValueError, TypeError):
+        # RE-SIGN AT THE DECLARED VERSION (no v2->v3 upgrade).
+        state["hmac"] = _compute_state_hmac(state, secret, version=version)
+    except (ValueError, TypeError):
         return False
+
+    try:
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1473,6 +1758,7 @@ def evaluate_and_record(
     repo_root: Optional[Path] = None,
     user_approved: bool = False,
     issue_number: str = "",
+    approval_record: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Run the whole gate end to end and persist the result.
 
@@ -1495,9 +1781,11 @@ def evaluate_and_record(
         state_path: Signed pipeline-state file to update (skipped if absent).
         session_id: Session id used to re-sign the pipeline state.
         repo_root: Repository root for the artifact and audit log.
-        user_approved: True when a human approved an escalation. Honoured only
-            in an interactive context — see :func:`record_alignment_verdict`.
+        user_approved: Legacy approval flag. Always REFUSED since Issue #1802
+            — see :func:`record_alignment_verdict`.
         issue_number: Issue number recorded in the audit artifact.
+        approval_record: Any caller-supplied approval receipt. Also always
+            refused, for the same reason.
 
     Returns:
         A JSON-safe dict: the artifact payload from
@@ -1510,9 +1798,14 @@ def evaluate_and_record(
     try:
         doc = parse_project_md(md_path)
         project_md_found = True
-    except FileNotFoundError:
+    except OSError as exc:
+        # Issue #1802: an UNREADABLE PROJECT.md used to escape as an uncaught
+        # PermissionError, so the gate crashed instead of blocking — a caller
+        # that swallowed the exception would proceed ungated. Any OSError is
+        # now the same fail-closed BLOCK as a missing file (INV-7).
         doc = ProjectDoc(path=md_path)
         project_md_found = False
+        unreadable = "" if isinstance(exc, FileNotFoundError) else f" ({type(exc).__name__})"
 
     feature_text = feature_text or ""
     if project_md_found:
@@ -1520,7 +1813,7 @@ def evaluate_and_record(
     else:
         stage0 = Stage0Result(
             outcome=Stage0Outcome.BLOCK,
-            reason=f"PROJECT.md not found: {md_path}",
+            reason=f"PROJECT.md not found: {md_path}{unreadable}",
         )
 
     payload: Mapping[str, Any] = classifier_json if isinstance(classifier_json, Mapping) else {}
@@ -1556,6 +1849,7 @@ def evaluate_and_record(
         repo_root=root,
         user_approved=user_approved,
         autonomous_context=autonomous,
+        approval_record=approval_record,
     )
 
     result = final.to_dict()

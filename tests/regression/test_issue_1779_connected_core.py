@@ -36,6 +36,7 @@ from tests.helpers.state_isolation import (  # noqa: E402
     SESSION_DEPTH_ENV,
     describe_tree_leak,
     hook_subprocess_env,
+    redirect_pipeline_state,
     session_is_nested,
     snapshot_tree,
 )
@@ -361,19 +362,40 @@ class TestClaimBCorruptSentinelRefusal:
         assert "REQUIRED NEXT ACTION" in result.reason
 
     def test_broken_instrument_a_valid_sentinel_still_permits(
-        self, sentinel: Path
+        self, sentinel: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """BROKEN-INSTRUMENT CONTROL: the refusal is caused by corruption.
 
         Without it, a gate hard-wired to refuse would pass the arm above.
+
+        Issue #1807: the control now writes a SANCTIONED run. It used to write
+        ``{"session_id": "s", "alignment_passed": true}``, which parses as an
+        object — enough for the #1779 integrity question — but identifies no run,
+        and a sentinel that exists while identifying no run is now itself a
+        refusal (``RUN IDENTITY DESTROYED``). Keeping the old bytes would have
+        left this control unable to permit ANYTHING, which is exactly the broken
+        instrument it exists to rule out.
         """
-        sentinel.write_text(
-            json.dumps({"session_id": "s", "alignment_passed": True}),
-            encoding="utf-8",
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        from tests.helpers.sanctioned_run import (
+            clear_run_artifacts,
+            write_sanctioned_sentinel,
         )
-        result = self._gate()
-        assert result.passed is True, result.reason
-        assert "SENTINEL CORRUPT" not in (result.reason or "")
+
+        redirect = redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(redirect.sentinel))
+        owner = "issue1779-sentinel-session"
+        write_sanctioned_sentinel(
+            redirect.sentinel, owner, "issue1779-run", alignment_passed=True
+        )
+        try:
+            result = self._gate()
+            assert result.passed is True, result.reason
+            assert "SENTINEL CORRUPT" not in (result.reason or "")
+        finally:
+            clear_run_artifacts(owner)
 
     def test_boundary_the_gate_reads_the_redirected_path_not_the_default(
         self, sentinel: Path

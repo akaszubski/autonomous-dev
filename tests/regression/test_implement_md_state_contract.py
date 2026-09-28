@@ -160,6 +160,12 @@ _ROOT_SKIP = (
 EXPECTED_SENTINEL_PATH_CALLS = {
     "implement.md": 3,  # :145, :186, :378
     "implement-batch.md": 2,  # :745 (indented fence), :849
+    # UNCHANGED at 1 by Issue #1807, deliberately. A mid-work draft called the
+    # canonical resolver at STEP F1 too (making this 2); the provenance repair
+    # removed it, because resolve_session_id's chain falls back to the EXISTING
+    # sentinel's owner and to the activity log — mid-run RECOVERY conveniences that
+    # must never ORIGINATE a new run's owner. F1 now reads the native env carrier
+    # only and fails closed without it.
     "implement-fix.md": 1,  # the STEP F3 pytest-gate ```python block
     "implement-resume.md": 0,  # ZERO-SUBJECT — see TestResumeZeroSubjectPins
 }
@@ -736,6 +742,24 @@ class TestPinnedOccurrenceCounts:
         ``${PIPELINE_STATE_FILE:-$(python3 -c …)}``, and ``_PSF_ANY`` matches
         only ``os.environ.get``. That is LIVE residual 3 from the module
         docstring, visible right here.
+
+        Re-pinned (7, 6, 1) -> (8, 5, 2) by Issue #1807, MEASURED with
+        ``state_file_reads`` on the live file, not estimated. Two deltas, both in
+        the STEP F1 block: (a) the sentinel is now resolved ONCE into a local via
+        the ``or get_legacy_sentinel_path()`` no-default form and passed to
+        ``atomic_write_json`` as an explicit argument — still the SANCTIONED
+        eager-default spelling, so the counts are UNCHANGED at (7, 6, 1).
+
+        Round trip worth recording, because the intermediate values were real and
+        a later reader will find them in the history. A mid-work draft resolved
+        the owner with ``resolve_session_id(sentinel_path=… or None)`` here, which
+        made it (8, 6, 2); the F1 provenance repair then removed that call — a new
+        run must take its owner from a NATIVE carrier, never from the existing
+        sentinel or the activity log — returning the count to (7, 6, 1). An even
+        earlier draft used ``os.environ.get('PIPELINE_STATE_FILE') or
+        get_legacy_sentinel_path()``, which is NEITHER sanctioned form, and the
+        ``sanctioned + no_default == total`` invariant below is what caught it —
+        the whole reason that line is not redundant with the tuple above.
         """
         total, sanctioned, no_default = state_file_reads(FIX_MD.read_text())
         assert (total, sanctioned, no_default) == (7, 6, 1)
@@ -990,12 +1014,39 @@ class TestSentinelPathDefault:
         )
         assert "/tmp/implement_pipeline_state.json" in FIXTURE_TMP_LITERAL_DEFAULT
 
-    def test_export_pipeline_state_file_is_retained(self) -> None:
-        """The producer of a PROTECTED variable must not be deleted."""
+    def test_step0_resolves_canonical_path_without_assigning_the_protected_var(self) -> None:
+        """STEP 0 produces the sentinel path WITHOUT assigning PIPELINE_STATE_FILE.
+
+        Issue #1807 AMENDMENT (was ``test_export_pipeline_state_file_is_retained``,
+        which asserted ``count("export PIPELINE_STATE_FILE") == 1``). The old
+        assertion protected the wrong thing: the deployed #557/#606 spoofing guard
+        REFUSES an inline assignment of that protected variable, so the construct
+        it insisted on could not run. MEASURED against
+        ``unified_pre_tool._detect_env_spoofing`` — the two-line
+        assign-then-export shape returns a BLOCKED message; ``echo hello`` and the
+        renamed ``PIPELINE_SENTINEL`` form return None.
+
+        The real invariants are kept, and both are asserted here: the canonical
+        resolver is still what produces the path (not a /tmp literal), and the
+        mkdir precondition ``atomic_write_json`` depends on still exists. The
+        issue-acceptance line mandating the change: "Full-mode STEP 0 must not
+        rely on inline assignment to PIPELINE_STATE_FILE when the deployed hook
+        forbids it. Use the canonical path without weakening the spoofing guard."
+        """
         text = IMPLEMENT_MD.read_text()
-        assert text.count("export PIPELINE_STATE_FILE") == 1
-        assert 'mkdir -p "$(dirname "$PIPELINE_STATE_FILE")"' in text, (
+        assert "export PIPELINE_STATE_FILE" not in text, (
+            "STEP 0 must not assign/export the protected PIPELINE_STATE_FILE — "
+            "the deployed spoofing guard refuses it (Issue #1807)"
+        )
+        assert 'PIPELINE_SENTINEL="$(python3 -c "' in text, (
+            "the canonical path must still be resolved into a non-protected "
+            "variable"
+        )
+        assert 'mkdir -p "$(dirname "$PIPELINE_SENTINEL")"' in text, (
             "atomic_write_json requires the parent directory to exist"
+        )
+        assert "from pipeline_state import get_legacy_sentinel_path" in text, (
+            "the path must come from the canonical resolver, not a literal"
         )
         sys.path.insert(0, str(HOOK_DIR))
         sys.path.insert(0, str(LIB_DIR))
@@ -1353,6 +1404,124 @@ def test_step0_write_is_atomic_dir_readonly(step0_repo) -> None:
     after = sentinel.read_bytes()
     assert after == before, "prior sentinel content was destroyed"
     assert after != b"", "sentinel was truncated to 0 bytes"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1807 — where F1 is allowed to GET the owner it binds
+# ---------------------------------------------------------------------------
+
+
+def _run_fix_f1(repo, run_id, *, session_id):
+    """Run the F1 block with *session_id* in the environment, or none at all.
+
+    Args:
+        repo: The temp repo to run in.
+        run_id: Run id substituted into the block.
+        session_id: Native session id to export, or ``None`` to export none.
+
+    Returns:
+        The ``CompletedProcess``.
+    """
+    block = extract_python_c_block(FIX_MD.read_text(), FIX_STEP0_ANCHOR)
+    src = block.replace("$(date +%Y-%m-%dT%H:%M:%S)", "2026-09-27T00:00:00").replace(
+        "$RUN_ID", run_id
+    )
+    script = repo / "f1_block.py"
+    script.write_text(src)
+    env = dict(os.environ)
+    env.pop("PIPELINE_STATE_FILE", None)
+    for name in ("CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID"):
+        env.pop(name, None)
+    if session_id is not None:
+        env["CLAUDE_SESSION_ID"] = session_id
+    return subprocess.run(
+        [sys.executable, str(script)],
+        cwd=str(repo),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def test_fix_f1_refuses_to_originate_an_owner_from_a_stale_sentinel(fix_state_repo):
+    """REFUSE arm: a prior run's real-shaped owner must not be rebound to a new run.
+
+    Issue #1807. ``resolve_session_id``'s chain falls back to the EXISTING
+    sentinel's ``session_id``, then to the activity log. Those are mid-run
+    RECOVERY conveniences; used to ORIGINATE a new run's owner they let a
+    stale-but-genuine-shaped id be rebound — all six bindings correct, the owner
+    simply not the current session, and a synthetic-spelling check cannot see it
+    because the stale id is real-shaped.
+
+    Distinct from the synthetic-owner arms in
+    ``tests/security/test_issue_1807_authority_classifier.py``: the owner here is a
+    perfectly ordinary UUID, and the defect is its PROVENANCE.
+    """
+    repo, run_id, _session_id = fix_state_repo
+    local = repo / ".claude" / "local"
+    local.mkdir(parents=True, exist_ok=True)
+    stale = local / "implement_pipeline_state.json"
+    stale.write_text(
+        json.dumps(
+            {
+                "session_id": "11111111-2222-3333-4444-555555555555",
+                "mode": "fix",
+                "run_id": "previousrun00001",
+                "explicitly_invoked": True,
+            }
+        )
+    )
+    before = stale.read_bytes()
+
+    proc = _run_fix_f1(repo, run_id, session_id=None)
+
+    assert proc.returncode != 0, (
+        f"F1 originated a run with no native owner. stdout={proc.stdout!r}"
+    )
+    assert "BLOCKED (STEP F1, Issue #1807)" in proc.stderr, proc.stderr
+    assert stale.read_bytes() == before, (
+        "F1 refused but still rewrote the sentinel; a refusal must write nothing"
+    )
+    assert "previousrun00001" in stale.read_text(), (
+        "the prior run's identity was replaced during a refusal"
+    )
+
+
+def test_fix_f1_binds_a_native_owner_and_survives_a_heartbeat(fix_state_repo):
+    """PERMIT arm: a native-carrier owner binds, and the run SURVIVES SubagentStop.
+
+    The positive half of the arm above and of the whole #1807 repair: the state F1
+    writes must still carry its run identity after the real
+    ``ensure_sentinel_heartbeat`` runs — including the case that used to destroy it,
+    a heartbeat called with a SYNTHETIC caller id (``stop-N``), which is what
+    SubagentStop passes when it cannot resolve the real session.
+    """
+    repo, run_id, session_id = fix_state_repo
+
+    proc = _run_fix_f1(repo, run_id, session_id=session_id)
+
+    assert proc.returncode == 0, proc.stderr
+    written = repo / ".claude" / "local" / "implement_pipeline_state.json"
+    state = json.loads(written.read_text())
+    assert state["session_id"] == session_id
+    assert state["run_id"] == run_id
+    assert state["hmac"] and state["hmac_version"] == 3, state  # v3 all-six binding (#1807)
+
+    sys.path.insert(0, str(LIB_DIR))
+    import pipeline_completion_state as pcs
+
+    before = written.read_bytes()
+    assert pcs.ensure_sentinel_heartbeat(session_id, state_path=str(written)) is True, (
+        "the owning session's heartbeat did not report its own sentinel healthy"
+    )
+    assert written.read_bytes() == before, "a healthy sentinel was rewritten"
+
+    assert pcs.ensure_sentinel_heartbeat("stop-4", state_path=str(written)) is False
+    after = json.loads(written.read_text())
+    assert after["run_id"] == run_id and after["session_id"] == session_id, (
+        f"a synthetic-caller heartbeat destroyed the run identity: {sorted(after)}"
+    )
 
 
 # ---------------------------------------------------------------------------

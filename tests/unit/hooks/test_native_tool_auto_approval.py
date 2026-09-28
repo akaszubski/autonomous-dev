@@ -27,11 +27,35 @@ LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "
 sys.path.insert(0, str(LIB_DIR))
 
 import unified_pre_tool as hook
+import pipeline_state as _ps_native  # noqa: E402
+import pipeline_completion_state as _pcs_native  # noqa: E402
+
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _isolate_legacy_sentinel(tmp_path, monkeypatch):
+    """Issue #1807: point get_legacy_sentinel_path at a NONEXISTENT tmp path.
+
+    ``clean_env`` deletes PIPELINE_STATE_FILE, so _run_transition_detected() and
+    _is_pipeline_active() fall back to get_legacy_sentinel_path() — which in a
+    developer worktree resolves to a LIVE .claude/local sentinel. Without this
+    redirect the run-bearing-transition chokepoint would read that live sentinel
+    and (correctly) DENY native writes presented with no native identity,
+    contaminating these 'no pipeline' native-bypass assertions with the dev
+    worktree's own run state. Points it at a path that does not exist so the
+    'no pipeline' precondition these tests assume actually holds.
+    """
+    missing = tmp_path / "no_legacy_sentinel_1807.json"
+    monkeypatch.setattr(_ps_native, "get_legacy_sentinel_path", lambda *a, **k: missing)
+    monkeypatch.setattr(hook, "get_legacy_sentinel_path", lambda *a, **k: missing, raising=False)
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
@@ -315,13 +339,30 @@ class TestWorkflowEnforcementNudges:
         assert decision == "allow"
         assert "WARN" in reason or "warn" in reason.lower()
 
-    def test_pipeline_agent_bypasses_enforcement(self, monkeypatch):
-        """Pipeline agents skip workflow enforcement entirely."""
+    def test_pipeline_agent_bypasses_enforcement(self, monkeypatch, tmp_path):
+        """Pipeline agents skip workflow enforcement inside a GENUINE run.
+
+        Issue #1807 AMENDMENT: pre-#1807 a bare ``CLAUDE_AGENT_NAME=implementer``
+        (role alone) skipped enforcement (defect 2). The bypass now requires a
+        signed current-run sentinel whose owner equals the NATIVE stdin identity;
+        role alone no longer confers it. The refuse counterpart (role + no signed
+        state) is the #1807 boundary and chokepoint arms.
+        """
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps_native, _pcs_native, hook)
+        owner = "sess-native-bypass-1807"
+        sentinel = tmp_path / "implement_pipeline_state.json"
+        write_sanctioned_sentinel(sentinel, owner, "native-bypass-run")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(sentinel))
         monkeypatch.setenv("ENFORCEMENT_LEVEL", "block")
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
-        decision, reason = hook.validate_agent_authorization("Edit", self._make_significant_edit())
-        assert decision == "allow"
-        assert "Pipeline agent" in reason or "implementer" in reason
+        monkeypatch.setenv("CLAUDE_SESSION_ID", owner)
+        monkeypatch.setattr(hook, "_session_id", owner, raising=False)
+        try:
+            decision, reason = hook.validate_agent_authorization("Edit", self._make_significant_edit())
+            assert decision == "allow"
+            assert "Pipeline agent" in reason or "implementer" in reason
+        finally:
+            clear_run_artifacts(owner)
 
     def test_enforcement_off_allows_all(self, monkeypatch):
         """Enforcement level 'off' skips all checks."""
@@ -773,6 +814,18 @@ class TestPolicyFileSchema:
 # ---------------------------------------------------------------------------
 
 class TestSubagentTypePriority:
+    """Issue #1807 note on the stubs below.
+
+    ``check_ordering_with_session_fallback`` now asks whether the sentinel
+    AUTHORIZES the current run before it looks at completions, so every arm here
+    stubs ``run_credit_refusal`` alongside the ``_is_pipeline_active`` and
+    ``get_completed_agents`` stubs these tests already used. The subject of this
+    class is which TARGET AGENT NAME is extracted and forwarded; the authority
+    question has its own both-arm coverage in
+    ``tests/security/test_issue_1807_authority_classifier.py`` and
+    ``tests/security/test_issue_1807_authority_boundary.py``.
+    """
+
     """Regression tests for subagent_type field taking precedence over text extraction.
 
     Bug (Issue #636, commit 45565eb): When a planner's prompt contained
@@ -812,6 +865,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):
             decision, reason = hook.validate_pipeline_ordering("Agent", {
@@ -848,6 +902,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):
             decision, reason = hook.validate_pipeline_ordering("Agent", {
@@ -874,6 +929,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):
             decision, reason = hook.validate_pipeline_ordering("Agent", {
@@ -901,6 +957,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):
             decision, reason = hook.validate_pipeline_ordering("Agent", {
@@ -936,6 +993,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):
             decision, reason = hook.validate_pipeline_ordering("Agent", {
@@ -971,6 +1029,7 @@ class TestSubagentTypePriority:
 
         with patch.object(hook, "_is_pipeline_active", return_value=True), \
              patch("pipeline_completion_state.get_completed_agents", return_value=set()), \
+             patch("pipeline_completion_state.run_credit_refusal", return_value=None), \
              patch("pipeline_completion_state.get_launched_agents", return_value={"planner"}), \
              patch("pipeline_completion_state.get_validation_mode", return_value="strict"), \
              patch("agent_ordering_gate.check_ordering_prerequisites", side_effect=mock_check):

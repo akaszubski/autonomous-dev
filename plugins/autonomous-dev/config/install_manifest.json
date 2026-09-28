@@ -133,6 +133,8 @@
         "plugins/autonomous-dev/hooks/genai_prompts.py",
         "plugins/autonomous-dev/hooks/genai_utils.hook.json",
         "plugins/autonomous-dev/hooks/genai_utils.py",
+        "plugins/autonomous-dev/hooks/native_run_origin.hook.json",
+        "plugins/autonomous-dev/hooks/native_run_origin.py",
         "plugins/autonomous-dev/hooks/plan_gate.hook.json",
         "plugins/autonomous-dev/hooks/plan_gate.py",
         "plugins/autonomous-dev/hooks/plan_mode_exit_detector.hook.json",

@@ -86,16 +86,23 @@ Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofi
 
 #### Pipeline State Initialization (Before Alignment Verdict)
 
-Initialize the fix-mode pipeline state file BEFORE running the alignment gate protocol below, so that `record_alignment_verdict` (Issue #1467) writes `alignment_passed` and `alignment_verdict` into an existing state file. This also ensures hook enforcement (prompt integrity, pipeline ordering) is active during fix mode:
+Initialize the fix-mode pipeline state file BEFORE running the alignment gate protocol below, so that `record_alignment_verdict` (Issue #1467) writes `alignment_passed` and `alignment_verdict` into an existing state file. This also ensures hook enforcement (prompt integrity, pipeline ordering) is active during fix mode.
+
+**Issue #1807 — this block binds the OWNER and the RUN before any specialist is dispatched, and FAILS CLOSED when it cannot.** The pre-#1807 version wrote `{mode, explicitly_invoked, start_time}`: no owner, no run id, unsigned. Three consequences, all measured: `ensure_sentinel_heartbeat` treated the absent owner as recoverable and replaced the whole run-bearing state with `{session_id, recovered, recovered_at}`; the MAC (which did not cover `session_id` either) bound nobody; and with no `run_id` there was no run-start receipt to corroborate, so `verify_state_hmac` degraded to the shared `unknown` secret. Full-mode STEP 0 already did all three things this block now does — the missing owner was a fix-mode-only divergence, so this restores parity rather than adding a mechanism.
 
 ```bash
+# Issue #1807: run identity for fix mode. RUN_ID is the SAME variable name
+# implement.md STEP 0 exports — one spelling per concept. It is deliberately NOT
+# PIPELINE_STATE_FILE or a CLAUDE_* name: assigning a protected variable inline
+# is refused by the #557/#606 spoofing guard, and that guard is not to be widened.
+RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
+export RUN_ID
 python3 -c "
 import sys, os, time
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
-state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time())}
 # ATOMIC (Issue #1384). open(path,'w') truncates at OPEN time, so a kill
 # between the open and the json.dump left a 0-BYTE sentinel with the prior
 # content already gone; ensure_sentinel_heartbeat() then failed json.loads and
@@ -105,24 +112,64 @@ state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time(
 # PRECONDITION, load-bearing and deliberate: atomic_write_json requires the
 # PARENT DIRECTORY to exist and raises OSError from mkstemp if it does not.
 # There is NO 'mkdir -p' here and NO 'export PIPELINE_STATE_FILE' anywhere in
-# this file (implement.md pairs those two; implement-batch.md deliberately has
-# neither and every one of its blocks resolves the same default
-# independently). Fix mode relies instead on get_legacy_sentinel_path()
-# creating <repo>/.claude/local/ as a best-effort side effect, evaluated
-# EAGERLY because it is the .get() default argument. That is cwd-dependent —
-# the marker walk must land on the real repo. Do NOT reorder this to a lazy
-# default and do NOT add 'export PIPELINE_STATE_FILE'.
+# this file (implement-batch.md deliberately has neither either, and every one
+# of its blocks resolves the same default independently). Fix mode relies
+# instead on get_legacy_sentinel_path() creating <repo>/.claude/local/ as a
+# side effect of resolving the CANONICAL path, which is passed here as an
+# EXPLICIT function argument. Do NOT add 'export PIPELINE_STATE_FILE'.
 from pathlib import Path
-from pipeline_state import atomic_write_json, get_legacy_sentinel_path
-atomic_write_json(
-    Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))),
-    state,
-)
-print('Pipeline state initialized for fix mode')
+from pipeline_state import atomic_write_json, get_legacy_sentinel_path, sign_state
+from pipeline_completion_state import is_synthetic_session_id, record_run_start
+sentinel = Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())))
+# NEW-RUN ORIGINATION takes its owner from a NATIVE CARRIER ONLY (Issue #1807):
+# the session id the harness delivered in this process's environment. It
+# deliberately does NOT call resolve_session_id() here, whose chain falls back to
+# the EXISTING sentinel's session_id and then to the activity log. Those fallbacks
+# are mid-run RECOVERY conveniences for a run that already exists; as an
+# origination source they would let a stale-but-real-shaped owner from a PREVIOUS
+# run be rebound to a NEW run — every binding looking right while the owner is not
+# the current session. Rejecting only synthetic spellings does not catch that,
+# because the stale id is genuinely shaped.
+sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
+if is_synthetic_session_id(sid):
+    print('BLOCKED (STEP F1, Issue #1807): no native session id is present in this process (CLAUDE_SESSION_ID / CLAUDE_CODE_SESSION_ID absent, blank or synthetic), so this run has no owner to bind and NOTHING was written. REQUIRED NEXT ACTION: re-run /implement --fix from a session where the CLI supplies the session id. Do NOT read the owner from the existing sentinel, do NOT supply one from memory, and do NOT hand-write the sentinel.', file=sys.stderr)
+    sys.exit(1)
+# Run-start receipt, BEFORE any specialist dispatch (Issue #1045 + #1807). The
+# signed sentinel alone is mintable by this very caller; the receipt is the
+# second carrier classify_current_run_authority() requires.
+if not record_run_start(sid, '$RUN_ID'):
+    print('[RUN-START-FAILED run_id=$RUN_ID] fix mode cannot proceed without a run-start receipt (Issue #1807).', file=sys.stderr)
+    sys.exit(1)
+# Issue #1807 (all-six binding): issue_number and subject are signed too, so the
+# sentinel is tamper-evident across every required binding. Read from the
+# environment with '' defaults — never crash if the coordinator did not export
+# them, and never interpolate untrusted text into this source (a description with
+# a quote cannot break the literal). issue_number is recovered from here at F3.
+state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time()), 'session_start': '$(date +%Y-%m-%dT%H:%M:%S)', 'run_id': '$RUN_ID', 'session_id': sid, 'issue_number': os.environ.get('ISSUE_NUMBER', ''), 'subject': os.environ.get('FEATURE_DESCRIPTION', '')}
+state = sign_state(state, sid)
+atomic_write_json(sentinel, state)
+# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
+# one when this command was typed. This is the only place the witness (minted
+# before any run id existed) is bound to this run. It is a SILENT no-op when there
+# is no witness, which is the model-owned bootstrap path below — additive, never a
+# gate, and it cannot CREATE origin: only a native hook writes a witness.
+try:
+    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
+    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
+except ImportError:
+    pass
+print('Pipeline state initialized for fix mode: run=' + state['run_id'] + ' owner=' + sid)
 "
 ```
 
+**ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9)**: this is MODEL-OWNED bootstrap. `classify_current_run_authority` reports `RunOrigin.MODEL_BOOTSTRAP` for a run initialized only from here, and that stays a fully AUTHORIZED run — the origin level is strictly additive. It is classified as bootstrap because the principal the controls constrain is the one writing the carriers. Only `hooks/native_run_origin.py`, invoked by the runtime on a TYPED `/implement --fix`, can produce `RunOrigin.TYPED_USER_WITNESSED`. Do NOT write a witness from here, and do not treat a green origin verdict as provenance: the OS boundary that would make it unforgeable is not yet in place (A9 OPEN, UNMEASURED).
+
 This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
+
+**FORBIDDEN (Issue #1807)**:
+- ❌ Writing this sentinel without `session_id` and `run_id` — an ownerless, runless state is what the SubagentStop heartbeat used to overwrite, and it authorizes nothing afterwards.
+- ❌ Proceeding when `resolve_session_id()` returns a synthetic id (`unknown`, `stop-N`, `test-*`). Fail closed and say so; never fill the owner in from the model's memory or from the chat transcript.
+- ❌ Repairing a sentinel that lost its identity by hand-writing the missing fields and re-signing. A valid HMAC after a coordinator rewrite proves a signing-capable API was used, not that the identity is authentic — the only valid outcome is a fresh run.
 
 Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. Initialize the fix-mode pipeline state BEFORE the verdict step so record_alignment_verdict writes alignment_passed and alignment_verdict into it.
 

@@ -42,10 +42,11 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     from .pipeline_state import atomic_write_json, get_legacy_sentinel_path  # type: ignore
@@ -481,6 +482,138 @@ def describe_sentinel_corruption(sentinel_path: Optional[str] = None) -> str:
         "REQUIRED NEXT ACTION: re-run /implement STEP 0 to rewrite the "
         "sentinel. Do NOT hand-edit it and do NOT proceed on the assumption "
         "that alignment passed."
+    )
+
+
+def run_credit_refusal(
+    session_id: str,
+    *,
+    sentinel_path: Optional[str] = None,
+) -> Optional[str]:
+    """Why completions must NOT be credited to the CURRENT run, or ``None``.
+
+    Two refusals, one per direction of Issue #1807's forgery pair. Both are
+    about the SENTINEL and the LEDGER disagreeing about what the current run is:
+
+    1. The sentinel EXISTS but identifies no run (no ``run_id``/``mode``/
+       ``explicitly_invoked``) — the shape the repair path used to write over a
+       live run. "Exists and parses" is not "identifies a run", so dispatch and
+       completion credit both refuse (A5a, A4b). An ABSENT sentinel is NOT this
+       case: absent is the normal state of every session outside a pipeline, and
+       refusing it would block ordinary work.
+    2. The ledger CLAIMS a current run (``current_run_id`` from
+       :func:`record_run_start`) that no authorized sentinel corroborates. The
+       ledger is unsigned, so a retained run id must never rebuild current-run
+       credit for a run whose sentinel is gone or replaced (A4a). When the ledger
+       claims no run at all, this function is silent: that is the pre-#1045
+       session-scoped path, which #1807 does not change.
+
+    Args:
+        session_id: The session whose completions would be credited.
+        sentinel_path: Sentinel to inspect. Defaults to ``PIPELINE_STATE_FILE``
+            when set, else :func:`get_legacy_sentinel_path` — the same
+            resolution :func:`sentinel_integrity` uses.
+
+    Returns:
+        A refusal message naming the seam and the required next action, or
+        ``None`` when current-run credit is permitted. NEVER raises.
+
+    Issue: #1807
+    """
+    if sentinel_path is None:
+        sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(
+            get_legacy_sentinel_path()
+        )
+
+    sentinel: Optional[dict] = None
+    try:
+        target = Path(sentinel_path)
+        if target.exists():
+            raw = target.read_text(encoding="utf-8")
+            parsed = json.loads(raw)
+            sentinel = parsed if isinstance(parsed, dict) else {}
+    except (OSError, ValueError):
+        # Unreadable-but-present is SentinelIntegrity.CORRUPT, which the caller
+        # refuses on its own path. Treat it as identity-less here too.
+        sentinel = {}
+
+    if sentinel is not None and not _state_carries_run_identity(sentinel):
+        return (
+            f"RUN IDENTITY DESTROYED: the pipeline sentinel at {sentinel_path} "
+            f"exists but carries no run identity (keys={sorted(sentinel)}), so "
+            "no agent dispatch or completion can be attributed to a current "
+            "run.\nINV-7: a verification failure is 'not passed', never "
+            "'passed' (Issue #1807).\nREQUIRED NEXT ACTION: start a fresh "
+            "/implement run. Do NOT hand-write the missing identity fields and "
+            "do NOT rebuild them from the completion ledger or from chat."
+        )
+
+    # Issue #1807 (defect 3): a sentinel that DOES carry a run identity is a
+    # genuine /implement SIGNAL, and it must be AUTHORIZED, not merely present.
+    # Classify it here even when NO run-start receipt exists for the crediting
+    # session. A run-bearing sentinel with no receipt is precisely the A3/A7
+    # self-mint, and the pre-F3 early ``return None`` on a missing receipt (below,
+    # for the absent-sentinel path) was the FREE PASS that dispatched the first
+    # fix-mode implementer from an unverified run. ``classify_current_run_authority``
+    # performs the full check — owner bound to the PRESENTED session id, MAC
+    # verified, receipt corroborating the run_id — so an UNSIGNED (UNSIGNED_LEGACY),
+    # receiptless (RECEIPT_UNAVAILABLE), tampered (MAC_INVALID) or wrong-owner
+    # (UNQUALIFIED_OWNER) run-bearing sentinel all classify as NOT authorized and
+    # refuse here.
+    if sentinel is not None:  # _state_carries_run_identity(sentinel) is True here
+        try:
+            from pipeline_state import classify_current_run_authority  # type: ignore
+        except ImportError:
+            try:
+                from .pipeline_state import classify_current_run_authority  # type: ignore
+            except ImportError:
+                return (
+                    "RUN AUTHORITY UNVERIFIABLE: pipeline_state."
+                    "classify_current_run_authority is unavailable, so whether the "
+                    f"run-bearing sentinel at {sentinel_path} authorizes session "
+                    f"{session_id!r} cannot be determined (fail closed, Issue "
+                    "#1807)."
+                )
+
+        # Read the receipt ONCE and reuse it for the owner. Keyed on the owner,
+        # NOT unconditional: the sentinel's owner and the crediting session can
+        # differ, and handing the classifier one session's receipt for another's
+        # owner would be a false corroboration rather than a saved read.
+        receipt = get_run_start_receipt(session_id)
+
+        def _reuse_receipt(owner: str) -> Optional[str]:
+            """Return the receipt already read for *session_id*, else read afresh."""
+            return receipt if owner == session_id else get_run_start_receipt(owner)
+
+        verdict = classify_current_run_authority(
+            sentinel, session_id, receipt_lookup=_reuse_receipt
+        )
+        if not verdict.authorized:
+            return (
+                f"UNCORROBORATED RUN CLAIM: the pipeline sentinel at "
+                f"{sentinel_path} identifies a run but does not authorize it for "
+                f"session {session_id!r} ({verdict.authority.value}: "
+                f"{verdict.detail}).\nA genuine /implement signal without verified "
+                "current-run authority must not credit completions or dispatch "
+                "agents (Issue #1807 defect 3).\nREQUIRED NEXT ACTION: start a "
+                "fresh /implement run. Do NOT hand-write the missing identity "
+                "fields and do NOT rebuild them from the completion ledger."
+            )
+        return None
+
+    # sentinel is None (ABSENT): the pre-#1045 permissive / ledger-only split.
+    # An absent sentinel with NO run claim is ordinary non-pipeline work — the
+    # CONTROL case #1807 defect 3 must leave ungated. A retained ledger run id
+    # with no sentinel to authorize it is A4's ledger-only forgery.
+    receipt = get_run_start_receipt(session_id)
+    if not receipt:
+        return None  # No current-run claim to corroborate (pre-#1045 path).
+    return (
+        f"LEDGER-ONLY RUN CLAIM: the completion ledger still names run "
+        f"{receipt!r} for session {session_id!r}, but there is no pipeline "
+        f"sentinel at {sentinel_path} to authorize it. The ledger is unsigned; a "
+        "retained run id is not run authority (Issue #1807 A4).\nREQUIRED NEXT "
+        "ACTION: start a fresh /implement run."
     )
 
 
@@ -1268,6 +1401,1007 @@ def record_run_start(
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _report_run_start_failure(session_id, str(run_id), f"{type(exc).__name__}: {exc}")
         return False
+
+
+def get_run_start_receipt(session_id: str) -> Optional[str]:
+    """Return the run id :func:`record_run_start` stamped for *session_id*.
+
+    This is the read half of the run-start receipt — the second of the two
+    carriers ``pipeline_state.classify_current_run_authority`` requires (Issue
+    #1807). It exists so the authority check has ONE canonical reader instead of
+    every consumer re-deriving ``/tmp/pipeline_agent_completions_*`` paths.
+
+    Read-only by design, with one deliberate side effect inherited from
+    :func:`_read_state`: a successful read refreshes the ledger's mtime, so a
+    long run whose authority is checked on every hook invocation cannot age past
+    the 2-hour staleness window and lose its own receipt mid-flight (#1413).
+
+    A receipt is NOT proof of provenance — the ledger is UNSIGNED and lives in
+    ``/tmp``, and ``record_run_start`` is reachable from model-controlled Bash,
+    so a caller willing to write both carriers can mint the receipt and then the
+    signed sentinel. #1807's A4 pins that a retained run id must never rebuild
+    authority by itself; this reader closes that single-carrier route and
+    NOTHING more. The receipt path's trust depends on an ORIGIN boundary that
+    refuses model-controlled writes to this ledger while native hook processes
+    keep writing it — acceptance case A9, currently OPEN and UNMEASURED. Do not
+    read a green authority verdict as provenance, and do not "fix" that by
+    adding a second store: the existing ledger stays the carrier (INV-7).
+
+    Args:
+        session_id: The owning session whose receipt to read.
+
+    Returns:
+        The recorded run id, or ``None`` when the session has no receipt, the
+        ledger is absent/stale/unreadable, or *session_id* is unusable.
+
+    Issues: #1045, #1807
+    """
+    if not isinstance(session_id, str) or not session_id.strip():
+        return None
+    try:
+        state = _read_state(session_id.strip())
+    except Exception:  # noqa: BLE001 - state code never raises into a gate
+        return None
+    value = state.get("current_run_id")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+# =============================================================================
+# NATIVE-ORIGIN WITNESS (Issue #1807, A7/A9)
+# =============================================================================
+#
+# WHAT THIS CLOSES, AND WHAT IT DOES NOT. The two carriers
+# ``pipeline_state.classify_current_run_authority`` requires — the signed sentinel
+# and the run-start receipt — are BOTH initiated by model-owned coordinator Bash
+# (``commands/implement.md`` STEP 0, ``commands/implement-fix.md`` F1). The
+# principal the controls constrain mints the authority they check, so the
+# conjunction removes single-artifact forgery and nothing more (A3/A7).
+#
+# A NATIVE-ORIGIN WITNESS is a third carrier whose WRITER is a native hook
+# process: the Claude Code runtime invokes ``hooks/native_run_origin.py`` on
+# ``UserPromptExpansion`` (a user-TYPED ``/implement``) or on ``PreToolUse`` with
+# ``tool_name=Skill`` (a MODEL-invoked Skill call). The event name mechanically
+# distinguishes those two origins, and they are NOT equivalent:
+#
+#   * UserPromptExpansion -> TYPED-USER origin. The only class that can carry
+#     user authorization, because a human typed the command.
+#   * PreToolUse/Skill    -> MODEL-SKILL origin. A genuinely native EVENT, but
+#     the MODEL chose to fire it. Recorded, distinguishable, and NEVER promotable
+#     to typed-user. Treating it as user authorization would hand the model a
+#     native carrier for minting its own authority — the confusion #1807 exists
+#     to remove, and the reason nothing here accepts a caller-supplied origin,
+#     approval flag or env var.
+#
+# EVIDENCE LIMIT. Payload shape NEVER proves native origin: a caller that pipes
+# fabricated stdin into the hook presents byte-identical fields, ``command_source``
+# included. What would make the origin unforgeable is the OS boundary (sandbox
+# denyWrite for subprocesses AND ``permissions.deny Edit(//abspath)`` for built-in
+# editors — both required), which is OUT of this slice. This code builds the
+# native-owned entrypoint and its MECHANICAL CONTRACT: every malformed, unsigned,
+# wrong-owner, wrong-run, wrong-binding or replayed witness is REFUSED, so a
+# future OS-level origin split has something precise to attach to. A9 is OPEN and
+# UNMEASURED; do not read a green origin verdict as provenance.
+#
+# WHAT IS *NOT* PART OF THAT GUARANTEE. ``witness_path_verdict`` below is
+# NON-LOAD-BEARING defence in depth, not A9 evidence. Every path it judges is
+# LIBRARY-DERIVED (``_state_file_path`` builds it from the ledger root), so no
+# caller-supplied path reaches it and it is the sole barrier against nothing. Its
+# CWE-59 rule is the same one ``path_utils._is_valid_policy_file`` applies — that
+# named sibling cannot serve here only because it requires the file to already
+# exist and parse as JSON. Quoting this check as unforgeability would be exactly
+# the description-shaped evidence #1807 refuses.
+#
+# NO NEW STORE, NO NEW SIGNER. The witness is a FIELD in the existing per-session
+# ledger this module already owns, written through the existing ``_locked_rmw``,
+# and signed by the existing ``pipeline_state.sign_state`` v3 chain — a witness is
+# a state-shaped record whose ``run_id`` is its own witness id, so it reuses the
+# per-record secret store and verifies under the SAME ``verify_state_hmac``. The
+# frozen v1/v2/v3 MAC message bytes are untouched.
+
+#: Native hook events that may INITIATE a run. Anything else mints nothing. ONE
+#: home for the vocabulary: ``pipeline_state`` maps these two names onto the two
+#: origin classes and refuses any third value.
+NATIVE_INIT_EVENTS: Tuple[str, ...] = ("UserPromptExpansion", "PreToolUse")
+
+#: ``mode`` markers distinguishing the two record kinds from a pipeline state.
+#: They are INSIDE the signed message, so a record cannot be re-labelled after
+#: signing.
+NATIVE_ORIGIN_WITNESS_MODE = "native-origin-witness"
+NATIVE_ORIGIN_PROGRESSION_MODE = "native-origin-progression"
+
+#: The run bindings a witness chain binds, in the spelling the sentinel uses.
+#: ``session_id`` is absent on purpose — the OWNER is bound by the v3 owner token
+#: on every record, not by a comparable field.
+NATIVE_ORIGIN_BINDING_KEYS: Tuple[str, ...] = (
+    "run_id",
+    "mode",
+    "issue_number",
+    "subject",
+    "base_commit",
+)
+
+#: Bindings that must be present and non-empty. The rest are REFINABLE: a witness
+#: minted at initiation legitimately records ``base_commit`` empty, because
+#: ``set_pipeline_base_commit`` writes it AFTER STEP 0. An empty recorded binding
+#: constrains nothing; a NON-EMPTY one must match exactly. Changing a non-empty
+#: binding is a rebind and is refused.
+_NATIVE_ORIGIN_REQUIRED_BINDINGS: Tuple[str, ...] = ("run_id", "mode")
+
+#: The ledger field holding the chain.
+_NATIVE_ORIGIN_LEDGER_KEY = "native_origin"
+
+#: Chain length ceiling. The chain is read on every authority check, so an
+#: unbounded list is both a cost and a forgery surface (bloat the chain, stall the
+#: reader). A run appends one record per progression event; 64 is far above any
+#: real pipeline and a chain longer than this is refused outright.
+_NATIVE_ORIGIN_MAX_PROGRESSION = 64
+
+#: Minimum MAC version a witness record may declare. Witness records are minted
+#: fresh per run and always signed at the CURRENT version, so requiring v3 refuses
+#: a downgrade forgery (sign at v1, where the owner is unbound) without the
+#: in-flight-run compatibility problem that forces ``verify_state_hmac`` to keep
+#: accepting v1 for pipeline states.
+_NATIVE_ORIGIN_MIN_MAC_VERSION = 3
+
+#: Commands and skills that may initiate an /implement run: ``implement`` itself
+#: plus its family spellings (``implement-fix``, ``implement-batch``, ...). An
+#: optional leading slash is tolerated because the two native payloads spell the
+#: name differently. This is a NAME allowlist on a native payload field, NOT a
+#: parse of a shell command string (INV-1 forbids the latter as containment).
+_IMPLEMENT_FAMILY_RE = re.compile(r"^/?implement(?:-[a-z0-9][a-z0-9-]*)?$")
+
+
+@dataclass(frozen=True)
+class NativeOriginCheck:
+    """What the ledger says about the native origin of a run.
+
+    Deliberately FACTUAL rather than a verdict: it reports presence, validity and
+    the native EVENT, and ``pipeline_state`` owns the single mapping from event to
+    origin class. Two vocabularies for one topic is how they drift.
+
+    Attributes:
+        present: A witness carrier exists for this owner.
+        valid: The whole chain verified against the presented run bindings.
+        event: The native event recorded in the signed claim, or ``""``.
+        detail: Operator-facing explanation naming the refused seam.
+        instrument_ok: False when the check could not be PERFORMED (the signing
+            library is unavailable). "Cannot tell" is never "passed" (INV-7), and
+            callers must distinguish it from a judgment about the witness.
+    """
+
+    present: bool
+    valid: bool
+    event: str
+    detail: str
+    instrument_ok: bool = True
+
+
+def _native_origin_note(detail: str) -> None:
+    """Report a native-origin refusal on stderr. Best effort, never raises."""
+    try:
+        sys.stderr.write(f"[NATIVE-ORIGIN-REFUSED] {detail}\n")
+        sys.stderr.flush()
+    except Exception:  # pragma: no cover - stderr itself is broken
+        pass
+
+
+def _native_origin_signers() -> Tuple[Optional[Callable], Optional[Callable], Optional[Callable]]:
+    """Return ``(sign_state, verify_state_hmac, generate_run_id)``, or all ``None``.
+
+    ONE import seam for the three EXISTING owners this feature reuses, so "is the
+    signer present?" is asked in a single place and every consumer fails closed the
+    same way. Nothing here re-implements MAC computation, nonce generation, id
+    minting or the per-record secret store — those all live in ``pipeline_state``
+    and are called directly.
+    """
+    try:
+        try:
+            from .pipeline_state import (  # type: ignore
+                generate_run_id,
+                sign_state,
+                verify_state_hmac,
+            )
+        except ImportError:
+            from pipeline_state import (  # type: ignore
+                generate_run_id,
+                sign_state,
+                verify_state_hmac,
+            )
+    except ImportError:
+        return None, None, None
+    return sign_state, verify_state_hmac, generate_run_id
+
+
+def witness_path_verdict(path: Any) -> Tuple[bool, str, Optional[str]]:
+    """Whether the witness carrier at *path* may be written, and its canonical form.
+
+    SCOPE — NON-LOAD-BEARING DEFENCE IN DEPTH. This is not part of the A9
+    unforgeability guarantee and must not be quoted as evidence for it. The only
+    paths it ever sees are LIBRARY-DERIVED: :func:`_state_file_path` builds them
+    from the ledger root, so no caller-supplied path reaches here and there is no
+    attack this check is the sole barrier against. A9 unforgeability requires the
+    OS BOUNDARY (sandbox ``denyWrite`` plus a ``permissions.deny`` rule for the
+    built-in editors), which is OUT of this slice entirely. What this DOES buy is
+    the cheap belt-and-braces case: if the ledger root is ever relocated onto a
+    path an attacker can pre-create, the symlink refusal below is already in place.
+
+    LSTAT-AWARE ON PURPOSE. ``Path.exists()`` returns False for a DANGLING
+    symlink, so an existence check alone reads an attacker-planted redirect as
+    "absent, safe to create" and then writes through it. Every symlink is refused
+    here — live or dangling — because the carrier must be a regular file the
+    ledger owner controls, not an indirection someone else can re-point.
+
+    Normalization is by ``realpath`` of the PARENT plus the literal basename, so
+    the ``/tmp`` versus ``/private/tmp`` (and ``/System/Volumes/Data/...``) alias
+    spellings of one file canonicalize identically without resolving a symlink at
+    the leaf — resolving the leaf would defeat the refusal above.
+
+    NEAREST EXISTING OWNER, and why it cannot serve: ``path_utils``'s private
+    ``_is_valid_policy_file`` applies the same CWE-59 symlink refusal, but it
+    REQUIRES the file to exist and to parse as JSON and returns a bare bool. The
+    witness carrier legitimately does not exist yet on a first write, and the
+    caller needs the refusal REASON and the canonical form; relaxing the policy
+    validator's existence requirement would break its own callers, which use it to
+    validate an already-written policy file. Two questions, named siblings, one
+    shared rule.
+
+    Args:
+        path: Candidate carrier path (any type; non-strings are refused).
+
+    Returns:
+        ``(ok, reason, canonical)``. ``ok`` False always carries a non-empty
+        *reason* and a ``None`` *canonical*; ``ok`` True carries an absolute
+        canonical path. Fails closed on any OSError.
+
+    Issues: #1807
+    """
+    if not isinstance(path, str) or not path.strip():
+        return False, f"witness carrier path {path!r} is absent or not a string", None
+
+    raw = path.strip()
+    try:
+        if os.path.islink(raw):
+            dangling = "DANGLING " if not os.path.exists(raw) else ""
+            return (
+                False,
+                f"witness carrier path {raw!r} is a {dangling}symlink; the carrier "
+                "must be a regular file, not an indirection that can be re-pointed",
+                None,
+            )
+        if os.path.lexists(raw) and not os.path.isfile(raw):
+            return (
+                False,
+                f"witness carrier path {raw!r} exists and is not a regular file",
+                None,
+            )
+        parent = os.path.dirname(os.path.abspath(raw))
+        if not os.path.isdir(parent):
+            return (
+                False,
+                f"witness carrier parent directory {parent!r} does not exist",
+                None,
+            )
+        canonical = os.path.join(os.path.realpath(parent), os.path.basename(raw))
+    except OSError as exc:
+        return False, f"witness carrier path {raw!r} is unresolvable: {exc}", None
+    return True, "", canonical
+
+
+def _native_origin_event(payload: Any, session_id: Any) -> Tuple[Optional[str], str]:
+    """Classify *payload* as a native run initiation, or refuse it.
+
+    The ONLY origin input is the native event name plus the command/skill name the
+    runtime delivered. Nothing here consults the environment, and no argument can
+    nominate an origin — see the module note on why a caller-supplied origin would
+    defeat the whole mechanism.
+
+    Args:
+        payload: Parsed hook stdin.
+        session_id: The owner the CALLER presents, which must equal the owner the
+            payload carries. Two independent spellings of the same fact, so a
+            payload cannot mint a witness for somebody else.
+
+    Returns:
+        ``(event, "")`` when the payload is a native initiation, else
+        ``(None, reason)``.
+    """
+    if not isinstance(payload, dict) or not payload:
+        return None, f"payload is not a non-empty JSON object: {type(payload).__name__}"
+
+    event = payload.get("hook_event_name")
+    if not isinstance(event, str) or event not in NATIVE_INIT_EVENTS:
+        return None, (
+            f"hook_event_name={event!r} is not a native run-initiation event "
+            f"(expected one of {list(NATIVE_INIT_EVENTS)})"
+        )
+
+    owner = payload.get("session_id")
+    if not isinstance(owner, str) or not owner.strip():
+        return None, (
+            "payload carries no session_id, so the runtime did not name an owner. "
+            "An inherited environment variable is NOT a substitute (#1137: "
+            "CLAUDE_SESSION_ID is non-privileged correlation metadata)"
+        )
+    if not isinstance(session_id, str) or owner.strip() != session_id.strip():
+        return None, (
+            f"payload owner {owner!r} does not match the presenting caller "
+            f"{session_id!r}"
+        )
+    if _is_synthetic_session_id(owner):
+        return None, f"owner {owner!r} is synthetic, so it can own nothing"
+
+    if event == "UserPromptExpansion":
+        if "tool_name" in payload:
+            return None, (
+                "contradictory payload: a UserPromptExpansion is not a tool call, "
+                f"yet it carries tool_name={payload.get('tool_name')!r}"
+            )
+        command = payload.get("command_name")
+        if not isinstance(command, str) or not _IMPLEMENT_FAMILY_RE.match(
+            command.strip().lower()
+        ):
+            return None, (
+                f"command_name={command!r} is not an /implement-family command"
+            )
+        return event, ""
+
+    # PreToolUse: a MODEL-invoked Skill call, and only that.
+    tool_name = payload.get("tool_name")
+    if tool_name != "Skill":
+        return None, f"tool_name={tool_name!r} is not Skill"
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return None, f"tool_input is not an object: {type(tool_input).__name__}"
+    skill = tool_input.get("skill")
+    if not isinstance(skill, str) or not _IMPLEMENT_FAMILY_RE.match(
+        skill.strip().lower()
+    ):
+        return None, f"skill={skill!r} is not an implement-family skill"
+    # A command_name alongside the Skill fields changes NOTHING: the event decides
+    # the origin class, so a laundering attempt is still MODEL-SKILL origin.
+    return event, ""
+
+
+def _native_origin_record(
+    session_id: str, witness_id: str, mode: str, claim: dict
+) -> dict:
+    """Build the state-shaped record the existing v3 signer covers.
+
+    The origin claim rides in ``subject`` because that is the free-form field v3
+    binds INJECTIVELY (JSON-array serialization, so no delimiter can slide between
+    fields). Nothing about the claim is stored outside the signed message — an
+    unsigned convenience copy is a second, tamperable source of truth.
+    """
+    return {
+        "session_start": datetime.now(timezone.utc).isoformat(),
+        "mode": mode,
+        "run_id": witness_id,
+        "explicitly_invoked": True,
+        "alignment_passed": False,
+        "alignment_verdict": "",
+        "session_id": session_id,
+        "issue_number": "",
+        "subject": json.dumps(claim, sort_keys=True, separators=(",", ":")),
+        "base_commit": "",
+    }
+
+
+def _binding_token(value: Any) -> str:
+    """Canonical comparison token for a binding value.
+
+    ``json.dumps`` so ``1807`` (int) and ``"1807"`` (str) are DISTINCT tokens —
+    the same no-cross-type-collision policy ``_compute_state_hmac`` uses at v3.
+    """
+    try:
+        return json.dumps(value, sort_keys=True)
+    except (TypeError, ValueError):
+        return f"<unserializable:{type(value).__name__}>"
+
+
+def _normalized_bindings(bindings: Any) -> Optional[Dict[str, Any]]:
+    """Validate and normalize presented run bindings, or ``None``.
+
+    Args:
+        bindings: Mapping of :data:`NATIVE_ORIGIN_BINDING_KEYS` to values.
+
+    Returns:
+        A dict carrying exactly the binding keys, with absent values normalized to
+        ``""``, or ``None`` when the mapping is unusable — an unknown key, a
+        non-scalar value, a blank required binding, or a ``run_id`` the ledger's
+        own allowlist would refuse.
+    """
+    if not isinstance(bindings, dict):
+        return None
+    if set(bindings) - set(NATIVE_ORIGIN_BINDING_KEYS):
+        return None
+
+    out: Dict[str, Any] = {}
+    for key in NATIVE_ORIGIN_BINDING_KEYS:
+        value = bindings.get(key, "")
+        if value is None:
+            value = ""
+        if not isinstance(value, (str, int, float, bool)) or isinstance(value, bool):
+            # bool excluded deliberately: no binding is a flag, and True would
+            # otherwise compare equal to 1 in some encodings.
+            return None
+        out[key] = value
+
+    for key in _NATIVE_ORIGIN_REQUIRED_BINDINGS:
+        if not isinstance(out[key], str) or not out[key].strip():
+            return None
+    if not _RUN_ID_RE.match(out["run_id"].strip()):
+        return None
+    out["run_id"] = out["run_id"].strip()
+    return out
+
+
+def _refined_bindings(
+    prior: Any, presented: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """Merge *presented* onto *prior* under monotonic refinement, or ``None``.
+
+    An empty prior binding MAY be filled; a non-empty one MUST NOT change. That
+    single rule is what lets ``base_commit`` arrive after STEP 0 while a rebind to
+    a different run, mode, issue or subject is refused.
+
+    *prior* MUST be the bindings of the LATEST accepted record. The rule is only as
+    strong as the record it is applied to: handed the FIRST record's bindings it
+    would read a field a later append already fixed as still empty, and accept a
+    conflicting value as a fill. Callers pass ``chain[-1]``.
+    """
+    if not isinstance(prior, dict):
+        return None
+    merged: Dict[str, Any] = {}
+    for key in NATIVE_ORIGIN_BINDING_KEYS:
+        old = prior.get(key, "")
+        new = presented.get(key, "")
+        if _binding_token(old) == _binding_token(""):
+            merged[key] = new
+        elif _binding_token(new) in (_binding_token(old), _binding_token("")):
+            merged[key] = old
+        else:
+            return None
+    return merged
+
+
+def _binding_mismatch(recorded: Any, presented: Dict[str, Any]) -> Optional[str]:
+    """Name the first binding the witness chain and the state disagree on.
+
+    Returns ``None`` when they agree. A recorded binding that is EMPTY constrains
+    nothing (see :data:`_NATIVE_ORIGIN_REQUIRED_BINDINGS`); a non-empty one must
+    match the state exactly.
+    """
+    if not isinstance(recorded, dict):
+        return "bindings"
+    for key in NATIVE_ORIGIN_BINDING_KEYS:
+        rec = recorded.get(key, "")
+        if key not in _NATIVE_ORIGIN_REQUIRED_BINDINGS and _binding_token(
+            rec
+        ) == _binding_token(""):
+            continue
+        if _binding_token(rec) != _binding_token(presented.get(key, "")):
+            return key
+    return None
+
+
+def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]:
+    """Record a native-origin witness for *session_id*, returning its witness id.
+
+    Called ONLY from ``hooks/native_run_origin.py``, which the Claude Code runtime
+    invokes on the two native initiation events. It writes into the existing
+    per-session ledger through the existing ``_locked_rmw`` owner and signs the
+    record with the existing v3 chain.
+
+    **Never raises.** Every refusal is reported on stderr and returned as ``None``,
+    so a malformed payload degrades to "no witness" (which classifies as
+    model-bootstrap origin) rather than blocking a run.
+
+    Args:
+        session_id: The owner, taken from the native stdin payload by the caller
+            and re-presented here so the two must agree.
+        payload: The parsed native hook stdin.
+
+    Returns:
+        The witness id, or ``None`` when nothing was written.
+
+    Issues: #1807
+    """
+    try:
+        event, reason = _native_origin_event(payload, session_id)
+        if event is None:
+            _native_origin_note(f"no witness minted: {reason}")
+            return None
+
+        owner = str(payload["session_id"]).strip()
+        sign_state, _verify, generate_run_id = _native_origin_signers()
+        if sign_state is None or generate_run_id is None:
+            _native_origin_note(
+                "pipeline_state.sign_state is unavailable, so no witness can be "
+                "signed. REQUIRED NEXT ACTION: run `bash scripts/deploy-all.sh`"
+            )
+            return None
+
+        ledger_path = str(_state_file_path(owner))
+        ok, path_reason, _canonical = witness_path_verdict(ledger_path)
+        if not ok:
+            _native_origin_note(f"no witness minted: {path_reason}")
+            return None
+
+        # Id minted by the EXISTING owner (pipeline_state.generate_run_id), with an
+        # "nw-" prefix so a witness key file in ~/.claude/pipeline_secrets/ is
+        # visibly not a run key. No local id generation.
+        #
+        # TODO(deferred: #1807 — NO REAPER FOR WITNESS ARTIFACTS). Two artifacts
+        # accumulate per witnessed run and nothing currently removes either: the
+        # "nw-<id>" key file in ~/.claude/pipeline_secrets/ and the
+        # `native_origin` field in this owner's ledger. An earlier draft shipped a
+        # `cleanup_native_origin()` whose docstring claimed run-teardown use; it
+        # had ZERO production call sites and was removed rather than left as an
+        # unreceipted wiring claim. Growth is bounded in practice — a fresh
+        # initiation SUPERSEDES the ledger field, and #1806's lock GC already owns
+        # the pattern for reaping stale per-run files — so the fix is to extend
+        # that existing reaper, not to add a teardown seam here. Named, not
+        # silently accepted: this is a resource leak, never an authority hole
+        # (every witness is bound to its run's receipt and cannot outlive it).
+        witness_id = f"nw-{generate_run_id()}"
+        claim = {
+            "args": payload.get("command_args") if event == "UserPromptExpansion" else "",
+            "command": payload.get("command_name") if event == "UserPromptExpansion" else "",
+            "event": event,
+            "seq": 0,
+            "skill": (payload.get("tool_input") or {}).get("skill")
+            if event == "PreToolUse"
+            else "",
+            "witness_id": witness_id,
+            "witnessed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        claim = {key: ("" if value is None else value) for key, value in claim.items()}
+        if not isinstance(claim["args"], str):
+            claim["args"] = ""
+        record = sign_state(
+            _native_origin_record(owner, witness_id, NATIVE_ORIGIN_WITNESS_MODE, claim),
+            owner,
+        )
+
+        def _mutator(state: dict) -> None:
+            _ensure_state_inplace(state, owner)
+            # A fresh initiation SUPERSEDES any earlier chain: a witness is
+            # per-run, and carrying a previous run's progression forward is
+            # exactly the cross-run inheritance #1045/#1807 refuse.
+            state[_NATIVE_ORIGIN_LEDGER_KEY] = {
+                "witness": record,
+                "progression": [],
+            }
+
+        _locked_rmw(owner, _mutator)
+        return witness_id
+    except Exception as exc:  # noqa: BLE001 - never raise out of state code
+        _native_origin_note(f"no witness minted: {type(exc).__name__}: {exc}")
+        return None
+
+
+def append_native_origin_progression(
+    session_id: str, bindings: Any, *, event: str
+) -> bool:
+    """Append progression evidence bound to this session's native-origin witness.
+
+    The FIRST append is the run BINDING: it is what ties the witness (minted
+    before any run id existed) to a specific run. Later appends refine it
+    monotonically against the LATEST ACCEPTED record — an empty binding may be
+    filled, a binding any earlier append already fixed may never change. The prior
+    is ``chain[-1]`` and not ``chain[0]``, because refinement is cumulative: the
+    first record keeps its original empty ``base_commit`` forever, so comparing
+    against it would read a field a later append legitimately bound as still free
+    to set. Every record is signed with the witness's own secret, so the whole
+    chain shares one key file and a record cannot be moved between witnesses.
+
+    Natively-invoked callers are the SubagentStop heartbeat path
+    (``unified_session_tracker`` -> :func:`ensure_sentinel_heartbeat`) and the
+    coordinator's initialization block, which consumes the witness at STEP 0 / F1.
+
+    ATOMIC BY CONSTRUCTION (TOCTOU fix). The live witness, the chain length, the
+    monotonic ``seq``, the binding refinement, the run-start receipt comparison AND
+    the signing all happen inside ONE ``_locked_rmw`` critical section. An earlier
+    draft read the witness OUTSIDE the lock and signed against it: a second
+    initiation landing in that window appended a record signed for the OLD witness
+    to the NEW run's chain and returned ``True`` — a false success that poisoned
+    the new chain with a record every later verification would refuse. Nothing is
+    read before the lock now except the caller's own arguments.
+
+    INTERLEAVING GUARD, reusing an existing carrier. A bind is accepted only when
+    ``state["current_run_id"]`` — the run-start receipt ``record_run_start`` stamps
+    in this same ledger file, read under the same lock — names the run being bound.
+    That is what stops a LATE append for run R from binding the witness of a newer
+    initiation to R: at that point the receipt names the newer run, so the append
+    refuses. No new store and no new dependency: the receipt is a field of the very
+    dict the mutator already holds.
+
+    **Never raises.** Returns ``False`` on any refusal or failure, with the cause
+    reported on stderr.
+
+    Args:
+        session_id: The witness owner.
+        bindings: The run bindings (:data:`NATIVE_ORIGIN_BINDING_KEYS`).
+        event: What happened, e.g. ``"run-bound"`` or ``"subagent-stop"``. A LABEL
+            for operators; it carries no authority and cannot name an origin.
+
+    Returns:
+        ``True`` only when a record bound to the CURRENTLY-LIVE witness and the
+        CURRENT run-start receipt was appended.
+
+    Issues: #1807
+    """
+    try:
+        if not isinstance(event, str) or not event.strip():
+            return False
+        if not isinstance(session_id, str) or not session_id.strip():
+            return False
+        owner = session_id.strip()
+
+        presented = _normalized_bindings(bindings)
+        if presented is None:
+            _native_origin_note(f"progression refused: unusable bindings {bindings!r}")
+            return False
+
+        sign_state, _verify, _gen = _native_origin_signers()
+        if sign_state is None:
+            return False
+
+        outcome: Dict[str, Any] = {
+            "ok": False,
+            "why": "the mutator never ran",
+            "silent": False,
+        }
+
+        def _mutator(state: dict) -> None:
+            _ensure_state_inplace(state, owner)
+
+            receipt = state.get("current_run_id")
+            if not isinstance(receipt, str) or receipt.strip() != presented["run_id"]:
+                outcome["why"] = (
+                    f"the run-start receipt for {owner!r} names {receipt!r}, not "
+                    f"{presented['run_id']!r}: a witness must not be bound to a run "
+                    "that is not the current one"
+                )
+                return
+
+            current = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
+            if not isinstance(current, dict):
+                # SILENT. Absence of a witness is the NORMAL model-owned bootstrap
+                # path, and the SubagentStop heartbeat calls this on every agent
+                # completion — a diagnostic here would emit noise per subagent on
+                # every run that has no witness, which is currently all of them.
+                outcome["silent"] = True
+                outcome["why"] = (
+                    f"no native-origin witness exists for {owner!r}, so there is "
+                    "nothing to bind a run to"
+                )
+                return
+            witness = current.get("witness")
+            if not isinstance(witness, dict):
+                outcome["why"] = "the witness carrier holds no witness record"
+                return
+            witness_id = witness.get("run_id")
+            if not isinstance(witness_id, str) or not witness_id:
+                outcome["why"] = "the live witness carries no witness id"
+                return
+
+            chain = current.get("progression")
+            if chain is None:
+                chain = []
+            if not isinstance(chain, list):
+                outcome["why"] = "the progression chain is not a list"
+                return
+            if len(chain) >= _NATIVE_ORIGIN_MAX_PROGRESSION:
+                outcome["why"] = (
+                    f"the chain already holds {len(chain)} records (ceiling "
+                    f"{_NATIVE_ORIGIN_MAX_PROGRESSION})"
+                )
+                return
+
+            merged = presented
+            if chain:
+                # THE LATEST ACCEPTED RECORD, not the first. Refinement is
+                # cumulative: append #2 legitimately FILLS the empty base_commit
+                # that append #1 recorded before set_pipeline_base_commit ran, and
+                # it stores the merged result in its OWN record. Reading chain[0]
+                # forever afterwards sees that field still empty, so append #3
+                # presenting a DIFFERENT commit than #2 honestly bound would be
+                # accepted as "filling an empty field" instead of refused as a
+                # rebind. chain[-1] is also exactly the record
+                # `check_native_origin` compares against the sentinel, so writer
+                # and reader agree on which binding is in force.
+                latest = chain[-1]
+                if not isinstance(latest, dict):
+                    outcome["why"] = "the chain's latest record is not an object"
+                    return
+                try:
+                    prior = json.loads(latest.get("subject", ""))
+                except (TypeError, ValueError):
+                    outcome["why"] = "the chain's latest claim is not parseable"
+                    return
+                merged = _refined_bindings(
+                    prior.get("bindings") if isinstance(prior, dict) else None,
+                    presented,
+                )
+                if merged is None:
+                    outcome["why"] = (
+                        f"{presented!r} would REBIND a binding the chain already fixed"
+                    )
+                    return
+
+            claim = {
+                "at": datetime.now(timezone.utc).isoformat(),
+                "bindings": merged,
+                "event": event.strip(),
+                "seq": len(chain) + 1,
+                "witness_id": witness_id,
+            }
+            # Signed HERE, under the lock, against the witness id just read from
+            # the very dict being written. There is no window in which the witness
+            # could change between signing and appending.
+            chain.append(
+                sign_state(
+                    _native_origin_record(
+                        owner, witness_id, NATIVE_ORIGIN_PROGRESSION_MODE, claim
+                    ),
+                    owner,
+                )
+            )
+            current["progression"] = chain
+            outcome["ok"] = True
+
+        _locked_rmw(owner, _mutator)
+        if not outcome["ok"]:
+            if not outcome["silent"]:
+                _native_origin_note(f"progression refused: {outcome['why']}")
+            return False
+        return True
+    except Exception as exc:  # noqa: BLE001 - never raise out of state code
+        _native_origin_note(f"progression refused: {type(exc).__name__}: {exc}")
+        return False
+
+
+def append_native_origin_progression_from_sentinel(
+    session_id: str, sentinel_path: Optional[str] = None
+) -> bool:
+    """Append progression evidence, reading the run bindings from the sentinel.
+
+    The read half of the progression seam, so a natively-invoked hook that knows
+    only its ``session_id`` can still contribute evidence without re-deriving the
+    sentinel path or the binding key set. The live caller is the SubagentStop
+    heartbeat path in ``hooks/unified_session_tracker.py``, immediately after
+    :func:`ensure_sentinel_heartbeat`.
+
+    A run with no witness (the model-owned bootstrap path — currently every run) is
+    a SILENT ``False``: this is called once per subagent completion, so a
+    diagnostic would be pure noise.
+
+    **Never raises.**
+
+    Args:
+        session_id: The run owner.
+        sentinel_path: Sentinel to read. Defaults to ``$PIPELINE_STATE_FILE``,
+            falling back to :func:`get_legacy_sentinel_path` — the same resolution
+            :func:`ensure_sentinel_heartbeat` uses, so the two cannot disagree.
+
+    Returns:
+        ``True`` when a progression record was appended.
+
+    Issues: #1807
+    """
+    try:
+        if sentinel_path is None:
+            sentinel_path = os.environ.get(
+                "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
+            )
+        path = Path(sentinel_path)
+        if not path.is_file():
+            return False
+        try:
+            sentinel = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not isinstance(sentinel, dict) or not sentinel.get("run_id"):
+            return False
+        return append_native_origin_progression(
+            session_id,
+            {key: sentinel.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS},
+            event="subagent-stop",
+        )
+    except Exception:  # noqa: BLE001 - never raise out of state code
+        return False
+
+
+def _verified_native_record(
+    record: Any, owner: str, mode: str, verify: Callable
+) -> Tuple[Optional[dict], str]:
+    """Verify one witness/progression record and return its parsed claim.
+
+    Args:
+        record: Candidate record from the ledger.
+        owner: The session that must own it.
+        mode: The required ``mode`` marker.
+        verify: ``pipeline_state.verify_state_hmac``.
+
+    Returns:
+        ``(claim, "")`` or ``(None, reason)``.
+    """
+    if not isinstance(record, dict):
+        return None, f"a {mode} record is not an object"
+    if record.get("mode") != mode:
+        return None, f"record mode={record.get('mode')!r} is not {mode!r}"
+
+    declared_owner = record.get("session_id")
+    if not isinstance(declared_owner, str) or declared_owner.strip() != owner:
+        return None, f"record owner {declared_owner!r} is not {owner!r}"
+
+    stored_mac = record.get("hmac")
+    if not isinstance(stored_mac, str) or not stored_mac.strip():
+        # verify_state_hmac returns True for an UNSIGNED state (legacy pipeline
+        # compatibility). A witness has no legacy population, so requiring the MAC
+        # up front is what stops that backward-compatibility branch from reading
+        # an unsigned forgery as intact.
+        return None, "record carries no MAC: unsigned is never witnessed"
+    version = record.get("hmac_version")
+    if not isinstance(version, int) or version < _NATIVE_ORIGIN_MIN_MAC_VERSION:
+        return None, (
+            f"record declares MAC version {version!r}; witness records are minted "
+            f"fresh and must be >= v{_NATIVE_ORIGIN_MIN_MAC_VERSION}, so a "
+            "downgrade is a forgery rather than an in-flight run"
+        )
+    if not verify(record, owner, strict=True):
+        return None, "record MAC did not verify for its declared owner (strict)"
+
+    try:
+        claim = json.loads(record.get("subject", ""))
+    except (TypeError, ValueError):
+        return None, "record claim is not parseable JSON"
+    if not isinstance(claim, dict):
+        return None, "record claim is not an object"
+    return claim, ""
+
+
+def check_native_origin(session_id: str, bindings: Any) -> NativeOriginCheck:
+    """Report what the ledger says about the native origin of a run.
+
+    Reads the witness chain for *session_id* and verifies it against the run
+    *bindings* the caller presents. Returns FACTS; the mapping from native event
+    to origin class belongs to ``pipeline_state.classify_current_run_authority``,
+    which is the single consumer and the single vocabulary.
+
+    **Never raises.** Every failure is a refusal, except an unavailable signer,
+    which is reported as ``instrument_ok=False`` — "cannot tell" is not "passed".
+
+    Args:
+        session_id: The owner presenting the run.
+        bindings: The run bindings read from the sentinel.
+
+    Returns:
+        A :class:`NativeOriginCheck`.
+
+    Issues: #1807
+    """
+    def _refuse(detail: str) -> NativeOriginCheck:
+        return NativeOriginCheck(True, False, "", detail)
+
+    try:
+        if not isinstance(session_id, str) or not session_id.strip():
+            return _refuse("no usable caller identity, so no origin can be attributed")
+        owner = session_id.strip()
+
+        presented = _normalized_bindings(bindings)
+        if presented is None:
+            return _refuse(f"presented run bindings are unusable: {bindings!r}")
+
+        _sign, verify, _gen = _native_origin_signers()
+        if verify is None:
+            return NativeOriginCheck(
+                True,
+                False,
+                "",
+                "pipeline_state.verify_state_hmac is unavailable, so no witness "
+                "can be judged. This is a DEPENDENCY failure, not a verdict. "
+                "REQUIRED NEXT ACTION: run `bash scripts/deploy-all.sh`",
+                instrument_ok=False,
+            )
+
+        state = _read_state(owner)
+        origin = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
+        if origin is None:
+            return NativeOriginCheck(
+                False,
+                False,
+                "",
+                f"no native-origin witness exists for {owner!r}: this run was "
+                "initiated by the model-owned bootstrap path (or the native hook "
+                "was discarded on timeout). Absence is a NON-PASS, never native",
+            )
+        if not isinstance(origin, dict):
+            return _refuse("witness carrier is not an object")
+
+        claim, reason = _verified_native_record(
+            origin.get("witness"), owner, NATIVE_ORIGIN_WITNESS_MODE, verify
+        )
+        if claim is None:
+            return _refuse(f"witness rejected: {reason}")
+
+        witness_id = origin["witness"].get("run_id")
+        event = claim.get("event")
+        if event not in NATIVE_INIT_EVENTS:
+            return _refuse(
+                f"witness claims event {event!r}, which is not a native "
+                "run-initiation event"
+            )
+        if claim.get("witness_id") != witness_id or claim.get("seq") != 0:
+            return _refuse("witness claim does not identify itself consistently")
+
+        progression = origin.get("progression")
+        if not isinstance(progression, list) or not progression:
+            return _refuse(
+                "witness carries no run binding, so it names no run to attribute. "
+                "A witness minted without the binding append confers nothing"
+            )
+        if len(progression) > _NATIVE_ORIGIN_MAX_PROGRESSION:
+            return _refuse(
+                f"progression chain holds {len(progression)} records, above the "
+                f"{_NATIVE_ORIGIN_MAX_PROGRESSION} ceiling"
+            )
+
+        nonces = {origin["witness"].get("nonce")}
+        expected_seq = 1
+        latest: Optional[dict] = None
+        for record in progression:
+            record_claim, reason = _verified_native_record(
+                record, owner, NATIVE_ORIGIN_PROGRESSION_MODE, verify
+            )
+            if record_claim is None:
+                return _refuse(f"progression record {expected_seq} rejected: {reason}")
+            if record.get("run_id") != witness_id:
+                return _refuse(
+                    f"progression record {expected_seq} names witness "
+                    f"{record.get('run_id')!r}, not {witness_id!r}"
+                )
+            nonce = record.get("nonce")
+            if not isinstance(nonce, str) or nonce in nonces:
+                return _refuse(
+                    f"progression record {expected_seq} REPLAYS a nonce already in "
+                    "the chain"
+                )
+            nonces.add(nonce)
+            if record_claim.get("witness_id") != witness_id:
+                return _refuse(
+                    f"progression record {expected_seq} claims another witness"
+                )
+            if record_claim.get("seq") != expected_seq:
+                return _refuse(
+                    f"progression seq {record_claim.get('seq')!r} is not the "
+                    f"expected {expected_seq}: the chain is replayed or reordered"
+                )
+            expected_seq += 1
+            latest = record_claim
+
+        mismatch = _binding_mismatch(
+            (latest or {}).get("bindings"), presented
+        )
+        if mismatch is not None:
+            return _refuse(
+                f"witness chain binds a different {mismatch}: recorded "
+                f"{(latest or {}).get('bindings', {}).get(mismatch)!r} vs presented "
+                f"{presented.get(mismatch)!r}"
+            )
+
+        return NativeOriginCheck(
+            True,
+            True,
+            event,
+            f"witness {witness_id} bound to run {presented['run_id']} for {owner} "
+            f"via {event} ({len(progression)} progression record(s))",
+        )
+    except Exception as exc:  # noqa: BLE001 - a probe must not raise into a gate
+        return _refuse(f"{type(exc).__name__}: {exc}")
 
 
 def _completion_is_success(entry) -> bool:
@@ -2813,17 +3947,21 @@ def _locked_rmw(
 
     Issues: #1170, #1188, #1544
     """
-    if run_id:
-        if not _RUN_ID_RE.match(run_id):
-            raise ValueError(
-                f"run_id contains invalid characters: {run_id!r}\n"
-                f"Expected: 1-64 characters matching [a-zA-Z0-9_-]\n"
-                f"See: docs/ARCHITECTURE-OVERVIEW.md"
-            )
-        key = run_id
-    else:
-        key = hashlib.sha256(session_id.encode()).hexdigest()[:8]
-    lock_path = Path(f"/tmp/pipeline_agent_completions_{key}.lock")
+    # Issue #1807: derive the lock from _state_file_path instead of rebuilding
+    # the literal. Two paths for one artifact is two things to keep in sync, and
+    # they had already drifted: the lock was pinned to machine-global /tmp, so a
+    # test that redirected the ledger still created a real /tmp lockfile —
+    # MEASURED as 9 residual `/tmp/pipeline_agent_completions_*.lock` files after
+    # an otherwise fully-isolated suite. The file name changes from
+    # `<key>.lock` to `<ledger>.json.lock`; the name stays `pipeline_*.lock`-shaped
+    # for consistency, but as of #1806 `_gc_stale_states` no longer reaps any lock
+    # pattern, so this file is retained under the same accepted tradeoff as run
+    # lockfiles. The only cost is that a process still
+    # running pre-#1807 code during a deploy would take a different mutex for the
+    # same session. That window is one deploy long, the write it guards is already
+    # atomic (#1544), and this function's documented failure mode is fail-open
+    # anyway — cheaper than a second source of truth for the path.
+    lock_path = Path(str(_state_file_path(session_id, run_id=run_id)) + ".lock")
 
     def _rmw() -> None:
         """Read, mutate, write — with the raw-write guard held (#1544).
@@ -3062,6 +4200,58 @@ def _is_synthetic_session_id(session_id: str) -> bool:
     return False
 
 
+#: Fields whose presence means "this sentinel represents a RUN", not merely a
+#: recovery note. This is the SOLE owner of that predicate: the equivalent inline
+#: trio in ``unified_pre_tool._is_pipeline_active`` (the #1384 recovery-record
+#: branch) was RETIRED by Issue #1807 in favour of
+#: ``pipeline_state.classify_current_run_authority``.
+#:
+#: Deliberately GENEROUS where the authority classifier is STRICT, because the two
+#: answer different questions. Here: "is this file worth preserving?" — any run
+#: field is enough, so a partially-written run is never discarded. There: "may
+#: this authorize the current run?" — a usable ``run_id`` is required, because a
+#: state with only ``mode`` identifies no run to authorize. Preserve generously,
+#: authorize strictly; collapsing them either destroys runs or authorizes
+#: non-runs.
+_RUN_BEARING_FIELDS = ("run_id", "mode", "explicitly_invoked")
+
+
+def _state_carries_run_identity(state: dict) -> bool:
+    """Whether *state* identifies a pipeline run.
+
+    Args:
+        state: Parsed sentinel contents.
+
+    Returns:
+        True when any of :data:`_RUN_BEARING_FIELDS` carries a truthy value.
+
+    Issue: #1807
+    """
+    if not isinstance(state, dict):
+        return False
+    return any(state.get(field) for field in _RUN_BEARING_FIELDS)
+
+
+def is_synthetic_session_id(session_id: str) -> bool:
+    """Public spelling of the synthetic-session-id test.
+
+    Identical to :func:`_is_synthetic_session_id` — it delegates, so there is
+    still ONE implementation of the rule. It exists because coordinator
+    snippets in ``commands/*.md`` must fail closed on a synthetic owner (Issue
+    #1807, fix-mode F1) and a command file importing a private name would be
+    both fragile and a bad example.
+
+    Args:
+        session_id: Candidate session id.
+
+    Returns:
+        True when the id is synthetic, derived, or unusable as an owner.
+
+    Issues: #1481, #1807
+    """
+    return _is_synthetic_session_id(session_id)
+
+
 def ensure_sentinel_heartbeat(
     session_id: str,
     state_path: Optional[str] = None,
@@ -3084,9 +4274,13 @@ def ensure_sentinel_heartbeat(
       (Issue #1481).
     - If ``state_path`` exists, is parseable JSON, and its ``session_id``
       field matches ``session_id`` → sentinel is healthy, return ``True``.
-    - Otherwise (missing, corrupt, or existing-owner is synthetic) → emit a
-      structured log line to stderr, recreate a minimal sentinel, and
-      return ``False``.
+    - If ``state_path`` exists and CARRIES A RUN (``run_id``/``mode``/
+      ``explicitly_invoked``) but its owner is absent or synthetic, preserve it,
+      emit ``[SENTINEL-HEARTBEAT-RUN-PRESERVED]`` and return ``False`` — an
+      absent owner is not licence to discard a run (Issue #1807).
+    - Otherwise (missing, corrupt, or an identity-less record whose owner is
+      synthetic) → emit a structured log line to stderr, recreate a minimal
+      sentinel, and return ``False``.
 
     The function NEVER raises.  All failure modes degrade gracefully.
 
@@ -3137,6 +4331,37 @@ def ensure_sentinel_heartbeat(
                 existing = data.get("session_id")
                 if existing == session_id:
                     return True  # Sentinel healthy.
+                # Issue #1807 guard #3 — the run survives repair. A state that
+                # CARRIES A RUN (run_id or mode) is gating state, and an absent
+                # or synthetic OWNER is not licence to discard it: the recovery
+                # record below has no run_id, no mode, no issue_number and no
+                # base_commit, so replacing a live run with it destroys exactly
+                # the identity the MAC failed to bind. MEASURED pre-fix against
+                # a signed run-bearing ownerless sentinel: return=False, bytes
+                # changed=True, run_id after=None.
+                #
+                # Both triggers of the old single branch are covered here
+                # (owner ABSENT — the fix-mode F1 shape — and owner SYNTHETIC,
+                # e.g. "stop-7"), because a guard keyed on the missing-owner
+                # spelling alone would leave the synthetic route destroying
+                # runs. A diagnostic is emitted instead: missing identity is
+                # reported, never invented (Issue #1807).
+                if _state_carries_run_identity(data):
+                    try:
+                        import sys as _sys_hb
+
+                        _sys_hb.stderr.write(
+                            f"[SENTINEL-HEARTBEAT-RUN-PRESERVED] state_path={state_path}"
+                            f" run_id={data.get('run_id')!r}"
+                            f" mode={data.get('mode')!r}"
+                            f" existing_owner={existing!r}"
+                            f" caller_session={session_id!r}"
+                            " refusing identity-less replacement (Issue #1807)\n"
+                        )
+                        _sys_hb.stderr.flush()
+                    except Exception:
+                        pass
+                    return False
                 # Issue #1481 guard #2: existing sentinel with a valid
                 # non-synthetic owner MUST NOT be clobbered by heartbeat.
                 # The heartbeat is a recovery guard, not a takeover
@@ -3195,7 +4420,7 @@ def ensure_sentinel_heartbeat(
 
 
 def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
-    """Garbage-collect stale state files and orphaned lockfiles in /tmp.
+    """Garbage-collect stale state and sentinel files in /tmp.
 
     Deletes files older than ``max_age_seconds``:
 
@@ -3204,7 +4429,17 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     - ``/tmp/pipeline_agent_completions_*.json.*.tmp`` (orphaned ``os.replace``
       staging files left by a process killed mid-write, #1544)
     - ``/tmp/implement_pipeline_*.json`` (per-run sentinel files)
-    - ``/tmp/pipeline_*.lock`` (orphaned lockfiles)
+
+    Lockfiles are NEVER deleted (#1806).  ``/tmp/pipeline_*.lock`` paths are the
+    pathnames ``acquire_run_lock()`` and ``_locked_rmw()`` open and ``flock``.
+    Unlinking a *held* lock's pathname leaves the holder on an orphan inode
+    while the next process creates and locks a new inode under the same
+    pathname — two processes each believing they own the run.  An mtime is no
+    evidence of liveness (``flock`` never touches mtime, so a lock held for
+    hours looks stale), and a nonblocking-flock probe before the unlink does not
+    close the hole either: another process can open the old inode between the
+    probe and the unlink (TOCTOU).  A few empty lockfiles left in /tmp is the
+    cheaper failure, so no lockfile deletion happens here at all.
 
     Default is 2× the existing ``STALE_UNKNOWN_TTL_SECONDS`` (3600 → 7200).
 
@@ -3218,11 +4453,14 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
             {
                 'state_files_removed': int,
                 'sentinels_removed': int,
-                'lockfiles_removed': int,
+                'lockfiles_removed': int,  # always 0 since #1806
                 'errors': list[str],
             }
 
-    Issues: #1041 #1048
+        ``lockfiles_removed`` is retained at a constant 0 for callers that sum
+        the counts (``commands/implement.md`` STEP 0).
+
+    Issues: #1041 #1048 #1806
     """
     now = time.time()
     cutoff = now - max_age_seconds
@@ -3230,6 +4468,8 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
     counts: dict = {
         "state_files_removed": 0,
         "sentinels_removed": 0,
+        # #1806: kept at 0 permanently so callers that sum the counts keep
+        # working. No lockfile pattern is scanned — see the docstring.
         "lockfiles_removed": 0,
         "errors": [],
     }
@@ -3241,11 +4481,11 @@ def _gc_stale_states(max_age_seconds: int = 7200) -> dict:
         # above does not match it, so reap it on the same cadence.
         ("/tmp/pipeline_agent_completions_*.json.*.tmp", "state_files_removed"),
         ("/tmp/implement_pipeline_*.json", "sentinels_removed"),
-        # The "pipeline_*.lock" glob also matches the per-session R-M-W
-        # lockfiles introduced in #1170
-        # (/tmp/pipeline_agent_completions_*.lock), so orphaned R-M-W
-        # locks are reaped on the same cadence as state files.
-        ("/tmp/pipeline_*.lock", "lockfiles_removed"),
+        # #1806: "/tmp/pipeline_*.lock" deliberately absent. It matched both the
+        # run lockfiles (acquire_run_lock) and the #1170 per-session R-M-W
+        # lockfiles (_locked_rmw); unlinking either while held splits lock
+        # authority across two inodes. Do NOT re-add it, and do not "fix" it
+        # with a pre-unlink flock probe (TOCTOU).
     ]
 
     for pattern, key in patterns:

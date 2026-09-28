@@ -773,6 +773,54 @@ PIPELINE_AGENTS = [
     'doc-master',
 ]
 
+# Plugin namespaces whose pipeline roles are trusted (Issue #1811).
+#
+# A plugin-dispatched subagent reports CLAUDE_AGENT_NAME as
+# "<plugin-namespace>:<role>" (e.g. "autonomous-dev:implementer") while
+# PIPELINE_AGENTS above holds bare roles, so every membership test above
+# mis-evaluated for plugin-dispatched agents. _normalize_agent_identity()
+# strips the namespace ONLY for an exact match of (registered namespace) x
+# (known pipeline role) — stripping an arbitrary prefix would let
+# "evil:implementer" authorize itself as the implementer.
+#
+# Hardcoded rather than read from plugins/autonomous-dev/.claude-plugin/
+# plugin.json on purpose: this hook runs under a 5s budget on every tool call,
+# and the installed copy at .claude/hooks/ has no plugin manifest beside it, so
+# a manifest read would be both a per-call I/O cost and unreliable at the one
+# location that matters. tests/regression/test_issue_1811_namespaced_agent_
+# identity.py cross-validates this constant against plugin.json so the two
+# cannot drift silently.
+REGISTERED_PLUGIN_NAMESPACES: frozenset = frozenset({'autonomous-dev'})
+
+
+def _normalize_agent_identity(raw_name: str) -> str:
+    """Resolve a plugin-namespaced pipeline agent to its bare role (Issue #1811).
+
+    Both halves of the name are validated against an allow-list:
+
+    * the namespace must be an EXACT member of
+      :data:`REGISTERED_PLUGIN_NAMESPACES` (not a prefix, not a suffix, not
+      "whatever precedes the last colon"), and
+    * the role must already be a member of :data:`PIPELINE_AGENTS`.
+
+    Anything else keeps its raw name and is therefore treated as an
+    unregistered identity by every downstream membership test. In particular
+    ``evil:implementer``, ``autonomous-dev-extra:implementer`` and
+    ``autonomous-dev:evil:implementer`` all stay unauthorized.
+
+    Args:
+        raw_name: Lowercased agent identity, possibly namespaced.
+
+    Returns:
+        The bare pipeline role when both halves validate, else ``raw_name``.
+    """
+    if ':' not in raw_name:
+        return raw_name
+    namespace, _, role = raw_name.partition(':')
+    if namespace in REGISTERED_PLUGIN_NAMESPACES and role in PIPELINE_AGENTS:
+        return role
+    return raw_name
+
 # Agents authorized to create GitHub issues directly (Issue #599)
 GH_ISSUE_AGENTS = {'issue-creator'}
 
@@ -2147,13 +2195,19 @@ def _get_active_agent_name() -> str:
     1. agent_type from hook stdin JSON (available inside subagents)
     2. CLAUDE_AGENT_NAME env var (set by Claude Code in some contexts)
 
+    Issue #1811: both sources may carry a plugin namespace
+    ("autonomous-dev:implementer"). Normalization happens HERE, once, so the
+    four PIPELINE_AGENTS membership sites downstream need no change. Only an
+    exact (registered namespace) x (pipeline role) pair is stripped — see
+    _normalize_agent_identity().
+
     Returns:
         Lowercase agent name, or empty string if not in an agent context.
     """
     if _agent_type:
-        return _agent_type.strip().lower()
+        return _normalize_agent_identity(_agent_type.strip().lower())
     env_name = os.getenv("CLAUDE_AGENT_NAME", "").strip().lower()
-    return env_name
+    return _normalize_agent_identity(env_name)
 
 
 def _is_stale_session(state: dict, state_path: "Path") -> bool:
@@ -2642,69 +2696,81 @@ def _is_batch_context(cwd: str) -> bool:
 _PIPELINE_STATE_TTL_SECONDS = 1800
 
 
+def _refresh_owning_sentinel_mtime() -> None:
+    """Refresh the OWNING session's sentinel mtime, keyed on native identity.
+
+    Keeps the owning session's sentinel mtime fresh during a long run (Issue
+    #636/#941). Two invariants, both hardened for Issue #1807:
+
+    * **Native-keyed ownership (defect 1/2).** The owner comparison uses the
+      session id observed on this hook's OWN native stdin
+      (:func:`_native_stdin_identity`), NOT ``CLAUDE_SESSION_ID`` — a spoofed env
+      var must not be able to keep a FOREIGN or CORRUPT run's state alive by
+      refreshing its mtime. Refuse to touch unless the state owner is present and
+      EQUALS the native identity.
+    * **Refresh, never CREATE (Issue #1779 AC3).** An absent sentinel is left
+      absent — ``.touch()`` on a missing path would manufacture a 0-byte file
+      that every consumer then reads as CORRUPT.
+
+    Silent and best-effort: a liveness refresh must never raise into the gate.
+    """
+    native = _native_stdin_identity()
+    if not native:
+        # No native identity → ownership cannot be established → do not touch.
+        return
+    pipeline_state_file = os.getenv(
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
+    )
+    try:
+        state_path = Path(pipeline_state_file)
+        if not state_path.exists():
+            return  # REFRESH, never CREATE (Issue #1779 AC3)
+        try:
+            with open(state_path) as _fh_touch:
+                state = json.load(_fh_touch)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return  # corrupt/unreadable state must NOT be kept alive
+        if not isinstance(state, dict):
+            return
+        owner = str(state.get("session_id") or "").strip()
+        # Owner absent, or owned by a DIFFERENT session, → do not refresh. Only
+        # the genuine same-owner heartbeat keeps its own sentinel fresh.
+        if owner and owner == native:
+            state_path.touch()
+    except OSError:
+        pass
+
+
 def _is_pipeline_active() -> bool:
     """Check if the /implement pipeline is currently active.
 
-    Checks two sources:
-    1. CLAUDE_AGENT_NAME env var against known pipeline agents (touches state file mtime)
-    2. Pipeline state file (valid if mtime < 30 min old; Issue #636)
+    Issue #1807 (defect 2): a pipeline agent NAME is NOT, by itself, current-run
+    authority. The agent-name branch below no longer returns True — it only
+    refreshes the OWNING session's sentinel mtime (Issue #636/#941) and then
+    falls through to the SIGNED-state check. "Active" now requires a signed
+    current-run sentinel that :func:`_state_authorizes_current_run` accepts AND a
+    fresh mtime; a bare/namespaced ``CLAUDE_AGENT_NAME=implementer`` with no
+    signed run behind it reads as NOT active.
+
+    Authority source (Issue #1807 defect 1): the owner comparison inside
+    ``_state_authorizes_current_run`` binds to this hook's NATIVE stdin identity,
+    never to ``CLAUDE_SESSION_ID`` nor to the sentinel's own ``session_id``.
 
     Returns:
-        True if pipeline is active
+        True only when a signed, authorized, non-stale current-run sentinel
+        exists.
     """
-    # Check agent name (Issue #591: prefer stdin agent_type over env var)
+    # Check agent name (Issue #591: prefer stdin agent_type over env var).
+    # Issue #1807 (defect 2): this branch refreshes mtime but MUST NOT return
+    # True on role alone — it falls through to the signed-state check below.
     agent_name = _get_active_agent_name()
     if agent_name in PIPELINE_AGENTS:
-        # Issue #941: refresh mtime ONLY when this session OWNS the state file.
-        # Previously this was unconditional (Issue #636) which let concurrent
-        # sessions inadvertently keep a foreign session's stale state alive.
-        # Preserves #636: the owning session keeps its own mtime fresh.
-        # Fixes #941: a parallel pipeline run does not refresh another
-        # session's sentinel.
-        pipeline_state_file = os.getenv(
-            "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
-        )
-        try:
-            current_sid = os.environ.get("CLAUDE_SESSION_ID", "")
-            should_touch = True  # default: preserve #636 if we cannot read state
-            state_path = Path(pipeline_state_file)
-            # Issue #1779 (AC3): REFRESH an existing sentinel; never CREATE one.
-            #
-            # This branch exists to keep the OWNING session's mtime fresh
-            # (Issue #636). When the sentinel was ABSENT, `.touch()` did not
-            # refresh anything — it MANUFACTURED a 0-byte file. MEASURED
-            # 2026-09-12 in a fake repo with no sentinel and
-            # CLAUDE_AGENT_NAME=implementer:
-            #
-            #   exists before: False
-            #   _is_pipeline_active() = True
-            #   exists after : True   size: 0
-            #   sentinel_integrity() = SentinelIntegrity.CORRUPT
-            #
-            # So a genuinely ABSENT pipeline reported "exists but cannot be
-            # read", and the INV-7 gate refused on state this hook had just
-            # fabricated. The created file also carried no session_id,
-            # alignment_passed or pipeline_base_commit, so it served no reader:
-            # every consumer json.load()s it and treats the failure as absent.
-            # Not creating it is strictly more informative, and it keeps a test
-            # process from planting a file in the repository's .claude/local/.
-            if not state_path.exists():
-                should_touch = False
-            else:
-                try:
-                    import json as _json_touch
-                    with open(state_path) as _fh_touch:
-                        _state_for_touch = _json_touch.load(_fh_touch)
-                    state_sid = _state_for_touch.get("session_id", "") if isinstance(_state_for_touch, dict) else ""
-                    if state_sid and current_sid and state_sid != current_sid:
-                        should_touch = False  # foreign-owned: do not refresh
-                except (OSError, ValueError, json.JSONDecodeError):
-                    pass  # Unreadable/corrupt: fall back to touch (preserves #636)
-            if should_touch:
-                Path(pipeline_state_file).touch()
-        except OSError:
-            pass
-        return True
+        # Issue #636/#941: keep the OWNING session's sentinel mtime fresh during a
+        # long run. Issue #1807 (defect 2): this is a liveness REFRESH ONLY — it
+        # does NOT return True, so a bare/namespaced pipeline-agent name can never
+        # confer active/current-run authority on its own. Execution falls through
+        # to the signed-state check below.
+        _refresh_owning_sentinel_mtime()
 
     # Check pipeline state file
     pipeline_state_file = os.getenv("PIPELINE_STATE_FILE", str(get_legacy_sentinel_path()))
@@ -2720,29 +2786,20 @@ def _is_pipeline_active() -> bool:
             if _is_stale_session(state, state_path):
                 return False
 
-            # HMAC integrity check (Issue #557)
-            if state.get("hmac") is not None:
-                try:
-                    from pipeline_state import verify_state_hmac
-                    # #1171: sanitize untrusted env-var before HMAC verify.
-                    sid = _resolve_session_id_safe(_session_id) or "unknown"
-                    if not verify_state_hmac(state, sid):
-                        _log_deviation("pipeline_state", "hmac_check", "pipeline_state_hmac_invalid")
-                        return False  # Fail closed: tampered state = not active
-                except ImportError:
-                    return False  # Fail closed: HMAC present but verify library unavailable
-
-            # Issue #1384: a bare recovery heartbeat is NOT a live pipeline.
-            # pipeline_completion_state.py writes {"session_id","recovered","recovered_at"}
-            # on restart -- no run_id/mode/explicitly_invoked and no hmac (skips the
-            # integrity branch above) so it would otherwise sail through the mtime-TTL
-            # return True for 30 min. A genuine STEP-0 sentinel always carries at least one
-            # of run_id/mode/explicitly_invoked, so the any(...) guard keeps real active
-            # pipelines classified active (unchanged).
-            if state.get("recovered") and not any(
-                state.get(k) for k in ("run_id", "mode", "explicitly_invoked")
-            ):
-                return False
+            # Current-run authority (Issues #557, #1384, #1807).
+            #
+            # Replaces the pre-#1807 pair of checks — "HMAC verifies if present"
+            # plus the #1384 bare-recovery-record special case — with the one
+            # classifier both guarded routes share. It is strictly stronger and
+            # subsumes both: an invalid MAC is MAC_INVALID, and a bare
+            # {session_id, recovered, recovered_at} record is NO_RUN_IDENTITY.
+            # It additionally refuses an UNSIGNED state and a state with no
+            # run-start receipt, which is what grants protected-path write
+            # authority at the call site below (agents/ commands/ hooks/ lib/
+            # skills/) — see classify_current_run_authority for why a valid MAC
+            # alone cannot be that boundary.
+            if not _state_authorizes_current_run(state, "pipeline_active"):
+                return False  # Fail closed
 
             # Use file mtime for staleness (Issue #636).
             # Pipeline agents touch this file on each hook call (see above),
@@ -2757,6 +2814,147 @@ def _is_pipeline_active() -> bool:
     except Exception:
         pass
 
+    return False
+
+
+def _run_transition_detected() -> bool:
+    """Whether a run-bearing pipeline transition is in progress, REGARDLESS of
+    whether THIS caller is authority-qualified.
+
+    Issue #1807 fail-open guard. :func:`_is_pipeline_active` was tightened to
+    return False on an absent / unqualified native identity (defect 1/2). That is
+    correct for "may this caller act as the current run", but it silently DISABLES
+    every downstream gate written as ``if _is_pipeline_active(): <deny protected
+    action>`` — an unqualified native id during a genuine run would SKIP the deny
+    and permit. This predicate answers the SEPARATE question the deny sites need:
+    "is a run in progress at all?", so an unqualified caller during a detected run
+    can be routed to DENY (fail closed) instead of to the permissive path.
+
+    Distinctions, all load-bearing:
+
+    * an ABSENT sentinel is ORDINARY NO-RUN and returns False, so normal
+      non-pipeline tool use stays ungated (the #1807 defect-3 control),
+    * a STALE sentinel (mtime past the TTL) is an abandoned run, not a live
+      transition, and returns False,
+    * a sentinel that EXISTS and is fresh but is CORRUPT or carries no run
+      identity returns True — a verification failure during a live transition is
+      "not passed", and the deny sites must fail CLOSED on it (INV-7).
+
+    NEVER raises. FAIL-CLOSED discipline: the ONLY False answers are GENUINE
+    ABSENCE and a determinate STALE (abandoned) sentinel. Any sentinel that is
+    PRESENT and FRESH is a live transition — regardless of its content (empty
+    ``{}``, corrupt bytes, an identity-less breadcrumb, or a run-bearing dict) —
+    so the downstream authority check runs and denies an unqualified caller. The
+    run-identity DISTINCTION belongs to the authority/qualification check
+    (``classify_current_run_authority`` via ``_is_pipeline_active``), NOT here:
+    gating "is a transition happening?" on run identity would let a present but
+    identity-less sentinel SKIP the chokepoint (a fail-open).
+    """
+    pipeline_state_file = os.getenv(
+        "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
+    )
+    # (1) GENUINE ABSENCE first — the only clean "ordinary no-run" answer.
+    # SYMLINK-AWARE: os.path.lexists() is True for a DANGLING symlink, so a
+    # present-but-broken-symlink sentinel reads as PRESENT (fail closed), not as
+    # no-run. If presence itself cannot be determined, fail CLOSED.
+    try:
+        present = os.path.lexists(pipeline_state_file)
+    except Exception:
+        return True  # cannot determine presence → cannot prove no-run → fail closed
+    if not present:
+        return False  # ordinary no-run (the #1807 defect-3 control)
+
+    # (2) A sentinel path is PRESENT. The only remaining False is a determinate
+    # STALE (abandoned) sentinel; everything else fails CLOSED to True. Use lstat
+    # so a symlink's own mtime is read even when its target is gone (dangling).
+    try:
+        import time as _t_rt
+        age = _t_rt.time() - os.lstat(pipeline_state_file).st_mtime
+        if age >= _PIPELINE_STATE_TTL_SECONDS:
+            return False  # determinate: abandoned/stale run, not a live transition
+    except Exception:
+        return True  # present but un-lstat-able → fail closed
+    return True  # present + fresh → live transition (content-independent, fail closed)
+
+
+def _has_write_shape(tool_input: dict) -> bool:
+    """Whether *tool_input* carries an EDITOR-WRITE-SHAPED payload.
+
+    Independent of ``_ti_is_write``: that classifier SWALLOWS its own errors and
+    returns False (Issue #1807 review), so a malformed or unregistered MCP editor
+    payload it cannot classify would read as a non-write and FAIL OPEN. This shape
+    check is the backstop — a payload carrying editor content/edit keys is a write
+    regardless of whether the name-based classifier recognized the tool.
+    """
+    if not isinstance(tool_input, dict):
+        return False
+    # Canonical native editor keys + common MCP editor keys (serena and kin).
+    for key in (
+        "content", "new_string", "old_string", "new_str", "old_str",
+        "body", "new_source", "replacement", "edits", "patch",
+    ):
+        if tool_input.get(key) is not None:
+            return True
+    return False
+
+
+def _is_guarded_mutation(tool_name: str, tool_input: dict) -> bool:
+    """Whether this tool call is a GUARDED MUTATION for the #1807 fail-open chokepoint.
+
+    Covers the mutation ROUTES whose per-gate denies are gated behind
+    ``if _is_pipeline_active():`` and would therefore be SKIPPED (permitted) when
+    that function returns False for an unqualified native id during a live run:
+
+    * every write-classified editor transport — Write / Edit / MultiEdit /
+      NotebookEdit and MCP editors — via ``_ti_is_write`` (Issue #1503), WITH an
+      independent :func:`_has_write_shape` backstop because ``_ti_is_write``
+      swallows classifier errors and returns False (so a malformed/unregistered
+      MCP editor payload it misses is still caught here), and
+    * the guarded Bash routes: ``git commit`` (the agent-completeness gate),
+      settings.json / settings.local.json writes (``_detect_settings_json_write``),
+      and any Bash file-write target (``_extract_bash_file_writes`` — redirects,
+      ``tee``, ``sed -i``, python one-liners).
+
+    BOUND, stated honestly: the Bash branch is a BOUNDED STRING HEURISTIC, not an
+    OS-equivalent effect analysis. It catches the shapes this repo's gates already
+    recognize; a sufficiently obfuscated shell mutation can evade it. Real,
+    complete mutation containment is the OS boundary (A9/F0), OUT OF SCOPE for this
+    read-side slice — this heuristic is a mitigation, not a proof.
+
+    Read-only tools (Read, Grep, a bare ``ls``) return False, so the chokepoint
+    never gates non-mutating work. Classification ERRORS during a guarded
+    transition FAIL CLOSED (return True). NEVER raises.
+    """
+    # Bash: is_write() deliberately classifies Bash as EXEC (== False), so the
+    # guarded Bash effects are detected on the shell-effect path instead. A
+    # classification error here fails CLOSED. (BOUNDED heuristic — see docstring.)
+    if tool_name == "Bash":
+        command = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
+        command = command or ""
+        try:
+            if re.search(r"\bgit\s+(?:-c\s+\S+\s+)*commit\b", command):
+                return True  # agent-completeness gate route (~:9755)
+            if _detect_settings_json_write(command) is not None:
+                return True  # settings.json / settings.local.json via shell (~:9643)
+            if _extract_bash_file_writes(command):
+                return True  # any shell file-write: redirect, tee, sed -i, python -c
+            return False  # classified read-only Bash (ls/cat/grep) — not a mutation
+        except Exception:
+            return True  # unclassifiable Bash during a guarded transition → fail closed
+
+    # File-editor and MCP-editor transports. Two INDEPENDENT signals, because
+    # _ti_is_write returns False on any classifier error (it cannot re-raise into
+    # our except): (1) the name-based classifier, and (2) the payload-shape
+    # backstop. Either being a write — or the classifier raising — fails closed.
+    try:
+        if _ti_is_write(tool_name, tool_input):
+            return True
+    except Exception:
+        return True  # classifier raised → fail closed
+    # Backstop: a write-shaped payload the name-based classifier did not recognize
+    # (malformed / unregistered MCP editor) is still a mutation.
+    if _has_write_shape(tool_input):
+        return True
     return False
 
 
@@ -2856,12 +3054,163 @@ def _allowed_alignment_verdicts() -> frozenset:
         return frozenset({"auto_pass", "user_approved"})
 
 
+def _native_stdin_identity() -> str:
+    """The session id observed on THIS hook process's OWN native stdin.
+
+    ``main()`` sets the module global ``_session_id`` from
+    ``input_data['session_id']`` — the Claude Code PreToolUse JSON payload the CLI
+    delivers to this process on stdin. Binding the current-run AUTHORITY decision
+    to it (Issue #1807 defect 1) is a REDUCTION in spoofability, not proof of
+    provenance:
+
+    * it is INDEPENDENT of the sentinel being judged, so the artifact under
+      examination can no longer nominate its own examiner (closes D1a), and it
+      removes the ``CLAUDE_SESSION_ID`` env-comparison a stale/foreign owner could
+      exploit (closes D1b / the D2 mtime-touch).
+
+    EVIDENCE LIMIT — do NOT read this as unspoofable or authenticated. Per
+    Anthropic's env docs, ``CLAUDE_CODE_SESSION_ID`` is available to Bash, hooks
+    and MCP subprocesses and MATCHES this stdin ``session_id``, so the id is
+    MODEL-KNOWABLE, and the hook can be driven with hand-crafted stdin bearing it.
+    A forged stdin carrying the known id would still pass this check. Native
+    PROVENANCE (a channel the model cannot forge) is acceptance case A9, evidence
+    class ``native-boundary`` — OPEN and UNMEASURED. This function makes the owner
+    comparison honest; it does not make the identity authentic.
+
+    Returns the sanitized native id, or ``""`` when it is absent, blank or
+    SYNTHETIC (``unknown`` / ``stop-N`` / ``test-*``) — each of which
+    ``classify_current_run_authority`` treats as a refusal. Deliberately does NOT
+    consult ``CLAUDE_SESSION_ID`` (an env var must never substitute for the
+    stdin-observed identity) nor the sentinel's own ``session_id``.
+    """
+    sid = _sanitize_session_id(_session_id or "")
+    try:
+        from pipeline_completion_state import is_synthetic_session_id
+    except Exception:
+        # FAIL CLOSED: without the canonical synthetic predicate we cannot certify
+        # this id is a real owner, and "cannot tell" is "not passed" (INV-7).
+        # Returning the sanitized best-guess here would ADMIT a synthetic id
+        # (e.g. ``stop-7``) whenever the predicate is unavailable — the inverse of
+        # fail-closed — so refuse instead. Log it (mirroring run_credit_refusal's
+        # ImportError logging) so an operator can tell "no identity supplied" from
+        # "deployment broken/stale" — this is a broken/stale deploy, not a
+        # legitimately absent identity.
+        try:
+            _log_deviation(
+                "pipeline_completion_state", "native_identity",
+                "is_synthetic_session_id_import_failed_failclosed")
+        except Exception:
+            pass
+        return ""
+    try:
+        if is_synthetic_session_id(sid):
+            return ""
+    except Exception:
+        # The predicate itself raised: same reasoning — cannot certify, refuse.
+        # Log so a raising predicate (broken deploy) is distinguishable from a
+        # legitimately absent/synthetic identity.
+        try:
+            _log_deviation(
+                "pipeline_completion_state", "native_identity",
+                "is_synthetic_session_id_raised_failclosed")
+        except Exception:
+            pass
+        return ""
+    return sid
+
+
+def _authority_caller_identity(state: dict) -> "tuple[str, str]":
+    """Resolve this hook's own caller identity for the authority check.
+
+    Issue #1807 (defect 1): the identity is the session id observed on this
+    hook's OWN native stdin (:func:`_native_stdin_identity`), and NOTHING else.
+    It is deliberately NOT resolved from ``CLAUDE_SESSION_ID`` — a model-settable
+    env var must never substitute for the stdin identity — nor from
+    ``resolve_session_id``'s chain, whose fallbacks read the sentinel's own
+    ``session_id`` and the activity log. A sentinel must never be treated as
+    proof of its own owner.
+
+    ``classify_current_run_authority`` REFUSES an indeterminate identity, so an
+    absent / blank / synthetic native id (returned here as ``""``) fails closed.
+
+    Args:
+        state: The parsed sentinel. UNUSED for identity now — an authority
+            identity must never be derived from the artifact under examination.
+            Kept in the signature for call-site stability.
+
+    Returns:
+        ``(identity, carrier)``. ``identity`` is ``""`` when native stdin
+        produced no determinate, non-synthetic value.
+    """
+    identity = _native_stdin_identity()
+    if identity:
+        return identity, "hook_stdin_native"
+    return "", "none"
+
+
+def _state_authorizes_current_run(state: dict, route: str) -> bool:
+    """Whether *state* may authorize the current run, logging why when it may not.
+
+    THE single refusal implementation for both guarded consumer routes (Issue
+    #1807) — the write-authority gate (``_is_pipeline_active``) and the alignment
+    gates (``_load_pipeline_state_verified``). Two copies of this decision with
+    different log literals is how they would drift apart, so there is one.
+
+    It also SUBSUMES, and replaces, two pre-#1807 checks that used to be written
+    out at each site: "verify the HMAC if one is present" (#557) and "a bare
+    recovery breadcrumb is not a live pipeline" (#1384). Both are now outcomes of
+    the classifier (``MAC_INVALID``, ``NO_RUN_IDENTITY``), not separate branches.
+
+    Args:
+        state: Parsed sentinel contents.
+        route: Short route name for the deviation log, e.g. ``"pipeline_active"``.
+
+    Returns:
+        True only when the state is AUTHORIZED. A missing classifier library is a
+        refusal, exactly as a missing verify library was before.
+    """
+    try:
+        from pipeline_state import classify_current_run_authority
+    except ImportError:
+        _log_deviation("pipeline_state", "run_authority", f"{route}_classifier_unavailable")
+        return False  # Fail closed
+
+    # Issue #1807 (defect 1): the caller identity comes from native stdin ONLY.
+    # The pre-F3 code additionally accepted an identity read from the sentinel's
+    # OWN session_id (carrier ``sentinel_self_referential``) so the owner
+    # comparison was circular, and from ``CLAUDE_SESSION_ID`` so a spoofable env
+    # var could stand in. Both are removed: an absent native identity is now a
+    # REFUSAL, not a fallback to the artifact under examination. The former A6
+    # conflict is resolved by binding A6's positive control to a native stdin
+    # identity, which is what a genuine run actually carries.
+    identity, _carrier = _authority_caller_identity(state)
+
+    verdict = classify_current_run_authority(state, identity)
+    if not verdict.authorized:
+        _log_deviation(
+            "pipeline_state", "run_authority", f"{route}_{verdict.authority.value}"
+        )
+        return False
+    if verdict.legacy_mac:
+        # In-flight compatibility, reported not hidden: a run signed by the
+        # pre-#1807 message has an owner corroborated ONLY by the receipt.
+        _log_deviation("pipeline_state", "run_authority", "legacy_v1_mac_accepted")
+    return True
+
+
 def _load_pipeline_state_verified() -> Optional[dict]:
-    """Load the pipeline state, returning it only when fresh and HMAC-valid.
+    """Load the pipeline state, returning it only when it authorizes this run.
 
     Shared loader for the alignment gates (Issues #585, #592, #1171, #1467).
     On any error (file missing, JSON invalid, stale session, HMAC failure) this
     returns None so callers can fail closed.
+
+    Issue #1807: a valid MAC is no longer sufficient. ``sign_state`` CREATES the
+    per-run secret it signs with, so the principal this gate constrains can mint
+    a correctly-bound signature in two public calls; the state must additionally
+    be qualified by the run-start receipt recorded BEFORE any agent ran. An
+    UNSIGNED state is recognized as legacy and refused here rather than sailing
+    past the integrity branch, which is the route ``--fix`` mode used to take.
 
     Returns:
         The verified pipeline state dict, or None when it cannot be trusted.
@@ -2882,19 +3231,10 @@ def _load_pipeline_state_verified() -> Optional[dict]:
         if _is_stale_session(state, state_path):
             return None
 
-        # HMAC integrity check — fail closed on any verification failure
-        if state.get("hmac") is not None:
-            try:
-                from pipeline_state import verify_state_hmac
-                # #1171: sanitize untrusted env-var before HMAC verify.
-                sid = _resolve_session_id_safe(_session_id) or "unknown"
-                if not verify_state_hmac(state, sid):
-                    _log_deviation(
-                        "pipeline_state", "hmac_check", "alignment_gate_hmac_invalid"
-                    )
-                    return None
-            except ImportError:
-                return None  # Fail closed: HMAC present but verify library unavailable
+        # Current-run authority (Issue #1807). Subsumes the pre-#1807 HMAC
+        # branch: MAC_INVALID is one of the refusals this returns.
+        if not _state_authorizes_current_run(state, "alignment_gate"):
+            return None
 
         return state
     except (Exception,):
@@ -8770,6 +9110,99 @@ def main():
             # No tool name - ask user
             output_decision("ask", "No tool name provided")
             sys.exit(0)
+
+        # =================================================================
+        # RUN-BEARING-BUT-UNQUALIFIED FAIL-CLOSED CHOKEPOINT (Issue #1807).
+        #
+        # Defect 1/2 tightened _is_pipeline_active() to return False on an
+        # absent/unqualified native identity. That is correct for "may this caller
+        # act as the current run", but every downstream gate shaped
+        # ``if _is_pipeline_active(): <deny protected mutation>`` (agent-auth
+        # #1467/#585/#528, settings.json ~:9156/:9643, prompt-quality ~:9204,
+        # git-commit completeness ~:9755) would then SKIP its deny and PERMIT. So a
+        # run-bearing transition presented WITHOUT the native identity would sail
+        # past every one of them. This ONE chokepoint closes the whole class: when
+        # a run is detected (_run_transition_detected) but this caller is NOT
+        # authority-qualified (_is_pipeline_active() False), every guarded mutation
+        # — editor/MCP writes AND Bash git-commit/settings/file-writes — FAILS
+        # CLOSED here, before those skip-prone branches run.
+        #
+        # Scope guards: ORDINARY NO-RUN (no sentinel) is NOT a transition, so
+        # normal non-pipeline work is unaffected; a genuine qualified run has
+        # _is_pipeline_active() True and never reaches this branch (its own gates
+        # apply). Placed AFTER the universal bypass so an operator can still unstick
+        # a deadlock, and it does NOT replace the protected-infra OS/hard-floor
+        # arms (those remain and are stricter — they survive bypass).
+        # =================================================================
+        try:
+            if _run_transition_detected() and not _is_pipeline_active():
+                if _is_guarded_mutation(tool_name, tool_input):
+                    _rt_reason = (
+                        "RUN-BEARING TRANSITION (Issue #1807): a pipeline run is in "
+                        "progress but this caller is NOT authority-qualified for it "
+                        "(native stdin session id + signed current-run state + "
+                        "run-start receipt). Protected mutations are DENIED (fail "
+                        "closed) — role, a spoofable env var, or the sentinel's own "
+                        "session_id are not run authority.\nREQUIRED NEXT ACTION: run "
+                        "changes through the /implement pipeline agents; do not drive "
+                        "the hook without the native session identity, and do not "
+                        "hand-write or rebuild the run's identity fields."
+                    )
+                    try:
+                        # Issue #1822 (F4 c2): NEVER log raw Bash command text —
+                        # a command embedding a literal credential would leak it
+                        # into .claude/logs/deviations.jsonl on denial. Match the
+                        # sibling #528 path exactly: the constant "bash_command"
+                        # for Bash; the file_path (a path, not secret content) for
+                        # editor/MCP transports.
+                        _log_subject = (
+                            (tool_input.get("file_path", "bash_command")
+                             if isinstance(tool_input, dict) else "bash_command")
+                            if tool_name != "Bash" else "bash_command"
+                        )
+                        _log_deviation(
+                            _log_subject, tool_name,
+                            "run_transition_unqualified_native")
+                    except Exception:
+                        pass
+                    output_decision("deny", _rt_reason)
+                    sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception:
+            # The chokepoint must never crash the hook — but a bare fall-through
+            # here would defeat its purpose: a detector/classifier error would let
+            # a protected mutation reach the skip-prone gates and PERMIT (Issue
+            # #1807 review). So fail CLOSED whenever a run is plausibly in
+            # progress: if a sentinel FILE is present (or its presence cannot be
+            # determined), DENY; only a confidently ABSENT sentinel (ordinary
+            # no-run) falls through to normal processing.
+            _rt_present = True  # cannot-tell defaults to fail closed
+            try:
+                _rt_psf = os.getenv(
+                    "PIPELINE_STATE_FILE", str(get_legacy_sentinel_path())
+                )
+                # Symlink-aware (os.path.lexists): a DANGLING symlink is PRESENT,
+                # so it cannot read as no-run and fall through (fail closed).
+                _rt_present = os.path.lexists(_rt_psf)
+            except Exception:
+                _rt_present = True
+            if _rt_present:
+                try:
+                    _log_deviation("pipeline_state", tool_name,
+                                   "run_transition_chokepoint_error_failclosed")
+                except Exception:
+                    pass
+                output_decision(
+                    "deny",
+                    "RUN-BEARING TRANSITION (Issue #1807): the authority chokepoint "
+                    "could not evaluate this call and a pipeline sentinel is present, "
+                    "so the protected mutation is DENIED (fail closed). REQUIRED NEXT "
+                    "ACTION: retry through the /implement pipeline agents with the "
+                    "native session identity present.",
+                )
+                sys.exit(0)
+            # else: no sentinel at all → ordinary no-run → fall through.
 
         # =================================================================
         # DRAIN-PENDING COMMIT GATE (drain-queue durability plan, round-2).

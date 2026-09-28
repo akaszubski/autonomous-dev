@@ -101,16 +101,30 @@ class TestVerifyStateHmac:
         state["session_start"] = "2099-01-01T00:00:00"
         assert verify_state_hmac(state, SESSION_ID) is False
 
-    def test_different_session_id_still_verifies_with_secret_file(self):
-        """Session ID is no longer the HMAC key; the secret file is.
+    def test_different_session_id_does_not_verify(self):
+        """A foreign caller cannot present another run's signed state.
 
-        With the secret-file approach, different session_ids verify successfully
-        because the HMAC key comes from the per-run secret file, not session_id.
+        Issue #1807 DELIBERATE AMENDMENT. This node previously asserted the exact
+        defect #1807 reports: it was named
+        ``test_different_session_id_still_verifies_with_secret_file`` and
+        asserted ``is True`` on the grounds that "session ID is no longer the
+        HMAC key; the secret file is". That reasoning is sound about the KEY and
+        wrong about AUTHORIZATION — it made the owner a field nobody checked, so
+        any session could present any run's state as its own. The secret file
+        still supplies the key; the owner is now additionally bound INTO the
+        signed message and compared against the presented caller.
+
+        Kept (not deleted) because the spec change is the point: a later reader
+        must be able to see that the old expectation was retired on purpose, and
+        the freeze receipt for this behaviour is
+        ``tests/security/test_issue_1807_authority_boundary.py::test_a1_caller_binding_a_foreign_session_must_not_verify``.
         """
         state = _make_state()
         sign_state(state, SESSION_ID)
-        # Secret file exists for run_id, so verification succeeds regardless of session_id
-        assert verify_state_hmac(state, "different-session") is True
+        assert verify_state_hmac(state, "different-session") is False
+        # Control: the SAME state still verifies for its own owner, so the
+        # refusal above is caller binding and not a broken signature.
+        assert verify_state_hmac(state, SESSION_ID) is True
 
     def test_missing_secret_file_with_wrong_session_rejects(self):
         """Without the secret file, fallback to session_id — wrong session fails."""
@@ -238,11 +252,26 @@ class TestSecretFileManagement:
         cleanup_pipeline_secret("nonexistent-run-id-xyz")
 
     def test_same_run_id_reuses_secret(self):
-        """Multiple sign_state calls with same run_id use the same secret."""
+        """Multiple sign_state calls with same run_id use the same secret.
+
+        Issue #1807 AMENDMENT: the SUBJECT is secret REUSE, and the way to
+        observe it changed. Two states with the same run_id, the same nonce AND
+        the same owner still produce the same MAC — same secret, same message.
+        Signing under two DIFFERENT owners now produces different MACs, because
+        the owner is inside the message; asserting equality there (the pre-#1807
+        expectation) would assert that the MAC ignores the owner.
+        """
         state1 = _make_state(run_id="test-reuse-secret", nonce="nonce1")
         state2 = _make_state(run_id="test-reuse-secret", nonce="nonce1")
         sign_state(state1, "session-a")
-        sign_state(state2, "session-b")
-        # Same run_id => same secret => same HMAC (nonce is the same)
+        sign_state(state2, "session-a")
+        # Same run_id + same owner => same secret => same HMAC (nonce is shared)
         assert state1["hmac"] == state2["hmac"]
+
+        other_owner = _make_state(run_id="test-reuse-secret", nonce="nonce1")
+        sign_state(other_owner, "session-b")
+        assert other_owner["hmac"] != state1["hmac"], (
+            "the owner is signed data: two owners must not share a MAC even with "
+            "the same secret, run_id and nonce (Issue #1807)"
+        )
         cleanup_pipeline_secret("test-reuse-secret")

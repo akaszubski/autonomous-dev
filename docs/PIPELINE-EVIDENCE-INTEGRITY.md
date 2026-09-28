@@ -74,6 +74,29 @@ carve-out would be the hole it exists to prevent. Exemptions elsewhere are keyed
 on LIVE identity (`.heartbeat_<session id>`, `validators/<live $RUN_ID>/`), and an
 absent or unusable identity yields NO exemption rather than a wildcard.
 
+### In-process closure for opted-in tests (Issue #1807)
+
+The residual above is a REACTIVE detector — the leak guard reports a leak after
+it happens. `tests/helpers/state_isolation.py` gained a PROACTIVE closure for
+tests that call the library in-process: `redirect_pipeline_state(monkeypatch,
+tmp_path, *modules)` monkeypatches `get_legacy_sentinel_path` AND
+`pipeline_completion_state._state_file_path` on every module passed to it,
+asserts each redirect actually took (an `AssertionError`, not a silent
+pass-through, if a module's `get_legacy_sentinel_path` still resolves to the
+live path), and exposes the active redirect via
+`active_pipeline_state_redirect()` so a fixture that creates run artifacts (a
+signed sentinel, a run-start receipt) can refuse to write when no redirect is
+in force rather than inventing its own isolation check. It closes three
+production paths, not two: `$PIPELINE_STATE_FILE`, `get_legacy_sentinel_path()`,
+and — new in this change — the `/tmp/pipeline_agent_completions_*` ledger. That
+ledger redirect was DECLARED in this module's docstring from early on but never
+implemented: every in-process test that recorded a completion or a run start
+under a fixed session id was writing into machine-global `/tmp`, shared by every
+parallel worker, while believing it was isolated. This is a correction to the
+isolation helper itself, not a new production behavior — it does not retrofit
+tests that do not call it, and the reactive leak guard above remains the
+backstop for those.
+
 ### The measured writer was a second route, not that residual
 
 The route above is real but was NOT the one that fired. MEASURED 2026-09-12, by

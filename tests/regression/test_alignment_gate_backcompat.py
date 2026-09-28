@@ -25,6 +25,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN_ROOT = _REPO_ROOT / "plugins" / "autonomous-dev"
 _LIB_DIR = _PLUGIN_ROOT / "lib"
@@ -63,22 +69,66 @@ class TestLegacyStateCompatibility:
         assert "alignment_verdict" not in state
         cleanup_pipeline_secret("legacy-1467")
 
-    def test_legacy_state_passes_hook_gate(self, tmp_path, monkeypatch):
-        import unified_pre_tool as hook
-        from pipeline_state import cleanup_pipeline_secret, sign_state
+    def test_legacy_state_without_verdict_passes_hook_gate(self, tmp_path, monkeypatch):
+        """A pre-#1467 state (no ``alignment_verdict``) still passes the gate.
 
-        state = {
+        Issue #1807 AMENDMENT — the SUBJECT of this arm is #1467 verdict
+        back-compat, and that is unchanged: the boolean is still the whole
+        contract when the verdict field is absent. What changed is the SETUP.
+        The pre-#1807 version signed a state with NO ``session_id`` and no
+        run-start receipt, and asserted the gate honoured it; that shape is the
+        #1807 forgery (an owner nobody can verify, a MAC the caller minted), so
+        asserting it "passes" would now be asserting the defect. The state is
+        built as a sanctioned run instead, which keeps this arm measuring verdict
+        back-compat rather than authority.
+        """
+        import unified_pre_tool as hook
+
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+        import unified_pre_tool as _hook
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, _hook)
+        owner = "sess-legacy-gate-1467"
+        path = tmp_path / "state.json"
+        state = write_sanctioned_sentinel(
+            path, owner, "legacy-gate-1467", alignment_passed=True
+        )
+        assert "alignment_verdict" not in state, (
+            "this arm is about the pre-#1467 shape; a verdict field would make "
+            "it test the #1467 path instead"
+        )
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", owner)
+        # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+        monkeypatch.setattr(hook, "_session_id", owner, raising=False)
+        try:
+            assert hook._has_alignment_passed() is True
+        finally:
+            clear_run_artifacts(owner)
+
+    def test_unsigned_legacy_state_does_not_pass_hook_gate(self, tmp_path, monkeypatch):
+        """REFUSE arm (Issue #1807): an UNSIGNED legacy state is recognized, not authorized.
+
+        The counterfactual for the amendment above, and the reason it is not a
+        silent coverage loss. A state carrying every field the gate reads but no
+        MAC skipped the integrity branch entirely before #1807 — the route
+        ``--fix`` mode actually used.
+        """
+        import unified_pre_tool as hook
+
+        path = tmp_path / "unsigned.json"
+        path.write_text(json.dumps({
             "session_start": __import__("datetime").datetime.now().isoformat(),
             "mode": "full",
             "run_id": "legacy-gate-1467",
             "explicitly_invoked": True,
             "alignment_passed": True,
-        }
-        path = tmp_path / "state.json"
-        path.write_text(json.dumps(sign_state(state, "legacy-session")))
+            "session_id": "sess-legacy-unsigned",
+        }))
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
-        assert hook._has_alignment_passed() is True
-        cleanup_pipeline_secret("legacy-gate-1467")
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "sess-legacy-unsigned")
+        assert hook._has_alignment_passed() is False
 
 
 # ---------------------------------------------------------------------------

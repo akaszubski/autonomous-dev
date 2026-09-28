@@ -7,7 +7,10 @@ Acceptance criteria:
   AC1. implement.md heredoc sites use ${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}
   AC2. implement-batch.md and implement-fix.md equivalents migrated
   AC3. rm -f cleanup commands use the env-var form
-  AC4. _gc_stale_states() removes state files >2× TTL (default 7200s) and orphaned lockfiles
+  AC4. _gc_stale_states() removes state files >2× TTL (default 7200s)
+       (AC4's original "and orphaned lockfiles" clause was WITHDRAWN by Issue
+       #1806: unlinking a lock pathname splits run authority across two inodes,
+       so lockfiles are retained regardless of age)
   AC5. Security guards in unified_pre_tool.py NOT migrated (preserves literal path)
   AC6. pipeline_state.py HMAC fail-open mtime check still uses LEGACY_SENTINEL_PATH unchanged
   AC7. New tests at tests/unit/lib/test_pipeline_state_gc.py and
@@ -173,10 +176,13 @@ def test_spec_1048_4a_gc_default_max_age_is_7200() -> None:
     assert default == 7200, f"expected default 7200s, got {default}"
 
 
-def test_spec_1048_4b_gc_removes_old_state_files_and_lockfiles(
+def test_spec_1048_4b_gc_removes_old_state_files_and_retains_lockfiles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """AC4: GC must remove state files and orphaned lockfiles older than the cutoff."""
+    """AC4: GC removes state files/sentinels past the cutoff but RETAINS lockfiles.
+
+    The lockfile half of AC4 was withdrawn by Issue #1806 — see module docstring.
+    """
     pcs = _import_pcs()
 
     # Make age comparison deterministic regardless of clock skew.
@@ -214,7 +220,8 @@ def test_spec_1048_4b_gc_removes_old_state_files_and_lockfiles(
     # Old files removed.
     assert not old_state.exists(), "old state file should have been removed"
     assert not old_sentinel.exists(), "old sentinel should have been removed"
-    assert not old_lock.exists(), "old lockfile should have been removed"
+    # Lockfiles retained at every age (#1806).
+    assert old_lock.exists(), "old lockfile must be RETAINED (#1806)"
     # Fresh files preserved.
     assert fresh_state.exists(), "fresh state file should NOT have been removed"
     assert fresh_sentinel.exists(), "fresh sentinel should NOT have been removed"
@@ -223,7 +230,7 @@ def test_spec_1048_4b_gc_removes_old_state_files_and_lockfiles(
     # Returned counts match.
     assert result["state_files_removed"] >= 1
     assert result["sentinels_removed"] >= 1
-    assert result["lockfiles_removed"] >= 1
+    assert result["lockfiles_removed"] == 0
     assert result["errors"] == [] or isinstance(result["errors"], list)
 
 

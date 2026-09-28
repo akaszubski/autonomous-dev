@@ -30,6 +30,29 @@ LIB_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "
 sys.path.insert(0, str(LIB_DIR))
 
 import unified_pre_tool as hook
+import pipeline_state as _ps_infra  # noqa: E402
+
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_legacy_sentinel_infra(tmp_path, monkeypatch):
+    """Issue #1807: point get_legacy_sentinel_path at a NONEXISTENT tmp path.
+
+    Tests here that do NOT set PIPELINE_STATE_FILE fall back to
+    get_legacy_sentinel_path(), which in a developer worktree resolves to a LIVE
+    .claude/local sentinel. Without this redirect the run-bearing-transition
+    chokepoint / _is_pipeline_active() would read that live sentinel and gate on
+    the dev worktree's own run state. Tests that set PIPELINE_STATE_FILE
+    explicitly (the genuine-run permits) override this and are unaffected.
+    """
+    missing = tmp_path / "no_legacy_sentinel_infra_1807.json"
+    monkeypatch.setattr(_ps_infra, "get_legacy_sentinel_path", lambda *a, **k: missing)
+    monkeypatch.setattr(hook, "get_legacy_sentinel_path", lambda *a, **k: missing, raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -122,19 +145,48 @@ class TestIsProtectedInfrastructure:
 # ---------------------------------------------------------------------------
 
 class TestIsPipelineActive:
-    """Tests for _is_pipeline_active helper."""
+    """Tests for _is_pipeline_active helper.
 
-    def test_implementer_agent(self, monkeypatch):
+    Issue #1807 AMENDMENT (defect 2): a pipeline-agent NAME alone no longer
+    confers active/current-run authority. ``_is_pipeline_active()`` now requires a
+    signed current-run sentinel whose owner matches the NATIVE stdin identity; the
+    agent-name branch only refreshes the owning session's mtime. The three
+    role-only tests below therefore assert NOT active, and the run+role positive
+    proves the instrument still reports True for a genuine run.
+    """
+
+    @pytest.mark.parametrize("agent", ["implementer", "test-master", "doc-master"])
+    def test_role_alone_without_signed_state_is_not_active(self, monkeypatch, agent):
+        """Issue #1807 (defect 2): role alone + NO signed state => NOT active.
+
+        Was ``is True`` pre-#1807 (per-role), which was the defect — a bare
+        CLAUDE_AGENT_NAME conferred current-run authority with no signed run
+        behind it.
+        """
+        monkeypatch.setenv("CLAUDE_AGENT_NAME", agent)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state_1807.json")
+        assert hook._is_pipeline_active() is False
+
+    def test_role_with_signed_state_and_native_owner_is_active(self, monkeypatch, tmp_path):
+        """POSITIVE: a pipeline role inside a genuine run stays active.
+
+        Proves the #1807 tightening did not break the legitimate case — role +
+        signed current-run sentinel + matching native stdin identity => active."""
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        owner = "sess-infra-role-active"
+        path = tmp_path / "state.json"
+        write_sanctioned_sentinel(path, owner, "infra-role-active")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
-        assert hook._is_pipeline_active() is True
-
-    def test_test_master_agent(self, monkeypatch):
-        monkeypatch.setenv("CLAUDE_AGENT_NAME", "test-master")
-        assert hook._is_pipeline_active() is True
-
-    def test_doc_master_agent(self, monkeypatch):
-        monkeypatch.setenv("CLAUDE_AGENT_NAME", "doc-master")
-        assert hook._is_pipeline_active() is True
+        monkeypatch.setenv("CLAUDE_SESSION_ID", owner)
+        monkeypatch.setattr(hook, "_session_id", owner, raising=False)
+        try:
+            assert hook._is_pipeline_active() is True
+        finally:
+            clear_run_artifacts(owner)
 
     def test_reviewer_not_pipeline(self, monkeypatch):
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "reviewer")
@@ -147,16 +199,31 @@ class TestIsPipelineActive:
         monkeypatch.setenv("PIPELINE_STATE_FILE", "/tmp/nonexistent_test_state.json")
         assert hook._is_pipeline_active() is False
 
-    def test_valid_state_file(self, monkeypatch):
-        """Pipeline state file < 2 hours old should activate."""
+    def test_valid_state_file(self, monkeypatch, tmp_path):
+        """A SANCTIONED pipeline state file < 30 min old should activate.
+
+        Issue #1807: the pre-#1807 version wrote ``{"session_start": ...}`` —
+        no owner, no run, no MAC — and that was accepted as an active pipeline,
+        which is the authority hole this issue closes. The state is now signed
+        and receipt-backed; the refusal counterparts live in
+        ``tests/security/test_issue_1807_authority_boundary.py``.
+        """
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            state = {"session_start": datetime.now().isoformat()}
-            json.dump(state, f)
-            f.flush()
-            monkeypatch.setenv("PIPELINE_STATE_FILE", f.name)
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        owner = "sess-infra-protection"
+        path = tmp_path / "state.json"
+        write_sanctioned_sentinel(path, owner, "infra-protection")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", owner)
+        # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+        monkeypatch.setattr(hook, "_session_id", owner, raising=False)
+        try:
             assert hook._is_pipeline_active() is True
-        os.unlink(f.name)
+        finally:
+            clear_run_artifacts(owner)
 
     def test_stale_state_file(self, monkeypatch):
         """Pipeline state file with mtime > 30 min old should not activate.
@@ -191,9 +258,15 @@ class TestIsPipelineActive:
 class TestInfraProtectionInMainFlow:
     """Integration tests for infrastructure protection in main() flow."""
 
-    def _run_hook(self, tool_name: str, tool_input: dict) -> dict:
-        """Run the hook's main() with given input and capture JSON output."""
-        input_data = json.dumps({"tool_name": tool_name, "tool_input": tool_input})
+    def _run_hook(self, tool_name: str, tool_input: dict, session_id: str = "") -> dict:
+        """Run the hook's main() with given input and capture JSON output.
+
+        Issue #1807: ``session_id`` sets the NATIVE identity on the stdin payload.
+        """
+        payload = {"tool_name": tool_name, "tool_input": tool_input}
+        if session_id:
+            payload["session_id"] = session_id
+        input_data = json.dumps(payload)
         captured = StringIO()
 
         with patch("sys.stdin", StringIO(input_data)), \
@@ -244,20 +317,36 @@ class TestInfraProtectionInMainFlow:
         decision = result["hookSpecificOutput"]["permissionDecision"]
         assert decision == "allow"
 
-    def test_write_agents_with_state_file_allowed(self, monkeypatch):
-        """Write to agents/foo.md with valid state file should be allowed."""
+    def test_write_agents_with_state_file_allowed(self, monkeypatch, tmp_path):
+        """Write to agents/foo.md inside a GENUINE run should be allowed.
+
+        Issue #1807 AMENDMENT: pre-#1807 an identity-less ``{"session_start": ...}``
+        state file made the pipeline "active" and permitted this. That is the
+        forgery shape — an unsigned, ownerless state — and with the fail-closed
+        run-bearing-transition chokepoint an identity-less present sentinel plus an
+        absent native identity now correctly DENIES the write. The permit requires
+        a genuine authorized run: a signed current-run sentinel whose owner equals
+        the NATIVE stdin identity.
+        """
         monkeypatch.delenv("CLAUDE_AGENT_NAME", raising=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            state = {"session_start": datetime.now().isoformat()}
-            json.dump(state, f)
-            f.flush()
-            monkeypatch.setenv("PIPELINE_STATE_FILE", f.name)
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
 
-            result = self._run_hook("Write", {"file_path": "/home/user/.claude/agents/foo.md", "content": "test"})
-
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        owner = "sess-infra-mainflow-1807"
+        path = tmp_path / "implement_pipeline_state.json"
+        write_sanctioned_sentinel(path, owner, "infra-mainflow-run", alignment_passed=True)
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        try:
+            result = self._run_hook(
+                "Write",
+                {"file_path": "/home/user/.claude/agents/foo.md", "content": "test"},
+                session_id=owner,
+            )
             decision = result["hookSpecificOutput"]["permissionDecision"]
             assert decision == "allow"
-        os.unlink(f.name)
+        finally:
+            clear_run_artifacts(owner)
 
     def test_write_src_not_protected(self, monkeypatch, tmp_path):
         """Write to src/app.py should be allowed because src/ is NOT
@@ -387,9 +476,18 @@ class TestInstallManifestProtection:
     (pipeline-active) so STEP 11 test-gate re-validation runs.
     """
 
-    def _run_hook(self, tool_name: str, tool_input: dict) -> dict:
-        """Run the hook's main() with given input and capture JSON output."""
-        input_data = json.dumps({"tool_name": tool_name, "tool_input": tool_input})
+    def _run_hook(self, tool_name: str, tool_input: dict, session_id: str = "") -> dict:
+        """Run the hook's main() with given input and capture JSON output.
+
+        Issue #1807: ``session_id`` is placed on the stdin payload so ``main()``
+        sets the NATIVE identity from it — the only identity a current-run
+        authority decision trusts. Omitted (``""``) reproduces an unqualified
+        caller, which the run-bearing chokepoint / infra-protection deny.
+        """
+        payload = {"tool_name": tool_name, "tool_input": tool_input}
+        if session_id:
+            payload["session_id"] = session_id
+        input_data = json.dumps(payload)
         captured = StringIO()
 
         with patch("sys.stdin", StringIO(input_data)), \
@@ -453,24 +551,42 @@ class TestInstallManifestProtection:
         assert "BLOCKED" in result["hookSpecificOutput"]["permissionDecisionReason"]
 
     @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
-    def test_install_manifest_allows_edit_inside_pipeline(self, _mock, monkeypatch):
-        """Edit to install_manifest.json with implementer agent + active sentinel → allow."""
+    def test_install_manifest_allows_edit_inside_pipeline(self, _mock, monkeypatch, tmp_path):
+        """Edit to install_manifest.json by the implementer inside a GENUINE run → allow.
+
+        Issue #1807 AMENDMENT: pre-#1807 a bare ``CLAUDE_AGENT_NAME=implementer``
+        (role alone) made the pipeline "active" and permitted this. That was defect
+        2. The permit now requires a genuine authorized run — a signed current-run
+        sentinel whose owner equals the NATIVE stdin identity — plus the #1296
+        agent-dispatch sentinel. The refuse counterpart (unqualified native during a
+        run) is the run-bearing-transition chokepoint arm.
+        """
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        owner = "sess-manifest-1807"
+        sentinel = tmp_path / "implement_pipeline_state.json"
+        write_sanctioned_sentinel(sentinel, owner, "manifest-run")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(sentinel))
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
 
         # Activate agent_dispatch_sentinel (required since #1296 — defense-in-depth)
         from agent_dispatch_sentinel import write as _sentinel_write, clear as _sentinel_clear
         _sentinel_write("implementer")
         try:
+            # session_id on the payload => native identity == owner (authorized run)
             result = self._run_hook("Edit", {
                 "file_path": "/Users/foo/Dev/autonomous-dev/plugins/autonomous-dev/config/install_manifest.json",
                 "old_string": "old",
                 "new_string": "new",
-            })
+            }, session_id=owner)
 
             decision = result["hookSpecificOutput"]["permissionDecision"]
             assert decision == "allow"
         finally:
             _sentinel_clear()
+            clear_run_artifacts(owner)
 
 
 # ---------------------------------------------------------------------------
@@ -480,9 +596,16 @@ class TestInstallManifestProtection:
 class TestBashInfrastructureProtection:
     """Tests for Bash command inspection blocking writes to protected paths."""
 
-    def _run_hook(self, tool_name: str, tool_input: dict) -> dict:
-        """Run the hook's main() with given input and capture JSON output."""
-        input_data = json.dumps({"tool_name": tool_name, "tool_input": tool_input})
+    def _run_hook(self, tool_name: str, tool_input: dict, session_id: str = "") -> dict:
+        """Run the hook's main() with given input and capture JSON output.
+
+        Issue #1807: ``session_id`` sets the NATIVE identity on the stdin payload;
+        omitted reproduces an unqualified caller.
+        """
+        payload = {"tool_name": tool_name, "tool_input": tool_input}
+        if session_id:
+            payload["session_id"] = session_id
+        input_data = json.dumps(payload)
         captured = StringIO()
 
         with patch("sys.stdin", StringIO(input_data)), \
@@ -563,14 +686,38 @@ class TestBashInfrastructureProtection:
         assert decision == "allow"
 
     @patch.object(hook, "_is_autonomous_dev_repo", return_value=True)
-    def test_bash_write_to_protected_path_allowed_when_pipeline_active(self, _mock, monkeypatch):
-        """Bash writes to protected paths should be allowed when pipeline is active."""
+    def test_bash_write_to_protected_path_allowed_when_pipeline_active(self, _mock, monkeypatch, tmp_path):
+        """Bash writes to protected paths are allowed inside a GENUINE run.
+
+        Issue #1807 AMENDMENT: pre-#1807 a bare ``CLAUDE_AGENT_NAME=implementer``
+        (role alone) made the pipeline "active" and permitted this (defect 2). The
+        permit now requires a signed current-run sentinel whose owner equals the
+        NATIVE stdin identity; the unqualified-native case is DENIED by the
+        run-bearing-transition chokepoint.
+        """
+        import pipeline_completion_state as _pcs
+        import pipeline_state as _ps
+
+        redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+        owner = "sess-bash-infra-1807"
+        sentinel = tmp_path / "implement_pipeline_state.json"
+        write_sanctioned_sentinel(sentinel, owner, "bash-infra-run")
+        monkeypatch.setenv("PIPELINE_STATE_FILE", str(sentinel))
         monkeypatch.setenv("CLAUDE_AGENT_NAME", "implementer")
 
-        result = self._run_hook("Bash", {"command": "sed -i 's/old/new/g' /home/user/.claude/agents/foo.md"})
-
-        decision = result["hookSpecificOutput"]["permissionDecision"]
-        assert decision == "allow"
+        from agent_dispatch_sentinel import write as _sentinel_write, clear as _sentinel_clear
+        _sentinel_write("implementer")
+        try:
+            result = self._run_hook(
+                "Bash",
+                {"command": "sed -i 's/old/new/g' /home/user/.claude/agents/foo.md"},
+                session_id=owner,
+            )
+            decision = result["hookSpecificOutput"]["permissionDecision"]
+            assert decision == "allow"
+        finally:
+            _sentinel_clear()
+            clear_run_artifacts(owner)
 
     def test_bash_pytest_command_not_blocked(self, monkeypatch):
         """pytest commands should never be blocked (not writing to protected paths)."""

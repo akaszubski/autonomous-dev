@@ -315,7 +315,25 @@ export RUN_ID
 # /tmp/implement_pipeline_${RUN_ID}.json, which broke the hook's mode-aware
 # agent-completeness gate in --light mode (hook reads <repo>/.claude/local/,
 # coordinator wrote to /tmp/, mode="light" invisible to hook).
-PIPELINE_STATE_FILE="$(python3 -c "
+#
+# Issue #1807: the resolved path lands in PIPELINE_SENTINEL, a NON-protected
+# variable. Pre-#1807 this block assigned the PROTECTED sentinel-path variable
+# and then exported it, and the DEPLOYED #557/#606 spoofing guard REFUSES that
+# shape. MEASURED against hooks/unified_pre_tool.py::_detect_env_spoofing on
+# 2026-09-27: assign-then-export -> "BLOCKED: Inline env var spoofing detected";
+# `echo hello` and the PIPELINE_SENTINEL form -> None (negative controls); a
+# known inline `VAR=value python3 script.py` -> BLOCKED (positive control). So
+# STEP 0 could not run as written without tripping the guard, and the guard is
+# correct — it is NOT to be narrowed to admit this.
+#
+# Nothing downstream breaks, because that export was never the mechanism that
+# made hooks agree: hook processes do not inherit a Bash-tool subshell's
+# environment (#779), and every reader already defaults to the canonical
+# get_legacy_sentinel_path() — the SAME per-repo path this block computes
+# (#1376). An operator who sets the variable BEFORE launching the CLI still
+# wins: that is an inherited variable, not an inline assignment, and every read
+# honours it.
+PIPELINE_SENTINEL="$(python3 -c "
 import sys, os
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
@@ -323,8 +341,8 @@ for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.c
 from pipeline_state import get_legacy_sentinel_path
 print(get_legacy_sentinel_path())
 ")"
-export PIPELINE_STATE_FILE
-mkdir -p "$(dirname "$PIPELINE_STATE_FILE")"
+# REQUIRED: atomic_write_json needs the parent directory to exist.
+mkdir -p "$(dirname "$PIPELINE_SENTINEL")"
 PIPELINE_START=$(date +%s)
 
 # Acquire exclusive non-blocking run lock (Issue #1047)
@@ -400,7 +418,14 @@ state = {
     'mode': 'MODE',
     'run_id': '$RUN_ID',
     'explicitly_invoked': True,
-    'session_id': sid
+    'session_id': sid,
+    # Issue #1807 (all-six binding): issue_number and subject are signed too, so
+    # the sentinel is tamper-evident across every required binding. Read from the
+    # environment with '' defaults so this never crashes when the coordinator did
+    # not export them, and so untrusted feature text is never interpolated into
+    # this source.
+    'issue_number': os.environ.get('ISSUE_NUMBER', ''),
+    'subject': os.environ.get('FEATURE_DESCRIPTION', '')
 }
 state = sign_state(state, sid)
 # ATOMIC. open(path,'w') truncates at OPEN time, so a kill between the open
@@ -408,7 +433,11 @@ state = sign_state(state, sid)
 # gone; ensure_sentinel_heartbeat() then failed json.loads and recreated it as
 # a bare {session_id, recovered, recovered_at}, which _is_pipeline_active()
 # classifies NOT-active by design (#1384) — blocking STEP 11 issue filing
-# during a genuinely live pipeline. atomic_write_json mkstemps IN THE
+# during a genuinely live pipeline. Since #1807 that breadcrumb also refuses
+# agent DISPATCH and completion credit, and the only valid outcome is a FRESH
+# run: do NOT hand-write the missing identity fields and re-sign, because a
+# valid MAC after a coordinator rewrite proves a signing-capable API was used,
+# not that the identity is authentic. atomic_write_json mkstemps IN THE
 # DESTINATION DIRECTORY (same filesystem, or os.replace raises EXDEV), chmods
 # 0o600 before the rename, and os.replace is atomic per rename(2).
 # The mkdir -p above is REQUIRED: atomic_write_json needs the parent to exist.
@@ -423,7 +452,27 @@ atomic_write_json(
     Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))),
     state,
 )
+# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
+# one when this command was typed. This is the only place the witness (minted
+# before any run id existed) is bound to this run. SILENT no-op when there is no
+# witness — additive, never a gate, and it cannot CREATE origin: only a native
+# hook writes a witness.
+try:
+    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
+    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
+except ImportError:
+    pass
 "
+
+# ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9): MODEL-OWNED bootstrap.
+# classify_current_run_authority reports RunOrigin.MODEL_BOOTSTRAP for a run
+# initialized only from here, and that remains a fully AUTHORIZED run — the origin
+# level is strictly additive. It is bootstrap because the principal the controls
+# constrain is the one writing the carriers. Only hooks/native_run_origin.py,
+# invoked by the runtime on a TYPED /implement, can produce
+# RunOrigin.TYPED_USER_WITNESSED. Do NOT write a witness from here, and do not read
+# a green origin verdict as provenance — the OS boundary that would make it
+# unforgeable is not in place (A9 OPEN, UNMEASURED).
 
 # PIPELINE_BASE_COMMIT capture (Issue #1069). REQUIRED: anchors all downstream
 # `git diff --name-only` invocations (acceptance criteria, spec-validator
@@ -745,14 +794,13 @@ except Exception: cj = None
 out = evaluate_and_record(open('/tmp/implement_feature_$RUN_ID.txt').read(), cj,
         state_path=os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())),
         session_id=os.environ.get('CLAUDE_SESSION_ID','unknown'),
-        issue_number=os.environ.get('ISSUE_NUMBER',''),
-        user_approved=os.environ.get('ALIGNMENT_USER_APPROVED','') == '1')
+        issue_number=os.environ.get('ISSUE_NUMBER',''))
 print(json.dumps(out))
 "
 ```
 **2d. Verdict routing**:
 - `auto_pass` → print `ALIGNMENT: auto_pass — cited "<clause>"` and proceed to STEP 3.
-- `escalate` **interactive** (`is_autonomous_context()` false) → **AskUserQuestion** with the escalation_reason, Stage 0 reasons, and the classifier's reasoning; exactly four options: (A) Approve — this IS in scope, proceed (re-run the 2c snippet with `user_approved=True` substituted for the env lookup: `ALIGNMENT_USER_APPROVED` is inline-spoofing-protected, and the upgrade records an `approval` trail); (B) Update PROJECT.md scope first, then re-run STEP 2; (C) Narrow the change to stay in scope; (D) Cancel. On (B)/(C)/(D) STOP the pipeline.
+- `escalate` **interactive** (`is_autonomous_context()` false) → **AskUserQuestion** with the escalation_reason, Stage 0 reasons, and the classifier's reasoning; exactly three options: (A) Update PROJECT.md scope first, then re-run STEP 2; (B) Narrow the change to stay in scope; (C) Cancel. STOP the pipeline on all three. There is no "approve and proceed" option: Issue #1802 closed the `escalate → user_approved` upgrade, so every coordinator-supplied approval (the `user_approved` flag or any receipt object) is now REFUSED and recorded as such — a genuine-approval path returns only with #1807's independent receipt channel.
 - `escalate` **autonomous** → BLOCK. If `ISSUE_NUMBER` is set: `gh issue edit $ISSUE_NUMBER --add-label needs-scope-decision` and `gh issue comment $ISSUE_NUMBER --body "<verdict summary>"`. Blocking must not depend on gh succeeding. Then STOP.
 
 **FORBIDDEN**:
@@ -760,7 +808,7 @@ print(json.dumps(out))
 2. ❌ Skipping the alignment-classifier dispatch because the change "obviously" fits — that is the self-attestation this gate replaces.
 3. ❌ Treating an `escalate` verdict as advisory, or re-running Stage 1 with a reworded prompt to shop for a different classification.
 4. ❌ Auto-approving in autonomous mode. Autonomous mode blocks; it never approves.
-5. ❌ Proceeding to STEP 3 with any verdict other than `auto_pass` / `user_approved`.
+5. ❌ Proceeding to STEP 3 with any verdict other than `auto_pass` / `user_approved` (the latter is HISTORICAL only — pre-#1802 signed states can still carry it; no new one can be produced).
 
 ### STEP 3: Check Research Cache
 

@@ -162,7 +162,7 @@ Any other format is rejected with a message listing all three accepted forms.
 
 Pipeline state lives in the sentinel `<repo>/.claude/local/implement_pipeline_state.json` — resolved per-repo by `pipeline_state.get_legacy_sentinel_path()` since Issue #1206 (it was the machine-global `/tmp/implement_pipeline_state.json` before that), and exported as `PIPELINE_STATE_FILE` at STEP 0 of `implement.md` since Issue #1376. STEP 0 does **not** export a per-run `/tmp/implement_pipeline_<run_id>.json`; that form is legacy and survives only as (a) a GC glob (see below) and (b) a read-side fallback in `--resume` mode. Batch-worktree resume reads a genuinely different file, `/tmp/pipeline_state_<run_id>.json` (see [implement-resume.md](../commands/implement-resume.md)) — that path is correct and is not the sentinel. `SessionStart-batch-recovery.sh` auto-restores batch state after `/clear` or auto-compact.
 
-**Stale-state garbage collection (Issue #1048)**: At STEP 0, immediately before generating a new `RUN_ID`, `pipeline_completion_state._gc_stale_states()` removes any `/tmp` artifacts older than 7200 seconds (2× the staleness TTL): `pipeline_agent_completions_*.json` (both sha256 and run_id paths), `implement_pipeline_*.json` (per-run sentinel files), and `pipeline_*.lock` (orphaned lockfiles). This prevents `/tmp` accumulation from long-lived Claude Code sessions without relying on OS temp-file reaping. Every reference to the sentinel in `implement.md`, `implement-batch.md`, and `implement-fix.md` is env-var-aware AND resolves its default through `get_legacy_sentinel_path()` — shell sites use `"${PIPELINE_STATE_FILE:-$(python3 -c '… print(get_legacy_sentinel_path())')}"` and Python sites use `os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))`. A bare `${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}` is no longer correct anywhere: only `implement.md` exports `PIPELINE_STATE_FILE`, so in `--batch` and `--fix` the `:-` default IS the path used on every run, and a `/tmp` literal there addressed a file that does not exist while the real sentinel accumulated under `<repo>/.claude/local/`. `implement-fix.md` was the last holdout and was migrated in Issue #1376; the contract is now pinned mechanically by `tests/regression/test_implement_md_state_contract.py`, which refuses a `/tmp` sentinel default in **any** `commands/*.md` whose text mentions `PIPELINE_STATE_FILE` or `resolve_session_id`.
+**Stale-state garbage collection (Issue #1048, corrected by #1806)**: At STEP 0, immediately before generating a new `RUN_ID`, `pipeline_completion_state._gc_stale_states()` removes any `/tmp` artifacts older than 7200 seconds (2× the staleness TTL): `pipeline_agent_completions_*.json` (both sha256 and run_id paths), its `.json.*.tmp` staging files, and `implement_pipeline_*.json` (per-run sentinel files). This prevents `/tmp` accumulation from long-lived Claude Code sessions without relying on OS temp-file reaping. **Lockfiles are NOT collected** — `pipeline_*.lock` was in the GC until Issue #1806, but that glob matched live run locks (`acquire_run_lock()`) and the per-session R-M-W locks (`_locked_rmw()`), and an mtime says nothing about whether a lock is held (`flock` never updates it). Unlinking a held lock's pathname leaves its holder on an orphan inode while the next process locks a new inode under the same name — split-brain run authority. Stale lockfiles are empty and harmless, so they are left in place; `_gc_stale_states()` still returns a `lockfiles_removed` key, permanently `0`. Every reference to the sentinel in `implement.md`, `implement-batch.md`, and `implement-fix.md` is env-var-aware AND resolves its default through `get_legacy_sentinel_path()` — shell sites use `"${PIPELINE_STATE_FILE:-$(python3 -c '… print(get_legacy_sentinel_path())')}"` and Python sites use `os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))`. A bare `${PIPELINE_STATE_FILE:-/tmp/implement_pipeline_state.json}` is no longer correct anywhere: only `implement.md` exports `PIPELINE_STATE_FILE`, so in `--batch` and `--fix` the `:-` default IS the path used on every run, and a `/tmp` literal there addressed a file that does not exist while the real sentinel accumulated under `<repo>/.claude/local/`. `implement-fix.md` was the last holdout and was migrated in Issue #1376; the contract is now pinned mechanically by `tests/regression/test_implement_md_state_contract.py`, which refuses a `/tmp` sentinel default in **any** `commands/*.md` whose text mentions `PIPELINE_STATE_FILE` or `resolve_session_id`.
 
 **PIPELINE_BASE_COMMIT anchoring (Issue #1069)**: At STEP 0 (full pipeline) and STEP F1 (fix pipeline), the coordinator captures `git rev-parse HEAD` as `PIPELINE_BASE_COMMIT` and persists it to the legacy sentinel state file via `pipeline_state.set_pipeline_base_commit()`. At STEP 8.5 (spec-validator dispatch) and STEP F3.5 / STEP F4 (fix-mode spec-validator and security-sensitivity scan), the value is recovered with `pipeline_state.get_pipeline_base_commit()` and used to anchor `git diff --name-only` commands. Without anchoring, `git diff --name-only HEAD` includes files that were modified in the working tree BEFORE the pipeline started, causing spec-validator to emit false-positive FAIL verdicts for acceptance criteria that reference "files in the diff". Callers fall back to `HEAD` when `PIPELINE_BASE_COMMIT` is empty (e.g., no-commit repository, legacy pipelines, missing state file).
 
@@ -243,6 +243,146 @@ rest of the run (Issues #1384, #1512). `atomic_write_json()` requires the
 parent directory to exist; `get_legacy_sentinel_path()` creates
 `<repo>/.claude/local/` as a side effect, which is why it is evaluated eagerly
 as the `.get()` default rather than lazily.
+
+### What counts as CURRENT-RUN AUTHORITY (Issue #1807)
+
+The sentinel existing, parsing, and carrying a valid MAC is **not** sufficient.
+`pipeline_state.classify_current_run_authority(state, presented_session_id)` is
+the single decision, and every guarded consumer route calls it:
+`unified_pre_tool._is_pipeline_active()` (protected-path write authority),
+`unified_pre_tool._load_pipeline_state_verified()` (the alignment gates), and
+`agent_ordering_gate.check_ordering_with_session_fallback()` (dispatch and
+completion credit, via `pipeline_completion_state.run_credit_refusal()`).
+
+Authority requires ALL of:
+
+| Requirement | Refusal when absent |
+|---|---|
+| A usable `run_id` | `NO_RUN_IDENTITY` — "exists and parses" is not "identifies a run" |
+| A determinate `session_id` owner | `OWNER_UNAVAILABLE` — an absent owner is an unverifiable owner |
+| A determinate PRESENTED caller identity, from the transport | `IDENTITY_UNAVAILABLE` — `""`/`unknown` is a refusal, never a wildcard |
+| Presented caller == declared owner | `UNQUALIFIED_OWNER` |
+| An `hmac` at all | `UNSIGNED_LEGACY` — legacy is RECOGNIZED, never authorized |
+| A MAC that verifies, owner included | `MAC_INVALID` |
+| A run-start receipt naming the same run | `RECEIPT_UNAVAILABLE` / `UNQUALIFIED_OWNER` |
+
+Two independent carriers, and **neither is sufficient alone**: a signed sentinel
+with no run-start receipt is the self-minted forgery (`sign_state` creates the
+secret it signs with, so the constrained caller holds the key); a run-start
+receipt with no authorizing sentinel is the ledger-only rebind, and the ledger is
+UNSIGNED.
+
+**MAC versions.** `hmac_version` is `1`, `2` or `3`; **v3 is current** (`_STATE_MAC_CURRENT`).
+v2 binds `session_id` (owner token) + the version into the pipe-joined message; **v3
+(Issue #1807, all-six binding)** additionally binds `issue_number`, `subject` and
+`base_commit` and serializes the full field set as an injective JSON array so an
+unescaped `|`/`:` in a free-form field cannot slide the delimiter and collide two
+field tuples to one MAC (a confirmed collision under the old pipe-join). `sign_state`
+writes v3; v1/v2 messages stay byte-identical for in-flight runs.
+A state with no `hmac_version` is a pre-#1807 (v1) signature: still accepted, so
+a run already in flight when the binding landed does not hard-fail mid-run, but
+reported as `legacy_mac=True` and logged — its owner is corroborated by the
+receipt only, not cryptographically. `hmac_version` is itself inside the signed
+message, so a v2/v3 state cannot be downgraded to weaker rules by deleting the field.
+
+**STRICT verification (F4 remediation).** `classify_current_run_authority` calls
+`verify_state_hmac(state, presented_session_id, strict=True)`. Under strict, the
+pre-#1807 session-id-keyed fallback MAC and the #753 stale-mtime fail-open are
+BOTH unreachable — MEASURED: `_compute_state_hmac(state, presented_session_id,
+version=2)`, a v2 MAC keyed on nothing but the model-knowable presented
+`session_id` with no access to the secret file, verifies under `strict=False`
+but is REFUSED under `strict=True`. Only the per-run-secret-keyed MAC (the
+secret at `~/.claude/pipeline_secrets/<run_id>.key`) can authorize a state.
+That is stronger than the public session-id key it forecloses here — it is
+**not** "unforgeable": the secret file is itself an ordinary artifact the same
+model-driven caller can read or create via `sign_state()` / `record_run_start()`,
+which is exactly the EVIDENCE LIMIT below. `strict=False` (the one retained
+non-authority caller, `unified_pre_tool._is_explicit_implement_active`) keeps
+both the session-id fallback and the #753 stale fail-open unchanged.
+
+**EVIDENCE LIMIT.** Both carriers are ordinary files, and both are writable by the
+principal these gates constrain (`record_run_start` and `sign_state` are reachable
+from model-controlled Bash). The conjunction removes the single-artifact forgeries;
+it is not provenance. Provenance needs the ORIGIN split — model-controlled
+tool calls refused at the OS boundary on the sentinel, the secret store and the
+ledger while native hook processes still write them — which is **OPEN and
+UNMEASURED** (#1807 acceptance case A9).
+
+### Recovery: the documented path IS the enforced path (Issue #1807)
+
+`ensure_sentinel_heartbeat(session_id)` runs after every SubagentStop. Four
+outcomes, and only one of them writes:
+
+1. **Owner matches** → healthy, returns `True`, writes nothing.
+2. **State CARRIES A RUN** (`run_id`/`mode`/`explicitly_invoked`) but the owner is
+   absent or synthetic → **preserved**, returns `False`, emits
+   `[SENTINEL-HEARTBEAT-RUN-PRESERVED]`. An absent owner is not licence to
+   discard a run. This is the #1807 defect: the repair path used to overwrite the
+   whole run-bearing state with `{session_id, recovered, recovered_at}`, and
+   downstream that replacement still parsed, so integrity said OK and the ordering
+   gate dispatched the first agent against an empty completion set.
+3. **Existing real owner differs** → preserved, returns `False`, emits
+   `[SENTINEL-HEARTBEAT-PRESERVED]` (#1481).
+4. **Genuinely absent or an identity-less record with a synthetic owner** → writes
+   the `{session_id, recovered, recovered_at}` breadcrumb, returns `False`, emits
+   `[SENTINEL-HEARTBEAT-MISSING]`.
+
+A breadcrumb from (4) is a DIAGNOSTIC, not a run. It carries no `run_id`, so it is
+`NO_RUN_IDENTITY` to every consumer: not an active pipeline, not a passed
+alignment, and `RUN IDENTITY DESTROYED` from the ordering gate — which refuses the
+dispatch AND names the agents that would have to run. A subsequent alignment write
+cannot promote it: `_update_pipeline_state` (Issue #1807) verifies BEFORE it
+re-signs and fails closed on any state that is not already validly signed. A
+breadcrumb has no `hmac` (and no `run_id`, hence no per-run secret), so it is
+refused at the first check with no write and no mint — never re-signed into an
+alignment pass.
+
+**If run identity is lost, the only valid outcome is a fresh `/implement` run.**
+Recovery MUST NOT reconstruct identity from the chat transcript, from the mutable
+completion ledger, or from a cached classifier result, and a hand-written
+HMAC-valid replacement is not recovery — a valid MAC after a coordinator rewrite
+proves a signing-capable API was used, not that the identity is authentic (this is
+what invalidated run `f56b5d9db2313942`).
+
+### Initialization parity: full mode and fix mode (Issue #1807)
+
+Both modes now bind the same six things before any specialist is dispatched, and
+both fail closed when they cannot:
+
+| | full mode (`implement.md` STEP 0) | fix mode (`implement-fix.md` STEP F1) |
+|---|---|---|
+| Run id | `RUN_ID` from `secrets.token_hex(8)`, exported | same |
+| Owner | `resolve_session_id(sentinel_path=… or None)` | same |
+| Synthetic owner | fails closed | fails closed, BLOCKED message |
+| Run-start receipt | `record_run_start(sid, RUN_ID)`, exits 1 on failure | same |
+| Signed sentinel | `sign_state(state, sid)` | same |
+| Sentinel path | canonical `get_legacy_sentinel_path()` | same |
+
+Fix mode previously wrote `{mode, explicitly_invoked, start_time}` — no owner, no
+run id, unsigned — which is exactly the shape (2) above used to be destroyed over.
+The divergence was fix-mode-only; this is parity restored, not a new mechanism.
+
+**Native-origin witness consumption (Issue #1807 A7/A9).** Immediately after
+signing the sentinel, both STEP 0 (`implement.md`) and STEP F1
+(`implement-fix.md`) call
+`pipeline_completion_state.append_native_origin_progression()` to bind any
+witness the runtime may already have recorded (via `hooks/native_run_origin.py`
+on `UserPromptExpansion`) to this run's bindings — a SILENT no-op when no
+witness exists. This block is itself MODEL-OWNED Bash: it consumes a witness,
+it never mints one, and a run initialized only from here classifies as
+`RunOrigin.MODEL_BOOTSTRAP` — still a fully AUTHORIZED run, since origin is
+strictly additive to authority (see above). Only the native hook, invoked by the
+runtime on a TYPED `/implement`-family command, can produce
+`RunOrigin.TYPED_USER_WITNESSED`. This does not close the EVIDENCE LIMIT above:
+all 21 frozen native-venue arms remain UNMEASURED and #1807 acceptance case A9
+stays OPEN.
+
+**Neither mode assigns `PIPELINE_STATE_FILE`.** That variable is protected by the
+#557/#606 spoofing guard, which REFUSES an inline assignment — measured against
+`_detect_env_spoofing`, with `echo hello` and a renamed variable as negative
+controls. Full mode resolves the canonical path into `PIPELINE_SENTINEL` (a
+non-protected name) for its `mkdir -p`; every reader already defaults to the same
+canonical path, and a variable INHERITED from the environment is still honoured.
 
 ### Why `'unknown'` is Preserved
 

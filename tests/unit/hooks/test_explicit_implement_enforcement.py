@@ -37,6 +37,26 @@ sys.path.insert(0, str(LIB_DIR))
 
 import unified_pre_tool as hook
 
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_run_artifacts(monkeypatch, tmp_path):
+    """Redirect sentinel, secret store and completion ledger into tmp_path.
+
+    Issue #1807: building a sanctioned run writes a key under ``$HOME`` and a
+    ledger under ``/tmp``. ``redirect_pipeline_state`` is the ONE canonical
+    redirect for all of it, and ``sanctioned_run`` REFUSES to build without it.
+    """
+    import pipeline_completion_state as _pcs
+    import pipeline_state as _ps
+
+    redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -68,18 +88,37 @@ def state_file(tmp_path):
     return _write
 
 
+#: Owner of the sanctioned run these tests build (Issue #1807). The pre-#1807
+#: fixture wrote an unsigned, ownerless state; that shape is now
+#: UNSIGNED_LEGACY, so `_is_pipeline_active()` refused it and every
+#: coordinator-blocking assertion below silently stopped reaching its branch.
+_EXPLICIT_OWNER = "sess-explicit-528"
+_EXPLICIT_RUN = "test-run"
+
+
 @pytest.fixture
-def valid_state(state_file, monkeypatch):
-    """Create a valid explicit pipeline state and set env var."""
-    path = state_file({
-        "session_start": datetime.now().isoformat(),
-        "mode": "full",
-        "run_id": "test-run",
-        "explicitly_invoked": True,
-        "alignment_passed": True,
-    })
-    monkeypatch.setenv("PIPELINE_STATE_FILE", path)
-    return path
+def valid_state(tmp_path, monkeypatch):
+    """Create a valid, SANCTIONED explicit pipeline state and set env vars.
+
+    Issue #1807 PERMIT arm: owner-bound MAC plus run-start receipt. The refusal
+    arm for this route lives in
+    ``tests/security/test_issue_1807_authority_boundary.py``.
+    """
+    path = tmp_path / "implement_pipeline_state.json"
+    write_sanctioned_sentinel(
+        path, _EXPLICIT_OWNER, _EXPLICIT_RUN, alignment_passed=True
+    )
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", _EXPLICIT_OWNER)
+    # Issue #1807 (defect 1): current-run authority binds to the NATIVE stdin
+    # identity, not CLAUDE_SESSION_ID. A real pipeline hook always carries the
+    # owner's session id on stdin; pin it so _is_pipeline_active() (which gates
+    # the #528/#585 coordinator-block denies) recognizes the authorized run. The
+    # unqualified-native refusal is proven separately by the run-bearing-transition
+    # chokepoint arms.
+    monkeypatch.setattr(hook, "_session_id", _EXPLICIT_OWNER, raising=False)
+    yield str(path)
+    clear_run_artifacts(_EXPLICIT_OWNER)
 
 
 # ---------------------------------------------------------------------------

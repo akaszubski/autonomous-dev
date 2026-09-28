@@ -35,6 +35,26 @@ import pipeline_state  # noqa: E402
 import unified_pre_tool as hook  # noqa: E402
 from pipeline_state import sign_state  # noqa: E402
 
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_run_artifacts(monkeypatch, tmp_path):
+    """Redirect sentinel, secret store and completion ledger into tmp_path.
+
+    Issue #1807: building a sanctioned run writes a key under ``$HOME`` and a
+    ledger under ``/tmp``. ``redirect_pipeline_state`` is the ONE canonical
+    redirect for all of it, and ``sanctioned_run`` REFUSES to build without it.
+    """
+    import pipeline_completion_state as _pcs
+    import pipeline_state as _ps
+
+    redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -70,25 +90,41 @@ def isolate_stale_state_failopen(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_state, "get_legacy_sentinel_path", lambda: sentinel)
 
 
+#: Owner for the sanctioned run these tests build. Issue #1807: the state must
+#: name a DETERMINATE owner and carry a run-start receipt, or it authorizes
+#: nothing — the pre-#1807 fixture wrote no ``session_id`` at all, which is the
+#: unverifiable-owner shape A1c refuses.
+_VERDICT_OWNER = "sess-verdict-1467"
+_VERDICT_RUN = "test-verdict-1467"
+
+
 @pytest.fixture
 def make_state(tmp_path, monkeypatch):
-    """Write a signed pipeline state and point PIPELINE_STATE_FILE at it."""
+    """Write a sanctioned signed pipeline state and point PIPELINE_STATE_FILE at it.
+
+    Issue #1807: builds the PERMIT arm — owner-bound MAC plus the run-start
+    receipt — so these #1467 verdict assertions keep testing verdict handling
+    rather than accidentally testing authority refusal.
+    """
 
     def _make(**fields) -> str:
-        state = {
-            "session_start": datetime.now().isoformat(),
-            "mode": "full",
-            "run_id": "test-verdict-1467",
-            "explicitly_invoked": True,
-        }
-        state.update(fields)
-        signed = sign_state(state, "test-session")
         path = tmp_path / "implement_pipeline_state.json"
-        path.write_text(json.dumps(signed))
+        write_sanctioned_sentinel(
+            path, _VERDICT_OWNER, _VERDICT_RUN, **fields
+        )
         monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+        monkeypatch.setenv("CLAUDE_SESSION_ID", _VERDICT_OWNER)
+        # Issue #1807 (defect 1): current-run authority binds to the NATIVE stdin
+        # identity, not CLAUDE_SESSION_ID. A real pipeline's hook always carries
+        # the owner's session id on stdin, so pin it — otherwise the #1467/#585/#528
+        # gates (all gated behind _is_pipeline_active()) correctly see no active
+        # run and these verdict assertions would test authority refusal instead of
+        # verdict handling.
+        monkeypatch.setattr(hook, "_session_id", _VERDICT_OWNER, raising=False)
         return str(path)
 
-    return _make
+    yield _make
+    clear_run_artifacts(_VERDICT_OWNER)
 
 
 # ---------------------------------------------------------------------------

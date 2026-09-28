@@ -408,6 +408,29 @@ def check_ordering_with_session_fallback(
             pipeline_mode=pipeline_mode,
         )
 
+    # Issue #1807: imported SEPARATELY, and its absence REFUSES rather than
+    # joining the permissive fallback above. Adding a new name to that shared
+    # import block would have meant a STALE deployed pipeline_completion_state
+    # (one predating this function) raising ImportError for the whole block and
+    # silently degrading the gate to prerequisites-only — a fail-OPEN introduced
+    # by the very change meant to close one. The module-missing case (a consumer
+    # install without the state library at all) keeps its pre-existing permissive
+    # behaviour; a module present but INCOMPLETE is a broken deployment.
+    try:
+        from pipeline_completion_state import run_credit_refusal
+    except ImportError:
+        return GateResult(
+            passed=False,
+            reason=(
+                "RUN AUTHORITY UNVERIFIABLE: the deployed "
+                "pipeline_completion_state has no run_credit_refusal, so whether "
+                "this run is authorized cannot be determined (Issue #1807).\n"
+                "REQUIRED NEXT ACTION: run `bash scripts/deploy-all.sh` to "
+                "update the deployed library, then retry."
+            ),
+            missing_agents=[],
+        )
+
     # INV-7 gate, BEFORE any completion lookup: destroyed gating state must not
     # be able to produce a pass, whichever agent is asking.
     if sentinel_integrity() is SentinelIntegrity.CORRUPT:
@@ -415,6 +438,27 @@ def check_ordering_with_session_fallback(
             passed=False,
             reason=describe_sentinel_corruption(),
             missing_agents=[],
+        )
+
+    # Issue #1807, also BEFORE any completion lookup: a sentinel that parses but
+    # identifies no run, and a ledger run claim no sentinel authorizes, are both
+    # refusals. The prerequisite set is recomputed against an EMPTY credit set so
+    # the refusal still NAMES the agents a caller would have to run — a bare
+    # "denied" with no missing_agents would tell a coordinator nothing, and the
+    # first agent of a mode (whose prerequisites are vacuously met) must refuse
+    # too rather than passing on an empty set.
+    credit_refusal = run_credit_refusal(session_id)
+    if credit_refusal:
+        uncredited = check_ordering_prerequisites(
+            target_agent,
+            set(),
+            validation_mode=validation_mode,
+            pipeline_mode=normalize_pipeline_mode(pipeline_mode),
+        )
+        return GateResult(
+            passed=False,
+            reason=f"{credit_refusal}\nTarget: {target_agent}. {uncredited.reason}",
+            missing_agents=uncredited.missing_agents,
         )
 
     completed = get_completed_agents(session_id, issue_number=issue_number)

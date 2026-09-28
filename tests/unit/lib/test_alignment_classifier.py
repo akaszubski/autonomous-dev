@@ -449,17 +449,31 @@ class TestMapVerdictTruthTable:
             _clear_stage0(), "probably_fine", "Batch processing with crash recovery", doc
         ) is Verdict.ESCALATE
 
-    def test_user_approval_upgrades_escalate_only(self, doc: ProjectDoc) -> None:
-        stage0 = _clear_stage0(outcome=Stage0Outcome.ESCALATE, reason="out of scope")
-        assert map_verdict(
-            stage0, "out_of_scope", None, doc, user_approved=True
-        ) is Verdict.USER_APPROVED
+    def test_map_verdict_escalate_cannot_be_upgraded(self, doc: ProjectDoc) -> None:
+        """Issue #1802: INVERTED — the ``user_approved`` upgrade was REMOVED.
 
-    def test_user_approval_cannot_upgrade_block(self, doc: ProjectDoc) -> None:
+        Was ``test_user_approval_upgrades_escalate_only``, which asserted this
+        pure function returned USER_APPROVED. It no longer can.
+        """
+        stage0 = _clear_stage0(outcome=Stage0Outcome.ESCALATE, reason="out of scope")
+        assert map_verdict(stage0, "out_of_scope", None, doc) is Verdict.ESCALATE
+
+    def test_map_verdict_rejects_the_removed_user_approved_kwarg(
+        self, doc: ProjectDoc
+    ) -> None:
+        """Issue #1802 negative control: the parameter is GONE, not ignored.
+
+        A removed parameter fails loudly; an ignored one would let a future
+        caller believe the flag took effect. This pins the loud failure.
+        """
+        stage0 = _clear_stage0(outcome=Stage0Outcome.ESCALATE, reason="out of scope")
+        with pytest.raises(TypeError):
+            map_verdict(stage0, "out_of_scope", None, doc, user_approved=True)
+
+    def test_block_stays_block(self, doc: ProjectDoc) -> None:
+        """Issue #1802: was ``test_user_approval_cannot_upgrade_block``."""
         stage0 = _clear_stage0(outcome=Stage0Outcome.BLOCK, reason="project doc missing")
-        assert map_verdict(
-            stage0, "in_scope", None, doc, user_approved=True
-        ) is Verdict.BLOCK
+        assert map_verdict(stage0, "in_scope", None, doc) is Verdict.BLOCK
 
     def test_allowed_verdicts_membership(self) -> None:
         """Downstream consumers check ALLOWED_VERDICTS membership only (Amendment 2)."""
@@ -571,15 +585,38 @@ class TestWriteAlignmentVerdict:
 class TestRecordAlignmentVerdict:
     """Sole writer of alignment_passed."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_secret_store(self, monkeypatch, tmp_path: Path) -> None:
+        """Redirect the per-run HMAC secret store into tmp_path (Issue #1807).
+
+        ``_state_file`` now writes a SIGNED state because ``_update_pipeline_state``
+        records an alignment pass ONLY over an already-validly-signed state — the
+        mint-on-unsigned branch was a laundering oracle and was removed. Signing
+        touches ``~/.claude/pipeline_secrets/``; isolating ``$HOME`` keeps it in
+        tmp_path so parallel workers cannot collide on a shared run-id key.
+        """
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(home))
+
     def _state_file(self, tmp_path: Path) -> Path:
-        state_path = tmp_path / "pipeline_state.json"
-        state_path.write_text(json.dumps({
+        """A SIGNED signed-state target so the alignment write is exercised.
+
+        Was unsigned; the alignment write now fails closed on unsigned input
+        (Issue #1807), so an unsigned target would never record ``alignment_passed``.
+        """
+        from pipeline_state import sign_state
+
+        state = {
             "session_start": "2026-08-09T00:00:00",
             "mode": "full",
             "run_id": "test-1467",
             "explicitly_invoked": True,
             "session_id": "sess-1467",
-        }))
+        }
+        sign_state(state, "sess-1467")
+        state_path = tmp_path / "pipeline_state.json"
+        state_path.write_text(json.dumps(state))
         return state_path
 
     def test_auto_pass_sets_alignment_passed_true(self, tmp_path: Path) -> None:
@@ -608,7 +645,13 @@ class TestRecordAlignmentVerdict:
         assert state["alignment_passed"] is False
         assert state["alignment_verdict"] == "escalate"
 
-    def test_user_approval_upgrades_escalate_to_user_approved(self, tmp_path: Path) -> None:
+    def test_user_approval_cannot_upgrade_escalate(self, tmp_path: Path) -> None:
+        """Issue #1802: INVERTED — this asserted the upgrade, which is now closed.
+
+        Renamed from ``test_user_approval_upgrades_escalate_to_user_approved``.
+        A caller-supplied flag is indistinguishable from a forged one, so the
+        escalation stands and state records the failure.
+        """
         state_path = self._state_file(tmp_path)
         final = record_alignment_verdict(
             _make_verdict(Verdict.ESCALATE),
@@ -617,10 +660,11 @@ class TestRecordAlignmentVerdict:
             repo_root=tmp_path,
             user_approved=True,
         )
-        assert final.verdict is Verdict.USER_APPROVED
+        assert final.verdict is Verdict.ESCALATE
+        assert final.user_approved_refused == "no_verifiable_approval_channel"
         state = json.loads(state_path.read_text())
-        assert state["alignment_passed"] is True
-        assert state["alignment_verdict"] == "user_approved"
+        assert state["alignment_passed"] is False
+        assert state["alignment_verdict"] == "escalate"
 
     def test_user_approval_cannot_upgrade_block(self, tmp_path: Path) -> None:
         state_path = self._state_file(tmp_path)
@@ -711,15 +755,33 @@ class TestUserApprovalAutonomyGate:
     citation-verified AUTO_PASS.
     """
 
+    @pytest.fixture(autouse=True)
+    def _isolate_secret_store(self, monkeypatch, tmp_path: Path) -> None:
+        """Redirect the per-run HMAC secret store into tmp_path (Issue #1807).
+
+        ``_state_file`` writes a SIGNED state (the alignment write fails closed on
+        unsigned input), so isolate ``$HOME`` to keep signing out of the real
+        ``~/.claude/pipeline_secrets/``. Autonomy detection is env/marker-driven,
+        not ``$HOME``-driven, so this does not perturb these gate tests.
+        """
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(home))
+
     def _state_file(self, tmp_path: Path) -> Path:
-        state_path = tmp_path / "pipeline_state.json"
-        state_path.write_text(json.dumps({
+        """A SIGNED signed-state target so the alignment write is exercised."""
+        from pipeline_state import sign_state
+
+        state = {
             "session_start": "2026-08-09T00:00:00",
             "mode": "full",
             "run_id": "test-1467-gate",
             "explicitly_invoked": True,
             "session_id": "sess-1467",
-        }))
+        }
+        sign_state(state, "sess-1467")
+        state_path = tmp_path / "pipeline_state.json"
+        state_path.write_text(json.dumps(state))
         return state_path
 
     def test_autonomous_context_refuses_the_upgrade(
@@ -768,9 +830,15 @@ class TestUserApprovalAutonomyGate:
         assert final.verdict is Verdict.ESCALATE
         assert final.user_approved_refused == "autonomous_context"
 
-    def test_interactive_upgrade_records_an_approval_trail(
+    def test_interactive_upgrade_is_refused_and_recorded(
         self, tmp_path: Path, monkeypatch
     ) -> None:
+        """Issue #1802: INVERTED — no ``approval`` trail is ever written now.
+
+        Renamed from ``test_interactive_upgrade_records_an_approval_trail``.
+        Being interactive is not evidence a human answered: the flag reaches
+        this library identically either way. The refusal is what gets recorded.
+        """
         monkeypatch.delenv("AUTONOMOUS_DEV_NONINTERACTIVE", raising=False)
         state_path = self._state_file(tmp_path)
         escalated = _escalated_verdict()
@@ -781,20 +849,18 @@ class TestUserApprovalAutonomyGate:
             repo_root=tmp_path,
             user_approved=True,
         )
-        assert final.verdict is Verdict.USER_APPROVED
-        assert final.user_approved_refused == ""
-        assert final.approval is not None
-        assert final.approval["source"] == "ask_user_question"
-        assert final.approval["stage0_reason"] == escalated.stage0_reason
-        assert final.approval["citation_verified"] is False
-        assert final.approval["approved_at"]
+        assert final.verdict is Verdict.ESCALATE
+        assert final.approval is None
+        assert final.user_approved_refused == "no_verifiable_approval_channel"
+        assert final.attempted_user_approval is True
 
         artifact = _artifact(tmp_path)
-        assert artifact["verdict"] == "user_approved"
-        assert artifact["approval"]["stage0_reason"] == escalated.stage0_reason
-        assert "user_approved_refused" not in artifact
+        assert artifact["verdict"] == "escalate"
+        assert "approval" not in artifact
+        assert artifact["user_approved_refused"] == "no_verifiable_approval_channel"
+        assert artifact["attempted_user_approval"] is True
         state = json.loads(state_path.read_text())
-        assert state["alignment_passed"] is True
+        assert state["alignment_passed"] is False
 
     def test_block_is_never_upgraded_and_records_no_approval(
         self, tmp_path: Path, monkeypatch
@@ -868,9 +934,15 @@ class TestEvaluateAndRecordApprovalGate:
         assert out["citation_verified"] is False
         assert out["user_approved_refused"] == "autonomous_context"
 
-    def test_interactive_user_approved_upgrades_with_trail(
+    def test_interactive_user_approved_is_refused_end_to_end(
         self, tmp_path: Path, monkeypatch
     ) -> None:
+        """Issue #1802: INVERTED — the entry point refuses the flag outright.
+
+        Renamed from ``test_interactive_user_approved_upgrades_with_trail``.
+        ``source = "ask_user_question"`` is never emitted by this library
+        again; its absence is the signature of the fix.
+        """
         monkeypatch.delenv("AUTONOMOUS_DEV_NONINTERACTIVE", raising=False)
         repo = self._repo(tmp_path)
         out = evaluate_and_record(
@@ -880,11 +952,11 @@ class TestEvaluateAndRecordApprovalGate:
             repo_root=repo,
             user_approved=True,
         )
-        assert out["verdict"] == "user_approved"
-        assert out["alignment_passed"] is True
-        assert out["approval"]["source"] == "ask_user_question"
-        assert "OUT-of-scope" in out["approval"]["stage0_reason"]
-        assert _artifact(repo)["approval"]["source"] == "ask_user_question"
+        assert out["verdict"] == "escalate"
+        assert out["alignment_passed"] is False
+        assert "approval" not in out
+        assert out["user_approved_refused"] == "no_verifiable_approval_channel"
+        assert "approval" not in _artifact(repo)
 
 
 # ---------------------------------------------------------------------------

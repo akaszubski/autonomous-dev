@@ -31,6 +31,26 @@ sys.path.insert(0, str(LIB_DIR))
 
 import unified_pre_tool as hook
 
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+from tests.helpers.sanctioned_run import (  # noqa: E402
+    clear_run_artifacts,
+    write_sanctioned_sentinel,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_run_artifacts(monkeypatch, tmp_path):
+    """Redirect sentinel, secret store and completion ledger into tmp_path.
+
+    Issue #1807: building a sanctioned run writes a key under ``$HOME`` and a
+    ledger under ``/tmp``. ``redirect_pipeline_state`` is the ONE canonical
+    redirect for all of it, and ``sanctioned_run`` REFUSES to build without it.
+    """
+    import pipeline_completion_state as _pcs
+    import pipeline_state as _ps
+
+    redirect_pipeline_state(monkeypatch, tmp_path, _ps, _pcs, hook)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -62,38 +82,40 @@ def state_file(tmp_path):
     return _write
 
 
-@pytest.fixture
-def aligned_state(state_file, monkeypatch):
-    """Create a valid explicit pipeline state WITH alignment_passed=True."""
-    from pipeline_state import sign_state
-    state = {
-        "session_start": datetime.now().isoformat(),
-        "mode": "full",
-        "run_id": "test-aligned-585",
-        "explicitly_invoked": True,
-        "alignment_passed": True,
-    }
-    signed = sign_state(state, "test-session")
-    path = state_file(signed)
-    monkeypatch.setenv("PIPELINE_STATE_FILE", path)
-    return path
+#: Owner of the sanctioned run these fixtures build (Issue #1807). The pre-#1807
+#: fixtures signed a state with NO `session_id`, which is the unverifiable-owner
+#: shape A1c refuses — the gate then never reached the #585 branch under test.
+_GATE_OWNER = "sess-alignment-585"
 
 
 @pytest.fixture
-def unaligned_state(state_file, monkeypatch):
-    """Create a valid explicit pipeline state WITHOUT alignment (alignment_passed=False)."""
-    from pipeline_state import sign_state
-    state = {
-        "session_start": datetime.now().isoformat(),
-        "mode": "full",
-        "run_id": "test-unaligned-585",
-        "explicitly_invoked": True,
-        "alignment_passed": False,
-    }
-    signed = sign_state(state, "test-session")
-    path = state_file(signed)
-    monkeypatch.setenv("PIPELINE_STATE_FILE", path)
-    return path
+def aligned_state(tmp_path, monkeypatch):
+    """Create a valid, SANCTIONED explicit pipeline state WITH alignment_passed=True."""
+    path = tmp_path / "implement_pipeline_state.json"
+    write_sanctioned_sentinel(
+        path, _GATE_OWNER, "test-aligned-585", alignment_passed=True
+    )
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", _GATE_OWNER)
+    # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+    monkeypatch.setattr(hook, "_session_id", _GATE_OWNER, raising=False)
+    yield str(path)
+    clear_run_artifacts(_GATE_OWNER)
+
+
+@pytest.fixture
+def unaligned_state(tmp_path, monkeypatch):
+    """Create a SANCTIONED explicit pipeline state WITHOUT alignment (False)."""
+    path = tmp_path / "implement_pipeline_state.json"
+    write_sanctioned_sentinel(
+        path, _GATE_OWNER, "test-unaligned-585", alignment_passed=False
+    )
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", _GATE_OWNER)
+    # Issue #1807 (defect 1): authority binds to the NATIVE stdin identity.
+    monkeypatch.setattr(hook, "_session_id", _GATE_OWNER, raising=False)
+    yield str(path)
+    clear_run_artifacts(_GATE_OWNER)
 
 
 # ---------------------------------------------------------------------------
