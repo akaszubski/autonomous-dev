@@ -3795,3 +3795,33 @@ permission-denied-before-execution arm, followed by installed proof. The
 [#1751 correction](https://github.com/akaszubski/autonomous-dev/issues/1751#issuecomment-5869500721)
 supersedes the earlier unknown-status recommendation; it does not promote the
 held WIP or the unobserved native failure arm.
+
+2026-09-28 installed-command parity HOLD: the subsequent #1751 native retry
+used an ownerless, unsigned fix-mode initialization, then its SubagentStop
+heartbeat replaced that mode-bearing state with a recovery-only record. The
+installed project command and this goal checkout's source command share
+SHA-256 `62d68da2dbf9d7fefbcc0966563c515a7258c3ebfdaec0e1082def656dd565d3`;
+the newer #1807 source command is `c49953865044d2a0d2d01522e1bf85c206cf39b152d35a422ffea29caccff410`.
+The installed global heartbeat library and this checkout's source share
+`2ac68ddcbc5011635b3e3c127b51928c60277f3605349fefdbcfbfa0ed4667bd`,
+while the newer #1807 source is
+`a2defeba28ce36babe45393524a005fd2d81b13cb92fabaca1df1b291d6a2fe6`.
+The installed SubagentStop path invokes the old library, which lacks the
+run-identity preservation guard. The exact command-source resolution remains
+an inference from matching bytes and native tool records; the hook/library
+replacement is established by the installed call path and state transition.
+The retry is NONCERTIFYING; no deployment or #1807/F0 acceptance followed.
+See [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5869949883).
+
+The existing installer can target one repo with `LOCAL_REPOS=autonomous-dev-1779`
+and `--local --no-global`; a dry run from clean `cf06d3c2` passed. However,
+that does not update the global hook actually used by the failed retry, and
+the target settings currently contain no hook registrations. Settings sync
+dry-run reports four lifecycle events to add but is not a preservation or
+live-run interlock proof. The default local deploy would update the global
+hook cache and five local repos. [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
+explicitly blocks #1807 rollout until active-run and settings-preservation
+proof; do not deploy this branch broadly or restart `/implement` from the
+stale installed profile. Next: qualify the canonical single-consumer update
+path and installed parity under #1809, then run a fresh signed native admission
+through SubagentStop before resuming #1751 and F0.
