@@ -78,6 +78,24 @@ the point-in-time held-lock proof immediately before F0 is still required.
 Native A7/A9 origin and containment, installation and release are also unproven;
 do not infer them from the integrated unit result.
 
+The installed command/hook mismatch found on 2026-09-28 makes a retry against
+the current global profile noncertifying. For **native #1807 test evidence only**,
+reuse the disposable project-local carrier **method** specified in the
+superseded `docs/plans/20260906-repository-integrity-recovery.md` B0-C11,
+not its old acceptance authority: first produce and byte-verify the
+project-local installed `.claude/` carrier with the scoped managed deploy
+vector, then copy its manifest-selected bytes into a disposable repo. Bind
+source, staged and installed digests; isolate
+`CLAUDE_CONFIG_DIR`, load only project settings, and independently verify the
+single command and hook owner, source-fallback fault, exact bytes, native
+state/receipt chain and before/after global-target identity. Freeze the
+changed subject and retain the approved native attempt limits and review.
+Do not use this result as #1809 rollout, D0 lifecycle or clean-consumer release
+acceptance. Global installed-file mutation remains held until #1809 proves
+full-run cross-target exclusion or retires that route after an active-use
+census. Do not add a global marker, daemon or registry merely to obtain the
+isolated #1807 test.
+
 The #1807 V3 helper, F1 alignment re-sign and shared malformed-input slices
 are gated and committed as **library-route hardening only, not native
 promotion**. The six-binding MAC, guarded base-commit
