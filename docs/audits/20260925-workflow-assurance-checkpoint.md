@@ -3825,3 +3825,18 @@ proof; do not deploy this branch broadly or restart `/implement` from the
 stale installed profile. Next: qualify the canonical single-consumer update
 path and installed parity under #1809, then run a fresh signed native admission
 through SubagentStop before resuming #1751 and F0.
+
+2026-09-28 isolated #1807 staging advance: the managed deploy from clean
+`27d1c497` with `LOCAL_REPOS=adev-1807-carrier.pqpGOs`, `--local` and
+`--no-global` populated only the disposable project-local carrier at
+`/Users/akaszubski/Dev/adev-1807-carrier.pqpGOs/.claude/`. Raw exit was 0;
+post-deploy validation passed, including no duplicate local registration.
+Its installed fix command and heartbeat library match source SHA-256
+`c49953865044d2a0d2d01522e1bf85c206cf39b152d35a422ffea29caccff410`
+and `a2defeba28ce36babe45393524a005fd2d81b13cb92fabaca1df1b291d6a2fe6`.
+The global library remained at old `2ac68ddc...`; no global settings were
+synced. This is **staging only**: no fresh Claude process, actual hook event,
+source-fallback fault or signed admission has yet passed. Next copy the
+byte-verified installed carrier into a separate isolated native subject,
+freeze its bytes/profile/cases, then run the native positive and negatives.
+[#1807 staging receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5870084868).
