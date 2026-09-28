@@ -23,6 +23,18 @@ code, include non-Python consumers, or freeze the control/consumer denominator.
 The #1801/#1803/#1804/#1805 connectivity and installed-registration faults
 below remain open; keep their omitted-route controls before promoting claims.
 
+Separate registration snapshot on the same date: the eight checked-in JSON
+settings surfaces now contain 75 hook groups and 77 hook-command entries;
+the older 73-binding row below is the `401c1ff0` historical snapshot, not a
+current count. In the current `global_settings_template.json`, 19 groups
+include eight `PreToolUse` and one `UserPromptExpansion`; the machine-global
+`~/.claude/settings.json` has 17 groups, seven `PreToolUse` and no
+`UserPromptExpansion`; this checkout's `.claude/settings.json` has zero hook
+groups. These are read-only structure counts, not an effective registration
+precedence check, an installed-plugin event, or evidence that any hook fired.
+The extra source groups and the actual consumer route remain reconciliation
+obligations, not silent exclusions or automatic duplicate-execution claims.
+
 2026-09-29 status correction: the three active prerequisite issues remain open.
 The #1805 candidate has unchanged 238/148/90 source-member arrays, but an
 independent review rejected its Bash execution oracle: it omitted executing
