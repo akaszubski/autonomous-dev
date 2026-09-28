@@ -64,10 +64,20 @@ command produces `5a35263f...` instead of local v1's `a20cf0da...`. The same
 `5a35263f...` independently follows from v1's own embedded POLICY.md text;
 no alternate docs directory in the frozen tree yields the v1 hash. The
 [#1773 RED receipt](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5865298673)
-and private `PREREQ-V2-ROUTE-B-SIXPAIR-RED.json` preserve this mismatch. F0 EX
-offline is blocked: prepare an explicit one-field old-to-new case mapping and
-fresh independent review before any case amendment, new `/implement` run or
-native F0 attempt. No historical ordinal11 stdout provenance is claimed.
+and private `PREREQ-V2-ROUTE-B-SIXPAIR-RED.json` preserve this mismatch.
+Fresh independent review has now attributed the old expected hash to macOS BSD
+`sed` retaining the frontmatter bullet (41 output bytes), while the Linux
+worker's GNU `sed` strips it (37 bytes). The reviewer reproduced both exact
+hashes over byte-identical POLICY.md content and checked seeded changed-cover,
+extra-cover and extra-doc counterfactuals against the proposed Linux value;
+[the issue correction](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5865424556)
+records that this is an authoring/execution environment mismatch, not a
+changed worker tree. The explicit one-field mapping and review are preserved
+in private `CMD1-OBLIGATION-MAPPING.PROPOSED.md` and
+`CMD1-PROMOTION-AUTHORIZATION-REPORT.md`. F0 EX offline remains BLOCKED RED:
+specific human case-amendment authorization has been requested but not
+received, so frozen v1 data is unchanged and no new `/implement` or native F0
+attempt may start. No historical ordinal11 stdout provenance is claimed.
 
 The #1809 settings-preservation source slice is committed and pushed as
 `79d85f1bf459052c0c03c90de23ce5c64d112f22` on
@@ -90,8 +100,14 @@ reachability, rather than an eighth regex exception. This is a read-only design
 hypothesis, not a fixed scanner or a frozen denominator.
 Its fresh `/implement --fix` baseline exposed an unrelated dirty PROJECT.md
 timestamp naming Issue #204 while broad tests were active in the isolated
-checkout. Preserve that contaminated run as non-certifying; identify the exact
-writer and revalidate the clean policy subject before scanner promotion.
+checkout. Two progress-tracker integration tests were independently isolated
+as live-root writers: one calls the real tracker without redirecting cwd, and
+the other patches Path methods while production writes through `builtins.open`.
+The [#1821 evidence](https://github.com/akaszubski/autonomous-dev/issues/1821#issuecomment-5865347726)
+is owned by a separate active `/implement --fix` test-isolation worktree;
+preserve the contaminated run as non-certifying and integrate only an accepted
+#1821 fix before revalidating the clean #1801 policy subject. Both worktrees
+are uncommitted at this checkpoint; neither issue is complete.
 
 ## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 
