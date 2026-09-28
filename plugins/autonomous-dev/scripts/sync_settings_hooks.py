@@ -1,14 +1,32 @@
 #!/usr/bin/env python3
 """
-Sync settings.json hooks and permissions during deploy.
+Sync TOOLKIT-OWNED settings.json hooks and permissions during deploy.
 
-Replaces the hooks key in settings.json with the canonical template hooks,
-and syncs permissions.deny from the generator's canonical DEFAULT_DENY_LIST
-to prevent stale/invalid patterns from persisting across deploys.
+Updates only the entries the toolkit owns — hook registrations whose command
+references a hook script declared by ``install_manifest.json`` or the template,
+and the canonical ``permissions.deny`` entries. A consumer's own hooks on the
+SAME lifecycle event, their custom deny/allow/ask entries, ``env``, and every
+other key survive untouched.
 
-Previous implementation used SettingsMerger.merge_settings() which did ADDITIVE
-hook merging, causing duplicate hooks on each deploy run. This version does a
-full REPLACE of the hooks key to ensure idempotency.
+History of this file's write strategy:
+
+* v1 used ``SettingsMerger.merge_settings()`` — ADDITIVE hook merging, which
+  duplicated hooks on every deploy run.
+* v2 (#648) did a full REPLACE of the ``hooks`` key and of
+  ``permissions.deny``. That fixed the duplication and introduced a worse
+  defect: it DELETED every consumer hook on a shared lifecycle event and every
+  custom deny entry. Measured against a populated consumer file: a user's own
+  SessionStart notifier, their own PostToolUse audit hook, and their custom
+  deny rule all destroyed, while the writer reported success.
+* v3 (#1809, current) delegates the write to
+  ``settings_merger.apply_owned_settings`` — the single canonical
+  ownership-aware owner. Idempotent like v2, preserving like v1, and it REFUSES
+  (rather than guessing) on a live pipeline run, malformed/ambiguous settings,
+  or a concurrent modification.
+
+The CLI contract ``scripts/deploy-all.sh`` depends on is unchanged; only the
+write path moved. A refusal is reported as ``success: false`` with a
+``refusal_class`` and exits non-zero — never as success.
 
 Usage:
     # Global mode: replace hooks in ~/.claude/settings.json from template
@@ -35,9 +53,7 @@ Agent: implementer
 
 import argparse
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
@@ -81,34 +97,6 @@ def _get_canonical_deny_list() -> list:
         return list(DEFAULT_DENY_LIST)
     except ImportError:
         return []
-
-
-def _validate_permission_patterns(patterns: list) -> list:
-    """Validate permission patterns for known syntax errors.
-
-    Claude Code requires :* only at the end of a pattern (prefix matching).
-    Patterns like Bash(brew:*install*) are invalid because :* is mid-string.
-
-    Args:
-        patterns: List of permission pattern strings
-
-    Returns:
-        List of invalid patterns with descriptions
-    """
-    errors = []
-    import re
-    for pattern in patterns:
-        # Match Tool(content) patterns
-        m = re.match(r'^(\w+)\((.+)\)$', pattern)
-        if not m:
-            continue
-        content = m.group(2)
-        # Check for :* not at the end — the actual invalid syntax
-        # Valid: "sudo:*" (colon-star at end = prefix match)
-        # Invalid: "brew:*install*" (colon-star in middle)
-        if ':*' in content and not content.endswith(':*'):
-            errors.append(pattern)
-    return errors
 
 
 def _count_lifecycle_events(settings_path: Path) -> int:
@@ -189,11 +177,18 @@ def _detect_stale_local_warnings(
 def _replace_hooks(
     user_path: Path, template_path: Path, *, dry_run: bool = False
 ) -> Dict[str, Any]:
-    """Replace hooks key in settings from template, preserving all other keys.
+    """Update TOOLKIT-OWNED settings entries from the template. Preserve the rest.
 
-    This is the core fix for the duplicate hooks bug. Instead of additively
-    merging hooks (which duplicates them on each run), we replace the entire
-    hooks key with the template's canonical hooks.
+    Issue #1809: this function used to do ``user_settings["hooks"] =
+    template_hooks`` plus ``permissions["deny"] = canonical_deny``, which
+    destroyed a consumer's own hooks on any lifecycle event the toolkit also
+    used, and every custom deny entry. Both wholesale-replacement blocks are
+    RETIRED — not kept as a fallback. The write now delegates to the single
+    canonical owner, ``settings_merger.apply_owned_settings``, which replaces
+    only manifest-attributed toolkit-owned entries.
+
+    The name and the return contract are unchanged so ``scripts/deploy-all.sh``
+    and every existing caller keep working: the ROUTE stays, the WRITE moved.
 
     Args:
         user_path: Path to the user's settings.json
@@ -201,60 +196,63 @@ def _replace_hooks(
         dry_run: If True, compute changes but do not write
 
     Returns:
-        Result dict with success status and hook counts
+        Result dict with success status and hook counts. A refusal returns
+        ``success: False`` with a ``refusal_class`` and a durable ``message`` —
+        it is never reported as success.
 
     Raises:
-        json.JSONDecodeError: If template or existing settings contain invalid JSON
+        json.JSONDecodeError: If the TEMPLATE contains invalid JSON. A malformed
+            TARGET is a structured refusal, not an exception (#1809): callers
+            like deploy-all.sh swallow exceptions as warnings, so the refusal
+            needs an observable reason in the result.
     """
-    # Read template
+    _setup_imports()
+    from settings_merger import apply_owned_settings
+
+    # Read template (a broken template is a deploy-artifact bug, not consumer
+    # state — it still raises so the packaging error is loud).
     template = json.loads(template_path.read_text(encoding="utf-8"))
     template_hooks = template.get("hooks", {})
 
-    # Read existing settings (or create empty)
+    old_events = set()
     if user_path.exists():
-        user_settings = json.loads(user_path.read_text(encoding="utf-8"))
-    else:
-        user_settings = {}
+        try:
+            existing = json.loads(user_path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict) and isinstance(existing.get("hooks"), dict):
+                old_events = set(existing["hooks"].keys())
+        except (OSError, json.JSONDecodeError):
+            # Malformed target: apply_owned_settings refuses below with a reason.
+            old_events = set()
 
-    # Count what's changing
-    old_hooks = user_settings.get("hooks", {})
-    old_events = set(old_hooks.keys())
     new_events = set(template_hooks.keys())
 
-    # Replace hooks entirely
-    user_settings["hooks"] = template_hooks
-
-    # Sync permissions.deny from canonical generator list
     canonical_deny = _get_canonical_deny_list()
-    deny_synced = False
-    deny_errors_fixed = 0
-    if canonical_deny:
-        old_deny = user_settings.get("permissions", {}).get("deny", [])
-        # Validate old deny list for known bad patterns
-        bad_patterns = _validate_permission_patterns(old_deny)
-        if bad_patterns or old_deny != canonical_deny:
-            if "permissions" not in user_settings:
-                user_settings["permissions"] = {}
-            user_settings["permissions"]["deny"] = canonical_deny
-            deny_synced = True
-            deny_errors_fixed = len(bad_patterns)
+    manifest_path = _find_plugin_root() / "config" / "install_manifest.json"
 
-    if not dry_run:
-        # Atomic write
-        user_path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=str(user_path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(user_settings, f, indent=2)
-                f.write("\n")
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, str(user_path))
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+    outcome = apply_owned_settings(
+        user_path,
+        template,
+        manifest_path=manifest_path if manifest_path.exists() else None,
+        owned_deny=canonical_deny or None,
+        dry_run=dry_run,
+    )
+
+    if not outcome.success:
+        return {
+            "success": False,
+            "hooks_added": 0,
+            "hooks_preserved": 0,
+            "hooks_migrated": 0,
+            "total_lifecycle_events": 0,
+            "deny_synced": False,
+            "deny_errors_fixed": 0,
+            "refusal_class": outcome.refusal_class,
+            "stale_local_warnings": [],
+            "message": f"Refused ({outcome.refusal_class}): {outcome.reason}",
+        }
+
+    deny_synced = outcome.permissions_synced
+    deny_errors_fixed = len(outcome.details.get("deny_dropped", []))
 
     total_events = len(template_hooks)
     hooks_added = len(new_events - old_events)
@@ -283,10 +281,13 @@ def _replace_hooks(
         "total_lifecycle_events": total_events,
         "deny_synced": deny_synced,
         "deny_errors_fixed": deny_errors_fixed,
+        "refusal_class": "",
+        "foreign_hooks_preserved": outcome.foreign_hooks_preserved,
         "stale_local_warnings": stale_local_warnings,
         "message": (
-            f"Hooks replaced: {total_events} lifecycle events "
-            f"({hooks_added} added, {hooks_preserved} updated)"
+            f"Owned hooks updated: {total_events} lifecycle events "
+            f"({hooks_added} added, {hooks_preserved} updated), "
+            f"{outcome.foreign_hooks_preserved} unrelated hooks preserved"
             f"{deny_msg}"
             f"{stale_msg}"
         ),

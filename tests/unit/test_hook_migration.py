@@ -19,7 +19,39 @@ from unittest.mock import patch, MagicMock
 # Import the settings merger
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autonomous-dev" / "lib"))
-from settings_merger import SettingsMerger, MergeResult, UNIFIED_HOOK_REPLACEMENTS
+from settings_merger import (
+    UNIFIED_HOOK_REPLACEMENTS,
+    apply_owned_settings,
+    resolve_owned_hook_basenames,
+    _project_hooks,
+)
+
+# RETARGETED for Issue #1809. `SettingsMerger` and `MergeResult` are DELETED —
+# their additive `_merge_hooks` destroyed consumer hooks registered on a
+# lifecycle event the toolkit also uses, and `_atomic_write` was a second
+# commit path. The migration BEHAVIOUR these tests exist to protect (Issue #144:
+# old hooks removed when a unified hook is added) is unchanged and is now owned
+# by `_project_hooks` / `apply_owned_settings`. Each assertion below maps 1:1 to
+# its pre-#1809 form:
+#     merger._merge_hooks(existing, new) -> _project_hooks(existing, new, owned)
+#     (merged, added, preserved, migrated) ->
+#         (merged, owned_count, foreign_count, retired_count, reason)
+#     merger.merge_settings(...)          -> apply_owned_settings(...)
+#     result.hooks_migrated               -> result.details["hooks_retired"]
+
+
+def _merge_hooks_via_owner(existing, new):
+    """Adapter: run the owner's projection with the same 4-value shape.
+
+    Returns:
+        ``(merged, owned_count, foreign_count, retired_count)``.
+    """
+    owned = resolve_owned_hook_basenames({"hooks": new})
+    merged, owned_count, foreign_count, retired_count, reason = _project_hooks(
+        existing, new, owned
+    )
+    assert not reason, f"projection refused unexpectedly: {reason}"
+    return merged, owned_count, foreign_count, retired_count
 
 
 class TestHookMigration:
@@ -38,8 +70,6 @@ class TestHookMigration:
 
     def test_old_hooks_removed_when_unified_added(self):
         """Test that old hooks are removed when unified hooks are added."""
-        merger = SettingsMerger(project_root=Path.cwd())
-
         # Existing settings with old hooks
         existing = {
             "PreToolUse": [
@@ -64,7 +94,7 @@ class TestHookMigration:
             ]
         }
 
-        merged, added, preserved, migrated = merger._merge_hooks(existing, new)
+        merged, added, preserved, migrated = _merge_hooks_via_owner(existing, new)
 
         # Old hook should be migrated (removed)
         assert migrated == 1, "Old hook should be migrated"
@@ -88,8 +118,6 @@ class TestHookMigration:
 
     def test_non_replaced_hooks_preserved(self):
         """Test that hooks not replaced by unified hooks are preserved."""
-        merger = SettingsMerger(project_root=Path.cwd())
-
         # Existing settings with custom hook
         existing = {
             "PreCommit": [
@@ -114,7 +142,7 @@ class TestHookMigration:
             ]
         }
 
-        merged, added, preserved, migrated = merger._merge_hooks(existing, new)
+        merged, added, preserved, migrated = _merge_hooks_via_owner(existing, new)
 
         # Custom hook should be preserved
         assert preserved == 1, "Custom hook should be preserved"
@@ -127,8 +155,6 @@ class TestHookMigration:
 
     def test_multiple_old_hooks_migrated(self):
         """Test that multiple old hooks are all migrated."""
-        merger = SettingsMerger(project_root=Path.cwd())
-
         # Existing settings with multiple old hooks that unified_pre_tool replaces
         existing = {
             "PreToolUse": [
@@ -155,7 +181,7 @@ class TestHookMigration:
             ]
         }
 
-        merged, added, preserved, migrated = merger._merge_hooks(existing, new)
+        merged, added, preserved, migrated = _merge_hooks_via_owner(existing, new)
 
         # All 3 old hooks should be migrated
         assert migrated == 3, f"All 3 old hooks should be migrated, got {migrated}"
@@ -165,8 +191,6 @@ class TestHookMigration:
 
     def test_fresh_install_no_migration(self):
         """Test that fresh install (no existing hooks) doesn't migrate anything."""
-        merger = SettingsMerger(project_root=Path.cwd())
-
         # Empty existing settings
         existing = {}
 
@@ -182,7 +206,7 @@ class TestHookMigration:
             ]
         }
 
-        merged, added, preserved, migrated = merger._merge_hooks(existing, new)
+        merged, added, preserved, migrated = _merge_hooks_via_owner(existing, new)
 
         # No migration on fresh install
         assert migrated == 0, "No hooks should be migrated on fresh install"
@@ -230,17 +254,14 @@ class TestHookMigrationEndToEnd:
         user_path.write_text(json.dumps(user_settings))
         template_path.write_text(json.dumps(template_settings))
 
-        # Mock validate_path to allow test paths
-        with patch('settings_merger.validate_path', return_value=(True, "")):
-            merger = SettingsMerger(project_root=tmp_path)
-            result = merger.merge_settings(
-                template_path=template_path,
-                user_path=user_path,
-                write_result=True
-            )
+        result = apply_owned_settings(
+            user_path, json.loads(template_path.read_text())
+        )
 
-        assert result.success, f"Merge should succeed: {result.message}"
-        assert result.hooks_migrated == 1, f"Should migrate 1 hook, got {result.hooks_migrated}"
+        assert result.success, f"Update should succeed: {result.reason}"
+        assert result.details["hooks_retired"] == 1, (
+            f"Should retire 1 old hook, got {result.details['hooks_retired']}"
+        )
 
         # Verify file contents
         merged = json.loads(user_path.read_text())
@@ -317,13 +338,10 @@ class TestNoDoubleHooks:
         user_path.write_text(json.dumps(user_settings))
         template_path.write_text(json.dumps(template_settings))
 
-        with patch('settings_merger.validate_path', return_value=(True, "")):
-            merger = SettingsMerger(project_root=tmp_path)
-            result = merger.merge_settings(
-                template_path=template_path,
-                user_path=user_path,
-                write_result=True
-            )
+        result = apply_owned_settings(
+            user_path, json.loads(template_path.read_text())
+        )
+        assert result.success, f"Update should succeed: {result.reason}"
 
         # Load merged settings
         merged = json.loads(user_path.read_text())

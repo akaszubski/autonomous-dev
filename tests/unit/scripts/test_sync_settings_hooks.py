@@ -272,21 +272,28 @@ class TestReplaceHooks:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
 
-        # User permission entries preserved (untouched) -- but NOTE:
-        # `allow`/`ask` are left alone; `deny` is deliberately NOT a "user
-        # customization" surface. Since commit 320d4ce0 (#814) and
-        # reinforced by the Issue #1409 Write->Edit deny-pattern migration,
-        # `_replace_hooks` wholesale-syncs `permissions.deny` from the
-        # canonical `settings_generator.DEFAULT_DENY_LIST` on every deploy
-        # specifically so stale/invalid/missing security patterns cannot
-        # persist -- a purely custom entry like "Bash(custom:danger)" that
-        # isn't part of the canonical list does not survive a sync.
-        # Retargeted 2026-08-23; see docstring of sync_settings_hooks.py.
+        # INVERTED for Issue #1809 (was: `deny == _get_canonical_deny_list()`
+        # and `"Bash(custom:danger)" not in deny`).
+        #
+        # The previous expectation encoded the DEFECT: `_replace_hooks`
+        # wholesale-replaced `permissions.deny` with the canonical list, so a
+        # consumer's custom deny entry was DELETED on every deploy. That
+        # contradicts PROJECT.md's consumer outcome, "Preserve unrelated
+        # settings, expose conflicts before activation" — a custom deny rule is
+        # unrelated settings, and deleting it silently weakens the consumer's
+        # own security posture.
+        #
+        # The canonical entries must still all LAND (that is what #814/#1409
+        # actually required: no stale or missing security pattern). What changed
+        # is that landing them no longer requires deleting anything else.
         assert "CustomTool" in data["permissions"]["allow"]
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
+        deny = data["permissions"]["deny"]
+        for canonical in _get_canonical_deny_list():
+            assert canonical in deny, f"canonical deny entry lost: {canonical}"
+        assert "Bash(custom:danger)" in deny, "custom deny entry deleted (#1809)"
+        assert "Bash(rm -rf /)" in deny, "custom deny entry deleted (#1809)"
 
-        # Template hooks replaced entirely
+        # Template hooks land on all 8 lifecycle events
         assert len(data["hooks"]) == 8
 
     def test_dry_run_no_write(self, temp_dir, global_template):
@@ -364,13 +371,16 @@ class TestGlobalMode:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
         assert "CustomTool" in data["permissions"]["allow"]
-        # `deny` is synced wholesale from the canonical DEFAULT_DENY_LIST on
-        # every sync (Issue #814/#1409) -- a purely custom entry does not
-        # survive. Retargeted 2026-08-23; see TestReplaceHooks equivalent.
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
+        # INVERTED for Issue #1809 (was: `deny == _get_canonical_deny_list()`).
+        # Canonical entries still all land; custom entries now SURVIVE, per
+        # PROJECT.md "Preserve unrelated settings, expose conflicts before
+        # activation". See TestReplaceHooks equivalent for the full rationale.
+        deny = data["permissions"]["deny"]
+        for canonical in _get_canonical_deny_list():
+            assert canonical in deny, f"canonical deny entry lost: {canonical}"
+        assert "Bash(custom:danger)" in deny, "custom deny entry deleted (#1809)"
 
-        # Template hooks replaced
+        # Template hooks land on all 8 lifecycle events
         assert len(data["hooks"]) == 8
 
 
@@ -505,15 +515,29 @@ class TestErrorHandling:
         assert "not found" in result["message"].lower() or "template" in result["message"].lower()
 
     def test_invalid_json_settings(self, temp_dir):
-        """_replace_hooks raises on corrupt settings.json."""
+        """A corrupt settings.json is a structured REFUSAL, not an exception.
+
+        INVERTED for Issue #1809 (was: `pytest.raises(json.JSONDecodeError)`).
+
+        The refusal must be DURABLE and OBSERVABLE. `scripts/deploy-all.sh`
+        invokes this writer with `|| echo "warning"`, so an exception was
+        indistinguishable from any other failure and carried no machine-readable
+        reason. A refusal now returns `success: False` with a `refusal_class`,
+        and the target is left byte-for-byte unchanged.
+        """
         template_path = temp_dir / "template.json"
         _write_json(template_path, {"hooks": {}})
 
         settings_path = temp_dir / "settings.json"
         settings_path.write_text("{invalid json!!!", encoding="utf-8")
+        before = settings_path.read_bytes()
 
-        with pytest.raises(json.JSONDecodeError):
-            _replace_hooks(settings_path, template_path)
+        result = _replace_hooks(settings_path, template_path)
+
+        assert result["success"] is False
+        assert result["refusal_class"] == "malformed_target"
+        assert "not valid JSON" in result["message"]
+        assert settings_path.read_bytes() == before, "refusal mutated the target"
 
 
 class TestPermissions:
@@ -547,13 +571,15 @@ class TestPermissions:
         assert result["success"] is True
         data = json.loads(settings_path.read_text())
 
-        # User permission entries preserved (untouched - replace only touches
-        # hooks) EXCEPT `deny`, which is deliberately re-synced wholesale
-        # from the canonical DEFAULT_DENY_LIST on every deploy (Issue
-        # #814/#1409) so a purely custom entry does not survive.
-        # Retargeted 2026-08-23; see TestReplaceHooks for full rationale.
+        # INVERTED for Issue #1809 (was: `deny == _get_canonical_deny_list()`
+        # and `"Bash(my-custom-deny)" not in deny`). `allow` and `ask` were
+        # always untouched; `deny` now preserves custom entries too while every
+        # canonical entry still lands. See TestReplaceHooks for full rationale
+        # and the PROJECT.md consumer-preservation citation.
         assert "CustomUserTool" in data["permissions"]["allow"]
         assert "MyMCPTool" in data["permissions"]["allow"]
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(my-custom-deny)" not in data["permissions"]["deny"]
+        deny = data["permissions"]["deny"]
+        for canonical in _get_canonical_deny_list():
+            assert canonical in deny, f"canonical deny entry lost: {canonical}"
+        assert "Bash(my-custom-deny)" in deny, "custom deny entry deleted (#1809)"
         assert "Bash(git push:*)" in data["permissions"]["ask"]

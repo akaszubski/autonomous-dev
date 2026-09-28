@@ -35,70 +35,110 @@ except ImportError:
 # Import models
 from .models import SyncResult
 
-# Import settings merger for settings.json hook sync
+# Import THE canonical ownership-aware settings owner (Issue #1809).
+# The old SettingsMerger class it used to import is DELETED — its additive merge
+# destroyed consumer hooks on shared lifecycle events.
 try:
-    from plugins.autonomous_dev.lib.settings_merger import SettingsMerger
+    from plugins.autonomous_dev.lib.settings_merger import (
+        apply_owned_settings,
+        check_mutation_admission,
+    )
 except ImportError:
     try:
-        from settings_merger import SettingsMerger  # type: ignore
+        from settings_merger import (  # type: ignore
+            apply_owned_settings,
+            check_mutation_admission,
+        )
     except ImportError:
-        SettingsMerger = None  # type: ignore
+        apply_owned_settings = None  # type: ignore
+        check_mutation_admission = None  # type: ignore
 
 # TYPE_CHECKING pattern prevents circular imports
 if TYPE_CHECKING:
     from .dispatcher import SyncDispatcher
 
 
-def _merge_settings_hooks(
+class SettingsWriteError(RuntimeError):
+    """A settings write was attempted and did not succeed.
+
+    Issue #1809. The previous ``_merge_settings_hooks`` returned ``0`` for
+    EVERY failure — unimportable merger, unparseable template, merge refusal,
+    unexpected exception — and its callers reported those runs as sync SUCCESS.
+    A settings write that never happened must not look like a settings write
+    that did, so failures now raise. ``dispatch_marketplace`` and
+    ``dispatch_plugin_dev`` already wrap their bodies in ``except Exception`` and
+    turn it into ``SyncResult(success=False)``.
+    """
+
+
+def _apply_owned_settings_hooks(
     dispatcher: "SyncDispatcher",
     template_path: Path,
 ) -> int:
-    """Merge settings template hooks into repo settings.json.
+    """Update toolkit-owned settings entries in the repo's settings.json.
 
-    Ensures hooks (PreToolUse, UserPromptSubmit, etc.) from the template
-    are present in the repo's settings.json without overwriting user's
-    custom permissions.
+    Delegates the WRITE to :func:`settings_merger.apply_owned_settings`, the one
+    canonical owner. Unrelated consumer hooks on shared lifecycle events and all
+    custom permission entries survive.
 
     Args:
         dispatcher: SyncDispatcher instance
         template_path: Path to settings template (e.g., settings.local.json)
 
     Returns:
-        Number of hook events added/updated, or 0 if merge skipped/failed.
-    """
-    if SettingsMerger is None:
-        audit_log("settings_merge", "merger_unavailable", {
-            "reason": "SettingsMerger not importable"
-        })
-        return 0
+        Number of toolkit-owned hook entries written. ``0`` ONLY when the
+        template is genuinely absent (nothing to apply).
 
+    Raises:
+        SettingsWriteError: The owner is unavailable, the template is
+            unreadable, or the write was refused. Never reported as success.
+    """
     user_settings_path = dispatcher.project_path / ".claude" / "settings.json"
+
+    if apply_owned_settings is None:
+        audit_log("settings_owner", "owner_unavailable", {
+            "reason": "settings_merger.apply_owned_settings not importable",
+            "target": str(user_settings_path),
+        })
+        raise SettingsWriteError(
+            "settings_merger.apply_owned_settings is not importable; refusing to "
+            "report a settings write that never happened"
+        )
+
     if not template_path.exists():
         return 0
 
     try:
-        merger = SettingsMerger(str(dispatcher.project_path))
-        result = merger.merge_settings(
-            template_path=template_path,
-            user_path=user_settings_path,
-            write_result=True,
+        template = json.loads(template_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        audit_log("settings_owner", "template_unreadable", {
+            "template": str(template_path),
+            "error": str(exc),
+        })
+        raise SettingsWriteError(
+            f"settings template {template_path} is unreadable: {exc}"
+        ) from exc
+
+    result = apply_owned_settings(user_settings_path, template)
+
+    if not result.success:
+        audit_log("settings_owner", "refused", {
+            "target": str(user_settings_path),
+            "refusal_class": result.refusal_class,
+            "reason": result.reason,
+        })
+        raise SettingsWriteError(
+            f"settings write to {user_settings_path} refused "
+            f"({result.refusal_class}): {result.reason}"
         )
-        if result.success:
-            hooks_added = result.details.get("hooks_added", 0) if result.details else 0
-            audit_log("settings_merge", "success", {
-                "template": str(template_path),
-                "target": str(user_settings_path),
-                "hooks_added": hooks_added,
-            })
-            return hooks_added
-        else:
-            audit_log("settings_merge", "merge_failed", {
-                "error": result.message,
-            })
-            return 0
-    except Exception as e:
-        audit_log("settings_merge", "exception", {"error": str(e)})
-        return 0
+
+    audit_log("settings_owner", "applied", {
+        "template": str(template_path),
+        "target": str(user_settings_path),
+        "owned_hooks_written": result.owned_hooks_written,
+        "foreign_hooks_preserved": result.foreign_hooks_preserved,
+    })
+    return result.owned_hooks_written
 
 
 def _run_hook_config_generator(dispatcher: "SyncDispatcher") -> None:
@@ -280,6 +320,67 @@ def dispatch_marketplace(dispatcher: "SyncDispatcher") -> SyncResult:
             error=f"Directory not found: {marketplace_dir}",
         )
 
+    # ADMISSION — before the FIRST mutation (Issue #1809, remediation FINDING-2).
+    #
+    # This function is user-invocable via `/sync --marketplace`, and it copies
+    # commands and hooks with dispatcher._sync_directory() before it ever reaches
+    # the settings write at _apply_owned_settings_hooks(). A refusal raised down
+    # there would therefore arrive AFTER the installed tree had been modified —
+    # the identical ordering defect fixed for the sibling
+    # SyncDispatcher.sync_marketplace(). The check is hoisted ahead of the
+    # claude_dir.mkdir() below (the first mutation) and calls the SAME shared
+    # admission owner — one implementation, three call sites, no copy.
+    #
+    # The admission lookup is SIDE-EFFECT-FREE: settings_merger resolves the
+    # sentinel by path arithmetic only (see its _resolve_sentinel_readonly). It
+    # creates no directory and changes no directory mode, so a refusal here
+    # leaves the target byte-for-byte AND inode-for-inode unchanged.
+    #
+    # FAIL CLOSED on a broken instrument: if the admission owner could not be
+    # imported, the guard is ABSENT, not satisfied. Proceeding would copy files
+    # with no liveness check at all — an admission gate that silently vanishes
+    # when its import breaks is worse than none, because callers still believe
+    # it ran. Refuse instead, with an observable reason and zero mutation.
+    if check_mutation_admission is None:
+        audit_log("marketplace_sync", "admission_owner_unavailable", {
+            "project_path": str(dispatcher.project_path),
+            "mode": "marketplace",
+        })
+        return SyncResult(
+            success=False,
+            mode=SyncMode.MARKETPLACE,
+            message="Sync refused: admission owner unavailable (failing closed)",
+            error=(
+                "settings_merger.check_mutation_admission is not importable, so "
+                "an active /implement run cannot be ruled out; refusing to copy "
+                "files rather than proceeding without the check"
+            ),
+            details={
+                "files_updated": 0,
+                "admission_refused": "admission_owner_unavailable",
+            },
+        )
+
+    admitted, admission_class, admission_reason = check_mutation_admission(
+        dispatcher.project_path / ".claude"
+    )
+    if not admitted:
+        audit_log("marketplace_sync", "admission_refused", {
+            "project_path": str(dispatcher.project_path),
+            "refusal_class": admission_class,
+            "reason": admission_reason,
+            "mode": "marketplace",
+        })
+        return SyncResult(
+            success=False,
+            mode=SyncMode.MARKETPLACE,
+            message=(
+                f"Sync refused before any file was modified ({admission_class})"
+            ),
+            error=admission_reason,
+            details={"files_updated": 0, "admission_refused": admission_class},
+        )
+
     # Ensure target .claude directory exists
     claude_dir = dispatcher.project_path / ".claude"
     claude_dir.mkdir(exist_ok=True)
@@ -303,9 +404,9 @@ def dispatch_marketplace(dispatcher: "SyncDispatcher") -> SyncResult:
                 hooks_src, hooks_dst, pattern="*.py", description="hook files"
             )
 
-        # Merge settings.json hooks from template (Issue #373)
+        # Update toolkit-owned settings.json entries (Issue #373, #1809)
         template_path = marketplace_dir / "templates" / "settings.local.json"
-        hooks_merged = _merge_settings_hooks(dispatcher, template_path)
+        hooks_merged = _apply_owned_settings_hooks(dispatcher, template_path)
 
         return SyncResult(
             success=True,
@@ -434,9 +535,9 @@ def dispatch_plugin_dev(dispatcher: "SyncDispatcher") -> SyncResult:
         # Run hook config generator (Issue #553) - after hooks deployed, before merge
         _run_hook_config_generator(dispatcher)
 
-        # Merge settings.json hooks from template (Issue #373)
+        # Update toolkit-owned settings.json entries (Issue #373, #1809)
         template_path = plugin_dir / "templates" / "settings.local.json"
-        hooks_merged = _merge_settings_hooks(dispatcher, template_path)
+        hooks_merged = _apply_owned_settings_hooks(dispatcher, template_path)
 
         return SyncResult(
             success=True,

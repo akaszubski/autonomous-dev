@@ -17,7 +17,7 @@ import os
 import tempfile
 from pathlib import Path
 from shutil import copy2, copytree
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 # Import dependencies
 try:
@@ -26,7 +26,10 @@ try:
     from plugins.autonomous_dev.lib.version_detector import detect_version_mismatch, VersionComparison
     from plugins.autonomous_dev.lib.orphan_file_cleaner import cleanup_orphans as cleanup_orphan_files, CleanupResult
     from plugins.autonomous_dev.lib.file_discovery import FileDiscovery
-    from plugins.autonomous_dev.lib.settings_merger import SettingsMerger, MergeResult
+    from plugins.autonomous_dev.lib.settings_merger import (
+        apply_owned_settings,
+        check_mutation_admission,
+    )
     from plugins.autonomous_dev.lib.sync_validator import SyncValidator, SyncValidationResult
     from plugins.autonomous_dev.lib.protected_file_detector import ProtectedFileDetector
 except ImportError:
@@ -36,7 +39,10 @@ except ImportError:
     from version_detector import detect_version_mismatch, VersionComparison  # type: ignore
     from orphan_file_cleaner import cleanup_orphans as cleanup_orphan_files, CleanupResult  # type: ignore
     from file_discovery import FileDiscovery  # type: ignore
-    from settings_merger import SettingsMerger, MergeResult  # type: ignore
+    from settings_merger import (  # type: ignore
+        apply_owned_settings,
+        check_mutation_admission,
+    )
     try:
         from sync_validator import SyncValidator, SyncValidationResult  # type: ignore
     except ImportError:
@@ -661,6 +667,42 @@ class SyncDispatcher:
         orphan_cleanup_result = None
         files_updated = 0
 
+        # Step 0: ADMISSION — before the FIRST mutation of any kind (Issue #1809,
+        # review correction 8).
+        #
+        # This method copies commands, hooks and agents long before it reaches the
+        # settings write at Step 2.5. A refusal raised inside
+        # settings_merger.apply_owned_settings would therefore fire only AFTER the
+        # installed tree had already been modified, which makes "we refuse during
+        # a live run" false for this route. The check is hoisted here, and it
+        # calls the SAME admission owner the settings writer uses
+        # (settings_merger.check_mutation_admission) — one implementation, two
+        # call sites, no copy.
+        admitted, admission_class, admission_reason = check_mutation_admission(
+            self.project_path / ".claude"
+        )
+        if not admitted:
+            audit_log(
+                "marketplace_sync",
+                "admission_refused",
+                {
+                    "project_path": str(self.project_path),
+                    "refusal_class": admission_class,
+                    "reason": admission_reason,
+                },
+            )
+            return SyncResult(
+                success=False,
+                mode=SyncMode.MARKETPLACE,
+                message=f"Sync refused before any file was modified ({admission_class})",
+                error=admission_reason,
+                details={
+                    "files_updated": 0,
+                    "admission_refused": admission_class,
+                    "admission_reason": admission_reason,
+                },
+            )
+
         # Step 1: Version detection (non-blocking)
         try:
             version_comparison = detect_version_mismatch(
@@ -831,32 +873,46 @@ class SyncDispatcher:
                     agents_src, agents_dst, pattern="*.md", description="agent files"
                 )
 
-            # Step 2.5: Merge settings.local.json (non-blocking enhancement)
-            settings_merge_result = None
-            try:
-                template_path = Path(plugin_path) / "templates" / "settings.local.json"
-                user_path = claude_dir / "settings.local.json"
-
-                if template_path.exists():
-                    merger = SettingsMerger(project_root=str(self.project_path))
-                    settings_merge_result = merger.merge_settings(
-                        template_path=template_path,
-                        user_path=user_path,
-                        write_result=True
-                    )
-                    audit_log(
-                        "marketplace_sync",
-                        "settings_merged",
-                        {
-                            "project_path": str(self.project_path),
-                            "template_path": str(template_path),
-                            "user_path": str(user_path),
-                            "success": settings_merge_result.success,
-                            "hooks_added": settings_merge_result.hooks_added,
-                            "hooks_preserved": settings_merge_result.hooks_preserved,
-                        },
-                    )
-                else:
+            # Step 2.5: Update TOOLKIT-OWNED settings entries (Issue #1809).
+            #
+            # This replaces TWO former writers that both lived here:
+            #   * Step 2.5  — SettingsMerger.merge_settings() on settings.local.json
+            #                 (additive lifecycle merge; the class is now DELETED)
+            #   * Step 2.55 — a hand-rolled wholesale replace that assigned the
+            #                 template's hooks dict straight over the consumer's
+            #                 entire `hooks` key on settings.json, plus its own
+            #                 mkstemp/chmod/os.replace transaction
+            #
+            # The wholesale replace destroyed every consumer hook registered on a
+            # lifecycle event the toolkit also uses. Both are retired; the single
+            # canonical owner now performs the write for both layers.
+            # AGGREGATION CONTRACT (Issue #1809): a layer that refused or whose
+            # template could not be read is NOT a successful settings update. The
+            # first draft of this loop recorded per-layer statuses but still
+            # returned success=True, and kept only the LAST layer's outcome — so
+            # an early refusal was masked by a later success. That is the same
+            # false-success defect being fixed in modes.py, one file over.
+            # Every layer's status is therefore returned in details, and
+            # settings_failed makes the overall SyncResult non-success.
+            settings_results: Dict[str, Dict[str, Any]] = {}
+            settings_owner_result = None
+            settings_failed: List[str] = []
+            for layer_name, template_rel, target in (
+                ("local", "templates/settings.local.json",
+                 claude_dir / "settings.local.json"),
+                ("project", "config/global_settings_template.json",
+                 claude_dir / "settings.json"),
+            ):
+                template_path = Path(plugin_path) / template_rel
+                if not template_path.exists():
+                    # A missing template for a layer this sync is expected to
+                    # write is a packaging defect, not a silent skip.
+                    settings_results[layer_name] = {
+                        "status": "template_missing",
+                        "template": str(template_path),
+                        "reason": f"settings template not found: {template_path}",
+                    }
+                    settings_failed.append(layer_name)
                     audit_log(
                         "marketplace_sync",
                         "settings_template_missing",
@@ -865,69 +921,60 @@ class SyncDispatcher:
                             "template_path": str(template_path),
                         },
                     )
-            except Exception as e:
-                # Log error but continue (non-blocking)
-                audit_log(
-                    "marketplace_sync",
-                    "settings_merge_failed",
-                    {
-                        "project_path": str(self.project_path),
-                        "error": str(e),
-                    },
-                )
-                # settings_merge_result stays None - sync continues
-
-            # Step 2.55: Sync settings.json hook registrations (Issue #648)
-            # Replace hooks key from template (not additive merge — prevents duplicates)
-            try:
-                settings_tmpl_path = Path(plugin_path) / "config" / "global_settings_template.json"
-                settings_json_path = claude_dir / "settings.json"
-
-                if settings_tmpl_path.exists() and settings_json_path.exists():
-                    import tempfile as _tempfile
-
-                    tmpl_data = json.loads(settings_tmpl_path.read_text(encoding="utf-8"))
-                    template_hooks = tmpl_data.get("hooks", {})
-
-                    user_data = json.loads(settings_json_path.read_text(encoding="utf-8"))
-                    old_event_count = len(user_data.get("hooks", {}))
-
-                    # Replace hooks entirely (not merge)
-                    user_data["hooks"] = template_hooks
-
-                    # Atomic write
-                    fd, tmp = _tempfile.mkstemp(
-                        dir=str(settings_json_path.parent), suffix=".tmp"
+                    continue
+                try:
+                    template_data = json.loads(
+                        template_path.read_text(encoding="utf-8")
                     )
-                    try:
-                        with os.fdopen(fd, "w") as f:
-                            json.dump(user_data, f, indent=2)
-                            f.write("\n")
-                        os.chmod(tmp, 0o600)
-                        os.replace(tmp, str(settings_json_path))
-                    except Exception:
-                        try:
-                            os.unlink(tmp)
-                        except OSError:
-                            pass
-                        raise
-
+                except (OSError, json.JSONDecodeError) as exc:
+                    settings_results[layer_name] = {
+                        "status": "template_unreadable",
+                        "template": str(template_path),
+                        "reason": str(exc),
+                    }
+                    settings_failed.append(layer_name)
                     audit_log(
                         "marketplace_sync",
-                        "settings_hooks_synced",
+                        "settings_template_unreadable",
                         {
                             "project_path": str(self.project_path),
-                            "old_events": old_event_count,
-                            "new_events": len(template_hooks),
+                            "template_path": str(template_path),
+                            "error": str(exc),
                         },
                     )
-            except Exception as e:
+                    continue
+
+                outcome = apply_owned_settings(target, template_data)
+                settings_results[layer_name] = {
+                    "status": "applied" if outcome.success else "refused",
+                    "target": str(target),
+                    "refusal_class": outcome.refusal_class,
+                    "reason": outcome.reason,
+                    "owned_hooks_written": outcome.owned_hooks_written,
+                    "foreign_hooks_preserved": outcome.foreign_hooks_preserved,
+                }
+                if not outcome.success:
+                    settings_failed.append(layer_name)
+                # Keep the FIRST failing outcome for the summary field so a
+                # later success cannot overwrite it; otherwise keep the last
+                # applied outcome.
+                if settings_owner_result is None or (
+                    settings_owner_result.success and not outcome.success
+                ):
+                    settings_owner_result = outcome
                 audit_log(
                     "marketplace_sync",
-                    "settings_hooks_sync_failed",
+                    "settings_owned_applied" if outcome.success
+                    else "settings_owned_refused",
                     {
                         "project_path": str(self.project_path),
-                        "error": str(e),
+                        "template_path": str(template_path),
+                        "target": str(target),
+                        "success": outcome.success,
+                        "refusal_class": outcome.refusal_class,
+                        "reason": outcome.reason,
+                        "owned_hooks_written": outcome.owned_hooks_written,
+                        "foreign_hooks_preserved": outcome.foreign_hooks_preserved,
                     },
                 )
 
@@ -1047,6 +1094,34 @@ class SyncDispatcher:
 
         message = " | ".join(message_parts)
 
+        # Issue #1809: a settings layer that refused or whose template was
+        # missing/unreadable is NOT a successful settings update. Report it as a
+        # failure with the per-layer detail, so no caller can read success from a
+        # run whose settings write did not land.
+        settings_failed_layers = locals().get("settings_failed") or []
+        settings_detail = locals().get("settings_results") or {}
+        if settings_failed_layers:
+            failed_summary = "; ".join(
+                f"{layer}: {settings_detail.get(layer, {}).get('status', 'failed')}"
+                f" ({settings_detail.get(layer, {}).get('reason', '')})"
+                for layer in settings_failed_layers
+            )
+            return SyncResult(
+                success=False,
+                mode=SyncMode.MARKETPLACE,
+                message=f"{message} | settings NOT updated -> {failed_summary}",
+                details={
+                    "files_updated": files_updated,
+                    "source": str(plugin_path) if 'plugin_path' in locals() else "unknown",
+                    "settings_layers": settings_detail,
+                    "settings_failed_layers": settings_failed_layers,
+                },
+                error=f"settings update failed for layer(s): {failed_summary}",
+                version_comparison=version_comparison,
+                orphan_cleanup=orphan_cleanup_result,
+                settings_merged=settings_owner_result,
+            )
+
         # Return success with enriched data
         return SyncResult(
             success=True,
@@ -1055,10 +1130,12 @@ class SyncDispatcher:
             details={
                 "files_updated": files_updated,
                 "source": str(plugin_path) if 'plugin_path' in locals() else "unknown",
+                "settings_layers": settings_detail,
+                "settings_failed_layers": [],
             },
             version_comparison=version_comparison,
             orphan_cleanup=orphan_cleanup_result,
-            settings_merged=settings_merge_result,
+            settings_merged=settings_owner_result,
         )
 
     def _create_backup(self) -> None:

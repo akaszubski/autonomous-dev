@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from plugins.autonomous_dev.lib.sync_mode_detector import SyncMode
     from plugins.autonomous_dev.lib.version_detector import VersionComparison
     from plugins.autonomous_dev.lib.orphan_file_cleaner import CleanupResult
-    from plugins.autonomous_dev.lib.settings_merger import MergeResult
+    from plugins.autonomous_dev.lib.settings_merger import OwnedSettingsResult
     from plugins.autonomous_dev.lib.sync_validator import SyncValidationResult
 else:
     # Runtime imports with fallback
@@ -30,14 +30,14 @@ else:
         from plugins.autonomous_dev.lib.sync_mode_detector import SyncMode
         from plugins.autonomous_dev.lib.version_detector import VersionComparison
         from plugins.autonomous_dev.lib.orphan_file_cleaner import CleanupResult
-        from plugins.autonomous_dev.lib.settings_merger import MergeResult
+        from plugins.autonomous_dev.lib.settings_merger import OwnedSettingsResult
         from plugins.autonomous_dev.lib.sync_validator import SyncValidationResult
     except ImportError:
         # Fallback for installed environment (.claude/lib/)
         from sync_mode_detector import SyncMode  # type: ignore
         from version_detector import VersionComparison  # type: ignore
         from orphan_file_cleaner import CleanupResult  # type: ignore
-        from settings_merger import MergeResult  # type: ignore
+        from settings_merger import OwnedSettingsResult  # type: ignore
         try:
             from sync_validator import SyncValidationResult  # type: ignore
         except ImportError:
@@ -73,7 +73,7 @@ class SyncResult:
     error: Optional[str] = None
     version_comparison: Optional["VersionComparison"] = None
     orphan_cleanup: Optional["CleanupResult"] = None
-    settings_merged: Optional["MergeResult"] = None
+    settings_merged: Optional["OwnedSettingsResult"] = None
     validation: Optional["SyncValidationResult"] = None  # Post-sync validation results
     # Uninstall-specific fields
     files_removed: int = 0
@@ -122,16 +122,20 @@ class SyncResult:
             elif oc.orphans_detected == 0:
                 parts.append("No orphaned files detected")
 
-        # Add settings merge information
+        # Add settings ownership information (Issue #1809: the field now carries
+        # an OwnedSettingsResult from the canonical settings owner, not the
+        # deleted MergeResult).
         if self.settings_merged:
             sm = self.settings_merged
             if sm.success:
-                if sm.hooks_added > 0:
-                    parts.append(f"Settings merged: {sm.hooks_added} hooks added, {sm.hooks_preserved} preserved")
-                elif sm.hooks_preserved > 0:
-                    parts.append(f"Settings merged: {sm.hooks_preserved} hooks preserved (no new hooks)")
+                parts.append(
+                    f"Owned settings: {sm.owned_hooks_written} toolkit hooks written, "
+                    f"{sm.foreign_hooks_preserved} unrelated hooks preserved"
+                )
             else:
-                parts.append(f"Settings merge failed: {sm.message}")
+                parts.append(
+                    f"Settings write refused ({sm.refusal_class}): {sm.reason}"
+                )
 
         # Add validation information
         if self.validation:

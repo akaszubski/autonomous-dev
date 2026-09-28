@@ -5,7 +5,7 @@ covers:
 
 # Shared Libraries Reference
 
-**Last Updated**: 2026-09-04 (bugfix_detector.py: `CANONICAL_TEST_COUNT_DIRS` and `evaluate_regression_test_gate()` added, closing the STEP 1/STEP 8 scope mismatch that left the regression-test HARD GATE unable to refuse, plus two remediation cycles adding the caller-side `ERROR` verdict, the `BASELINE-SCOPE-RECORD` marker block, and exception-truncation hardening — see entry #87 below)
+**Last Updated**: 2026-09-28 (settings_merger.py: `SettingsMerger`/`merge_settings`/`MergeResult` DELETED and replaced by the ownership-aware `apply_owned_settings`/`check_mutation_admission`/`RefusalClass` API, Issue #1809 — source-level only, NOT deployed; see entry #41 below. Prior: 2026-09-04 bugfix_detector.py `CANONICAL_TEST_COUNT_DIRS` and `evaluate_regression_test_gate()` — see entry #87 below)
 **Purpose**: Comprehensive API documentation for autonomous-dev shared libraries
 
 This document provides detailed API documentation for shared libraries in `plugins/autonomous-dev/lib/` and `plugins/autonomous-dev/scripts/`. For high-level overview, see [CLAUDE.md](../CLAUDE.md) Architecture section.
@@ -5291,86 +5291,72 @@ This library is used by both:
 - `docs/TOOL-AUTO-APPROVAL.md` - Usage guide
 ---
 
-## 41. settings_merger.py (v3.39.0, extended Issue #944)
+## 41. settings_merger.py (v3.39.0, extended Issue #944, ownership rewrite Issue #1809)
 
-**Purpose**: Merge template settings.local.json with user settings while preserving customizations
+**Purpose**: Update only toolkit-owned entries in a consumer's `settings.json`/`settings.local.json` while leaving every foreign customization untouched.
 
-**Issue**: #98 (Settings Merge on Marketplace Sync)
+**Issue**: #98 (original merge), #1809 (ownership-aware rewrite — the wholesale-replacement `SettingsMerger`/`merge_settings`/`MergeResult` API documented in earlier revisions of this section was **DELETED**, 454 lines, and is no longer importable. There is no compatibility shim.)
 
-### Main Class
+### Main Function
 
-#### `SettingsMerger`
+#### `apply_owned_settings(target_path, template, *, manifest_path=None, owned_deny=None, dry_run=False, expected_digest=None) -> OwnedSettingsResult`
 
-Handles merging template settings with user settings during marketplace sync operations.
+THE single canonical settings-mutating function — the only entry point that writes a `settings.json`/`settings.local.json` file anywhere in the toolkit. Updates ONLY toolkit-owned entries:
 
-**Constructor**:
-```python
-def __init__(self, project_root: str)
-```
+- toolkit-owned hook registrations are retired and re-written from `template`; unrelated (foreign) hooks on the SAME lifecycle event survive;
+- `permissions.deny` gains every entry in `owned_deny` while custom deny/allow/ask entries survive; `allow` and `ask` are never touched;
+- `env`, custom nested keys and any foreign top-level key are left completely alone.
 
-**Parameters**:
-- `project_root` (str): Project root directory for path validation
+**Refuses before the first write, with zero mutation**, when: the path is rejected by `security_utils.validate_path` (traversal, out-of-profile, rejected symlink target); the transaction lock cannot be taken; a pipeline run is live for the target repo; the pipeline sentinel is ambiguous; the target or template JSON is malformed; ownership cannot be determined; the projection would double-fire an owned hook; or the target's digest changed between read and write (a concurrent external edit). Each refusal reason is a `RefusalClass` member (see below) recorded in `OwnedSettingsResult.refusal_class`/`reason` and audit-logged — a refusal is never reported as success.
 
-**Methods**:
+**Cross-repo / out-of-profile writes are REFUSED, fail-closed, and UNMEASURED for this slice** — for example `deploy-all.sh`'s `$HOME/Dev/$repo/.claude/settings.json` sync route while running from the autonomous-dev checkout has no trusted root to authorize that target, so it refuses rather than corrupting a consumer repo. `deploy-all.sh` already treats a non-zero sync as a warning, so the refusal surfaces without aborting the deploy.
 
-##### `merge_settings(template_path: Path, user_path: Path, write_result: bool = True) -> MergeResult`
-
-Merge template settings with user settings, preserving customizations.
-
-**Parameters**:
-- `template_path` (Path): Path to template settings.local.json
-- `user_path` (Path): Path to user settings.local.json
-- `write_result` (bool): Whether to write merged settings (False for dry-run)
-
-**Returns**: `MergeResult` dataclass with:
-- `success` (bool): Whether merge succeeded
-- `message` (str): Human-readable result message
-- `settings_path` (Optional[str]): Path to merged settings file
-- `hooks_added` (int): Number of hooks added from template
-- `hooks_preserved` (int): Number of existing hooks preserved
-- `details` (Dict[str, Any]): Additional context (errors, warnings)
-
-**Workflow**:
-1. Validate both paths (security: CWE-22, CWE-59)
-2. Read template and user settings files
-3. Deep merge dictionaries (nested objects preserved)
-4. Merge hooks by lifecycle event (avoid duplicates)
-5. Atomic write to user path (secure permissions 0o600)
-6. Audit log the operation
+**Concurrency**: the whole read → merge → digest-recheck → rename transaction runs under an exclusive `flock` on a sidecar lockfile (`_settings_transaction_lock`), so two toolkit writers can never interleave. This is **NOT atomic compare-and-swap** — an external, non-toolkit writer (the user's editor, Claude Code itself) does not take the lock and is not serialized; the digest re-check immediately before the rename narrows that window to a refusal rather than eliminating it. This is a documented, honest limitation, not a solved race.
 
 **Example**:
 ```python
-from autonomous_dev.lib.settings_merger import SettingsMerger
+from autonomous_dev.lib.settings_merger import apply_owned_settings
 
-merger = SettingsMerger(project_root="/path/to/project")
-
-# Merge template with user settings
-result = merger.merge_settings(
-    template_path=Path("templates/settings.local.json"),
-    user_path=Path(".claude/settings.local.json"),
-    write_result=True
+result = apply_owned_settings(
+    target_path=Path(".claude/settings.local.json"),
+    template=template_dict,
+    owned_deny=["Bash(rm -rf /)"],
 )
 
 if result.success:
-    print(f"Merged {result.hooks_added} new hooks")
-    print(f"Preserved {result.hooks_preserved} existing hooks")
-else:
-    print(f"Merge failed: {result.message}")
+    print(f"{result.owned_hooks_written} owned hooks written, "
+          f"{result.foreign_hooks_preserved} foreign hooks preserved")
+elif result.refused:
+    print(f"Refused ({result.refusal_class}): {result.reason}")
 ```
+
+#### `check_mutation_admission(target: Path) -> Tuple[bool, str, str]`
+
+THE single admission check for mutating a repo's Claude configuration. Hoists the "is this repo's pipeline live?" check to the START of a route that copies other files (commands, hooks, agents) BEFORE it would reach a settings write, because a refusal raised only inside `apply_owned_settings` would already be too late for a route that mutates other files first. There is no single caller: it is hoisted independently at TWO separate Step-0 call sites — `SyncDispatcher.sync_marketplace()` (`dispatcher.py`, invoked by `plugin_updater.py` and the `sync_marketplace()` module function) and `modes.dispatch_marketplace()` (the `/sync --marketplace` CLI route reached via `SyncDispatcher.sync()` → `dispatch()`) — plus a third, later call inside `apply_owned_settings` itself as the settings-write's own last-line-of-defense check. `SyncDispatcher.sync()` does not call this directly; it delegates to `dispatch()`, which routes marketplace mode to `modes.dispatch_marketplace()`. Returns `(admitted, refusal_class, reason)`; an ambiguous pipeline sentinel is NOT admitted — ambiguity fails toward refusal. **This is a point-in-time check-then-write at entry, not an interlock held across the transaction**: each call site checks once before its first mutation and does not re-check between subsequent file copies within the same route.
+
+### Enum
+
+#### `RefusalClass`
+
+Eleven durable, observable refusal reasons: `ACTIVE_PIPELINE`, `SENTINEL_AMBIGUOUS`, `TARGET_PATH_REJECTED`, `LOCK_UNAVAILABLE`, `MALFORMED_TARGET`, `MALFORMED_TEMPLATE`, `AMBIGUOUS_OWNERSHIP`, `DUPLICATE_OWNED_REGISTRATION`, `LEGACY_OWNED_OVERLAP`, `DIGEST_RACE`, `WRITE_FAILED`. A refusal is never success.
 
 ### Data Classes
 
-#### `MergeResult`
+#### `OwnedSettingsResult`
 
-Result of settings merge operation.
+Outcome of one ownership-aware settings update (replaces the deleted `MergeResult`).
 
 **Attributes**:
-- `success` (bool): Whether merge succeeded
-- `message` (str): Human-readable result message
-- `settings_path` (Optional[str]): Path to merged settings file (None if merge failed)
-- `hooks_added` (int): Number of hooks added from template
-- `hooks_preserved` (int): Number of existing hooks preserved
-- `details` (Dict[str, Any]): Additional result details (errors, warnings)
+- `success` (bool): True only when the update was applied, or was a verified no-op. Always False for a refusal.
+- `refused` (bool): True when the owner declined to write (mutually exclusive with `success`).
+- `refusal_class` (str): A `RefusalClass` value, or `""` on success.
+- `reason` (str): Human-readable, durable refusal reason (`""` on success).
+- `path` (str): The target settings file.
+- `changed` (bool): Whether the projection differs from what's on disk (True in dry-run when a write WOULD have happened).
+- `owned_hooks_written` (int): Count of toolkit-owned hook entries in the result.
+- `foreign_hooks_preserved` (int): Count of non-owned hook entries carried over unchanged.
+- `permissions_synced` (bool): Whether `permissions.deny` changed.
+- `details` (Dict[str, Any]): Supplementary data (dropped deny entries, owned basenames, notes).
 
 ### Security Features
 
@@ -5432,62 +5418,51 @@ Remove canonical global-hook entries from a per-repo settings dict. Returns a fi
 
 **Idempotent**: Running on already-stripped settings returns the same dict with an empty findings list.
 
-### Integration with sync_dispatcher.py
+### Integration with sync_dispatcher (Issue #1809)
 
-Used by `SyncDispatcher.sync_marketplace()` to automatically merge PreToolUse hooks:
+`SyncDispatcher.sync_marketplace()` (`plugins/autonomous-dev/lib/sync_dispatcher/dispatcher.py`, invoked by `plugin_updater.py` and the module-level `sync_marketplace()` function — NOT by `SyncDispatcher.sync()`, which delegates to `dispatch()` for non-uninstall modes and never calls this method) is the caller. The two former dual writers — Step 2.5 (`SettingsMerger.merge_settings()` on `settings.local.json`) and Step 2.55 (a hand-rolled wholesale replace that assigned the entire projected settings object over the user's file) — are DELETED and replaced by one routed loop over `apply_owned_settings`:
 
 **Workflow**:
-1. Marketplace sync starts
-2. Locate plugin's template settings.local.json
-3. Create SettingsMerger instance
-4. Call `merge_settings()` with template and user paths
-5. Record merge result in `SyncResult.settings_merged`
-6. Continue sync (non-blocking if merge fails)
+1. **Step 0 — ADMISSION**: `check_mutation_admission(target)` runs before ANY file is copied (commands, hooks, agents, or settings) — a live pipeline or ambiguous sentinel refuses the whole sync before the first mutation, not just the settings write. This is a point-in-time check at entry, not an interlock held for the rest of the transaction. The `/sync --marketplace` CLI route (`SyncDispatcher.sync()` → `dispatch()` → `modes.dispatch_marketplace()`) has its own, independent Step-0 admission call — same shared owner, separate call site, not this method.
+2. Sync proceeds per layer (global `~/.claude`, project `.claude`, local `.claude`).
+3. Each layer's settings file is updated via `apply_owned_settings(target, template_data)` — only toolkit-owned hooks/deny entries change; foreign customizations survive.
+4. Per-layer failures are aggregated honestly into `settings_failed_layers`: **any** failed layer flips the overall `SyncResult.success` to `False` (the deleted Step 2.55 path used to swallow failures and report success regardless).
+5. The result is recorded in `SyncResult.settings_merged` as an `OwnedSettingsResult` (see `models.py`: `settings_merged: Optional["OwnedSettingsResult"]`).
 
 **Example**:
 ```python
 from autonomous_dev.lib.sync_dispatcher import SyncDispatcher
 
 dispatcher = SyncDispatcher(project_root="/path/to/project")
-result = dispatcher.sync_marketplace(installed_plugins_path)
+result = dispatcher.sync(mode="marketplace")
 
 if result.settings_merged and result.settings_merged.success:
-    print(f"Settings synced: {result.settings_merged.hooks_added} hooks added")
+    print(f"Settings synced: {result.settings_merged.owned_hooks_written} owned hooks written")
+if result.settings_failed_layers:
+    print(f"Settings write refused/failed on: {result.settings_failed_layers}")
 ```
 
 ### Error Handling
 
-All errors are graceful and non-blocking:
+Refusals are explicit, not swallowed — a refusal is never reported as success:
 
-**Template Errors**:
-- Template path validation fails: Return MergeResult with `success=False`
-- Template file not found: Return MergeResult with `success=False`
-- Template JSON invalid: Return MergeResult with `success=False`
+**Path / admission refusals** (before any write): out-of-profile target, rejected symlink escape, path traversal, live pipeline for the target repo, ambiguous pipeline sentinel.
 
-**User Settings Errors**:
-- User path validation fails: Return MergeResult with `success=False`
-- User settings JSON invalid: Return MergeResult with `success=False`
-- User settings file missing: Create new file from template (success=True)
+**Content refusals**: malformed target or template JSON, ownership that cannot be determined, a projection that would double-fire an owned hook registration.
 
-**Write Errors**:
-- Cannot create parent directories: Return MergeResult with `success=False`
-- File write fails: Return MergeResult with `success=False` (temp file cleaned up)
-- Permission denied: Return MergeResult with `success=False`
+**Transactional refusals**: the sidecar lock could not be taken; the target's digest changed between read and the final rename (an external writer landed inside the transaction — see `_settings_transaction_lock`'s documented, honest limitation: toolkit writers are serialized, external writers are not).
 
-**Note**: Marketplace sync continues even if settings merge fails (non-blocking design)
+**Note on `scripts/sync_settings_hooks.py`**: the CLI's `_replace_hooks` (wholesale hooks + `permissions.deny` replacement, its own separate `mkstemp` transaction) is DELETED. The CLI now delegates to `apply_owned_settings`. `_validate_permission_patterns` is replaced by `_deny_entry_is_removable`, which decides whether a given deny entry is toolkit-owned (and thus retireable) rather than validating pattern syntax.
 
 ### Testing
 
-**Test Coverage**: 25 tests (15 core + 4 edge cases + 3 security + 3 integration)
-- Core functionality tests for merge operations
-- Edge case handling (missing files, invalid JSON, path errors)
-- Security tests (path traversal, symlink attacks, validation)
-- Integration tests with sync_dispatcher
+**Test Coverage**: `tests/regression/test_issue_1809_settings_ownership_preservation.py` (new, source-route only — 15 test functions, 36 collected nodes; one function parametrized across 18 ownership/preservation/refusal case rows), plus updated assertions in `tests/unit/scripts/test_sync_settings_hooks.py` (a legacy expectation asserting foreign deny entries were dropped is now inverted to assert they are preserved, per #1809) and `tests/unit/test_hook_migration.py`. **Not yet verified**: deployed/installed-consumer behavior — these are source-level tests only.
 
 ### Related
 
-- GitHub Issue #98 (Settings Merge on Marketplace Sync)
-- `sync_dispatcher.py` - Uses SettingsMerger in sync_marketplace() method
+- GitHub Issue #98 (original Settings Merge on Marketplace Sync), #1809 (ownership-aware rewrite — ships PARTIAL, source-level only, not deployed)
+- `sync_dispatcher/dispatcher.py` - Calls `check_mutation_admission()` at Step 0 and `apply_owned_settings()` per layer
+- `scripts/sync_settings_hooks.py` - CLI wrapper delegating to `apply_owned_settings`
 - `security_utils.py` - Provides path validation and audit logging
 - `docs/TOOL-AUTO-APPROVAL.md` - PreToolUse hook configuration reference
 - `plugins/autonomous-dev/templates/settings.local.json` - Default template
