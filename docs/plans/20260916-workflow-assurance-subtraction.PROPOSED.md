@@ -697,6 +697,10 @@ do not advance #1805 by treating routed or parsed tests as full-suite proof.
 Resolve #1846 with an independently reviewed, coherent scope/result contract,
 then re-freeze #1805/#1818 on the repaired base. This is a delivery dependency,
 not permission to weaken final release or security coverage.
+The uncapped base suite subsequently finished with 1,068 failures and 30
+errors; #1848 separately owns contract-grounded disposition of that test
+population. Neither a longer timeout nor a historical failure whitelist is
+a substitute for a reviewed, meaningful release denominator.
 Also resolve #1847's observed same-run premature spec-validator credit: a
 case-freeze return was stamped complete before execution. Neither coordinator
 prose nor SubagentStop alone may certify that stage; reuse #1818's bound
