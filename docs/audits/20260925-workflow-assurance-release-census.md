@@ -1443,6 +1443,25 @@ missing carrier is **UNMEASURED**, not an empty passing inventory; a declared
 valid-empty carrier is separate. Existing source-fixture and disposable native
 observations above do not satisfy this isolated, installed `POPULATED-3` pair.
 
+2026-09-29 bounded execution candidate, **not an accepted case**: two
+extensions suffice without another census implementation. Use an allow-first
+neighbor `aaa_allow.py` and denying `bbb_deny.py` in one immutable eligible
+carrier. The full claim is `{aaa_allow.py, bbb_deny.py}`; the omitted claim is
+`{bbb_deny.py}`—remove only the neighbor-permit inventory row, not the deny
+row used by the older project-only FR1 probe. Apply the existing
+`_census_reconciles` set-equality rule externally, without importing the
+source test into the installed consumer, to the *same* eligible-file and
+execution-marker snapshot: full must pass, omitted must refuse; do not rerun
+or alter the hook, settings, files, environment or native results between
+comparisons. A fresh native marketplace-installed `POPULATED-3` consumer must
+also independently show the four unrelated settings layers survive, exactly
+one joined physical hook process per selected native event, the ordinary Read
+permit and denied Read refusal, exact command/exit and before/after hashes.
+The current source fixture was rerun at plan head `a7c1c3ea` on 2026-09-29:
+one selected test passed, raw pytest exit 0. That result qualifies only its
+source predicate; the installed arm remains UNMEASURED until the settings-
+preserving installation and native event boundary are available.
+
 Reuse the existing D0-01…D0-08 lifecycle rows and one parameterized runner. Keep
 `CLEAN-0` and `POPULATED-3` as disposable fixture IDs, with separate standalone,
 dogfood, isolated-Linux and Claude/Codex process-result profiles; OS/tool versions
