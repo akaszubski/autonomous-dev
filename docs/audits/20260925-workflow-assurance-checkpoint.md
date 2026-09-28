@@ -6,7 +6,8 @@ not acceptance evidence. Canonical scope remains the
 
 ## Latest restart pointer — 2026-09-29, #1802 F2 interruption
 
-Plan branch remains at pushed `a8b2a589`; unrelated dirty settings, plugin
+Plan branch's latest verified pushed head was `f95cd514` before the current
+dependency correction; unrelated dirty settings, plugin
 manifest and `.Codex/` remain untouched. Signed fix run `5747a51ffb52ca73`,
 Claude session `ce1fc9fe-204a-4d0f-b709-f1f0a7f6a053`, stopped during F2
 before implementer or protected source edit. Its current signed sentinel is
@@ -34,6 +35,17 @@ and [#1757's dependency update](https://github.com/akaszubski/autonomous-dev/iss
 name the #1802/#1846 sequencing loop. Do not resume this interrupted run as
 accepted F2 or restart either path unchanged. Continue independent release
 census reconciliation while the native sequencing contract is resolved.
+
+2026-09-29 dependency recheck: independent execution of deterministic Stage 0
+against the full current issue title/body returned `clear` for #1802 and
+`escalate` (`gate_bypass_request`) for #1846. Current
+`implement.md` escalation choices are PROJECT scope update, narrow change or
+cancel; `alignment_classifier.py` still refuses caller-provided approval data.
+Therefore neither the existing #1846 issue route nor the interrupted #1802
+run is an accepted native bootstrap. A source-only patch may be studied but
+cannot close the human-response, same-principal or end-to-end gates. The plan
+now records this dependency explicitly; keep independent census/registration
+work moving without claiming a stage closed.
 
 ## Historical restart pointer — 2026-09-29, signed #1846 F1 refusal
 

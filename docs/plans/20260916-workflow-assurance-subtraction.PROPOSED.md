@@ -393,6 +393,22 @@ F0 native order remains the approved PR8 → EX1 → EX2 → RC2 → PR3–7/9 s
 reusing already qualified unchanged evidence. This plan does not invent new
 attempts or substitute an OS actor's observation for a documentation actor's reads.
 
+**Current gate dependency (2026-09-29; unresolved).** The exact #1846 issue
+title/body escalates at deterministic Stage 0, while #1802 is clear. The
+existing interactive escalation menu only permits updating PROJECT scope,
+narrowing the change or cancelling; it has no verified human-approval permit.
+The genuine #1802 fix-mode run reached F1 with an observed specialist result,
+then stopped during F2's full-suite baseline before implementer. #1846 is
+intended to make that long/inherited-red test gate coherent, but cannot itself
+enter implementation through its current escalated issue workflow. Neither a
+model paraphrase of #1846, a caller-signed approval, a shortened test scope,
+nor a source-only F1 result resolves this cycle. Continue independent census
+and boundary work, and obtain a separately reviewable, policy-compliant
+bootstrap route before another native repair attempt; retain the unchanged
+#1802/#1846 acceptance and failed-run evidence. Do not promote F0 or the gate
+repair from a partial run. The release sequence resumes only after that route
+and its independent opposite-arm proof exist.
+
 ### EX correction after current prerequisite
 
 Reuse no-overlay binding SHA-256
