@@ -12,7 +12,7 @@ the plan's dated execution pointer explicitly routes to the live issue and
 checkpoint. This is a bounded document comparison, not release acceptance or
 denominator freeze.
 
-## Current restart pointer — 2026-09-28, origin reader held; approval and EX correction active
+## Current restart pointer — 2026-09-28, #1821 source fix landed; origin, approval and EX remain open
 
 The #1807 native-origin witness substrate is committed and pushed as
 `27d1c4973413db49287d67b503cdf7c834459c51` on
@@ -116,7 +116,7 @@ The [#1821 evidence](https://github.com/akaszubski/autonomous-dev/issues/1821#is
 is owned by a separate active `/implement --fix` test-isolation worktree;
 preserve the contaminated run as non-certifying and integrate only an accepted
 #1821 fix before revalidating the clean #1801 policy subject. Both worktrees
-are uncommitted at this checkpoint; neither issue is complete.
+were uncommitted at that observation; neither issue was complete then.
 
 Further 2026-09-28 evidence: #1801's scoped test suite reported raw exit 0,
 but its gate recorded `issue=0`; read-only inspection found `recovered=true`
@@ -135,6 +135,26 @@ tampered-issue copies both before and after the first specialist stop. This is
 only a successful admission/continuity check; its implementation and later
 acceptance gates are still in progress. The [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md)
 now requires this preflight for every parallel native run.
+
+Later 2026-09-28 result: the clean #1821 native `/implement --fix` run
+`24aa2e83d6180f25` completed its focused gate (34 passed, raw exit 0, live
+PROJECT.md digest unchanged), spec validation, reviewer approval, doc-master
+pass and CIA review. The test-isolation fix and corrected CHANGELOG entry were
+committed and pushed as `9c678b54` on
+`fix/1821-progress-test-isolation-v2`, based on `27d1c497`. The
+[#1821 commit/evidence note](https://github.com/akaszubski/autonomous-dev/issues/1821#issuecomment-5866219304)
+keeps installed behavior and F0 acceptance open. It claims neither a complete
+writer census nor a fully enforced native workflow. CIA observed two
+`plan_gate.py` refusals followed by successful same-file Edit effects in this
+run; the [#1589 live evidence](https://github.com/akaszubski/autonomous-dev/issues/1589#issuecomment-5866184572)
+also shows that simply activating its invalid `block` response as `deny` would
+break legitimate `--fix` runs lacking a plan file. Resolve both the refusal
+envelope and fix-mode permit case with live refusing/permitting controls before
+using this run as hook-enforcement proof. The #1801 scanner candidate remains
+NONCERTIFYING because its recovered sentinel lost issue/run identity; an
+[independent source review](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5865958952)
+requested consolidation of repeated walker tests without dropping any distinct
+carrier or mutant before a fresh signed run.
 
 ## Historical pointer — 2026-09-28, malformed-input guard under specialist review
 
