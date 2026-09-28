@@ -3766,3 +3766,18 @@ the response. The native shape record is retained at
 owns the correction and installed/consumer acceptance; #1802 owns the distinct
 genuine-human approval proof. This Read-arm schema finding does not prove an
 AskUserQuestion answer, native effect join, or F0 provenance.
+
+2026-09-28 #1751 correction HOLD: an additional native Bash success-shaped
+`PostToolUse` receipt (`/tmp/schema_probe_1751_result.json`, SHA-256
+`5d5bae8f6035906c750a5cba6faa2e95d00a7afffa93bedd4c5a64e27dfde8d3`)
+has `stdout`, `stderr`, `interrupted`, `isImage` and `noOutputExpected`, but no
+exit status. The first uncommitted logger candidate only swapped the top-level
+response key and joined `tool_use_id`; it would still misreport native Bash
+`has_output=false` and `success=true`. Its 377-line draft test used an
+unmeasured `output` response shape, so F3 was stopped before F4. Failure
+probes did not produce a Bash tool-use/hook receipt; no failure schema is
+claimed. The current test-run reader treats logger `success` as a boolean, so
+an honest unknown value also needs a coordinated downstream contract. The
+[#1751 HOLD record](https://github.com/akaszubski/autonomous-dev/issues/1751#issuecomment-5869468262)
+preserves the noncertifying worktree and next native control. No deployment or
+F0/provenance acceptance follows.
