@@ -11,6 +11,18 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+Bounded corpus check on 2026-09-29 at plan HEAD `a8b2a589`: a fresh
+`library_reachability(PROJECT_ROOT, use_cache=False)` returned 238 corpus
+members, 148 REACHED and 90 UNKNOWN. A separate direct disk walk found 243
+Python files under `plugins/autonomous-dev/lib/`, of which 238 are not
+`__init__.py`; the scanner's corpus keys and that independently enumerated
+238-file set had zero members unique to either side. This proves the selected
+library **file population** is complete under that explicit exclusion at this
+point in time. It does not validate any REACHED edge, turn UNKNOWN into dead
+code, include non-Python consumers, or freeze the control/consumer denominator.
+The #1801/#1803/#1804/#1805 connectivity and installed-registration faults
+below remain open; keep their omitted-route controls before promoting claims.
+
 2026-09-29 status correction: the three active prerequisite issues remain open.
 The #1805 candidate has unchanged 238/148/90 source-member arrays, but an
 independent review rejected its Bash execution oracle: it omitted executing

@@ -4,7 +4,38 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
-## Latest restart pointer — 2026-09-29, signed #1846 F1 refusal
+## Latest restart pointer — 2026-09-29, #1802 F2 interruption
+
+Plan branch remains at pushed `a8b2a589`; unrelated dirty settings, plugin
+manifest and `.Codex/` remain untouched. Signed fix run `5747a51ffb52ca73`,
+Claude session `ce1fc9fe-204a-4d0f-b709-f1f0a7f6a053`, stopped during F2
+before implementer or protected source edit. Its current signed sentinel is
+still at `.claude/local/implement_pipeline_state.json`, SHA-256
+`e4df8142b29410f1bdd98c151146f58543089157ac8a7fa1fb02004848640316`:
+issue `1802`, F1 `auto_pass`, no base commit yet. That state does not confer
+F2, native-origin or release credit. The exact Claude and pytest processes
+were observed gone after interruption; recheck before any continuation.
+
+The F1 classifier really ran: Agent tool call
+`toolu_01VrA48e8R9wZxpTPQsYX2zj` returned `in_scope` with a verbatim
+PROJECT.md clause. Its JSON matched the temporary handoff JSON under
+canonical parsing. A supervisor interruption based on an incomplete stream
+view caused a fail-closed correction; the actual tool record was then checked
+and the canonical recorder restored AUTO_PASS. All three audit rows remain
+immutable and are not three separate classifier executions. F1.5's
+pre-staged check ran. F2 focused context ran; then a full-suite baseline began
+and was deliberately interrupted rather than count a partial run against
+#1846's known long/inherited-red suite. No full-suite result or F2 pass exists.
+The same-principal Claude process could read its run-signing secret (only
+access, length and UID were printed, not secret bytes), so a caller-signed
+approval receipt cannot prove a human response. #1802's genuine permit arm
+and #1807 A9 remain open. [#1802's current receipt](https://github.com/akaszubski/autonomous-dev/issues/1802#issuecomment-5880343525)
+and [#1757's dependency update](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5880344939)
+name the #1802/#1846 sequencing loop. Do not resume this interrupted run as
+accepted F2 or restart either path unchanged. Continue independent release
+census reconciliation while the native sequencing contract is resolved.
+
+## Historical restart pointer — 2026-09-29, signed #1846 F1 refusal
 
 Plan branch `fix/1779-pipeline-evidence-integrity` is pushed at `e8176211`.
 That commit corrects plan sequencing, not product acceptance. Preserve the
