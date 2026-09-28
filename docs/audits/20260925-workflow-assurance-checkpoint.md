@@ -12,7 +12,7 @@ the plan's dated execution pointer explicitly routes to the live issue and
 checkpoint. This is a bounded document comparison, not release acceptance or
 denominator freeze.
 
-## Current restart pointer — 2026-09-28, two source prerequisites checkpointed
+## Current restart pointer — 2026-09-28, origin reader held; approval and EX correction active
 
 The #1807 native-origin witness substrate is committed and pushed as
 `27d1c4973413db49287d67b503cdf7c834459c51` on
@@ -21,11 +21,33 @@ records the reviewed source-only result, the clean quiescent 225-test raw-exit-0
 run, two earlier invalid isolation measurements, and the unsafe untracked manual
 probe excluded from the commit. The substrate added roughly 3,000 lines and is
 **not** measured maintenance reduction. The `RunOrigin` verdict still needs a
-real downstream consumer; all native A7/A9 arms, installed event/effect joins,
-containment and F0 remain UNMEASURED. A fresh Claude `/implement --fix` run
-`eafd6b2623987f5b` is working on the smallest origin-reader consumer; its
-baseline exposed worktree-dependent infrastructure-protection test failures,
-which are recorded separately rather than counted as new acceptance failures.
+load-bearing downstream consumer; all native A7/A9 arms, installed event/effect
+joins, containment and F0 remain UNMEASURED. Claude `/implement --fix` run
+`eafd6b2623987f5b` tried a reporting-only reader. Its independent validator
+measured 3–6 duplicate success records per PreToolUse and failed AC9. The
+per-run redesign grew to 121 executable production lines across two owners
+(270 raw lines), a new unsigned ledger field and hundreds of test lines without
+a refusing decision. The supervisor held it before F4. Production files were
+restored to the committed base; no code was shipped. The
+[HOLD receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5864574555)
+preserves the patch, failed measurement and limits, including that the surviving
+test file errors rather than cleanly REDs against base. The next useful route
+is #1802's genuine-response approval/refusal path, not more telemetry.
+
+An isolated Claude Max checkout `fix/1802-approval-positive-v3` is reading the
+existing #1802 source candidate at `ac3e04c3` and freezing a real-human-response
+positive plus forged/missing/stale negatives before `/implement --fix`. This is
+preparation, not accepted native approval or a completed #1802 fix.
+
+For F0, the no-overlay EX-1 binding hash was independently rechecked as
+`b8e06d79b240b95d55f16774506449d1985ec008b5eac74da846c8b9a95f58a2`.
+The [#1773 offline scope freeze](https://github.com/akaszubski/autonomous-dev/issues/1773#issuecomment-5864542259)
+records a staged successor and the missing pinned v3 case-data file; the old
+1,127-line semantic overlay remains active pending replay and fault proof. The
+separate `/implement --fix` run `d84fb9d91e8599cc` reached Stage 0 ESCALATE.
+It must not convert a standing instruction or model assertion into approval:
+the supervisor stopped it before implementer dispatch and requested preservation
+of the exact verdict. Offline preparation and native F0 acceptance remain distinct.
 
 The #1809 settings-preservation source slice is committed and pushed as
 `79d85f1bf459052c0c03c90de23ce5c64d112f22` on
