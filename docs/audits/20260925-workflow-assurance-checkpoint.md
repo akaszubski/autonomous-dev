@@ -3915,3 +3915,21 @@ tool records and the actual command bytes remain the authority. The CIA report
 write was allowed by autonomous-dev hooks after a native user-rejected attempt;
 the subsequent interactive retry ran in auto mode, so no explicit one-time
 approval is claimed. See [#1807 source-only receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5871356143).
+
+2026-09-29 #1807 installed-registration attempt: a real Claude `/implement
+--fix` in the isolated schema branch identified that `sync_settings_hooks.py
+--repo` replaces effective project hooks from `templates/settings.default.json`.
+The staged carrier has both hook files but its settings contain neither
+`UserPromptExpansion` nor `SubagentStop`; the read-only sync dry run still
+produces only four lifecycle events. The native run aligned with signed owner
+and run ID, then held at F2 before implementer: two `pytest -n auto` baseline
+captures saturated the host and were interrupted; a same-session bounded
+retry required native CLI approval for focused pytest and evidence writes.
+The interrupted output was incorrectly parsed with a hardcoded exit code into
+a shared 660-ID `/tmp/baseline_failing_tests.txt` (SHA-256
+`dd7050fcec76a444511a0cd8afccac3f75c42eab4316b1038343583fc46643dd`),
+which is **invalid as a baseline**. An unrelated Claude edit to `PROJECT.md`
+was documented and restored; the isolated branch is clean at `199bf106`.
+No registration fix, gate waiver, deployment or native acceptance followed.
+See [#1807 HOLD](https://github.com/akaszubski/autonomous-dev/issues/1807)
+and [#1818 capture defect](https://github.com/akaszubski/autonomous-dev/issues/1818).
