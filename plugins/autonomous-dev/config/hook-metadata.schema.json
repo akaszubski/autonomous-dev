@@ -47,6 +47,7 @@
             "type": "string",
             "enum": [
               "UserPromptSubmit",
+              "UserPromptExpansion",
               "PreToolUse",
               "PostToolUse",
               "Stop",

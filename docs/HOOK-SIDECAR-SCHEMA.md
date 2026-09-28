@@ -40,15 +40,16 @@ Each entry in the `registrations` array:
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `event` | enum | Yes | - | One of 9 lifecycle events (see below) |
+| `event` | enum | Yes | - | One of 10 events accepted by this sidecar schema (see below) |
 | `matcher` | string | No | `"*"` | Tool name pattern (e.g., `"Write\|Edit\|MultiEdit"`) |
 | `timeout` | integer | No | - | Schema-permitted for backward compatibility, but no sidecar in this repo declares it (Issue #1704). Timeouts are resolved from `plugins/autonomous-dev/config/hook_time_budgets.json` — see [Hook Time Budgets](HOOKS.md#hook-time-budgets). A sidecar-declared `timeout` is a regression, caught by `tests/regression/regression/test_issue_1704_hook_time_budgets.py::test_no_sidecar_declares_a_timeout`. |
 
 ### Lifecycle Events
 
-The 9 supported Claude Code lifecycle events:
+The 10 events accepted by this sidecar schema:
 
 - `UserPromptSubmit` -- Before user prompt is processed
+- `UserPromptExpansion` -- Native command expansion event used for the run-origin witness (Issue #1807)
 - `PreToolUse` -- Before a tool is invoked
 - `PostToolUse` -- After a tool completes
 - `Stop` -- When the agent stops

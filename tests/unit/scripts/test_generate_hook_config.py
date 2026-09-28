@@ -28,6 +28,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
 
 from generate_hook_config import (
+    HAS_JSONSCHEMA,
     INTERPRETER_EXTENSIONS,
     atomic_write_json,
     build_command_string,
@@ -1123,3 +1124,50 @@ class TestIntegration:
             schema_path=real_schema_path,
         )
         assert check_result == 0
+
+    def test_every_shipped_sidecar_event_is_in_real_schema_enum(
+        self, real_hooks_dir: Path, real_schema_path: Path
+    ) -> None:
+        """Issue #1807: the real schema enum must admit every real sidecar event.
+
+        Fails on clean 27d1c497, where native_run_origin.hook.json registered
+        UserPromptExpansion but the enum omitted it, so every sidecar-loading
+        path raised ValueError. Guards the category, not that one member.
+        """
+        schema = json.loads(real_schema_path.read_text())
+        allowed = set(
+            schema["properties"]["registrations"]["items"]["properties"]["event"][
+                "enum"
+            ]
+        )
+        declared: dict[str, set[str]] = {}
+        for path in discover_sidecars(real_hooks_dir):
+            for reg in json.loads(path.read_text()).get("registrations", []):
+                if reg.get("event") is not None:
+                    declared.setdefault(reg["event"], set()).add(path.name)
+
+        # Non-vacuity control: the event that prompted the fix is really shipped.
+        assert "UserPromptExpansion" in declared, "probe read no UserPromptExpansion"
+        unknown = {e: sorted(f) for e, f in declared.items() if e not in allowed}
+        assert not unknown, (
+            f"events absent from enum: {unknown}; enum={sorted(allowed)}"
+        )
+
+    def test_bogus_event_name_is_refused_by_real_schema(
+        self, real_schema_path: Path, tmp_path: Path
+    ) -> None:
+        """Negative control: an invented event name is still refused."""
+        assert HAS_JSONSCHEMA, "jsonschema required; otherwise this arm is vacuous"
+        path = tmp_path / "bogus_event.hook.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "name": "bogus_event",
+                    "type": "lifecycle",
+                    "interpreter": "bash",
+                    "registrations": [{"event": "OnTuesdayAfternoon"}],
+                }
+            )
+        )
+        with pytest.raises(ValueError, match="Schema validation failed"):
+            load_and_validate_sidecar(path, json.loads(real_schema_path.read_text()))
