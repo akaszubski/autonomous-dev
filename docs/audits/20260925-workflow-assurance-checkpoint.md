@@ -3751,3 +3751,18 @@ test module: it fixes a real fail-open defect but does **not** yet demonstrate
 the plan's net-maintenance-reduction outcome. The issue comment and committed
 #1589 worktree checkpoint name the exact digests and receipt limits. F0, the
 release census, R0/D0 and consumer retrofit remain OPEN.
+
+2026-09-28 PostToolUse schema witness: an isolated native Claude Code 2.1.236
+`PostToolUse:Read` hook received `tool_response` and `tool_use_id`, not
+`tool_output`. The installed and source `session_activity_logger.py` share
+SHA-256 `99be19faffdf29a38086aff9f5826432fcdbad33b792059f713ebb624e25a240`
+and read the absent `tool_output` field, omitting `tool_use_id` from activity
+entries. An offline invocation with the documented schema exited zero yet
+logged an empty result; changing only the key to legacy `tool_output` recovered
+the response. The native shape record is retained at
+`/tmp/adev-posttool-schema.uujGM5/shape.json` with SHA-256
+`69a12cca70292b98729db1debc5a2a32a7dc8213ed028c9b832d1663a1ecfdb3`.
+[#1751](https://github.com/akaszubski/autonomous-dev/issues/1751#issuecomment-5869129489)
+owns the correction and installed/consumer acceptance; #1802 owns the distinct
+genuine-human approval proof. This Read-arm schema finding does not prove an
+AskUserQuestion answer, native effect join, or F0 provenance.
