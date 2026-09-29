@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-09-28. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-09-30. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -57,14 +57,23 @@ preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
-Current execution pointer (2026-09-28): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
-native run identity, origin and containment remain unaccepted; the
+Current execution pointer (2026-09-30): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+native run identity, origin and containment remain unaccepted. Fresh Claude
+fix-mode F1 lost its run identity after recovery; a separate full-mode run
+had a strict-valid owner MAC but no native-origin witness or issue binding.
+Both were stopped before protected edits ([fix-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898569389),
+[full-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898692507)).
+Do not resume or repair either sentinel. A distinct scoped #1807 bootstrap
+authorization is needed for protected source repair under the current
+admission rule; the one-time #1818 exception does not cover it. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
 respective transitions. Resolve #1807 before another native F0 attempt; do not
 convert a library-route green into native acceptance. The release denominator
-on #1757 is still a candidate, not frozen. Use the
+on #1757 is still a candidate, not frozen. #1818's runner and gate-consumer
+changes remain uncommitted diagnostic HOLD; only its test-disposition checkpoint
+was pushed at `4a4b4674`. Use the
 [restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
