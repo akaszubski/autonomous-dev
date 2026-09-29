@@ -73,7 +73,7 @@ class CoverageResult:
 
 
 def parse_pytest_output(output: str) -> TestResult:
-    """Parse pytest output to extract pass/fail/error/skip counts.
+    """Parse pytest output to extract counts; this does not validate process exit.
 
     Args:
         output: Raw pytest stdout/stderr output.
@@ -162,6 +162,25 @@ def parse_pytest_output(output: str) -> TestResult:
     )
 
 
+def _assess_completed_pytest(output: str, returncode: Optional[int]) -> TestResult:
+    """Require a completed zero exit as well as a green parsed summary."""
+    parsed = parse_pytest_output(output)
+    aborted = any(
+        re.match(r"^!+\s*Interrupted:|^INTERNALERROR>|^=+.*\berrors? during collection\b.*=+$|^=*\s*no tests ran\b", line.strip())
+        for line in output.splitlines()
+    )
+    if returncode is None or returncode in {2, 3, 4, 5} or aborted or parsed.test_count == 0:
+        parsed.passed = False
+        parsed.message = "UNKNOWN: pytest capture aborted, empty, or missing process exit"
+        return parsed
+    if returncode == 0:
+        return parsed
+    parsed.passed = False
+    if parsed.failures == 0 and parsed.errors == 0:
+        parsed.message = f"FAIL: pytest exit {returncode} conflicts with {parsed.message}"
+    return parsed
+
+
 def run_tests() -> TestResult:
     """Run pytest and return parsed results.
 
@@ -170,32 +189,19 @@ def run_tests() -> TestResult:
     """
     try:
         result = subprocess.run(
-            ["python", "-m", "pytest", "--tb=short", "-q"],
-            capture_output=True,
-            text=True,
-            timeout=600,
+            [sys.executable, "-m", "pytest", "--tb=short", "-q"],
+            capture_output=True, text=True, timeout=600,
         )
-        output = result.stdout + "\n" + result.stderr
-        return parse_pytest_output(output)
+        return _assess_completed_pytest(result.stdout + "\n" + result.stderr, result.returncode)
     except subprocess.TimeoutExpired:
         return TestResult(
-            passed=False,
-            test_count=0,
-            failures=0,
-            errors=1,
-            skipped=0,
-            skip_rate=0.0,
-            message="FAIL: pytest timed out after 600 seconds",
+            passed=False, test_count=0, failures=0, errors=1, skipped=0,
+            skip_rate=0.0, message="UNKNOWN: pytest timed out after 600 seconds",
         )
     except FileNotFoundError:
         return TestResult(
-            passed=False,
-            test_count=0,
-            failures=0,
-            errors=1,
-            skipped=0,
-            skip_rate=0.0,
-            message="FAIL: pytest not found",
+            passed=False, test_count=0, failures=0, errors=1, skipped=0,
+            skip_rate=0.0, message="UNKNOWN: pytest not found",
         )
 
 
@@ -245,19 +251,26 @@ def check_coverage_regression(
                 timeout=600,
             )
             coverage_output = result.stdout + "\n" + result.stderr
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+            if result.returncode != 0:
+                return CoverageResult(
+                    passed=False,
+                    current_coverage=0.0,
+                    message=f"UNKNOWN: coverage process exit {result.returncode}",
+                )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+            reason = "timed out" if isinstance(exc, subprocess.TimeoutExpired) else "not found"
             return CoverageResult(
-                passed=True,
+                passed=False,
                 current_coverage=0.0,
-                message="Could not run coverage check (skipped)",
+                message=f"UNKNOWN: coverage process {reason}",
             )
 
     current = parse_coverage_output(coverage_output)
     if current is None:
         return CoverageResult(
-            passed=True,
+            passed=False,
             current_coverage=0.0,
-            message="Could not parse coverage output (skipped)",
+            message="UNKNOWN: Could not parse coverage output",
         )
 
     # Load baseline
@@ -330,13 +343,12 @@ def run_tests_routed(*, full_tests: bool = False) -> dict:
             if marker_expr:
                 try:
                     result = subprocess.run(
-                        ["python", "-m", "pytest", "--tb=short", "-q", "-m", marker_expr],
-                        capture_output=True,
-                        text=True,
-                        timeout=600,
+                        [sys.executable, "-m", "pytest", "--tb=short", "-q", "-m", marker_expr],
+                        capture_output=True, text=True, timeout=600,
                     )
-                    output = result.stdout + "\n" + result.stderr
-                    test_result = parse_pytest_output(output)
+                    test_result = _assess_completed_pytest(
+                        result.stdout + "\n" + result.stderr, result.returncode
+                    )
                     routing_meta = {
                         "routed": True,
                         "marker_expression": marker_expr,
@@ -347,8 +359,23 @@ def run_tests_routed(*, full_tests: bool = False) -> dict:
                         "test_result": test_result,
                         "routing": routing_meta,
                     }
-                except (subprocess.TimeoutExpired, FileNotFoundError):
-                    pass  # Fall through to full suite
+                except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+                    reason = (
+                        "pytest timed out after 600 seconds"
+                        if isinstance(exc, subprocess.TimeoutExpired)
+                        else "pytest not found"
+                    )
+                    return {
+                        "test_result": TestResult(
+                            passed=False, test_count=0, failures=0, errors=1,
+                            skipped=0, skip_rate=0.0, message=f"UNKNOWN: {reason}",
+                        ),
+                        "routing": {
+                            "routed": True,
+                            "marker_expression": marker_expr,
+                            "reason": "capture failure",
+                        },
+                    }
 
         if routing_decision and routing_decision.get("skip_all"):
             routing_meta = {
@@ -360,13 +387,13 @@ def run_tests_routed(*, full_tests: bool = False) -> dict:
             }
             return {
                 "test_result": TestResult(
-                    passed=True,
+                    passed=False,
                     test_count=0,
                     failures=0,
                     errors=0,
                     skipped=0,
                     skip_rate=0.0,
-                    message="SKIP: docs-only change, no tests needed",
+                    message="UNKNOWN: docs-only routing skipped tests; no test pass evidence",
                 ),
                 "routing": routing_meta,
             }

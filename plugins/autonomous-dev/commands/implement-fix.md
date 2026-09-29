@@ -257,11 +257,18 @@ Do NOT proceed to STEP F2 until the staging area is clean.
 
 **Progress**: Output step banner (STEP F2/5 — Test Context). Output test failure summary after.
 
-Run the test suite to capture current failures:
+Run the test suite to capture current failures. Read pytest's raw exit status;
+do not pipe its output through `head` or `tail`. If the tool truncates output,
+or the run times out, is interrupted, aborts collection, or has no raw exit,
+the baseline is UNKNOWN, not clean or passing:
 
 ```bash
-pytest --tb=short -q 2>&1 | head -200
+pytest --tb=short -q
 ```
+
+If the baseline is UNKNOWN, BLOCK at F2. Do not dispatch the implementer or
+infer failures from a partial excerpt. Preserve the failed attempt for review;
+retry only as a new, separately identified capture after resolving its cause.
 
 Parse the output to identify:
 - Number of passing vs failing tests
@@ -269,7 +276,8 @@ Parse the output to identify:
 - Affected source files (from traceback paths)
 - Error messages and assertion failures
 
-If ALL tests pass (0 failures): EXIT EARLY with message "All tests pass. No fix needed."
+Only if the run completed with raw exit 0 and a non-empty, valid test summary
+showing 0 failures: EXIT EARLY with message "All tests pass. No fix needed."
 
 Display:
 ```
@@ -325,12 +333,26 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 ```
 
 **HARD GATE**: After implementer completes, run `pytest --tb=short -q` again.
+Capture its raw process exit and complete, non-empty summary without a pipe.
 If ANY test still fails: RE-INVOKE implementer with remaining failures.
 Maximum 3 re-invocations before escalating to user.
 
+Only **measured green** (raw exit 0, valid non-empty summary, 0 failures and
+0 errors) can reach the recording step below. **Inherited red** after the
+repair is HOLD: preserve the known failing IDs for review, but do not claim a
+pass. Timeout, collection abort, missing raw exit, or incomplete output is
+UNKNOWN and also HOLD. Neither case may dispatch STEP F4 or mint a gate
+marker. This command-level check is **source-only** diagnostic evidence, not
+independently verified native or installed-consumer proof (#1818, #1846).
+
 #### Pytest Gate Recording (Issue #1088 F1)
 
-After the pytest re-run passes (0 failures, 0 errors), the coordinator MUST record the gate result so downstream ordering checks at STEP F4 let reviewer/doc-master dispatch. Without this call, F4 dispatch hits an ORDERING VIOLATION block ("pytest-gate prerequisite not met"). The full pipeline (`implement.md` STEP 8) has this recording step; fix mode previously omitted it.
+Only after measured green above, the coordinator records the legacy gate result
+so downstream ordering checks at STEP F4 let reviewer/doc-master dispatch.
+Without this call, F4 dispatch hits an ORDERING VIOLATION block
+("pytest-gate prerequisite not met"). The marker is **source-only** pipeline
+state, not a digest-bound proof receipt; do not cite it as #1846 release
+acceptance. The full pipeline (`implement.md` STEP 8) has the same restriction.
 
 ```python
 import sys, os, json
@@ -361,7 +383,8 @@ print(f'pytest-gate recorded for session={SESSION_ID[:8]} issue={ISSUE_NUMBER}')
 
 **FORBIDDEN**:
 - ❌ Skipping the `record_pytest_gate_passed()` call — downstream ordering gates will block STEP F4 dispatch.
-- ❌ Calling `record_pytest_gate_passed(passed=True)` when pytest still has failures.
+- ❌ Calling `record_pytest_gate_passed(passed=True)` for inherited red, UNKNOWN,
+  a parsed summary without raw exit 0, or any remaining failure/error.
 
 ### HARD GATE: Root Cause Analysis Output Gate
 

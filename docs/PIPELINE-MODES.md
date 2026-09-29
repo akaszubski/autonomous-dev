@@ -120,6 +120,8 @@ F6.5  Pipeline state cleanup — `rm --` (no force flag, #1411) on the sentinel
 
 The fix pipeline is minimal because the user is reacting to a known failure. It DOES enforce the regression test gate (any fix must add a test that would have caught the bug).
 
+**#1846 candidate state (not accepted):** F2 now asks for pytest's raw exit status and a non-empty, valid summary. A timeout, interruption, collection abort, truncated output, or missing raw exit makes the baseline UNKNOWN and holds the run at F2; an excerpt cannot establish a clean baseline. In the full pipeline, an unknown STEP 1 baseline or remaining inherited failures also holds STEP 8 rather than recording `pytest-gate` PASS or advancing to STEP 10. F3 and the light-mode test gate likewise require measured green before recording the legacy marker. Focused or routed tests are diagnostic feedback, not proof of the configured full-suite denominator; a routed timeout no longer falls back silently to a different full run. These command/library changes are source-only candidates: #1818 remains the planned single evidence-capture owner, and an evidence-bound result consumer, native Claude execution, and installed-consumer acceptance for #1846 remain unmeasured. The later F3 absolute-green requirement still applies; none of this authorizes a gate credit for inherited-red results.
+
 ## Gate Types
 
 **HARD GATE** = JSON `{"decision": "block"}` returned by a hook. Prompt-level instructions ("please run tests") produce unreliable compliance (see [LLM Agents Are Hypersensitive to Nudges, 2025]). Hard gates are deterministic and can't be argued around.

@@ -1418,7 +1418,14 @@ For EACH failure, you MUST choose one:
 
 Loop until **0 failures, 0 errors**. Do NOT proceed to STEP 10 with any failures.
 
-After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP 8.5 spec-validator can dispatch without manual recording. (#1238)
+Do not record `pytest-gate` yet. First complete the baseline/current
+classification below and reconcile it with this raw run. A **measured green**
+requires a non-empty completed run, raw exit 0, valid summary, and a known
+baseline. **Inherited red** is HOLD, never a pass; timeout, collection abort,
+missing raw exit, or incomplete output is UNKNOWN. Neither HOLD nor UNKNOWN may
+dispatch STEP 8.5/STEP 10 or mint a completion marker. This inline command is
+**source-only** diagnostic evidence, not independently verified native or
+installed-consumer proof (#1846).
 
 
 **Pre-Existing Failure Classification (Fix-Forward -- Issue #860)**
@@ -1457,8 +1464,8 @@ try:
     else:
         baseline_failing = set()
 except FileNotFoundError:
-    # No baseline file means STEP 1 did not run a capture. Treat as empty baseline.
-    baseline_failing = set()
+    # No baseline file means STEP 1 did not run a capture. It is UNKNOWN.
+    baseline_failing = None
 
 # Capture current pytest output inline (not via shell variable).
 # Issue #1094: use configurable timeout (default 600s) and handle TimeoutExpired symmetrically.
@@ -1490,7 +1497,21 @@ else:
 "
 ```
 
-Gate: `new_failures > 0` BLOCKS (unchanged). `new_failures == 0` with `pre_existing_remaining > 0` auto-files issues by dispatching the `issue-creator` agent with label `pre-existing-failure`, then proceeds. `fixed > 0` notes in commit context. FORBIDDEN: classifying failures in implementer-modified files as "pre-existing", or silently dropping pre-existing failures without fixing or filing.
+Gate: `new_failures > 0` BLOCKS (unchanged). When `new_failures == 0` but
+`pre_existing_remaining > 0`, dispatch the `issue-creator` agent with label
+`pre-existing-failure` and retain the result as diagnostic debt; do **not**
+record `pytest-gate` PASS or advance to STEP 10. A missing or failed baseline
+capture is UNKNOWN and also cannot advance. `fixed > 0` notes in commit context.
+FORBIDDEN: classifying failures in implementer-modified files as
+"pre-existing", silently dropping them, or treating an inherited-red run as
+the absolute-green result required above.
+
+Only after both the raw STEP 8 run and this classification establish measured
+green, call `record_pytest_gate_passed(session_id=$RUN_ID)` to satisfy the
+legacy STEP 8.5 ordering prerequisite. This marker is **source-only** pipeline
+state: it is not a digest-bound receipt, does not establish native execution,
+and cannot be cited as #1846 release acceptance. Do not call it on UNKNOWN,
+inherited red, or a parsed summary without the raw process exit (#1238, #1846).
 
 **Smart Test Routing** (unless `--full-tests` flag was passed): The quality gate uses `test_routing.route_tests()` to classify changed files and run only relevant test tiers. When routing is active, report which tiers ran and which were skipped:
 ```
@@ -2831,7 +2852,13 @@ pytest --tb=short -q
 ```
 Loop until **0 failures, 0 errors**.
 
-After pytest exits 0, the coordinator MUST call `record_pytest_gate_passed(session_id=$RUN_ID)` from `pipeline_completion_state.py` (one line). This auto-registers the `pytest-gate` completion so STEP L3.5 spec-validator can dispatch without manual recording. (#1238)
+Only a **measured green** run (non-empty completed run, raw exit 0, valid
+summary) may call `record_pytest_gate_passed(session_id=$RUN_ID)` for the
+legacy STEP L3.5 ordering prerequisite. **Inherited red** cannot be
+classified in light mode: it is HOLD, not pass. Timeout, collection abort,
+missing raw exit, or incomplete output is UNKNOWN. HOLD/UNKNOWN must not
+record the marker or dispatch STEP L3.5. The marker is **source-only** pipeline
+state, not #1846 native or installed-consumer proof (#1238, #1846).
 
 
 Coverage check: `pytest tests/ --cov=plugins --cov-report=term-missing -q 2>&1 | tail -5` — must be >= baseline - 0.5%.

@@ -16,6 +16,7 @@ from step5_quality_gate import (
     parse_coverage_output,
     parse_pytest_output,
     run_quality_gate,
+    run_tests_routed,
     run_tests,
 )
 import coverage_baseline
@@ -184,8 +185,33 @@ class TestCheckCoverageRegression:
         result = check_coverage_regression(
             baseline_path=baseline, coverage_output="garbage"
         )
-        assert result.passed is True
+        assert result.passed is False
         assert "Could not parse" in result.message
+
+    @patch("step5_quality_gate.subprocess.run")
+    def test_coverage_timeout_cannot_pass(self, mock_run, tmp_path):
+        import subprocess as sp
+
+        mock_run.side_effect = sp.TimeoutExpired(cmd="pytest --cov", timeout=600)
+        result = check_coverage_regression(baseline_path=tmp_path / "baseline.json")
+        assert result.passed is False
+        assert result.message.startswith("UNKNOWN:")
+
+    @patch("step5_quality_gate.subprocess.run")
+    def test_coverage_nonzero_exit_cannot_pass_from_total_line(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(
+            stdout="TOTAL   100   10   90%\n", stderr="", returncode=2
+        )
+        result = check_coverage_regression(baseline_path=tmp_path / "baseline.json")
+        assert result.passed is False
+        assert not (tmp_path / "baseline.json").exists()
+
+    @patch("step5_quality_gate._route_tests", return_value={"full_suite": False, "skip_all": True, "categories": ["docs"]})
+    def test_skip_all_is_not_test_pass(self, _mock_route):
+        routed = run_tests_routed()
+        assert routed["routing"]["skip_all"] is True
+        assert routed["test_result"].passed is False
+        assert routed["test_result"].test_count == 0
 
     def test_baseline_updated_on_improvement(self, tmp_path):
         baseline = tmp_path / "baseline.json"
@@ -207,10 +233,56 @@ class TestRunTests:
         mock_run.return_value = MagicMock(
             stdout="========================= 10 passed in 1.00s =========================",
             stderr="",
+            returncode=0,
         )
         result = run_tests()
         assert result.passed is True
         assert result.test_count == 10
+
+    @patch("step5_quality_gate.subprocess.run")
+    def test_green_summary_cannot_override_nonzero_process_exit(self, mock_run):
+        """The child process, not parsed prose, is the pass authority (#1846)."""
+        mock_run.return_value = MagicMock(
+            stdout="========================= 10 passed in 1.00s =========================",
+            stderr="",
+            returncode=1,
+        )
+        result = run_tests()
+        assert result.passed is False
+
+    @patch("step5_quality_gate.subprocess.run")
+    def test_missing_process_exit_cannot_pass(self, mock_run):
+        mock_run.return_value = MagicMock(
+            stdout="========================= 10 passed in 1.00s =========================",
+            stderr="",
+            returncode=None,
+        )
+        assert run_tests().passed is False
+
+    @patch("step5_quality_gate.subprocess.run")
+    def test_interrupted_banner_cannot_pass_even_with_zero_exit(self, mock_run):
+        mock_run.return_value = MagicMock(
+            stdout="!!!! Interrupted: 1 error during collection !!!!\n"
+                   "========================= 10 passed in 1.00s =========================",
+            stderr="",
+            returncode=0,
+        )
+        result = run_tests()
+        assert result.passed is False
+        assert result.message.startswith("UNKNOWN:")
+
+    @patch("step5_quality_gate._route_tests", return_value={"full_suite": False, "skip_all": False, "marker_expression": "unit"})
+    @patch("step5_quality_gate.subprocess.run")
+    def test_routed_green_summary_cannot_override_bad_exit(self, mock_run, _mock_route):
+        mock_run.return_value = MagicMock(
+            stdout="========================= 10 passed in 1.00s =========================",
+            stderr="",
+            returncode=2,
+        )
+        routed = run_tests_routed()
+        assert routed["routing"]["routed"] is True
+        assert routed["test_result"].passed is False
+        assert routed["test_result"].message.startswith("UNKNOWN:")
 
     @patch("step5_quality_gate.subprocess.run")
     def test_timeout(self, mock_run):
@@ -218,7 +290,19 @@ class TestRunTests:
         mock_run.side_effect = sp.TimeoutExpired(cmd="pytest", timeout=600)
         result = run_tests()
         assert result.passed is False
+        assert result.message.startswith("UNKNOWN:")
         assert "timed out" in result.message
+
+    @patch("step5_quality_gate._route_tests", return_value={"full_suite": False, "skip_all": False, "marker_expression": "unit"})
+    @patch("step5_quality_gate.subprocess.run")
+    def test_routed_timeout_is_unknown_without_fallback(self, mock_run, _mock_route):
+        import subprocess as sp
+        mock_run.side_effect = sp.TimeoutExpired(cmd="pytest", timeout=600)
+        routed = run_tests_routed()
+        assert routed["test_result"].passed is False
+        assert routed["test_result"].message.startswith("UNKNOWN:")
+        assert routed["routing"]["routed"] is True
+        mock_run.assert_called_once()
 
     @patch("step5_quality_gate.subprocess.run")
     def test_pytest_not_found(self, mock_run):
