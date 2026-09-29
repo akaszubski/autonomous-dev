@@ -1547,10 +1547,13 @@ _NATIVE_ORIGIN_MIN_MAC_VERSION = 3
 
 #: Commands and skills that may initiate an /implement run: ``implement`` itself
 #: plus its family spellings (``implement-fix``, ``implement-batch``, ...). An
-#: optional leading slash is tolerated because the two native payloads spell the
-#: name differently. This is a NAME allowlist on a native payload field, NOT a
+#: optional leading slash is tolerated because native payloads spell the name
+#: differently. The plugin-native route supplies autonomous-dev:implement;
+#: other namespaces are never accepted. This is a NAME allowlist, NOT a
 #: parse of a shell command string (INV-1 forbids the latter as containment).
-_IMPLEMENT_FAMILY_RE = re.compile(r"^/?implement(?:-[a-z0-9][a-z0-9-]*)?$")
+_IMPLEMENT_FAMILY_RE = re.compile(
+    r"^(?:/?implement|autonomous-dev:implement)(?:-[a-z0-9][a-z0-9-]*)?$"
+)
 
 
 @dataclass(frozen=True)

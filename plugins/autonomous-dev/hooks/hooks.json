@@ -1,0 +1,31 @@
+{
+  "description": "Native run-origin observation for autonomous-dev (#1807)",
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/native_run_origin.py"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/native_run_origin.py"],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

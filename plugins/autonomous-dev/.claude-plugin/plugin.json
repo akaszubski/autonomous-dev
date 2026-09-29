@@ -6,10 +6,7 @@
     "name": "Andrew Kaszubski",
     "url": "https://github.com/akaszubski"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/akaszubski/autonomous-dev"
-  },
+  "repository": "https://github.com/akaszubski/autonomous-dev",
   "license": "MIT",
   "components": {
     "agents": "./agents",

@@ -165,25 +165,22 @@ NATIVE_VENUE_MATRIX: Dict[str, Dict[str, Any]] = {
     },
     "P-SPELLING-OBSERVED": {
         "native_expectation": (
-            "the admitted native trial MUST capture the ACTUAL command_name and "
-            "command_source BYTES for typed `/implement` and `/implement --fix` on "
-            "the INSTALLED plugin, and the recognizer's accepted spelling set is to "
-            "be finalized from those observed bytes — not guessed. Two obligations "
-            "follow. NAMESPACED POSITIVE: if the installed payload arrives "
-            "namespaced (e.g. `autonomous-dev:implement`, the shape #1811 is live "
-            "evidence for), the recognizer must accept EXACTLY that registered "
-            "spelling. NAMESPACED NEGATIVE: a non-registered or spoofed namespace "
-            "spelling must still refuse. Until those bytes exist the recognizer "
-            "stays NARROW and FAILS CLOSED: widening it speculatively is the "
-            "guess-shaped hole #1811 explicitly rejected"
+            "a live Claude Code 2.1.236 --plugin-dir plan-mode probe on 2026-09-30 "
+            "observed UserPromptExpansion with command_name "
+            "`autonomous-dev:implement`, command_args `--fix #1807`, and a signed "
+            "session-bound witness. The recognizer must accept exactly this "
+            "registered namespace and refuse unrelated or suffix-laundered "
+            "namespaces. This is a spelling/registration observation only: the "
+            "full installed workflow, six-binding bootstrap, and A9 containment "
+            "remain UNMEASURED"
         ),
         "native_status": "UNMEASURED",
         "covering_mechanism": "undetermined",
         "required_joins": _TYPED_EXPANSION_JOINS,
         "offline_cases": {
-            "namespaced-refuses-today": {
+            "observed-plugin-namespace": {
                 "kind": "named",
-                "test": "test_namespaced_command_spelling_refuses_today_and_classifies_absent",
+                "test": "test_observed_plugin_namespace_mints_typed_witness_but_other_namespaces_refuse",
             },
         },
     },
@@ -575,7 +572,7 @@ NATIVE_VENUE_MATRIX: Dict[str, Dict[str, Any]] = {
 #: tamper-proof: it sits in the same module as the matrix, so the authoritative
 #: freeze record is the hash reported in the coordinator/issue evidence.
 _FROZEN_MATRIX_SHA256 = (
-    "43beee393bc32a96676f5324791247e951ec8092d21c2a97d6be31c2ee2540bf"
+    "a81700d9ee3e0c6f47591ac78d99f8b0a29d6a7bd6ca6cce0158730824900b29"
 )
 
 #: The three sanctioned join sets, by name, for the spec-text shape check.
@@ -861,45 +858,33 @@ def test_typed_user_origin_is_recorded_and_classified(case_id, spec):
     assert verdict.native_origin is True
 
 
-def test_namespaced_command_spelling_refuses_today_and_classifies_absent():
-    """P-SPELLING-OBSERVED: an UNOBSERVED spelling mints nothing and errors nothing.
+def test_observed_plugin_namespace_mints_typed_witness_but_other_namespaces_refuse():
+    """The native CLI delivered autonomous-dev:implement on 2026-09-30.
 
-    The recognizer accepts the bare ``implement`` family only, because that is the
-    only spelling anyone has OBSERVED. A plugin-namespaced payload
-    (``autonomous-dev:implement``) is the shape #1811 is live evidence for, and it
-    may well be what the installed runtime delivers — but widening the pattern on
-    that suspicion is the guess #1811 rejected. So TODAY it refuses, and the
-    refusal is a clean ABSENCE (model-bootstrap origin) rather than an error: a
-    recognizer that crashed on an unknown spelling would take the run with it.
-
-    When the native trial captures the real bytes, the accepted set is finalized
-    from them — and if the payload is namespaced, THIS test is the one that must
-    flip to a positive for exactly the registered spelling, with a spoofed
-    namespace still refusing.
+    Accept only that observed plugin namespace. Arbitrary namespaces and
+    suffix laundering remain non-originating even with native-shaped input.
     """
     state = _run()
     payload = _typed_payload()
     payload["command_name"] = "autonomous-dev:implement"
 
-    assert pcs.record_native_origin_witness(_OWNER, payload) is None, (
-        "an unobserved command spelling must not mint a witness"
+    assert pcs.record_native_origin_witness(_OWNER, payload)
+    assert pcs.append_native_origin_progression(
+        _OWNER, _bindings(state), event="run-bound"
     )
-    assert "native_origin" not in _ledger_or_empty()
 
     verdict = _classify(state)
 
     assert verdict.authorized is True, verdict.detail
-    assert verdict.origin is ps.RunOrigin.MODEL_BOOTSTRAP, (
-        f"an unrecognized spelling must read as ABSENT, not as an error or a "
-        f"refused witness: got {verdict.origin.value}"
-    )
-    assert verdict.typed_user_origin is False
+    assert verdict.origin is ps.RunOrigin.TYPED_USER_WITNESSED
+    assert verdict.typed_user_origin is True
 
-    # NEGATIVE CONTROL of a different shape: a spoofed namespace must also refuse,
-    # so a later widening cannot accidentally admit arbitrary prefixes.
+    # A new initiation supersedes any existing witness; these must not do so.
+    previous = _ledger_or_empty().get("native_origin")
     for spoofed in ("evil:implement", "autonomous-dev:implement-evil:implement"):
         payload["command_name"] = spoofed
         assert pcs.record_native_origin_witness(_OWNER, payload) is None, spoofed
+        assert _ledger_or_empty().get("native_origin") == previous
 
 
 def test_model_skill_origin_is_recorded_but_confers_no_user_authorization():
@@ -1620,12 +1605,9 @@ def test_registration_surface_consistency_source_side_only():
 
     This reads TEMPLATE STRINGS and the install manifest. It does NOT observe the
     effective installed registration in ``~/.claude/settings.json``, it does NOT
-    observe the hook firing on either event, and it does NOT observe the
-    ``command_name`` / ``command_source`` BYTES the installed plugin actually
-    delivers — whether the typed command arrives bare or plugin-namespaced is
-    unknown, and P-SPELLING-OBSERVED is the arm that must settle it. All three
-    remain UNMEASURED until the admitted native trial (P-TYPED-FULL /
-    P-TYPED-FIX / P-SKILL / P-SPELLING-OBSERVED).
+    observe the hook firing on either event. The separate native probe observed
+    the plugin-namespaced command spelling, but the full installed workflow and
+    A9 containment remain UNMEASURED.
 
     Registration in a template plus acceptance by the recognizer is NOT
     connectivity proof. What this DOES catch is the cheap, common failure: a hook
@@ -1669,6 +1651,25 @@ def test_registration_surface_consistency_source_side_only():
         "plugins/autonomous-dev/hooks/native_run_origin.hook.json",
     ):
         assert required in files, f"{required} is absent from install_manifest.json"
+
+
+def test_plugin_native_origin_registration_is_executable_and_scoped():
+    """The plugin's default hook surface must carry both native events."""
+    plugin_hooks = json.loads((_HOOK_DIR / "hooks.json").read_text(encoding="utf-8"))[
+        "hooks"
+    ]
+    expected = {"UserPromptExpansion": "*", "PreToolUse": "Skill"}
+    for event, matcher in expected.items():
+        registrations = plugin_hooks[event]
+        assert len(registrations) == 1
+        assert registrations[0]["matcher"] == matcher
+        commands = registrations[0]["hooks"]
+        assert len(commands) == 1
+        assert commands[0]["type"] == "command"
+        assert commands[0]["command"] == "python3"
+        assert commands[0]["args"] == [
+            "${CLAUDE_PLUGIN_ROOT}/hooks/native_run_origin.py"
+        ]
 
 
 def test_hook_metadata_declares_both_registrations():
