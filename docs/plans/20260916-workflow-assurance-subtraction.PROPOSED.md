@@ -58,13 +58,20 @@ The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
 Current execution pointer (2026-10-01): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
-native run identity, origin and containment remain unaccepted; the
+native run identity, origin and containment remain unaccepted. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
 respective transitions. Resolve #1807 before another native F0 attempt; do not
 convert a library-route green into native acceptance. The release denominator
-on #1757 is still a candidate, not frozen. Use the
+on #1757 is still a candidate, not frozen. #1818's runner and gate-consumer
+changes remain uncommitted diagnostic HOLD; only its test-disposition checkpoint
+was pushed at `4a4b4674`. Read-only review found that its always-false F4
+verifier has no positive promotion path. A scoped uncommitted reducer repair
+now preserves call-pass plus teardown-ERROR, but a new child-event forgery RED
+still prevents #1818 promotion
+([review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5903691558),
+[forgery RED](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914490492)). Use the
 [restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
@@ -72,6 +79,10 @@ may proceed in parallel; it is not native admission or acceptance.
 The populated-consumer duplicate native callback is a #1809 RED, and #1818's
 focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
 the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
+
+The superseded 2026-09-30 native failure detail remains in the
+[base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
+it is historical evidence, not the current execution pointer.
 
 The [draft #1807 PR](https://github.com/akaszubski/autonomous-dev/pull/1851)
 now has a SHA-pinned native `git-subdir` install diagnostic, including typed
@@ -87,6 +98,121 @@ has been observed in this attempt. Keep N-BASH and A9 OPEN. The
 carry exact hashes and limitations. The older project-local copy procedure
 below is historical; reuse the SHA-pinned native install method for further
 diagnostics without calling that a released D0 carrier.
+
+### #1807/A9 coherent lifecycle repair (not yet accepted)
+
+The user has authorized the narrow bootstrap repair, not a reduction of A9's
+security or installed-workflow proof. Commit `7d639a1a` closes the tested
+specialist-completion and settings-retry bypasses, but mode coverage and
+multi-carrier run initialization are still incomplete. Keep PR #1851 draft;
+do not deploy or call this candidate a pass. Preserve its RED/GREEN tests and
+review.
+
+First freeze a real Claude native trace from the isolated, byte-verified plugin
+for one typed full and one typed fix invocation. Include each native command
+expansion, model Skill and fabricated-stdin negative, actual Agent dispatch and
+return, any phantom return, `PostToolUse` versus `SubagentStop` ordering, and the
+owner/run/mode/issue/base/subject bindings. If the native post-tool payload
+cannot distinguish and order a genuine return for overlapping same-type
+agents, do not promote the current activity logger or invent an identity. Keep
+the current synchronous coordinator write until a different native transition
+is proved, and record A9 as OPEN. This trace is diagnostic, not F0 acceptance.
+The first fix diagnostic at committed `e0c1e9e4` is a
+[non-pass](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902621235):
+typed expansion and Agent dispatch occurred, but the installed plugin registered
+no `PostToolUse` or `SubagentStop` callback, and the ledger had no progression or
+completion despite CLI success. Resolve the single effective callback registration
+owner and #1809 duplicate-template risk before repeating this trace; full-mode
+and real completion are still unmeasured.
+The next plugin-only diagnostic with those callbacks registered is also a
+[non-pass](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902740562): three
+background Explore dispatches each emitted `PostToolUse:Agent` immediately
+after `task_started`, before the corresponding `SubagentStop` and completed
+task notification. Thus `PostToolUse:Agent` is **not** the completion owner for
+this route. `SubagentStop` is a candidate completion signal, but three distinct
+task IDs collapsed to one type-level `Explore` completion; its native task/agent
+identity join and failure behavior still need proof. The run was interrupted,
+so neither callback wiring nor a CLI exit certifies a completed workflow.
+One bounded, metadata-only same-type probe then completed with two Explore
+dispatches ([trace finding](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902846156)).
+The native event stream joined each `tool_use_id` to a distinct `task_id`, and
+each `SubagentStop` identified its own task. The hook's `PostToolUse:Agent`
+payload had the tool-use ID but no top-level task/agent ID. This establishes a
+stream-level join, **not** a hook-local join or a safe completion writer. Check
+for an existing stable carrier of that mapping before adding a new one; keep
+A9 open and the same-type/phantom/failure negative arms unchanged.
+A second security-reviewed, metadata-only diagnostic then found the missing
+hook-local field: `PostToolUse:Agent` carries `tool_response.agentId`, matching
+the `SubagentStop` `agent_id`, while `PostToolUse` and `PreToolUse` share the
+same `tool_use_id`. In both same-type runs, `SubagentStop` preceded
+`PostToolUse`. This is [schema evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902869319),
+not a passed gate. The resulting two-event stop/result completion candidate
+failed independent review and is superseded by the foreground design below.
+A third completed foreground diagnostic found `tool_response.status=completed`
+on each `PostToolUse:Agent` after its own stop, including overlapping same-type
+calls. The narrower candidate is now to require explicit foreground execution
+for **gate-sensitive** specialists and make that completed native result the
+single completion writer; `SubagentStop` remains telemetry/sentinel lifecycle
+only. Background or missing-status results never count. This avoids a two-event
+stop/result join and its additional pending-stop state, but is not yet accepted:
+remove both the old SubagentStop credit and coordinator `record_agent_completion`
+writers at cutover, claim each launch atomically once by run/issue/tool-use ID,
+and prove replay, wrong scope, failure, auto-background, same-type overlap
+refusal, lost-state, next-dispatch and installed-consumer negatives. Do not disable
+background execution globally or grant other modes credit by inference
+([diagnostic and challenge](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902992132)).
+The first cutover may serialize only gate-sensitive native Agent dispatches:
+the next launch refuses while any previous current-run dispatch lacks its exact
+completed result, including a failed result. This trades pipeline-agent
+parallelism for an observable one-shot barrier without adding a receipt service;
+other sessions and non-pipeline work remain unaffected. Measure the cost in a
+native run and keep parallel promotion OPEN until independently proven.
+
+Then migrate one authority transition at a time. A dual-writer diagnostic may
+compare old and new effects but cannot certify A9; it must not create two
+independent decision owners. Cut over by removing the model writer and only
+then run the final same-policy permit/refuse matrix. If a cutover fails, use a
+reversible versioned rollback, not a security exception. Declare a finite mode
+denominator from all documented `/implement` entry forms; every included mode
+must pass or remain explicitly OPEN, never silently fall back to model-owned
+authority. The current denominator is default
+full (including auto-detected light/fix), explicit `--light`, `--tdd-first`,
+`--fix`, `--batch`, `--issues`, and single/batch `--resume`; modifiers
+`--acceptance-first`, `--full-tests`, `--no-worktree` and `--no-cache` inherit
+the selected mode's proof or stay OPEN. The initial native trace samples full
+and fix only; it confers no credit on the other modes. Validate repository
+root, active-run exclusion, six
+bindings, and recovery before writing. Carrier creation must be recoverable
+and fail closed on each injected write failure and concurrent start; a partial
+witness, ledger, secret or sentinel cannot authorize a run. For specialist
+completion, do not use background `PostToolUse:Agent` as a completion signal.
+First prove that `SubagentStop` supplies or can be joined to the exact dispatched
+task ID, agent identity and run, including same-type overlap, phantom,
+duplicate and failed-agent arms. It may own completion only after that proof;
+the existing pre-dispatch guard must then observe its atomic commit or refuse
+the next dispatch. Injected completion failure must refuse dispatch; callback
+order alone is insufficient. If the native identity join cannot be established,
+test a documented foreground-only workflow as an explicit compatibility and
+performance trade-off, not a silent shortcut or global loss of consumer
+background capability. Only then remove that model-side
+write. Repeat for doc verdict, remediation, base changes and cleanup, or
+retire the carrier if no longer needed. Reuse the existing state writer,
+`session_activity_logger` event route and settings merger; do not add a store,
+signer, hook registration or mixed logging/policy owner without evidence that
+the smaller composition cannot work.
+
+Freeze one installed-policy matrix before promotion: native hook positive;
+genuine full/fix progression; model Bash and descendants, fabricated hook
+stdin, replay and path aliases refused; built-in editors and MCP writers
+refused for every authority carrier; an unrelated writable path permitted;
+before/after hashes, receipts and cleanup independently checked. A proposed
+`denyWrite` entry or model refusal is not a security result. Check clean and
+populated consumers without source fallback, preserve existing settings,
+detect duplicate plugin/template registration, and prove interrupted update
+and rollback under #1809 separately. Record the before/after counts of files,
+stores, registrations, decision owners, tests and manual steps; no net-new
+framework to make an isolated test green. #1807, A9, F0 and release remain
+OPEN until their distinct acceptance evidence exists.
 
 The scoped #1806 lock-GC repair is included in the pushed
 [#1806/#1807 library checkpoint](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39)

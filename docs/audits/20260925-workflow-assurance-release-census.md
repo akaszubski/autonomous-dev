@@ -11,6 +11,19 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-09-30 user/plugin registration reconciliation (read-only at candidate
+`a99e7b81`, Claude Code 2.1.236): the declared direct-Python path audit found
+three user-level registrations overlapping the plugin carrier:
+`PostToolUse/*/session_activity_logger.py`,
+`PreToolUse/Task|Agent/session_activity_logger.py` (user matcher also includes
+`Bash`), and `SubagentStop/*/unified_session_tracker.py`. The user settings
+SHA-256 was `d7991028c3ba7745844e077afefba5b3f3d1055210185c86cc30e533c568dbe7`
+after the audit; no settings mutation was requested. These are three declared
+route rows requiring #1809 disposition, not proof of duplicate physical firing,
+native plugin activation, wrapper coverage or installed-consumer acceptance.
+Keep them in the finite denominator until one effective owner and the
+neighbor-permit case are demonstrated.
+
 Bounded corpus check on 2026-09-29 at plan HEAD `a8b2a589`: a fresh
 `library_reachability(PROJECT_ROOT, use_cache=False)` returned 238 corpus
 members, 148 REACHED and 90 UNKNOWN. A separate direct disk walk found 243
