@@ -63,9 +63,15 @@ fix-mode F1 lost its run identity after recovery; a separate full-mode run
 had a strict-valid owner MAC but no native-origin witness or issue binding.
 Both were stopped before protected edits ([fix-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898569389),
 [full-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898692507)).
-Do not resume or repair either sentinel. A distinct scoped #1807 bootstrap
-authorization is needed for protected source repair under the current
-admission rule; the one-time #1818 exception does not cover it. The
+Do not resume or repair either sentinel. The user authorized a scoped #1807
+native-identity bootstrap on 2026-09-30 while retaining independent review and
+all native, security and release gates. The first repair is in
+[#1851](https://github.com/akaszubski/autonomous-dev/pull/1851): plugin-native
+registration now yields a signed witness for the observed typed
+`autonomous-dev:implement` spelling, with a spoofed-namespace negative control.
+This proves one origin/registration join, not six-binding run initialization,
+OS containment, installed-consumer operation or F0 acceptance. The
+one-time #1818 exception remains separate. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
