@@ -111,6 +111,12 @@ under #1755 first. The project-local copied-file route remains diagnostic only
 because it has no plugin metadata carrier and its settings omit native origin
 and completion callbacks. #1807 source work may continue meanwhile
 ([preflight](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903691399)).
+The first isolated #1755 `/implement --tdd-first` attempt then stopped before
+edits: typed run state existed but native origin was absent and Agent dispatch
+refused `inactive`. The #1807 initializer accepts only `--fix`/`--full`, silently
+excluding the command contract's `--tdd-first`; its scoped RED/repair now precedes
+another #1755 implementation attempt
+([failure](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903791645)).
 [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
 records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
