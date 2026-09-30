@@ -93,6 +93,59 @@ current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
 
+### #1807/A9 coherent lifecycle repair (not yet accepted)
+
+The user has authorized the narrow bootstrap repair, not a reduction of A9's
+security or installed-workflow proof. The current uncommitted initializer is a
+diagnostic candidate: it supports too few documented `/implement` modes and
+can leave partially written authority carriers. Keep PR #1851 draft and do not
+deploy or call this candidate a pass. Preserve its RED/GREEN tests and review.
+
+First freeze a real Claude native trace from the isolated, byte-verified plugin
+for one typed full and one typed fix invocation. Include each native command
+expansion, model Skill and fabricated-stdin negative, actual Agent dispatch and
+return, any phantom return, `PostToolUse` versus `SubagentStop` ordering, and the
+owner/run/mode/issue/base/subject bindings. If the native post-tool payload
+cannot distinguish and order a genuine return for overlapping same-type
+agents, do not promote the current activity logger or invent an identity. Keep
+the current synchronous coordinator write until a different native transition
+is proved, and record A9 as OPEN. This trace is diagnostic, not F0 acceptance.
+
+Then migrate one authority transition at a time. A dual-writer diagnostic may
+compare old and new effects but cannot certify A9; it must not create two
+independent decision owners. Cut over by removing the model writer and only
+then run the final same-policy permit/refuse matrix. If a cutover fails, use a
+reversible versioned rollback, not a security exception. Declare a finite mode
+denominator from all documented `/implement` entry forms; every included mode
+must pass or remain explicitly OPEN, never silently fall back to model-owned
+authority. Validate repository root, active-run exclusion, six
+bindings, and recovery before writing. Carrier creation must be recoverable
+and fail closed on each injected write failure and concurrent start; a partial
+witness, ledger, secret or sentinel cannot authorize a run. For specialist
+completion, require an independently identified real return, run-scoped
+idempotence and a synchronous commit before the next dispatch. A next-dispatch
+guarded read must observe that completion, while injected completion failure
+must refuse dispatch; event order alone is insufficient. `SubagentStop` is
+corroboration, not ordering authority. Only then remove that model-side
+write. Repeat for doc verdict, remediation, base changes and cleanup, or
+retire the carrier if no longer needed. Reuse the existing state writer,
+`session_activity_logger` event route and settings merger; do not add a store,
+signer, hook registration or mixed logging/policy owner without evidence that
+the smaller composition cannot work.
+
+Freeze one installed-policy matrix before promotion: native hook positive;
+genuine full/fix progression; model Bash and descendants, fabricated hook
+stdin, replay and path aliases refused; built-in editors and MCP writers
+refused for every authority carrier; an unrelated writable path permitted;
+before/after hashes, receipts and cleanup independently checked. A proposed
+`denyWrite` entry or model refusal is not a security result. Check clean and
+populated consumers without source fallback, preserve existing settings,
+detect duplicate plugin/template registration, and prove interrupted update
+and rollback under #1809 separately. Record the before/after counts of files,
+stores, registrations, decision owners, tests and manual steps; no net-new
+framework to make an isolated test green. #1807, A9, F0 and release remain
+OPEN until their distinct acceptance evidence exists.
+
 The scoped #1806 lock-GC repair is included in the pushed
 [#1806/#1807 library checkpoint](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39)
 and passed its frozen isolated regression and specialist review.
