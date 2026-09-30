@@ -72,6 +72,14 @@ registration now yields a signed witness for the observed typed
 This proves one origin/registration join, not six-binding run initialization,
 OS containment, installed-consumer operation or F0 acceptance. The
 one-time #1818 exception remains separate. The
+subsequent #1807 native-initializer candidate is uncommitted and not accepted:
+an independent writer census found model-owned completion, verdict and
+remediation writes after initialization, so denying model writes to the five
+protected carrier classes now would also break legitimate workflow. The next
+coherent slice must move or retire those lifecycle writes, prove synchronous
+post-agent progression, and test one effective installed policy; an init-only
+green is not A9 evidence. [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902443174)
+records the failed candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
