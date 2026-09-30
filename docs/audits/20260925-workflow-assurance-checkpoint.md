@@ -4230,3 +4230,22 @@ not an unmeasured arithmetic adjustment. The supervising Codex subagents hit
 the account usage limit before native specialist acceptance. Preserved issue
 receipts: [#1846](https://github.com/akaszubski/autonomous-dev/issues/1846#issuecomment-5879771768)
 and [#1848](https://github.com/akaszubski/autonomous-dev/issues/1848#issuecomment-5879770409).
+
+2026-09-30 #1807 native-origin diagnostic after scoped bootstrap commit
+`974666e5`: Claude Code 2.1.236 loaded the candidate as a session plugin in a
+fresh disposable Git repo (`/tmp/adev-1807-native-diag.pW0Qiz`, base
+`ba52f5c7`). With project-only setting sources, empty MCP config, no tools,
+plan permission mode and no session persistence, a typed
+`/autonomous-dev:implement --fix #1807` fired `UserPromptExpansion`; the hook
+reported exit 0. Independently read native state showed mode `fix`, integer
+issue `1807`, the observed session ID, run ID and disposable base commit.
+The separate run-start receipt matched, the origin witness was valid for
+`UserPromptExpansion`, strict HMAC verification passed, and current-run
+classification reported authorized typed-user origin. Claude inference was
+interrupted after that observation because the no-tools diagnostic was not a
+full workflow; its final result was `aborted_streaming`, not successful
+`/implement` execution. This proves the native initialization arm under a
+bounded source-plugin diagnostic, **not** installed-carrier parity, specialist
+dispatch, OS containment, A7/A9, F0 or release acceptance. The candidate
+passed 224 focused tests and Ruff; independent review remains REQUEST_CHANGES
+pending native security/effect proof.
