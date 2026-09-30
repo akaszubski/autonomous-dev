@@ -4,6 +4,22 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## 2026-10-01 #1818 reducer checkpoint — not F4 acceptance
+
+The real-process RED for a passed pytest call followed by teardown ERROR was
+preserved: the candidate reducer had called that completed, nonzero pytest run
+`CAPTURE_FAILURE`. A narrow uncommitted repair in the existing dirty
+`autonomous-dev-1779` checkout now counts call-pass and teardown-error as
+separate phase outcomes. An independent rerun of
+`tests/unit/lib/test_test_runner_capture_1818.py` and
+`tests/unit/lib/test_test_runner.py` passed 17 tests with raw exit 0 in
+65.10 seconds; see [#1818's evidence comment](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914382124).
+This verifies only the reducer. The native `/implement --fix` attempt discarded
+pytest's raw exit through a `grep`/`sed`/`sort` pipeline and is noncertifying.
+The dirty worktree contains other pre-existing changes: review and isolate the
+reducer before committing, and do not promote F4, #1818, F0 or release from
+this focused pass. The release census remains unfrozen.
+
 2026-09-29 D0-02 matrix correction: POPULATED-3 now freezes one overlapping,
 harmless environment key across user/project/local/explicit settings, its expected
 winner order and a native observer requirement. Distinct unrelated values alone
