@@ -105,6 +105,12 @@ the marketplace schema and ignored plugin fields/archived agent frontmatter.
 The legacy copied-file manifest has no native plugin metadata carrier. A
 native installed-and-updated consumer remains unproven
 ([diagnosis](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5903665152)).
+For the next A9 acceptance attempt, this is now a prerequisite rather than a
+later D0 cleanup: repair and strictly validate the single native provider
+under #1755 first. The project-local copied-file route remains diagnostic only
+because it has no plugin metadata carrier and its settings omit native origin
+and completion callbacks. #1807 source work may continue meanwhile
+([preflight](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903691399)).
 [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
 records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
@@ -114,7 +120,11 @@ respective transitions. Resolve #1807 before another native F0 attempt; do not
 convert a library-route green into native acceptance. The release denominator
 on #1757 is still a candidate, not frozen. #1818's runner and gate-consumer
 changes remain uncommitted diagnostic HOLD; only its test-disposition checkpoint
-was pushed at `4a4b4674`. Use the
+was pushed at `4a4b4674`. Read-only review found that its always-false F4
+verifier has no positive promotion path and that call-pass plus teardown-ERROR
+currently collapses to capture failure; preserve the candidate but repair
+these before #1818 promotion
+([review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5903691558)). Use the
 [restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
