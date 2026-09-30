@@ -6,6 +6,18 @@ not acceptance evidence. Canonical scope remains the
 
 ## 2026-10-01 native sequencing checkpoint
 
+The #1818 child-event false pass was independently reproduced three times on
+2026-10-01 in the dirty `autonomous-dev-1779` candidate using
+`tests/unit/lib/test_test_runner_capture_1818.py::test_issue_1818_test_code_cannot_forge_child_event_as_green`.
+Each run exited 1 because `run_single_test` reported `COMPLETE` and `passed=True`
+after a skipped test's repository `conftest.py` rewrote the child event file and
+printed a fake success summary. This is a stable negative control, not an
+accepted implementation. Preserve the RED and reject any #1818 design that
+merely signs the child event or parses more terminal text. The next design
+decision must identify what independently observes execution, or explicitly
+seek authorization to change the trust assumption; no F4 or F0 credit follows
+from the existing reducer tests.
+
 The scoped #1809 real Claude `/implement --fix` run ended before functional
 edits: F2 used `pytest ... 2>&1 | tail -60`, which discards pytest's raw exit.
 The run and pytest children are gone; the PR #1851 worktree is clean. Its
