@@ -161,48 +161,9 @@ Replace `TARGET_AGENT` with the agent about to be dispatched (e.g., `planner`, `
 
 **FORBIDDEN**: Dispatching an Agent tool call when the pre-dispatch ordering check returns `passed=False`.
 
-### Post-Dispatch Completion Recording Protocol — REQUIRED
+### Native Agent Completion Protocol — REQUIRED (Issue #1807)
 
-After EVERY Agent tool returns, you MUST synchronously call `record_agent_completion()` BEFORE doing anything else — especially before the next Pre-Dispatch Ordering check. This closes the race documented in Issue #1174 (widening of Issue #852): the SubagentStop hook that normally records foreground-agent completions fires asynchronously, but the next pre-dispatch ordering check is synchronous and reads stale state, so the gate falsely sees the just-returned agent as "not yet run". The symptom is manual `record_agent_completion()` injections scattered through coordinator transcripts to satisfy the gate. The fix is structural: record completion synchronously at the call site, eliminating dependence on SubagentStop timing.
-
-```bash
-python3 -c "
-import sys, os, json, time
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-
-# Same canonical resolver as Pre-Dispatch (Issues #904, #1093):
-# env → sentinel (mtime < 3600s) → activity log → 'unknown'.
-# sentinel_path= is REQUIRED — resolve_session_id() does not read
-# PIPELINE_STATE_FILE itself.
-from pipeline_completion_state import record_agent_completion, resolve_session_id
-# Issue #1174: synchronously record completion of the agent that just returned
-# so the next Pre-Dispatch Ordering check sees fresh state. Safe to call when
-# SubagentStop also fires — record_agent_completion is fcntl-locked, tri-scope,
-# last-write-wins (Issue #1046).
-record_agent_completion(
-    resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None),
-    '<AGENT_TYPE>',
-    issue_number=ISSUE_NUMBER_OR_0,
-    success=True,
-)
-print(f'POST-DISPATCH OK: recorded <AGENT_TYPE>')
-"
-```
-
-Replace `<AGENT_TYPE>` with the agent that just returned (`planner`, `implementer`, `reviewer`, etc.). Replace `ISSUE_NUMBER_OR_0` with `0` in single-issue mode (invoked without `--issues`), or with the current batch issue number from `PIPELINE_ISSUE_NUMBER` in batch mode — MUST match the bucket used in the corresponding Pre-Dispatch check (Issue #1460). The snippet calls the same canonical `resolve_session_id()` helper as Pre-Dispatch, with the same required `sentinel_path=` pass-through. Pipeline-mode is tracked separately via the state file and is not required on this call.
-
-**Idempotency note**: Safe to call when SubagentStop also fires asynchronously for the same agent — `record_agent_completion` is fcntl-locked, tri-scope, last-write-wins per Issue #1046. Both writes converge to the same final state.
-
-**Exception clause**: Agents where the coordinator already records completion with extra state — doc-master at the verdict-collection points in STEP 12 (the `record_doc_verdict` + `record_agent_completion` block near line 1387) and STEP 12.5 (near line 1614), and batch-mode doc-master (`implement-batch.md` near line 205) — already satisfy this protocol via Issue #852's fix. Do NOT double-call `record_agent_completion` for those sites; the existing verdict-aware call covers the protocol.
-
-**Fix/Resume delegation**: Fix mode (`implement-fix.md`) and Resume mode (`implement-resume.md`) inherit this protocol implicitly via shared coordinator instructions; explicit per-file delegation is deferred to a follow-up issue. Soft-nudge acknowledgement: this section is a coordinator nudge — hook-layer post-dispatch enforcement (in `unified_pre_tool.py` Layer 4 or a new `post_subagent_completion.py` hook) is a durable follow-up tracked separately.
-
-**HARD GATE**: After every Agent dispatch, the next observable action MUST be the post-dispatch `record_agent_completion()` call shown above. Skipping it leaves the ordering gate dependent on async SubagentStop timing, which is exactly the race this protocol exists to close.
-
-**FORBIDDEN**: Dispatching the next Agent without first synchronously recording the previous Agent's completion via `record_agent_completion()`.
+Dispatch every required specialist through the native foreground Agent tool with `run_in_background: false` explicitly. A successful Agent return is followed by its foreground PostToolUse hook, which owns completion credit. Before the next dispatch or commit, verify the current-run completion receipt for that exact `tool_use_id`, agent type, and run in pipeline state. A failed Agent result has no completion receipt and poisons that run's dispatch lane; block and start a fresh run after diagnosis. The native PreToolUse hook refuses a new Agent dispatch while an earlier exact receipt is pending or failed. If the receipt is absent or mismatched, block and diagnose the native hook; a returned message, SubagentStop telemetry, or a completion in another run is insufficient. The coordinator must never write completion credit or substitute an agent's prose for the native receipt. Serial native dispatch takes precedence over the older parallel validator routing below.
 
 ARGUMENTS: {{ARGUMENTS}}
 
@@ -247,8 +208,19 @@ Proceed with --[fix|light]? (reply "yes" to confirm, anything else runs the full
 If ARGUMENTS contains an issue reference (`#NNN` or issue number), fetch the issue body for potential research reuse:
 
 ```bash
-# Extract all issue numbers (up to 10)
-ISSUE_NUMBERS=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -10 | tr -d '#')
+# Explicit multi-issue routes keep their list; single-issue routes use the same
+# parser as native UserPromptExpansion so unrelated numbers cannot rebind scope.
+if [[ "ARGUMENTS" == *--issues* || "ARGUMENTS" == *--batch* ]]; then
+  ISSUE_NUMBERS=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -10 | tr -d '#')
+else
+  ISSUE_NUMBERS=$(python3 -c "
+import sys
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_completion_state import extract_native_issue_number
+number = extract_native_issue_number(sys.argv[1])
+print(number if number is not None else '')
+" "ARGUMENTS") || exit 1
+fi
 ISSUE_COUNT=$(echo "$ISSUE_NUMBERS" | wc -w)
 export ISSUE_COUNT
 
@@ -308,6 +280,47 @@ if removed:
     print(f'GC: removed {removed} stale state file(s)')
 " 2>/dev/null || true
 
+# NATIVE STEP 0 ADOPTION START
+# A typed UserPromptExpansion already created and signed this run. Validate its
+# owner, receipt, mode, issue, subject, base and origin before using its ID.
+# A present but invalid sentinel is a blocker, never a cue to bootstrap over it.
+NATIVE_ADOPTION="$(python3 -c "
+import json, os, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import classify_current_run_authority, get_legacy_sentinel_path
+from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, check_native_origin, get_run_start_receipt, is_synthetic_session_id
+path = Path(get_legacy_sentinel_path())
+override = os.environ.get('PIPELINE_STATE_FILE')
+if override and Path(override) != path:
+    print('BLOCKED (STEP 0, Issue #1807): PIPELINE_STATE_FILE differs from the native hook sentinel', file=sys.stderr)
+    sys.exit(1)
+if not path.exists():
+    print('__MODEL_BOOTSTRAP__')
+    sys.exit(0)
+try:
+    state = json.loads(path.read_text())
+    sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
+    assert not is_synthetic_session_id(sid), 'native owner unavailable'
+    assert isinstance(state, dict), 'sentinel is not an object'
+    assert state.get('mode') == 'MODE', 'mode mismatch'
+    assert state.get('issue_number', '') in ('', int(os.environ['ISSUE_NUMBER'])) if os.environ.get('ISSUE_NUMBER') else state.get('issue_number', '') == '', 'issue mismatch'
+    assert isinstance(state.get('subject'), str) and state['subject'].strip(), 'subject missing'
+    base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+    assert state.get('base_commit') == base, 'base commit mismatch'
+    assert get_run_start_receipt(sid) == state.get('run_id'), 'run receipt mismatch'
+    verdict = classify_current_run_authority(state, sid, receipt_lookup=get_run_start_receipt)
+    assert verdict.authorized and verdict.typed_user_origin, 'typed origin not authorized'
+    bindings = {key: state.get(key, '') for key in NATIVE_ORIGIN_BINDING_KEYS}
+    witness = check_native_origin(sid, bindings)
+    assert witness.instrument_ok and witness.valid and witness.event == 'UserPromptExpansion', 'origin witness mismatch'
+    print(state['run_id'])
+except (AssertionError, OSError, ValueError, KeyError, TypeError) as exc:
+    print('BLOCKED (STEP 0, Issue #1807): native run adoption failed: ' + str(exc), file=sys.stderr)
+    sys.exit(1)
+")" || exit 1
+# NATIVE STEP 0 ADOPTION END
+if [ "$NATIVE_ADOPTION" = '__MODEL_BOOTSTRAP__' ]; then
 RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
 export RUN_ID
 # Issue #1376: resolve sentinel via get_legacy_sentinel_path() so coordinator
@@ -463,6 +476,27 @@ try:
 except ImportError:
     pass
 "
+else
+RUN_ID="$NATIVE_ADOPTION"
+# Native initiation owns the authority carriers, while STEP 0 still owns the
+# per-run pipeline checkpoint and lock used by downstream resume/step logic.
+LOCK_FD=$(python3 -c "
+import sys
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import acquire_run_lock
+fd = acquire_run_lock('$RUN_ID')
+if fd is None:
+    sys.exit(1)
+print(fd)
+") || { echo 'BLOCKED: Native run lock held'; exit 1; }
+python3 -c "
+import sys
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import create_pipeline, save_pipeline
+save_pipeline(create_pipeline('$RUN_ID', 'FEATURE_DESC', mode='MODE'))
+" || exit 1
+fi
+export RUN_ID
 
 # ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9): MODEL-OWNED bootstrap.
 # classify_current_run_authority reports RunOrigin.MODEL_BOOTSTRAP for a run
@@ -778,7 +812,7 @@ If `has_invariants` is false, print the one-line advisory: `PROJECT.md has no ##
 
 **2b. Stage 1 — fresh-context classification** (ALWAYS dispatch, even when Stage 0 says ESCALATE — the classification is recorded for telemetry; it can never rescue a Stage 0 ESCALATE):
 
-**Agent**(subagent_type="alignment-classifier", model="haiku") — pass: the feature description wrapped in `<untrusted_feature_text>` ... `</untrusted_feature_text>` delimiters, plus PROJECT.md GOALS, SCOPE, CONSTRAINTS, and the ARCHITECTURE `### INVARIANTS` subsection (when present). Then record completion per the Post-Dispatch protocol (`record_agent_completion(sid, 'alignment-classifier', ...)`). Save the agent's fenced JSON to `/tmp/alignment_classifier_$RUN_ID.json`.
+**Agent**(subagent_type="alignment-classifier", model="haiku", run_in_background=false) — pass: the feature description wrapped in `<untrusted_feature_text>` ... `</untrusted_feature_text>` delimiters, plus PROJECT.md GOALS, SCOPE, CONSTRAINTS, and the ARCHITECTURE `### INVARIANTS` subsection (when present). Verify its current-run completion receipt under the Native Agent Completion Protocol. Save the agent's fenced JSON to `/tmp/alignment_classifier_$RUN_ID.json`.
 
 **2c. Deterministic verdict + state update** — the ONLY supported way to set `alignment_passed`:
 ```bash
@@ -1911,19 +1945,9 @@ If conditions are NOT met, skip this step silently and proceed to STEP 10.
 
 **Progress**: Output step banner (STEP 10/15 — Validation). Output each agent completion as they return.
 
-### HARD GATE: Parallel Agent Dispatch Requirement (Issues #459, #1148, #1345)
+### HARD GATE: Native Serial Validation Dispatch (Issue #1807)
 
-In parallel mode, all three validation agents (reviewer, security-auditor, doc-master) MUST be launched in a SINGLE message turn. This is a blocking requirement, not a suggestion.
-
-**REQUIRED**: The coordinator MUST emit all three Agent tool calls in a single content block of a single assistant message — one `<function_calls>` block containing three sibling Agent invocations.
-
-**FORBIDDEN**:
-- Launching reviewer, then awaiting its response before launching security-auditor
-- Launching security-auditor, then awaiting its response before launching doc-master
-- Three separate tool calls in three separate assistant messages
-- Any sequential emission pattern that defeats the purpose of parallel mode
-
-Sequential emission is a NOVEL BYPASS that violates the parallel execution contract. The routing decision (parallel vs sequential) is meaningless if the dispatch itself is sequential.
+Dispatch reviewer, security-auditor, and doc-master as separate foreground Agent calls. Verify the exact current-run receipt after each successful result before issuing the next call. A failed result blocks this run's remaining dispatches; recover in a fresh run. This supersedes the historical single-message parallel dispatch requirement (Issues #459, #1148, #1345) because native PreToolUse now refuses a second in-flight Agent.
 
 ### HARD GATE: Evidence Manifest Pre-Dispatch Preservation (#1458)
 
@@ -1993,15 +2017,15 @@ Validation mode: sequential (security-sensitive files detected: [list of matched
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
 
-Invoke reviewer, security-auditor, and doc-master in a SINGLE message (all three parallel). Pass STEP 8 test results to the reviewer along with the implementer output (see VERBATIM PASSING requirement below).
+Invoke reviewer, security-auditor, and doc-master serially in foreground. Verify each exact native receipt before the next dispatch. Pass STEP 8 test results to the reviewer along with the implementer output (see VERBATIM PASSING requirement below).
 
-**Single-message dispatch requirement (Issue #1148)**: The coordinator MUST emit all three Agent tool calls in a single content block of a single assistant message — three separate tool calls in three separate messages is FORBIDDEN. Sequential emission defeats the purpose of parallel mode: the routing decision (parallel) is meaningless if the dispatch is sequential. Concretely, the assistant message that initiates STEP 10 parallel mode contains exactly one `<function_calls>` block, and that block contains three sibling Agent invocations (reviewer, security-auditor, doc-master). Do not await the reviewer before dispatching the security-auditor; do not await the security-auditor before dispatching doc-master.
+**Native dispatch requirement (Issue #1807)**: The coordinator MUST await each foreground validator and verify its exact native receipt before issuing the next Agent call. The former single-message requirement (Issue #1148) is superseded by the serial native PreToolUse gate.
 
 **VERBATIM PASSING REQUIRED**: Pass the FULL implementer output from STEP 8 to the reviewer, including the STEP 8 test results as a structured pytest stdout artifact (the raw pytest output block with === markers, test names, and final summary line). FORBIDDEN: narrated/computed counts like "14+87=101 passing" — the reviewer requires the verbatim pytest stdout to verify test evidence independently. Do NOT summarize, condense, or paraphrase. If the output is too long, pass the first 3000 words plus the complete file change list and test results section. If the implementer output contains an Evidence Manifest section, it MUST be included in the passed content. When truncating long output, preserve the Evidence Manifest in addition to the file change list and test results. Log word counts: "Implementer output: N words → Reviewer input: M words (ratio: M/N)".
 
 - **Agent**(subagent_type="reviewer", model="sonnet") — Pass file list + planner summary + FULL implementer output + STEP 8 test results + PROJECT.md SCOPE (In Scope and Out of Scope, verbatim). The reviewer SHOULD flag any implementation that introduces functionality listed in Out of Scope or not covered by In Scope. **FEEDBACK pass required**: Before finalizing the verdict, the reviewer MUST perform one self-critique pass: (1) audit findings for false positives — findings that reflect correct behavior MUST be removed; (2) calibrate severity — BLOCKING findings MUST be truly blocking, not stylistic; (3) verify coverage — all changed files MUST appear in the review. Revise findings if any criterion fails. Output: APPROVE or REQUEST_CHANGES.
 - **Agent**(subagent_type="security-auditor", model="sonnet") — Pass file list with complete diffs. Output: PASS/FAIL (OWASP Top 10).
-- **Agent**(subagent_type="doc-master", model="sonnet", run_in_background=true) — Pass file list + feature description using the template below.
+- **Agent**(subagent_type="doc-master", model="sonnet", run_in_background=false) — Pass file list + feature description using the template below.
 
 ```
 subagent_type: "doc-master"
@@ -2027,7 +2051,7 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 
 **FORBIDDEN** — Parallel mode violations:
 - ❌ You MUST NOT use parallel mode when any security-sensitive file is in the changeset
-- ❌ You MUST NOT skip any of the three validators (reviewer, security-auditor, doc-master) in parallel mode; you MUST NOT emit reviewer and security-auditor in sequential messages or await one validator's verdict before dispatching another — all three Agent tool calls go in a single assistant message (the routing decision is meaningless if the dispatch is sequential) (#1148)
+- ❌ You MUST NOT skip any of the three validators (reviewer, security-auditor, doc-master); dispatch each in foreground and verify its exact receipt before the next (#1807)
 
 **Validator artifact write** — After reviewer and security-auditor both return, persist their verbatim outputs:
 ```bash
@@ -2075,9 +2099,9 @@ cat > ".claude/logs/activity/validators/$RUN_ID/security-auditor.txt" << 'SECURI
 SECURITY_EOF
 ```
 
-**STEP 10c: Doc-Master (can run in parallel with 10a/10b)**
+**STEP 10c: Doc-Master (after 10a/10b receipts)**
 
-**Agent**(subagent_type="doc-master", model="sonnet", run_in_background=true) — Pass file list + feature description using the template below. MAY be launched in parallel with STEP 10a for efficiency — collected at STEP 12.
+**Agent**(subagent_type="doc-master", model="sonnet", run_in_background=false) — Pass file list + feature description using the template below. Launch after prior validator receipts; collect its verdict at STEP 12.
 
 ```
 subagent_type: "doc-master"
@@ -2534,16 +2558,16 @@ else:
     print(f"[REMEDIATION-CHECK] No remediation at STEP 11 for run_id={run_id}")
 ```
 
-If `remediation_occurred` is True, the STEP 10 background doc-master result is STALE — it ran against pre-remediation code and file list. You MUST:
-1. DISCARD the STEP 10 background doc-master result (do not wait for it, do not parse it)
+If `remediation_occurred` is True, the STEP 10 doc-master result is STALE — it ran against pre-remediation code and file list. You MUST:
+1. DISCARD the STEP 10 doc-master verdict (do not reuse it)
 2. Get the CURRENT changed file list: `git diff --name-only HEAD~1 2>/dev/null || git diff --name-only --cached`
-3. Re-invoke doc-master BLOCKING (not background): **Agent**(subagent_type="doc-master", model="sonnet") — Pass the CURRENT changed file list + feature description. Log: `[DOC-VERDICT-REINVOKE] Re-invoking doc-master after remediation with updated file list (N files)`
+3. Re-invoke doc-master in foreground: **Agent**(subagent_type="doc-master", model="sonnet", run_in_background=false) — Pass the CURRENT changed file list + feature description. Verify the fresh current-run completion receipt. Log: `[DOC-VERDICT-REINVOKE] Re-invoking doc-master after remediation with updated file list (N files)`
 4. Parse the verdict from this fresh invocation — proceed to the collection point below
 
-If `remediation_occurred` is False (no STEP 11 remediation), use the original STEP 10 background result as normal (existing flow below).
+If `remediation_occurred` is False (no STEP 11 remediation), use the original STEP 10 foreground result as normal (existing flow below).
 
-**Doc-Drift Collection Point** — Collect doc-master background result (in batch mode, see implement-batch.md STEP B3 for per-issue doc-drift verdict collection):
-1. Wait for doc-master to complete (it was launched in STEP 10 background).
+**Doc-Drift Collection Point** — Collect doc-master foreground result (in batch mode, see implement-batch.md STEP B3 for per-issue doc-drift verdict collection):
+1. Use the completed STEP 10 foreground result.
    Use the Agent tool's return value — do NOT grep transcript files directly.
    The return value contains the agent's full output text including DOC-DRIFT-VERDICT.
    If you must parse a transcript file instead of the return value, wait at least 3 seconds
@@ -2562,15 +2586,12 @@ If `remediation_occurred` is False (no STEP 11 remediation), use the original ST
    - Re-check the agent's return value for DOC-DRIFT-VERDICT
    - If still missing: **Retry once** with reduced context: obtain the CURRENT changed file list via `git diff --name-only HEAD~1 2>/dev/null || git diff --name-only --cached`, then re-invoke doc-master BLOCKING (not background) with ONLY this current file list and feature description (no implementer output, no reviewer output). Log: `[DOC-VERDICT-RETRY] Re-invoking doc-master with reduced context and current file list (N files)`
    - If retry produces a DOC-DRIFT-VERDICT: use that verdict
-   - If retry also fails or returns empty: explicitly set `verdict = "MISSING"`, call `record_doc_verdict(session_id, issue_number, verdict)` and `record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=False)` so the audit trail is never silently lost (Issue #906 / #897). Log `[DOC-VERDICT-MISSING] doc-master produced no verdict after retry — proceeding with warning`
-7. **REQUIRED: Persist verdict to completion state** (Issues #837, #852): After parsing the final verdict (whether PASS, FAIL, MISSING, or SHALLOW), call `record_doc_verdict(session_id, issue_number, verdict)` AND `record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=(verdict not in ('MISSING',)))` from `pipeline_completion_state.py`. The `record_doc_verdict` call enables the batch doc-master gate hook to verify a valid verdict was produced. The `record_agent_completion` call is required because SubagentStop doesn't fire reliably for background agents, leaving 'doc-master' absent from the completed agents set (Issue #852).
+   - If retry also fails or returns empty: explicitly set `verdict = "MISSING"` and call `record_doc_verdict(session_id, issue_number, verdict)` so the verdict audit trail is never silently lost (Issue #906 / #897). Log `[DOC-VERDICT-MISSING] doc-master produced no verdict after retry — proceeding with warning`
+7. **REQUIRED: Persist verdict separately from completion**: After parsing the final verdict (whether PASS, FAIL, MISSING, or SHALLOW), call `record_doc_verdict(session_id, issue_number, verdict)` from `pipeline_completion_state.py`. Verify the doc-master current-run completion receipt from native foreground PostToolUse independently. A missing verdict does not authorize completion credit.
 
 ```python
-from pipeline_completion_state import record_doc_verdict, record_agent_completion
+from pipeline_completion_state import record_doc_verdict
 record_doc_verdict(session_id, issue_number, verdict)
-# Issue #852: Explicitly record doc-master completion since SubagentStop
-# doesn't fire reliably for background agents
-record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=(verdict not in ('MISSING',)))
 ```
 
 ### STEP 12.5: Continuous Improvement — HARD GATE
@@ -2581,11 +2602,11 @@ record_agent_completion(session_id, 'doc-master', issue_number=issue_number, suc
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol (above) for each agent before invoking.
 
-**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, pipeline completeness.
+**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=false) — Examines session logs for bypasses, test drift, pipeline completeness.
 
-After dispatch, confirm the agent task ID is valid before proceeding to STEP 13. The agent runs in background; you only need confirmation of dispatch, not completion. The gate at STEP 13 will be satisfied as soon as CIA's SubagentStop event records its completion.
+After the foreground agent returns, verify CIA's current-run completion receipt before STEP 13.
 
-**FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP 12.5 for any reason, MUST NOT clean up pipeline state before STEP 12.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP 13 (commit) before confirming the CIA agent task ID is valid (background dispatch confirmation only — not completion).
+**FORBIDDEN** (Issue #1211) — You MUST NOT skip STEP 12.5 for any reason, MUST NOT clean up pipeline state before STEP 12.5 launches, MUST NOT inline the analysis yourself instead of invoking the agent, and MUST NOT proceed to STEP 13 (commit) before verifying CIA's current-run completion receipt.
 
 ### STEP 12.7: Commit with Closes-ref Injection (Issue #1226)
 
@@ -2884,7 +2905,7 @@ Parse verdict: `SPEC-VALIDATOR-VERDICT: PASS` or `SPEC-VALIDATOR-VERDICT: FAIL`.
 
 **Progress**: Output step banner (STEP 4/5 — Documentation, Agent: doc-master (Sonnet)).
 
-**Agent**(subagent_type="doc-master", model="sonnet", run_in_background=true) — Pass file list + feature description using the template below.
+**Agent**(subagent_type="doc-master", model="sonnet", run_in_background=false) — Pass file list + feature description using the template below.
 
 ```
 subagent_type: "doc-master"
@@ -2916,7 +2937,7 @@ Prompt word count validation: this prompt must contain >= 80 words of template t
 
 **Pre-dispatch**: Follow the Pre-Dispatch Ordering Protocol for each agent before invoking.
 
-**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=true) — Examines session logs for bypasses, test drift, and light pipeline completeness.
+**REQUIRED**: **Agent**(subagent_type="continuous-improvement-analyst", model="sonnet", run_in_background=false) — Examines session logs for bypasses, test drift, and light pipeline completeness.
 
 After dispatch, confirm the agent task ID is valid before proceeding to STEP L5. The agent runs in background; only dispatch confirmation is required.
 
@@ -2953,22 +2974,19 @@ sys.exit(0 if r.get('success', False) else 1)
 
 ### STEP L5: Report and Finalize
 
-**Doc-Drift Collection Point** — Collect doc-master background result:
-1. Wait for doc-master to complete
+**Doc-Drift Collection Point** — Collect doc-master foreground result:
+1. Use the completed foreground result and verify its current-run completion receipt
 2. Parse output for `DOC-DRIFT-VERDICT`
 3. If **PASS**: proceed with git operations
 4. If **FAIL**: BLOCK. Display findings.
 5. If doc-master made fixes: stage them with `git add`
 6. If no verdict: log warning and proceed
-7. **REQUIRED: Persist verdict to completion state** (Issues #837, #852): After parsing the verdict, call `record_doc_verdict` AND `record_agent_completion` for 'doc-master'. The `record_agent_completion` call is required because SubagentStop doesn't fire reliably for background agents (Issue #852).
+7. **REQUIRED: Persist verdict separately from completion**: After parsing the verdict, call `record_doc_verdict` for doc-master and verify its current-run completion receipt from native foreground PostToolUse independently.
 
 ```python
-from pipeline_completion_state import record_doc_verdict, record_agent_completion
+from pipeline_completion_state import record_doc_verdict
 verdict = parsed_verdict  # e.g., "PASS", "FAIL", "MISSING"
 record_doc_verdict(session_id, issue_number, verdict)
-# Issue #852: Explicitly record doc-master completion since SubagentStop
-# doesn't fire reliably for background agents
-record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=(verdict not in ('MISSING',)))
 ```
 
 **Progress**: Output Final Summary table (adapted for 5 steps).

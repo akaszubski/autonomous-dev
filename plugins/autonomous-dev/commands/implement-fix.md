@@ -9,6 +9,10 @@ allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__searxng__search
 
 # FIX MODE
 
+## Native Agent Completion Protocol (Issue #1807)
+
+Every specialist Agent call MUST explicitly use `run_in_background: false`. After each successful foreground return, verify the current-run completion receipt for the exact `tool_use_id`, agent type, and run from native PostToolUse before the next dispatch or commit. Native PreToolUse refuses a second dispatch while that receipt is pending or failed. A failed result has no receipt: block this run and recover in a fresh run. The coordinator MUST NOT write completion credit; agent output and SubagentStop telemetry do not substitute for the receipt. Doc-master's verdict is recorded separately from completion credit. Historical parallel validator instructions yield to this serial native gate.
+
 > The key words "MUST", "MUST NOT", "SHOULD", and "MAY" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 Minimal pipeline (5 steps, 4 agents minimum) for test-fixing tasks.
@@ -86,6 +90,21 @@ Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofi
 
 #### Pipeline State Initialization (Before Alignment Verdict)
 
+Resolve `ISSUE_NUMBER` with the canonical native parser before F1; this is the
+same issue scope used by the typed UserPromptExpansion hook. A non-issue number
+in the fix description must not become the run issue.
+
+```bash
+ISSUE_NUMBER=$(python3 -c "
+import sys
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_completion_state import extract_native_issue_number
+number = extract_native_issue_number(sys.argv[1])
+print(number if number is not None else '')
+" "ARGUMENTS") || exit 1
+export ISSUE_NUMBER
+```
+
 Initialize the fix-mode pipeline state file BEFORE running the alignment gate protocol below, so that `record_alignment_verdict` (Issue #1467) writes `alignment_passed` and `alignment_verdict` into an existing state file. This also ensures hook enforcement (prompt integrity, pipeline ordering) is active during fix mode.
 
 **Issue #1807 — this block binds the OWNER and the RUN before any specialist is dispatched, and FAILS CLOSED when it cannot.** The pre-#1807 version wrote `{mode, explicitly_invoked, start_time}`: no owner, no run id, unsigned. Three consequences, all measured: `ensure_sentinel_heartbeat` treated the absent owner as recoverable and replaced the whole run-bearing state with `{session_id, recovered, recovered_at}`; the MAC (which did not cover `session_id` either) bound nobody; and with no `run_id` there was no run-start receipt to corroborate, so `verify_state_hmac` degraded to the shared `unknown` secret. Full-mode STEP 0 already did all three things this block now does — the missing owner was a fix-mode-only divergence, so this restores parity rather than adding a mechanism.
@@ -95,6 +114,44 @@ Initialize the fix-mode pipeline state file BEFORE running the alignment gate pr
 # implement.md STEP 0 exports — one spelling per concept. It is deliberately NOT
 # PIPELINE_STATE_FILE or a CLAUDE_* name: assigning a protected variable inline
 # is refused by the #557/#606 spoofing guard, and that guard is not to be widened.
+# NATIVE F1 ADOPTION START
+NATIVE_ADOPTION="$(python3 -c "
+import json, os, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, 'plugins/autonomous-dev/lib')
+from pipeline_state import classify_current_run_authority, get_legacy_sentinel_path
+from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, check_native_origin, get_run_start_receipt, is_synthetic_session_id
+path = Path(get_legacy_sentinel_path())
+override = os.environ.get('PIPELINE_STATE_FILE')
+if override and Path(override) != path:
+    print('BLOCKED (STEP F1, Issue #1807): PIPELINE_STATE_FILE differs from the native hook sentinel', file=sys.stderr)
+    sys.exit(1)
+if not path.exists():
+    print('__MODEL_BOOTSTRAP__')
+    sys.exit(0)
+try:
+    state = json.loads(path.read_text())
+    sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
+    assert not is_synthetic_session_id(sid), 'native owner unavailable'
+    assert isinstance(state, dict), 'sentinel is not an object'
+    assert state.get('mode') == 'fix', 'mode mismatch'
+    assert state.get('issue_number', '') in ('', int(os.environ['ISSUE_NUMBER'])) if os.environ.get('ISSUE_NUMBER') else state.get('issue_number', '') == '', 'issue mismatch'
+    assert isinstance(state.get('subject'), str) and state['subject'].strip(), 'subject missing'
+    base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+    assert state.get('base_commit') == base, 'base commit mismatch'
+    assert get_run_start_receipt(sid) == state.get('run_id'), 'run receipt mismatch'
+    verdict = classify_current_run_authority(state, sid, receipt_lookup=get_run_start_receipt)
+    assert verdict.authorized and verdict.typed_user_origin, 'typed origin not authorized'
+    bindings = {key: state.get(key, '') for key in NATIVE_ORIGIN_BINDING_KEYS}
+    witness = check_native_origin(sid, bindings)
+    assert witness.instrument_ok and witness.valid and witness.event == 'UserPromptExpansion', 'origin witness mismatch'
+    print(state['run_id'])
+except (AssertionError, OSError, ValueError, KeyError, TypeError) as exc:
+    print('BLOCKED (STEP F1, Issue #1807): native run adoption failed: ' + str(exc), file=sys.stderr)
+    sys.exit(1)
+")" || exit 1
+# NATIVE F1 ADOPTION END
+if [ "$NATIVE_ADOPTION" = '__MODEL_BOOTSTRAP__' ]; then
 RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
 export RUN_ID
 python3 -c "
@@ -160,6 +217,10 @@ except ImportError:
     pass
 print('Pipeline state initialized for fix mode: run=' + state['run_id'] + ' owner=' + sid)
 "
+else
+RUN_ID="$NATIVE_ADOPTION"
+fi
+export RUN_ID
 ```
 
 **ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9)**: this is MODEL-OWNED bootstrap. `classify_current_run_authority` reports `RunOrigin.MODEL_BOOTSTRAP` for a run initialized only from here, and that stays a fully AUTHORIZED run — the origin level is strictly additive. It is classified as bootstrap because the principal the controls constrain is the one writing the carriers. Only `hooks/native_run_origin.py`, invoked by the runtime on a TYPED `/implement --fix`, can produce `RunOrigin.TYPED_USER_WITNESSED`. Do NOT write a witness from here, and do not treat a green origin verdict as provenance: the OS boundary that would make it unforgeable is not yet in place (A9 OPEN, UNMEASURED).
@@ -547,7 +608,7 @@ The library function `validate_prompt_word_count(agent_type, prompt)` from `plug
 - Omitting file paths, test results, or diff context from the reviewer prompt
 - Invoking security-auditor with only the skeleton prompt template without the actual verbatim implementer output pasted in
 
-Invoke agents in PARALLEL. When security-auditor is REQUIRED, invoke all three simultaneously. When security-auditor is SKIP, invoke two (reviewer + doc-master):
+Invoke agents serially in foreground, verifying each exact native receipt before the next. When security-auditor is REQUIRED, invoke all three; when SKIP, invoke reviewer and doc-master:
 
 1. **Reviewer** (Sonnet): Review the fix for correctness, edge cases, and regressions.
 

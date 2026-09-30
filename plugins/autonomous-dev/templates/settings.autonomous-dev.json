@@ -146,21 +146,11 @@
         ]
       },
       {
-        "matcher": "Task|Agent|Bash",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
             "command": "ACTIVITY_LOGGING=true python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/session_activity_logger.py\"",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/native_run_origin.py\"",
             "timeout": 5
           }
         ]
@@ -195,16 +185,6 @@
             "command": "python \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/auto_format.py\""
           }
         ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/session_activity_logger.py\"",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "Stop": [
@@ -229,18 +209,7 @@
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/unified_session_tracker.py\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
+    "SubagentStop": [],
     "TaskCompleted": [
       {
         "matcher": "*",
@@ -272,18 +241,6 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/post_compact_enricher.sh\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "UserPromptExpansion": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.claude/hooks/native_run_origin.py\"",
             "timeout": 5
           }
         ]

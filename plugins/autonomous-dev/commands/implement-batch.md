@@ -224,14 +224,11 @@ If the return value is empty, wait 3 seconds before retrying (filesystem flush d
   - If retry also fails: log `[DOC-VERDICT-MISSING] doc-master produced no verdict after retry for issue #N — proceeding with warning` and record `doc-drift-verdict: MISSING`
 
 **REQUIRED: Persist verdict to completion state** (Issues #837, #852):
-After parsing the doc-master verdict for each issue, the coordinator MUST call `record_doc_verdict(session_id, issue_number, verdict)` AND `record_agent_completion(session_id, 'doc-master', ...)` from `pipeline_completion_state.py`. The `record_doc_verdict` call persists the verdict for the batch gate hook. The `record_agent_completion` call is required because SubagentStop doesn't fire reliably for background agents, causing 'doc-master' to be absent from the completed agents set (Issue #852). Without both calls, the commit-time gate may block even when doc-master completed.
+After parsing the doc-master verdict for each issue, the coordinator MUST call `record_doc_verdict(session_id, issue_number, verdict)` from `pipeline_completion_state.py`. This stores the verdict only. Verify doc-master's current-run completion receipt from native foreground PostToolUse separately; the coordinator MUST NOT write completion credit.
 
 ```python
-from pipeline_completion_state import record_doc_verdict, record_agent_completion
+from pipeline_completion_state import record_doc_verdict
 record_doc_verdict(session_id, issue_number, verdict)  # e.g., "PASS", "FAIL", "MISSING", "SHALLOW"
-# Issue #852: Explicitly record doc-master completion since SubagentStop
-# doesn't fire reliably for background agents
-record_agent_completion(session_id, 'doc-master', issue_number=issue_number, success=(verdict not in ('MISSING',)))
 ```
 
 Include `doc-drift-verdict: PASS/FAIL/MISSING/SHALLOW` in the per-issue agent verification display:
@@ -283,21 +280,18 @@ Issue #N agent verification:
 
    **Why this gate exists**: Without per-issue verification, the model progressively shortcuts later issues (Issue #362/#363). Issues 1-2 get full pipeline; issues 3+ get 2-3 agents. This gate is fail-closed: if you cannot verify an agent ran, it did not run.
 
-5. **HARD GATE: Background Agent Drain** (Issue #399)
+5. **HARD GATE: Foreground Agent Completion** (Issues #399, #1807)
 
-   Before advancing to the next issue, ALL background agents from the current issue MUST complete. Use `TaskOutput` to await each background task.
+   Before advancing to the next issue, ALL foreground agents from the current issue MUST return with verified current-run completion receipts.
 
    **REQUIRED**: STEP 9 (continuous-improvement-analyst) MUST run in **foreground** (`run_in_background: false`) during batch processing. Background agents accumulate across issues and exhaust machine memory.
 
-   **Max concurrent background agents**: 2. If 2 background agents are already running, await one before launching another.
-
    **FORBIDDEN** (violations = batch failure):
    - ❌ Launching STEP 9 with `run_in_background: true` during batch processing
-   - ❌ Advancing to next issue while background agents from current issue are still running
-   - ❌ Having more than 2 concurrent background agents at any time during batch
-   - ❌ Fire-and-forget agent launches without tracking the task ID for later drain
+   - ❌ Advancing to next issue without every required current-run receipt
+   - ❌ Fire-and-forget agent launches
 
-   **Why this gate exists**: Without drain, each issue's background agents (STEP 9 continuous-improvement-analyst) persist in memory. Across 7+ issues, this accumulates 7+ agents each holding 80-90K tokens of context, exhausting machine memory and crashing the session (Issue #399).
+   **Why this gate exists**: Foreground dispatch prevents agents from accumulating across issues and gives the native PostToolUse hook a completion boundary.
 
 6. After each feature, run `/clear` equivalent (context management)
 
@@ -425,19 +419,19 @@ This provides a backup log of all agent completions even when the PostToolUse ho
 
 After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
 
-0. **Drain all remaining agents and verify writes** (Issue #536, #537):
+0. **Verify all agent receipts and writes** (Issues #536, #537, #1807):
    ```bash
-   # Ensure ALL background agents have completed before committing
+   # Ensure ALL foreground agents have current-run completion receipts before committing
    # This prevents doc-master writes from being lost
    ```
 
    **REQUIRED**: Before committing, verify:
-   a. ALL background agents (especially doc-master from the last issue) have completed. Use TaskOutput to drain any remaining background tasks.
-   b. The post-batch CI analysis (STEP B3.5) has been launched (it can complete after commit, but must be launched before worktree cleanup).
+   a. ALL foreground agents (especially doc-master from the last issue) have current-run completion receipts.
+   b. The post-batch CI analysis (STEP B3.5) has completed with its current-run receipt.
    c. Run `cd $WORKTREE_PATH && git status` to confirm all modified files are visible.
 
    **FORBIDDEN** (Issue #536):
-   - ❌ Running `git add -A && git commit` while any background agent may still be writing files
+   - ❌ Running `git add -A && git commit` before every foreground agent returns and its receipt is verified
    - ❌ Deleting the worktree before the post-batch CIA has read the session log
    - ❌ Proceeding to merge without verifying doc-master's file modifications are staged
 
@@ -824,51 +818,12 @@ Same as BATCH FILE MODE:
 
    The coordinator MUST also follow the **Pre-Dispatch Ordering Protocol** defined in [implement.md](implement.md) before every agent dispatch within each issue's pipeline. The hook is a backstop; the protocol is first-line defense. Issue #850.
 
-### Post-Dispatch Completion Recording Protocol — REQUIRED (Issue #1174)
+### Native Agent Completion Protocol — REQUIRED (Issue #1807)
 
-Symmetric to the Pre-Dispatch Ordering Protocol; same session-ID fallback chain. After EVERY Agent tool returns inside a per-issue pipeline, the batch coordinator MUST synchronously call `record_agent_completion()` BEFORE the next Pre-Dispatch Ordering check. This closes the race documented in Issue #1174 (widening of Issue #852): SubagentStop fires asynchronously, the next pre-dispatch check is synchronous, and a stale read forces manual `record_agent_completion()` injections to satisfy the ordering gate. Recording synchronously at the call site eliminates dependence on SubagentStop timing.
-
-```bash
-python3 -c "
-import sys, os, json, time
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-
-# Same canonical resolver as Pre-Dispatch (Issues #904, #1093):
-# env → sentinel (mtime < 3600s) → activity log → 'unknown'.
-# sentinel_path= is REQUIRED — resolve_session_id() does not read
-# PIPELINE_STATE_FILE itself.
-from pipeline_completion_state import record_agent_completion, resolve_session_id
-# Issue #1174: synchronously record completion of the agent that just returned
-# so the next Pre-Dispatch Ordering check (within this per-issue pipeline) sees
-# fresh state. Safe to call when SubagentStop also fires —
-# record_agent_completion is fcntl-locked, tri-scope, last-write-wins (#1046).
-record_agent_completion(
-    resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None),
-    '<AGENT_TYPE>',
-    issue_number=ISSUE_NUMBER,
-    success=True,
-)
-print(f'POST-DISPATCH OK: recorded <AGENT_TYPE> for issue #{int(<ISSUE_NUMBER>)}')
-"
-```
-
-Replace `<AGENT_TYPE>` with the agent that just returned. Replace `ISSUE_NUMBER` with the current issue number being processed in the batch.
-
-**Exception clause**: doc-master in batch mode already satisfies this protocol via the `record_doc_verdict` + `record_agent_completion` block near line 205 (Issue #852). Do NOT double-call for that site.
-
-**Idempotency**: Safe when SubagentStop also fires for the same agent — tri-scope, fcntl-locked, last-write-wins (Issue #1046).
-
-**HARD GATE**: After every Agent dispatch inside a per-issue pipeline, the next observable action MUST be the post-dispatch `record_agent_completion()` call.
-
-**FORBIDDEN**: Dispatching the next Agent within a per-issue pipeline without first synchronously recording the previous Agent's completion.
-
-   **CRITICAL**: Each issue gets a NEW `create_pipeline()` call. Do NOT reuse pipeline state across issues. Create a new pipeline, run the separate pipeline for that issue, then clear/cleanup before starting the next.
+Every per-issue and post-batch Agent dispatch MUST explicitly set `run_in_background: false`. After each successful foreground Agent return, verify the current-run completion receipt for that exact `tool_use_id`, agent type, run, and issue from native PostToolUse before the next dispatch or commit. Native PreToolUse refuses a second dispatch while that receipt is pending or failed. A failed result has no receipt: block this run and recover in a fresh run. Dispatch validators serially; historical parallel routing yields to this gate. The coordinator MUST NOT write completion credit; SubagentStop telemetry and agent prose cannot substitute for the native receipt.
 
    **Per-issue agent verification is MANDATORY** — see STEP B3 point 4 HARD GATE. Every issue must pass the mode-appropriate agent verification (8 in default mode, 9 in `--tdd-first` mode) before the next issue starts.
-   **Background agent drain is MANDATORY** — see STEP B3 point 5 HARD GATE. STEP 9 runs in foreground during batch. Max 2 concurrent background agents.
+   **Foreground agent receipt verification is MANDATORY** — see STEP B3 point 5 HARD GATE.
 
    **Per-issue STEP 9 (Batch Mode CI)**: After each issue's pipeline completes (and passes the agent verification gate), invoke the continuous-improvement-analyst in **batch mode** — a fast, lightweight check (3-5 REQUIRED tool calls, <30 seconds). Pass the agent verification results as context:
 
@@ -918,12 +873,12 @@ Replace `<AGENT_TYPE>` with the agent that just returned. Replace `ISSUE_NUMBER`
 
 **STEP B3.5: Post-Batch Full CI Analysis**
 
-After ALL issues are processed but BEFORE git finalization (STEP B4), run the continuous-improvement-analyst **once** in full mode in the **background** so it does not block STEP B4 git finalization:
+After ALL issues are processed but BEFORE git finalization (STEP B4), run the continuous-improvement-analyst **once** in full mode in the foreground and verify its current-run completion receipt:
 
 ```
 subagent_type: "continuous-improvement-analyst"
 description: "Post-batch CI analysis"
-run_in_background: true
+run_in_background: false
 prompt: "FULL MODE (post-batch analysis).
 Batch contained N issues: [list issue numbers and titles]
 Per-issue findings: [aggregate per-issue batch mode results]
@@ -934,12 +889,12 @@ Session date: YYYY-MM-DD"
 This single comprehensive analysis replaces N heavy per-issue analyses. It detects cross-issue patterns (progressive shortcutting, recurring bypasses) that per-issue checks cannot see.
 
 **CRITICAL (Issue #537)**: The post-batch CIA MUST be launched BEFORE worktree cleanup (STEP B4 step 3). The CIA needs to read session logs from the worktree. Launch order:
-1. STEP B3.5: Launch CIA in background
-2. STEP B4 step 1: Commit in worktree (CIA is reading logs in parallel)
+1. STEP B3.5: Run CIA in foreground and verify its current-run receipt
+2. STEP B4 step 1: Commit in worktree after CIA completes
 3. STEP B4 step 2: Merge to master
-4. STEP B4 step 3: Cleanup worktree (CIA has already read what it needs)
+4. STEP B4 step 3: Cleanup worktree (CIA has completed)
 
-If CIA has not been launched yet when you reach STEP B4 step 3, BLOCK worktree cleanup until CIA is launched.
+If CIA has no verified current-run completion receipt when you reach STEP B4, BLOCK commit and cleanup.
 
 **CRITICAL**: When invoking agents in batch issues mode, include the **BATCH CONTEXT** block (with `$WORKTREE_PATH`) at the start of EVERY agent prompt, exactly as described in STEP B3.
 

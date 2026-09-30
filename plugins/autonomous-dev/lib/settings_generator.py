@@ -1121,6 +1121,41 @@ class SettingsGenerator:
                     {"error": str(e)}
                 )
 
+        # Plugin-owned native callbacks are registered by hooks/hooks.json.
+        # Remove only their exact legacy global commands before the general
+        # merge; otherwise an upgrade resurrects duplicate settings hooks.
+        from copy import deepcopy
+        template = deepcopy(template)
+        user_settings = deepcopy(user_settings)
+        for settings in (template, user_settings):
+            hooks = settings.get("hooks", {})
+            if not isinstance(hooks, dict):
+                continue
+            for event, entries in list(hooks.items()):
+                if not isinstance(entries, list):
+                    continue
+                kept = []
+                for entry in entries:
+                    if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                        kept.append(entry)
+                        continue
+                    matcher = entry.get("matcher", "")
+                    survivors = []
+                    for hook in entry["hooks"]:
+                        cmd = hook.get("command", "") if isinstance(hook, dict) else ""
+                        owned = (
+                            (event == "UserPromptExpansion" and cmd == "python3 ~/.claude/hooks/native_run_origin.py")
+                            or (event == "PreToolUse" and matcher == "Skill" and cmd == "python3 ~/.claude/hooks/native_run_origin.py")
+                            or (event == "PreToolUse" and matcher == "Task|Agent" and cmd == "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py")
+                            or (event == "PostToolUse" and cmd == "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py")
+                            or (event == "SubagentStop" and cmd == "python3 ~/.claude/hooks/unified_session_tracker.py")
+                        )
+                        if not owned:
+                            survivors.append(hook)
+                    if survivors:
+                        kept.append({**entry, "hooks": survivors})
+                hooks[event] = kept
+
         # Step 5: Merge settings
         merged = self._deep_merge_settings(template, user_settings, fix_wildcards)
 
@@ -1282,6 +1317,9 @@ class SettingsGenerator:
                     if isinstance(hook, dict):
                         if "hooks" in hook:
                             # Nested format - filter and merge inner hooks
+                            if not existing_hooks:
+                                existing_hooks.append(json.loads(json.dumps(hook)))
+                                continue
                             for inner_hook in hook.get("hooks", []):
                                 if isinstance(inner_hook, dict):
                                     cmd = inner_hook.get("command", "")

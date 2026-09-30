@@ -2,19 +2,17 @@
 """
 Sync settings.json hooks and permissions during deploy.
 
-Replaces the hooks key in settings.json with the canonical template hooks,
-and syncs permissions.deny from the generator's canonical DEFAULT_DENY_LIST
-to prevent stale/invalid patterns from persisting across deploys.
+Reconciles canonical hooks with existing consumer hooks and merges the
+generator's canonical deny rules with valid consumer deny rules.
 
-Previous implementation used SettingsMerger.merge_settings() which did ADDITIVE
-hook merging, causing duplicate hooks on each deploy run. This version does a
-full REPLACE of the hooks key to ensure idempotency.
+Exact legacy commands now owned by hooks/hooks.json are removed from global,
+repo, and local settings. Other consumer hooks survive repeated deploys.
 
 Usage:
-    # Global mode: replace hooks in ~/.claude/settings.json from template
+    # Global mode: reconcile hooks in ~/.claude/settings.json from template
     python3 sync_settings_hooks.py --global
 
-    # Per-repo mode: replace hooks in <repo>/.claude/settings.json from template
+    # Per-repo mode: reconcile hooks in <repo>/.claude/settings.json from template
     python3 sync_settings_hooks.py --repo /path/to/repo
 
     # Dry-run (no writes)
@@ -186,14 +184,174 @@ def _detect_stale_local_warnings(
     return sorted(flaggable & local_refs)
 
 
+_PLUGIN_OWNED_CALLBACKS = {
+    "native_run_origin.py", "session_activity_logger.py",
+    "unified_session_tracker.py",
+}
+
+
+def _owned_legacy_command(event: str, matcher: str, hook: Any) -> bool:
+    """Recognize only the installed commands superseded by plugin hooks.json."""
+    if not isinstance(hook, dict) or hook.get("type") != "command":
+        return False
+    command = hook.get("command", "")
+    if not isinstance(command, str):
+        return False
+    basename = next((name for name in _PLUGIN_OWNED_CALLBACKS if name in command), "")
+    if not basename:
+        return False
+    global_command = f"python3 ~/.claude/hooks/{basename}"
+    project_command = (
+        'python3 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}'
+        f'/.claude/hooks/{basename}"'
+    )
+    exact_commands = {global_command, project_command}
+    if basename == "session_activity_logger.py":
+        exact_commands |= {f"ACTIVITY_LOGGING=true {value}" for value in exact_commands}
+    if command not in exact_commands:
+        return False
+    return (
+        (event == "UserPromptExpansion" and basename == "native_run_origin.py")
+        or (event == "PreToolUse" and matcher == "Skill" and basename == "native_run_origin.py")
+        or (event == "PreToolUse" and basename == "session_activity_logger.py"
+            and bool({"Task", "Agent"} & set(matcher.split("|"))))
+        or (event == "PostToolUse" and basename == "session_activity_logger.py")
+        or (event == "SubagentStop" and basename == "unified_session_tracker.py")
+    )
+
+
+def _strip_plugin_owned(hooks: Any) -> tuple[dict, int]:
+    """Drop migrated callbacks, retaining unrelated hooks in shared matchers."""
+    if not isinstance(hooks, dict):
+        raise ValueError("Expected hooks object; refusing to replace malformed consumer hooks")
+    cleaned: dict = {}
+    removed = 0
+    for event, entries in hooks.items():
+        if not isinstance(entries, list):
+            cleaned[event] = entries
+            continue
+        kept = []
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                kept.append(entry)
+                continue
+            matcher = entry.get("matcher", "")
+            survivors = []
+            for hook in entry["hooks"]:
+                if _owned_legacy_command(event, matcher, hook):
+                    removed += 1
+                    # The repo template also logs Bash in this matcher. Keep
+                    # that unrelated use, with Agent/Task removed from scope.
+                    if event == "PreToolUse" and "Bash" in matcher.split("|"):
+                        kept.append({**entry, "matcher": "Bash", "hooks": [hook]})
+                    continue
+                survivors.append(hook)
+            if survivors:
+                kept.append({**entry, "hooks": survivors})
+        if kept:
+            cleaned[event] = kept
+    return cleaned, removed
+
+
+def _merge_hook_entries(existing: dict, canonical: dict) -> dict:
+    """Keep consumer entries and add missing canonical callbacks once."""
+    merged = {event: list(entries) for event, entries in existing.items()}
+    for event, entries in canonical.items():
+        target = merged.setdefault(event, [])
+        if not isinstance(target, list):
+            target = merged[event] = []
+        for entry in entries:
+            if entry not in target:
+                target.append(entry)
+    return merged
+
+
+def _write_settings_transaction(updates: dict[Path, dict]) -> None:
+    """Stage all files, then replace them; restore originals on a failed replace.
+
+    Cross-file rename is not atomic. A rollback failure is explicitly reported
+    with retained private backups so an operator can recover the prior files.
+    """
+    staged: dict[Path, str] = {}
+    backups: dict[Path, str | None] = {}
+    replaced: list[Path] = []
+    # The marker survives SIGKILL between renames. A later installer must
+    # refuse that possibly mixed state instead of treating it as a baseline.
+    marker = next(iter(updates)).parent / ".autonomous-dev-settings-transaction"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        marker_fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as error:
+        raise RuntimeError(
+            f"PARTIAL or interrupted settings update: {marker}; inspect "
+            "private .restore backups before retrying"
+        ) from error
+    with os.fdopen(marker_fd, "w", encoding="utf-8") as stream:
+        stream.write("Settings update in progress; inspect .restore backups before retry.\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    partial = False
+    try:
+        for path, data in updates.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+            staged[path] = temporary
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(data, stream, indent=2)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary, 0o600)
+            if path.exists():
+                fd, backup = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.restore.")
+                backups[path] = backup
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(path.read_bytes())
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.chmod(backup, 0o600)
+            else:
+                backups[path] = None
+        for path, temporary in staged.items():
+            os.replace(temporary, path)
+            replaced.append(path)
+    except Exception as error:
+        rollback_errors = []
+        for path in reversed(replaced):
+            backup = backups[path]
+            try:
+                if backup is None:
+                    path.unlink()
+                else:
+                    os.replace(backup, path)
+            except OSError as rollback_error:
+                rollback_errors.append(f"{path}: {rollback_error}")
+        if rollback_errors:
+            partial = True
+            retained = [str(value) for value in backups.values() if value and os.path.exists(value)]
+            raise RuntimeError(
+                f"PARTIAL settings update; rollback failed: {rollback_errors}; "
+                f"private recovery backups: {retained}"
+            ) from error
+        raise
+    finally:
+        for temporary in staged.values():
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        # Preserve the marker/backups after a failed rollback or a process
+        # death. Only a fully committed or successfully rolled-back run clears
+        # the marker.
+        if not partial:
+            for backup in backups.values():
+                if backup and os.path.exists(backup):
+                    os.unlink(backup)
+            marker.unlink()
+
+
 def _replace_hooks(
     user_path: Path, template_path: Path, *, dry_run: bool = False
 ) -> Dict[str, Any]:
-    """Replace hooks key in settings from template, preserving all other keys.
-
-    This is the core fix for the duplicate hooks bug. Instead of additively
-    merging hooks (which duplicates them on each run), we replace the entire
-    hooks key with the template's canonical hooks.
+    """Reconcile template hooks and consumer hooks, migrating exact legacy ones.
 
     Args:
         user_path: Path to the user's settings.json
@@ -208,21 +366,41 @@ def _replace_hooks(
     """
     # Read template
     template = json.loads(template_path.read_text(encoding="utf-8"))
-    template_hooks = template.get("hooks", {})
+    if not isinstance(template, dict):
+        raise ValueError(f"Expected settings object: {template_path}")
+    template_hooks, template_migrated = _strip_plugin_owned(template.get("hooks", {}))
 
     # Read existing settings (or create empty)
     if user_path.exists():
         user_settings = json.loads(user_path.read_text(encoding="utf-8"))
     else:
         user_settings = {}
+    if not isinstance(user_settings, dict):
+        raise ValueError(f"Expected settings object: {user_path}")
+
+    # Capture the pre-migration warning for operators. The local legacy entry
+    # is then removed below, so a post-write inspection would erase evidence.
+    stale_local_warnings = _detect_stale_local_warnings(user_path, template_hooks)
 
     # Count what's changing
     old_hooks = user_settings.get("hooks", {})
+    if not isinstance(old_hooks, dict):
+        raise ValueError(f"Expected hooks object: {user_path}")
     old_events = set(old_hooks.keys())
     new_events = set(template_hooks.keys())
 
-    # Replace hooks entirely
-    user_settings["hooks"] = template_hooks
+    # Scoped migration: preserve consumer callbacks and all unrelated keys.
+    user_hooks, user_migrated = _strip_plugin_owned(old_hooks)
+    user_settings["hooks"] = _merge_hook_entries(user_hooks, template_hooks)
+    local_path = user_path.with_name("settings.local.json")
+    local_settings = None
+    local_migrated = 0
+    if local_path.exists():
+        local_settings = json.loads(local_path.read_text(encoding="utf-8"))
+        if not isinstance(local_settings, dict):
+            raise ValueError(f"Expected JSON object: {local_path}")
+        local_hooks, local_migrated = _strip_plugin_owned(local_settings.get("hooks", {}))
+        local_settings["hooks"] = local_hooks
 
     # Sync permissions.deny from canonical generator list
     canonical_deny = _get_canonical_deny_list()
@@ -232,31 +410,23 @@ def _replace_hooks(
         old_deny = user_settings.get("permissions", {}).get("deny", [])
         # Validate old deny list for known bad patterns
         bad_patterns = _validate_permission_patterns(old_deny)
-        if bad_patterns or old_deny != canonical_deny:
+        merged_deny = list(dict.fromkeys(canonical_deny + [
+            pattern for pattern in old_deny if pattern not in bad_patterns
+        ]))
+        if bad_patterns or old_deny != merged_deny:
             if "permissions" not in user_settings:
                 user_settings["permissions"] = {}
-            user_settings["permissions"]["deny"] = canonical_deny
+            user_settings["permissions"]["deny"] = merged_deny
             deny_synced = True
             deny_errors_fixed = len(bad_patterns)
 
     if not dry_run:
-        # Atomic write
-        user_path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=str(user_path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(user_settings, f, indent=2)
-                f.write("\n")
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, str(user_path))
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        updates = {user_path: user_settings}
+        if local_settings is not None and local_migrated:
+            updates[local_path] = local_settings
+        _write_settings_transaction(updates)
 
-    total_events = len(template_hooks)
+    total_events = len(user_settings["hooks"])
     hooks_added = len(new_events - old_events)
     hooks_preserved = len(new_events & old_events)
 
@@ -266,20 +436,18 @@ def _replace_hooks(
 
     # Issue #1183: detect legacy settings.local.json that still registers
     # canonical hooks → would cause same-tier duplicate firings.
-    stale_local_warnings = _detect_stale_local_warnings(user_path, template_hooks)
     stale_msg = ""
     if stale_local_warnings:
         stale_msg = (
-            f"; WARNING: settings.local.json still registers "
-            f"{len(stale_local_warnings)} duplicate hooks — "
-            f"re-run sync after upgrade"
+            f"; settings.local.json previously registered "
+            f"{len(stale_local_warnings)} duplicate hooks; migrated exact legacy commands"
         )
 
     return {
         "success": True,
         "hooks_added": hooks_added,
         "hooks_preserved": hooks_preserved,
-        "hooks_migrated": 0,
+        "hooks_migrated": user_migrated + local_migrated,
         "total_lifecycle_events": total_events,
         "deny_synced": deny_synced,
         "deny_errors_fixed": deny_errors_fixed,

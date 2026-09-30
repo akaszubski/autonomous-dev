@@ -659,6 +659,76 @@ def _skill_payload(owner: str = _OWNER, skill: str = "implement") -> Dict[str, A
     }
 
 
+def _native_fix_payload() -> Dict[str, Any]:
+    """Observed typed plugin command; ``custom`` names command type, not actor."""
+    payload = _typed_payload(args="--fix #1807")
+    payload["command_name"] = "autonomous-dev:implement"
+    payload["command_source"] = "custom"
+    payload["prompt"] = "/autonomous-dev:implement --fix #1807"
+    return payload
+
+
+def test_typed_fix_expansion_initializes_bound_run_before_model_bash(capsys):
+    """A typed expansion creates all run carriers without a coordinator step."""
+    payload = _native_fix_payload()
+
+    result = pcs.initialize_native_run_from_event(payload)
+
+    assert isinstance(result, dict), "native initializer must return the created state"
+    # The native owner must choose the canonical carrier, not a caller-supplied
+    # PIPELINE_STATE_FILE. The isolation helper redirects this resolver to tmp_path.
+    sentinel = ps.get_legacy_sentinel_path()
+    assert sentinel.is_file()
+    state = json.loads(sentinel.read_text(encoding="utf-8"))
+    assert result == state
+    assert state["session_id"] == payload["session_id"]
+    assert state["mode"] == "fix"
+    assert str(state["issue_number"]) == "1807"
+    assert isinstance(state["subject"], str) and state["subject"].strip()
+    assert isinstance(state["base_commit"], str) and state["base_commit"].strip()
+    assert isinstance(state["run_id"], str) and state["run_id"].strip()
+    assert ps.verify_state_hmac(state, _OWNER, strict=True)
+    secret_path = ps._get_pipeline_secret_path(state["run_id"])
+    assert secret_path.is_file()
+    assert secret_path.read_text(encoding="utf-8").strip() not in json.dumps(result)
+    assert pcs.get_run_start_receipt(_OWNER) == state["run_id"]
+    ledger = _ledger()
+    assert ledger["issue_run_starts"]["1807"] == state["run_id"]
+    origin = pcs.check_native_origin(_OWNER, _bindings(state))
+    assert origin.valid is True, origin.detail
+    assert origin.event == "UserPromptExpansion"
+    assert _classify(state).authorized is True
+    assert capsys.readouterr().out == "", "hook must not print carrier data to stdout"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["model_skill", "fabricated_event", "conflicting_mode", "missing_owner", "empty_subject"],
+)
+def test_native_initializer_refuses_untrusted_or_incomplete_invocations(mutation):
+    """Refusal creates no sentinel, secret, or run-start receipt."""
+    payload = _native_fix_payload()
+    if mutation == "model_skill":
+        payload = _skill_payload(skill="autonomous-dev:implement")
+    elif mutation == "fabricated_event":
+        payload["hook_event_name"] = "PreToolUse"
+        payload["tool_name"] = "Bash"
+    elif mutation == "conflicting_mode":
+        payload["command_args"] = "--fix --light #1807"
+        payload["prompt"] = "/autonomous-dev:implement --fix --light #1807"
+    elif mutation == "missing_owner":
+        payload.pop("session_id")
+    elif mutation == "empty_subject":
+        payload["command_args"] = "--fix"
+        payload["prompt"] = "/autonomous-dev:implement --fix"
+
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert not list((Path.home() / ".claude" / "pipeline_secrets").glob("*.key"))
+    assert pcs.get_run_start_receipt(_OWNER) is None
+    assert "native_origin" not in _ledger_or_empty()
+
+
 def _run(owner: str = _OWNER, **fields: Any) -> Dict[str, Any]:
     """Build a signed, receipt-backed run state with all six bindings present."""
     defaults = {"issue_number": "1807", "subject": "native-owned init", "mode": "full"}
@@ -1526,11 +1596,8 @@ def test_hook_entrypoint_records_the_origin_class_of_its_native_event():
     """
     import native_run_origin as hook
 
-    state = _run()
-    assert hook.handle_native_origin_event(_typed_payload()) == 0
-    assert pcs.append_native_origin_progression(
-        _OWNER, _bindings(state), event="run-bound"
-    )
+    assert hook.handle_native_origin_event(_native_fix_payload()) == 0
+    state = json.loads(ps.get_legacy_sentinel_path().read_text(encoding="utf-8"))
     assert _classify(state).origin is ps.RunOrigin.TYPED_USER_WITNESSED
 
     assert hook.handle_native_origin_event(_skill_payload()) == 0
@@ -1589,11 +1656,9 @@ def test_subagent_stop_progression_seam_reads_the_sentinel(tmp_path):
     )
 
 
-#: Surfaces that carry the autonomous-dev pipeline session hooks. Mirrors the
-#: surface set ``unified_session_tracker`` occupies — the minimal templates
-#: (default / granular-bash / permission-batching / strict-mode) register no
-#: pipeline session hooks at all, so adding this one there would advertise a
-#: binding those profiles do not have.
+#: Templates must not duplicate the plugin-owned native origin callbacks.
+#: The plugin's hooks.json is the one registration owner; install migration
+#: removes only matching legacy callbacks from populated consumer settings.
 _REGISTRATION_SURFACES = (
     "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
     "plugins/autonomous-dev/config/global_settings_template.json",
@@ -1601,7 +1666,7 @@ _REGISTRATION_SURFACES = (
 
 
 def test_registration_surface_consistency_source_side_only():
-    """SOURCE-SIDE wiring consistency (Q1 PARTIAL) — not connectivity proof.
+    """SOURCE-SIDE single-owner check (Q1 PARTIAL) — not connectivity proof.
 
     This reads TEMPLATE STRINGS and the install manifest. It does NOT observe the
     effective installed registration in ``~/.claude/settings.json``, it does NOT
@@ -1609,10 +1674,8 @@ def test_registration_surface_consistency_source_side_only():
     the plugin-namespaced command spelling, but the full installed workflow and
     A9 containment remain UNMEASURED.
 
-    Registration in a template plus acceptance by the recognizer is NOT
-    connectivity proof. What this DOES catch is the cheap, common failure: a hook
-    file that no surface registers and no manifest ships, which can never fire
-    anywhere.
+    Plugin registration plus manifest presence is NOT installed connectivity
+    proof. This also refuses duplicate legacy template registrations.
     """
     for relative in _REGISTRATION_SURFACES:
         settings = json.loads((_REPO_ROOT / relative).read_text(encoding="utf-8"))
@@ -1631,8 +1694,8 @@ def test_registration_surface_consistency_source_side_only():
                     or matcher_must_include in group.get("matcher", "")
                 )
             ]
-            assert commands, (
-                f"{relative}: native_run_origin.py is not registered on {event}"
+            assert not commands, (
+                f"{relative}: native_run_origin.py duplicates plugin-owned {event}"
                 + (
                     f" with a {matcher_must_include} matcher"
                     if matcher_must_include
@@ -1660,7 +1723,14 @@ def test_plugin_native_origin_registration_is_executable_and_scoped():
     ]
     expected = {"UserPromptExpansion": "*", "PreToolUse": "Skill"}
     for event, matcher in expected.items():
-        registrations = plugin_hooks[event]
+        registrations = [
+            group for group in plugin_hooks[event]
+            if group.get("matcher") == matcher
+            and any(
+                "native_run_origin.py" in str(entry.get("args", []))
+                for entry in group.get("hooks", [])
+            )
+        ]
         assert len(registrations) == 1
         assert registrations[0]["matcher"] == matcher
         commands = registrations[0]["hooks"]

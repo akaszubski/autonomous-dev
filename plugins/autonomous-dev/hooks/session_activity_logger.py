@@ -210,8 +210,6 @@ def main():
     """Log tool call activity to structured JSONL."""
     # Opt-out check: false=off, true=summary, debug=full raw stdin
     log_level = os.environ.get("ACTIVITY_LOGGING", "true").lower()
-    if log_level == "false":
-        sys.exit(0)
 
     try:
         _start = time.monotonic()
@@ -223,6 +221,10 @@ def main():
         try:
             hook_input = json.loads(raw)
         except json.JSONDecodeError:
+            sys.exit(0)
+
+        # An activity-log preference cannot disable native dispatch evidence.
+        if log_level == "false" and hook_input.get("tool_name") != "Agent":
             sys.exit(0)
 
         # Detect hook type from input fields
@@ -304,14 +306,36 @@ def main():
             if pre_tool_name in ("Task", "Agent"):
                 pre_tool_input = hook_input.get("tool_input", {}) or {}
                 pre_session_id = (
-                    os.environ.get("CLAUDE_SESSION_ID")
-                    or hook_input.get("session_id", "unknown")
+                    hook_input.get("session_id") or "unknown"
                 )
                 pre_subagent_type = (pre_tool_input.get("subagent_type", "") or "").strip()
-                # Issue #1484: mint one per-dispatch generation token shared by the
-                # invocation cache entry and the sentinel payload. SubagentStop
-                # recovers it from the cache and passes it to clear() for a
-                # compare-and-delete that avoids the #1467 ABA disarm race.
+                if pre_tool_name == "Agent":
+                    try:
+                        env_owner = os.environ.get("CLAUDE_SESSION_ID")
+                        if env_owner and env_owner != pre_session_id:
+                            print(json.dumps({"decision": "block", "reason": "Agent session identity mismatch"}))
+                            sys.exit(0)
+                        from pipeline_completion_state import (
+                            native_agent_join_active, register_native_agent_dispatch,
+                        )
+                        verdict = register_native_agent_dispatch(
+                            pre_session_id,
+                            hook_input.get("tool_use_id", ""),
+                            pre_subagent_type,
+                            pre_tool_input.get("run_in_background"),
+                        )
+                        if verdict != "registered" and (
+                            verdict != "inactive" or native_agent_join_active(pre_session_id)
+                        ):
+                            sys.stderr.write(f"[native-agent-join] dispatch refused: {verdict}\n")
+                            print(json.dumps({"decision": "block", "reason": f"Native Agent dispatch refused: {verdict}"}))
+                            sys.exit(0)
+                    except Exception as exc:
+                        sys.stderr.write(f"[native-agent-join] dispatch unavailable: {exc}\n")
+                        print(json.dumps({"decision": "block", "reason": "Native Agent dispatch registration unavailable"}))
+                        sys.exit(0)
+                # Issue #1484: keep telemetry and protected-edit sentinel on
+                # the same generation, after native dispatch registration.
                 generation = uuid.uuid4().hex
                 if pre_subagent_type:
                     _sic_cache_invocation(
@@ -362,7 +386,27 @@ def main():
             )
 
         # Session ID: prefer env var, fall back to hook stdin JSON
-        session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+        session_id = hook_input.get("session_id") or "unknown"
+        if tool_name == "Agent":
+            try:
+                env_owner = os.environ.get("CLAUDE_SESSION_ID")
+                if env_owner and env_owner != session_id:
+                    sys.stderr.write("[native-agent-join] result session identity mismatch\n")
+                    sys.exit(0)
+                from pipeline_completion_state import join_native_agent_result
+                response = hook_input.get("tool_response") or {}
+                verdict = join_native_agent_result(
+                    session_id,
+                    hook_input.get("tool_use_id", ""),
+                    response.get("agentId", "") if isinstance(response, dict) else "",
+                    response.get("status", "") if isinstance(response, dict) else "",
+                    bool(response.get("is_error") or response.get("error"))
+                    if isinstance(response, dict) else True,
+                )
+                if verdict not in ("inactive", "completed"):
+                    sys.stderr.write(f"[native-agent-join] result uncredited: {verdict}\n")
+            except (ImportError, ValueError, OSError) as exc:
+                sys.stderr.write(f"[native-agent-join] result unavailable: {exc}\n")
         if session_id == "unknown":
             sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
 

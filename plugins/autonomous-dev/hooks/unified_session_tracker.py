@@ -1303,11 +1303,11 @@ def main() -> int:
             # canonical PostToolUse path (session_activity_logger:337). Symmetric
             # resolution is required so the SubagentStop popper looks up the same
             # cache key the writer used and can recover the generation token.
-            session_id = (
-                os.environ.get("CLAUDE_SESSION_ID")
-                or hook_input.get("session_id")
-                or "unknown"
-            )
+            session_id = hook_input.get("session_id") or "unknown"
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            if env_owner and env_owner != session_id:
+                sys.stderr.write("[native-agent-join] stop session identity mismatch\n")
+                return 0
             agent_transcript_path_raw = hook_input.get("agent_transcript_path", "")
         else:
             # Backward compatibility: fall back to environment variables
@@ -1511,6 +1511,12 @@ def main() -> int:
 
         # Determine success
         success = _determine_success(agent_output)
+        native_join_active = False
+        try:
+            from pipeline_completion_state import native_agent_join_active
+            native_join_active = native_agent_join_active(session_id)
+        except (ImportError, ValueError, OSError) as exc:
+            sys.stderr.write(f"[native-agent-join] stop unavailable: {exc}\n")
 
         # Create summary message
         summary = agent_output[:100].replace("\n", " ") if agent_output else "Completed"
@@ -1534,7 +1540,15 @@ def main() -> int:
 
         # Pipeline ordering state — record agent completion (Issues #625, #629, #632)
         try:
-            from pipeline_completion_state import record_agent_completion
+            from pipeline_completion_state import record_agent_completion as _record_agent_completion
+            # The plugin-native registration passes --native. That route never
+            # grants completion from SubagentStop, even if both run carriers
+            # are missing: a lost ledger must not restore legacy FIFO credit.
+            # Legacy settings keep their prior behavior until #1809 migration.
+            native_registered = "--native" in sys.argv[1:]
+            def record_agent_completion(*args, **kwargs):
+                if not (native_registered or native_join_active):
+                    return _record_agent_completion(*args, **kwargs)
             
             # Issue #1436: unattributable SubagentStop firings carry no usable
             # identity (None / empty / whitespace-only / "unknown") even after the

@@ -38,6 +38,8 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
 import tempfile
 import threading
@@ -1200,6 +1202,15 @@ def record_agent_completion(
         entry = success  # type: ignore[assignment]  # plain bool, legacy shape
 
     def _mutator(state: dict) -> None:
+        # Native specialist credit belongs exclusively to the exact
+        # PreToolUse/ PostToolUse Agent join. The legacy public writer must
+        # not mint a current-run stamp, even when called directly. Keep the
+        # separate virtual pytest gate on its existing path.
+        if agent_type != "pytest-gate" and (
+            _native_agent_join_active(state)
+            or _signed_native_agent_scope(session_id) is not None
+        ):
+            return
         _ensure_state_inplace(state, session_id)
         completions = state.setdefault("completions", {})
 
@@ -1223,6 +1234,180 @@ def record_agent_completion(
         _record_completion_run_ids(state, _time_scope_keys, agent_type)
 
     _locked_rmw(session_id, _mutator, run_id=run_id)
+
+
+def _native_agent_join_active(state: dict) -> bool:
+    """Only a live, witnessed run uses exact native Agent completion credit."""
+    return bool(state.get("current_run_id") and isinstance(state.get("native_origin"), dict))
+
+
+def native_agent_join_active(session_id: str) -> bool:
+    """Tell hook callers whether FIFO completion credit must be suppressed."""
+    if _native_agent_join_active(_read_state(session_id)):
+        return True
+    # A lost/unreadable ledger must not turn a signed native run into legacy
+    # FIFO credit. The sentinel is only a fail-closed signal here, never a source
+    # of issue scope or completion authority.
+    try:
+        from pipeline_state import verify_state_hmac
+        sentinel = json.loads(get_legacy_sentinel_path().read_text())
+        return bool(
+            isinstance(sentinel, dict)
+            and sentinel.get("session_id") == session_id
+            and sentinel.get("explicitly_invoked") is True
+            and verify_state_hmac(sentinel, session_id, strict=True)
+        )
+    except (ImportError, OSError, ValueError, TypeError):
+        return False
+
+
+def _signed_native_agent_scope(session_id: str) -> Optional[dict]:
+    """Read the signed run carrier; unsigned/stale/foreign scope has no authority."""
+    try:
+        from pipeline_state import verify_state_hmac
+        sentinel = json.loads(get_legacy_sentinel_path().read_text())
+        if (not isinstance(sentinel, dict)
+                or sentinel.get("session_id") != session_id
+                or sentinel.get("explicitly_invoked") is not True
+                or not verify_state_hmac(sentinel, session_id, strict=True)):
+            return None
+        issue = sentinel.get("issue_number", "")
+        if issue != "" and (not isinstance(issue, int) or isinstance(issue, bool)):
+            return None
+        return {"run_id": sentinel.get("run_id"), "issue_number": issue}
+    except (ImportError, OSError, ValueError, TypeError):
+        return None
+
+
+def register_native_agent_dispatch(
+    session_id: str, tool_use_id: str, agent_type: str, run_in_background: Any
+) -> str:
+    """Reserve a foreground Agent tool call in the active signed run."""
+    result = "inactive"
+    signed_scope = _signed_native_agent_scope(session_id)
+    try:
+        ledger_native = _native_agent_join_active(_read_state(session_id))
+    except Exception:
+        return "write_failed"
+    if not ledger_native and signed_scope is None:
+        return "inactive"
+    if not all(isinstance(v, str) and v.strip() for v in (session_id, tool_use_id, agent_type)):
+        return "invalid"
+    if run_in_background is not False:
+        return "not_foreground"
+
+    def _mutator(state: dict) -> None:
+        nonlocal result
+        if not _native_agent_join_active(state):
+            return
+        if signed_scope is None or signed_scope["run_id"] != state["current_run_id"]:
+            result = "unbound_scope"
+            return
+        joins = state.setdefault("native_agent_joins", {})
+        if not isinstance(joins, dict) or tool_use_id in joins:
+            result = "duplicate"
+            return
+        run_id = state["current_run_id"]
+        # Completion is stored by agent type. Until the preceding foreground
+        # call completes, another dispatch could reuse that type-level credit.
+        # Failed calls require a fresh run, rather than silently advancing.
+        if any(
+            isinstance(entry, dict) and entry.get("run_id") == run_id
+            and entry.get("status") in ("reserved", "failed")
+            for entry in joins.values()
+        ):
+            result = "in_flight"
+            return
+        issue = signed_scope["issue_number"]
+        owned_issues = [str(k) for k, v in state.get("issue_run_starts", {}).items()
+                        if v == run_id]
+        if issue == "" and owned_issues:
+            result = "issue_mismatch"
+            return
+        if issue != "" and (str(issue) not in owned_issues or len(owned_issues) != 1):
+            result = "issue_mismatch"
+            return
+        joins[tool_use_id] = {
+            "run_id": run_id,
+            "issue_number": issue,
+            "tool_use_id": tool_use_id,
+            "agent_type": agent_type,
+            "status": "reserved",
+        }
+        # A repeat dispatch of the same specialist must not inherit its prior
+        # type-level completion while this new foreground invocation is live.
+        scopes = {"0", "unscoped"}
+        if issue != "":
+            scopes.add(str(issue))
+        for key in scopes:
+            completions = state.get("completions", {}).get(key, {})
+            if isinstance(completions, dict) and agent_type in completions:
+                completions[agent_type] = False
+        result = "registered"
+
+    try:
+        _locked_rmw(session_id, _mutator)
+        if result == "registered":
+            persisted = _read_state(session_id).get("native_agent_joins", {}).get(tool_use_id)
+            if not isinstance(persisted, dict) or persisted.get("status") != "reserved":
+                return "write_failed"
+    except Exception:
+        return "write_failed"
+    return result
+
+
+def join_native_agent_result(
+    session_id: str, tool_use_id: str, agent_id: str, status: str, has_error: bool
+) -> str:
+    """Atomically credit one completed foreground Agent response to its reservation."""
+    result = "inactive"
+    if not isinstance(tool_use_id, str) or not tool_use_id.strip():
+        return "invalid"
+    signed_scope = _signed_native_agent_scope(session_id)
+
+    def _mutator(state: dict) -> None:
+        nonlocal result
+        if not _native_agent_join_active(state):
+            return
+        pending = state.get("native_agent_joins", {}).get(tool_use_id)
+        if not isinstance(pending, dict) or pending.get("status") != "reserved":
+            result = "unjoined"
+        elif pending.get("run_id") != state.get("current_run_id"):
+            result = "rebound"
+        elif signed_scope is None or signed_scope != {
+            "run_id": pending["run_id"], "issue_number": pending["issue_number"]
+        }:
+            result = "unbound_scope"
+        elif not isinstance(agent_id, str) or not agent_id.strip():
+            pending["status"] = "failed"
+            result = "invalid"
+        elif status != "completed" or has_error is not False:
+            pending["status"] = "failed"
+            result = "failed"
+        elif any(
+            isinstance(entry, dict) and entry.get("run_id") == pending["run_id"]
+            and entry.get("status") == "completed" and entry.get("agent_id") == agent_id
+            for entry in state.get("native_agent_joins", {}).values()
+        ):
+            result = "duplicate"
+        else:
+            agent_type = pending["agent_type"]
+            scope_keys = {"0", "unscoped"}
+            if pending["issue_number"] != "":
+                scope_keys.add(str(pending["issue_number"]))
+            for key in scope_keys:
+                state.setdefault("completions", {}).setdefault(key, {})[agent_type] = True
+            _record_completion_times(state, scope_keys, agent_type)
+            _record_completion_run_ids(state, scope_keys, agent_type)
+            pending["status"] = "completed"
+            pending["agent_id"] = agent_id
+            result = "completed"
+
+    try:
+        _locked_rmw(session_id, _mutator)
+    except Exception:
+        return "write_failed"
+    return result
 
 
 def _record_completion_times(
@@ -1982,6 +2167,103 @@ def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]
         return witness_id
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _native_origin_note(f"no witness minted: {type(exc).__name__}: {exc}")
+        return None
+
+
+def extract_native_issue_number(args: str) -> Optional[int]:
+    """Extract an issue only from an explicit reference or sole numeric subject.
+
+    ``#N`` outranks incidental counts; ``issue N`` is next. A bare number is
+    accepted only when it is the sole non-flag argument, so prose such as
+    ``fix 2 tests`` cannot bind a run to issue 2.
+    """
+    if not isinstance(args, str):
+        return None
+    hash_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b", args)
+    if hash_refs:
+        return int(hash_refs[0]) if len(set(hash_refs)) == 1 else None
+    issue_refs = re.findall(r"\bissue\s+#?([1-9][0-9]*)\b", args, re.IGNORECASE)
+    if issue_refs:
+        return int(issue_refs[0]) if len(set(issue_refs)) == 1 else None
+    try:
+        bare = [token for token in shlex.split(args) if token not in ("--fix", "--full")]
+    except ValueError:
+        return None
+    return int(bare[0]) if len(bare) == 1 and re.fullmatch(r"[1-9][0-9]*", bare[0]) else None
+
+
+def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
+    """Initialize a run from a typed native command expansion.
+
+    The native hook owns this call. A Skill tool event cannot initialize a run.
+    All authority carriers use the existing signer, ledger, and sentinel path.
+    """
+    try:
+        if not isinstance(payload, dict):
+            return None
+        owner = payload.get("session_id")
+        event, reason = _native_origin_event(payload, owner)
+        if event != "UserPromptExpansion":
+            _native_origin_note(f"run initialization refused: {reason or 'not typed'}")
+            return None
+        if payload.get("command_source") not in ("user", "custom"):
+            return None
+        args = payload.get("command_args", "")
+        prompt = payload.get("prompt")
+        if not isinstance(args, str) or not isinstance(prompt, str) or not prompt.strip():
+            return None
+        tokens = shlex.split(args)
+        flags = {token for token in tokens if token.startswith("-")}
+        if flags - {"--fix", "--full"} or len(flags) > 1:
+            return None
+        if not any(not token.startswith("-") for token in tokens):
+            return None
+        subject = args.strip()
+        issue_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b|\bissue\s+#?([1-9][0-9]*)\b", args, re.IGNORECASE)
+        if len({left or right for left, right in issue_refs}) > 1:
+            return None
+        issue_number = extract_native_issue_number(args)
+        if issue_number is None:
+            issue_number = ""
+        mode = "fix" if "--fix" in flags else "full"
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path.cwd(),
+            capture_output=True, text=True, check=True, timeout=2,
+        ).stdout.strip()
+        if not re.fullmatch(r"[0-9a-f]{40}", base):
+            return None
+        sign_state, _verify, generate_run_id = _native_origin_signers()
+        if sign_state is None or generate_run_id is None:
+            return None
+        run_id = generate_run_id()
+        owner = owner.strip()
+        # The witness must be minted before the receipt and binding. Validation
+        # above runs first, so rejected requests create no carriers.
+        if record_native_origin_witness(owner, payload) is None:
+            return None
+        if not record_run_start(
+            owner, run_id,
+            issue_number=issue_number if isinstance(issue_number, int) else None,
+        ):
+            return None
+        state = {
+            "session_start": datetime.now(timezone.utc).isoformat(),
+            "mode": mode,
+            "run_id": run_id,
+            "explicitly_invoked": True,
+            "session_id": owner,
+            "issue_number": issue_number,
+            "subject": subject,
+            "base_commit": base,
+        }
+        state = sign_state(state, owner)
+        atomic_write_json(get_legacy_sentinel_path(), state)
+        bindings = {key: state.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS}
+        if not append_native_origin_progression(owner, bindings, event="run-bound"):
+            return None
+        return state
+    except Exception as exc:  # noqa: BLE001 - native hook must never block
+        _native_origin_note(f"run initialization refused: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -2762,6 +3044,12 @@ def get_completed_agents(
     # Run-id-scoped state files are per-invocation; the 'unknown' bootstrap
     # path only applies to the legacy session-id-hashed scheme. (#1041)
     if run_id:
+        return result
+
+    # A native run is owned by its signed session and run receipt. The legacy
+    # 'unknown' merge would import another session's completion into that owner.
+    # Keep the permissive fallback only for non-native legacy sessions.
+    if _native_agent_join_active(state) or _signed_native_agent_scope(session_id) is not None:
         return result
 
     # Merge completions from the 'unknown' session. The coordinator may have
