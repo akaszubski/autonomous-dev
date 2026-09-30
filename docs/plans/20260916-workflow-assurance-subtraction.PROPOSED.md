@@ -94,6 +94,11 @@ hook, which *did* recreate the bare sentinel despite current installed bytes;
 this is a deployment conflict to detect or safely migrate under #1809, not a
 reason to claim installed acceptance
 ([conflict](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5903511515)).
+Draft PR #1851 commit `a99e7b81` adds a read-only audit for declared
+direct-Python user/plugin hook overlaps. It reports three overlaps in the
+current user settings without changing those settings. This is a narrow
+diagnostic, not proof of effective plugin activation, wrapper commands,
+remote deployment, or the #1809 active-run interlock; no deploy gate was added.
 [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
 records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
