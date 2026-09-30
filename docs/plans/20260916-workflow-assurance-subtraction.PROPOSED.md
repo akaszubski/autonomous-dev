@@ -57,7 +57,7 @@ preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
-Current execution pointer (2026-09-28): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+Current execution pointer (2026-10-01): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
 native run identity, origin and containment remain unaccepted; the
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
@@ -70,6 +70,21 @@ current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
 
+The [draft #1807 PR](https://github.com/akaszubski/autonomous-dev/pull/1851)
+now has a SHA-pinned native `git-subdir` install diagnostic, including typed
+fix/full initialization, first foreground Agent joins and a denied same-run
+Skill attempt that preserved typed origin. These are bounded diagnostics, not
+the complete A7/A9 or F0 proof. A strict macOS sandbox allowed an ordinary
+Bash write and refused an inert protected-file write; native hook creation of
+the actual signed sentinel also worked under its `denyWrite` policy. The model
+refused to issue Bash against that sentinel, so no OS refusal on the carrier
+has been observed in this attempt. Keep N-BASH and A9 OPEN. The
+[checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
+[#1807 evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913956132)
+carry exact hashes and limitations. The older project-local copy procedure
+below is historical; reuse the SHA-pinned native install method for further
+diagnostics without calling that a released D0 carrier.
+
 The scoped #1806 lock-GC repair is included in the pushed
 [#1806/#1807 library checkpoint](https://github.com/akaszubski/autonomous-dev/commit/8efcd57fba0e9471e1d5fae3bd91e2b5c2005f39)
 and passed its frozen isolated regression and specialist review.
@@ -78,7 +93,8 @@ the point-in-time held-lock proof immediately before F0 is still required.
 Native A7/A9 origin and containment, installation and release are also unproven;
 do not infer them from the integrated unit result.
 
-The installed command/hook mismatch found on 2026-09-28 makes a retry against
+Historical 2026-09-28 route (superseded for current diagnostics): the
+installed command/hook mismatch makes a retry against
 the current global profile noncertifying. For **native #1807 test evidence only**,
 reuse the disposable project-local carrier **method** specified in the
 superseded `docs/plans/20260906-repository-integrity-recovery.md` B0-C11,
