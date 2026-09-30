@@ -775,6 +775,14 @@ existing settings merging only for the necessary owned consumer delta. Preserve
 unrelated keys, hooks, permissions and comments where the format supports them;
 detect incompatible precedence or duplicate execution before activation.
 Never append the same hook twice or replace the consumer's settings wholesale.
+Treat native `/plugin install` or reload outside a toolkit-owned lifecycle entrypoint
+as an **external activation route**: a source settings-merger cannot interlock that
+action. Qualify it only after an independent effective-layer reconciliation, and
+do not claim pre-activation refusal for an external action unless the pinned
+harness exposes a proven blocking lifecycle event. Inventory hook identity across
+plugin `hooks/hooks.json` and all effective settings layers by event, matcher,
+executable, resolved script and arguments; inspecting `command` alone misses
+native `command: "python3"` entries whose script is in `args`.
 
 Exercise new install, populated-repo retrofit, repeated update, interrupted update,
 rollback and uninstall with the real installed entrypoint. Compare unrelated
@@ -788,9 +796,12 @@ and the expected lifecycle cases. After implementation produces the candidate,
 but before any acceptance run, freeze its artifact digest and complete
 dependency/profile closure; those pins remain immutable through independent
 proof and explicit promotion. Conflict refusal must prove zero mutation before
-activation. A valid exactly-once result requires one physical hook execution joined
+controlled activation; an already-active external conflict must refuse
+qualification and preserve consumer settings, not be relabelled a prior refusal.
+A valid exactly-once result requires one physical hook execution joined
 to its event and decision; deduplicated receipts or one registration alone cannot
-prove this. Include a duplicate-registration mutant that the observer detects.
+prove this. Include a cross-layer duplicate-registration mutant that the observer
+detects, plus a populated-consumer permit retaining unrelated settings and hooks.
 Enumerate the native lifecycle's observable interruption boundaries before fault
 injection, with the expected prior-or-new complete activation and recovery action
 for each boundary. Unknown or mixed activation fails. Freeze an exact Codex profile
