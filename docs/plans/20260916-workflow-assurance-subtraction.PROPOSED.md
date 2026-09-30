@@ -142,6 +142,19 @@ same `tool_use_id`. In both same-type runs, `SubagentStop` preceded
 completion only after the exact join under the launch's run/issue binding.
 This is [schema evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902869319),
 not a passed gate.
+A third completed foreground diagnostic found `tool_response.status=completed`
+on each `PostToolUse:Agent` after its own stop, including overlapping same-type
+calls. The narrower candidate is now to require explicit foreground execution
+for **gate-sensitive** specialists and make that completed native result the
+single completion writer; `SubagentStop` remains telemetry/sentinel lifecycle
+only. Background or missing-status results never count. This avoids a two-event
+stop/result join and its additional pending-stop state, but is not yet accepted:
+remove both the old SubagentStop credit and coordinator `record_agent_completion`
+writers at cutover, claim each launch atomically once by run/issue/tool-use ID,
+and prove replay, wrong scope, failure, auto-background, same-type overlap,
+lost-state, next-dispatch and installed-consumer negatives. Do not disable
+background execution globally or grant other modes credit by inference
+([diagnostic and challenge](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902992132)).
 
 Then migrate one authority transition at a time. A dual-writer diagnostic may
 compare old and new effects but cannot certify A9; it must not create two
