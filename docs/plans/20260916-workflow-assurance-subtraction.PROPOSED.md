@@ -72,14 +72,18 @@ registration now yields a signed witness for the observed typed
 This proves one origin/registration join, not six-binding run initialization,
 OS containment, installed-consumer operation or F0 acceptance. The
 one-time #1818 exception remains separate. The
-subsequent #1807 native-initializer candidate is uncommitted and not accepted:
-an independent writer census found model-owned completion, verdict and
-remediation writes after initialization, so denying model writes to the five
-protected carrier classes now would also break legitimate workflow. The next
-coherent slice must move or retire those lifecycle writes, prove synchronous
-post-agent progression, and test one effective installed policy; an init-only
-green is not A9 evidence. [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902443174)
-records the failed candidate and remaining negative controls. The
+subsequent #1807 foreground completion and #1809 settings-migration candidate
+is now saved at draft PR #1851 commit `7d639a1a`. Its exact Agent result join,
+direct-writer refusal, legacy positive control, and interrupted two-file
+settings retry passed a 272-case focused suite and candidate code/security
+review. This is a source checkpoint, **not** A9 or installed acceptance:
+real Claude full/fix progression, one effective installed policy, carrier
+write/refusal matrix, and clean/populated consumers remain unproven. The old
+virtual `pytest-gate` marker also remains noncertifying without #1818's
+evidence-bound gate consumer. Keep the draft unmerged and do not deny model
+writes to all protected carriers until each remaining verdict/remediation
+transition is migrated or retired. [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
+records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
@@ -96,10 +100,11 @@ may proceed in parallel; it is not native admission or acceptance.
 ### #1807/A9 coherent lifecycle repair (not yet accepted)
 
 The user has authorized the narrow bootstrap repair, not a reduction of A9's
-security or installed-workflow proof. The current uncommitted initializer is a
-diagnostic candidate: it supports too few documented `/implement` modes and
-can leave partially written authority carriers. Keep PR #1851 draft and do not
-deploy or call this candidate a pass. Preserve its RED/GREEN tests and review.
+security or installed-workflow proof. Commit `7d639a1a` closes the tested
+specialist-completion and settings-retry bypasses, but mode coverage and
+multi-carrier run initialization are still incomplete. Keep PR #1851 draft;
+do not deploy or call this candidate a pass. Preserve its RED/GREEN tests and
+review.
 
 First freeze a real Claude native trace from the isolated, byte-verified plugin
 for one typed full and one typed fix invocation. Include each native command
