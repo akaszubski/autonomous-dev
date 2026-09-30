@@ -4287,3 +4287,11 @@ to Bash. A subsequent prompt to attack that carrier was refused by the model
 before any Bash call, so it is **not** an OS-denial observation for the
 carrier; N-BASH and A9 remain OPEN. See the
 [boundary issue receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913956132).
+
+A populated-consumer negative then exposed a distinct #1809 conflict: when
+project settings and the installed plugin both registered the origin callback,
+one typed command produced **two** native `UserPromptExpansion` responses and
+one run-start mismatch. The settings file was byte-preserved and the final
+sentinel classified authorized, but effective execution was not exactly once.
+This is a RED install/update conflict arm, not a passing consumer proof;
+[#1809 evidence](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5914204490).
