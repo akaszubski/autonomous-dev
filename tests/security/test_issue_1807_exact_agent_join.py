@@ -199,6 +199,14 @@ def test_plugin_native_stop_cannot_restore_legacy_credit_after_state_loss(
     monkeypatch.setenv("AUTO_UPDATE_PROGRESS", "false")
     monkeypatch.setattr(sys, "argv", ["unified_session_tracker.py", "--native"])
     monkeypatch.setattr(pcs, "native_agent_join_active", lambda _s: False)
+    heartbeats = []
+    monkeypatch.setattr(
+        pcs, "get_run_start_receipt",
+        lambda session: "run1" if session == "legacy-control" else None,
+    )
+    monkeypatch.setattr(
+        pcs, "ensure_sentinel_heartbeat", lambda session: heartbeats.append(session),
+    )
     monkeypatch.setattr(
         pcs, "record_agent_completion",
         lambda *_a, **_k: pytest.fail("legacy completion credit"),
@@ -214,6 +222,7 @@ def test_plugin_native_stop_cannot_restore_legacy_credit_after_state_loss(
         "last_assistant_message": "Completed review",
     })))
     assert tracker.main() == 0
+    assert heartbeats == []
 
     # Positive control: the same legacy route still reaches the old writer.
     seen = []
@@ -233,6 +242,29 @@ def test_plugin_native_stop_cannot_restore_legacy_credit_after_state_loss(
     })))
     assert tracker.main() == 0
     assert len(seen) == 1
+    assert heartbeats == ["legacy-control"]
+
+
+def test_stale_run_receipt_agent_stop_cannot_create_bare_sentinel(monkeypatch, tmp_path):
+    """A prior run ID in this session is not current pipeline authority."""
+    sentinel = tmp_path / "implement_pipeline_state.json"
+    transcript = tmp_path / "explore.jsonl"
+    transcript.write_text('{"type":"assistant"}\n')
+    monkeypatch.delenv("PIPELINE_STATE_FILE", raising=False)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setenv("TRACK_SESSIONS", "false")
+    monkeypatch.setenv("AUTO_UPDATE_PROGRESS", "false")
+    monkeypatch.setattr(sys, "argv", ["unified_session_tracker.py", "--native"])
+    monkeypatch.setattr(pcs, "get_run_start_receipt", lambda _s: "stale-prior-run")
+    monkeypatch.setattr(pcs, "get_legacy_sentinel_path", lambda: sentinel)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "hook_event_name": "SubagentStop", "session_id": "same-session",
+        "agent_type": "Explore", "agent_id": "explore-1",
+        "agent_transcript_path": str(transcript),
+        "last_assistant_message": "Read-only exploration is complete",
+    })))
+    assert tracker.main() == 0
+    assert not sentinel.exists(), "a stale receipt must not mint recovered state"
 
 
 def test_post_hook_rejects_foreign_env_before_join(monkeypatch):

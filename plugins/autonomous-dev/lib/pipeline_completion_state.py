@@ -4547,7 +4547,7 @@ def ensure_sentinel_heartbeat(
     session_id: str,
     state_path: Optional[str] = None,
 ) -> bool:
-    """Verify the pipeline sentinel file is intact; recreate it if missing or mismatched.
+    """Observe the pipeline sentinel without inventing missing run authority.
 
     Called after each SubagentStop agent completion to guard against
     ``clear_stale_state`` (in hook_recovery.py) deleting the sentinel when a
@@ -4563,17 +4563,18 @@ def ensure_sentinel_heartbeat(
       that differs from the argument, preserve the existing sentinel and
       return ``False`` — the heartbeat MUST NOT clobber a real owner
       (Issue #1481).
-    - If ``state_path`` exists, is parseable JSON, and its ``session_id``
-      field matches ``session_id`` → sentinel is healthy, return ``True``.
+    - If ``state_path`` exists, is parseable run-bearing JSON, and its
+      ``session_id`` field matches ``session_id`` → return ``True``. An old
+      identity-less ``recovered`` record is not a healthy run.
     - If ``state_path`` exists and CARRIES A RUN (``run_id``/``mode``/
       ``explicitly_invoked``) but its owner is absent or synthetic, preserve it,
       emit ``[SENTINEL-HEARTBEAT-RUN-PRESERVED]`` and return ``False`` — an
       absent owner is not licence to discard a run (Issue #1807).
     - Otherwise (missing, corrupt, or an identity-less record whose owner is
-      synthetic) → emit a structured log line to stderr, recreate a minimal
-      sentinel, and return ``False``.
+      synthetic) → emit a structured diagnostic and return ``False`` without
+      writing. A bare recovery record cannot reconstruct a signed run (#1807).
 
-    The function NEVER raises.  All failure modes degrade gracefully.
+    The function NEVER raises. Missing authority stays missing.
 
     Args:
         session_id: The expected owner's session id (e.g. from
@@ -4583,9 +4584,8 @@ def ensure_sentinel_heartbeat(
             ``<repo>/.claude/local/implement_pipeline_state.json`` (Issue #1206).
 
     Returns:
-        ``True`` when the sentinel was already healthy.
-        ``False`` when the sentinel was absent, mismatched, or the caller
-        supplied a synthetic id (in which case NO write occurred).
+        ``True`` when the sentinel was already healthy. ``False`` otherwise;
+        this observation never writes the sentinel.
 
     Issues: #989, #1206, #1481
     """
@@ -4620,7 +4620,7 @@ def ensure_sentinel_heartbeat(
 
             if isinstance(data, dict):
                 existing = data.get("session_id")
-                if existing == session_id:
+                if existing == session_id and _state_carries_run_identity(data):
                     return True  # Sentinel healthy.
                 # Issue #1807 guard #3 — the run survives repair. A state that
                 # CARRIES A RUN (run_id or mode) is gating state, and an absent
@@ -4675,36 +4675,22 @@ def ensure_sentinel_heartbeat(
                         pass
                     return False
     except Exception:
-        # Defensive: any unexpected error falls through to recreation.
+        # Defensive: any unexpected read error remains untrusted.
         pass
 
-    # Sentinel is missing, corrupt, or the existing owner was synthetic
-    # (safe to overwrite in that case — synthetic ids are always
-    # replaceable by a real id).
+    # A missing/corrupt sentinel or synthetic prior owner is not a source of
+    # run identity. Earlier #989 recovery wrote only session_id/recovered_at,
+    # which could turn an ordinary Agent stop into a false active pipeline.
     try:
         import sys as _sys_hb
 
         _sys_hb.stderr.write(
-            f"[SENTINEL-HEARTBEAT-MISSING] state_path={state_path}"
-            f" recovering_for_session={session_id}\n"
+            f"[SENTINEL-HEARTBEAT-UNTRUSTED] state_path={state_path}"
+            f" present={sentinel.exists()} caller_session={session_id}"
+            " refusing identity-less recovery\n"
         )
         _sys_hb.stderr.flush()
     except Exception:
-        pass
-
-    try:
-        recovered_sentinel = {
-            "session_id": session_id,
-            "recovered": True,
-            "recovered_at": datetime.now(timezone.utc).isoformat(),
-        }
-        # The repair path must not be able to corrupt the file it repairs:
-        # write_text() truncates at open time, so a kill mid-write leaves the
-        # 0-byte sentinel that sent us here. atomic_write_json chmods 0o600
-        # before the rename, so the separate os.chmod is redundant.
-        atomic_write_json(sentinel, recovered_sentinel, indent=2)
-    except Exception:
-        # NEVER raise — sentinel recreation is best-effort.
         pass
 
     return False

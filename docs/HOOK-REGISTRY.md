@@ -5,7 +5,13 @@ covers:
 
 # Hook Registry
 
-**Last Updated: 2026-04-12**
+**Last Updated: 2026-09-30**
+
+Current #1807 correction: `SubagentStop` does not prove an `/implement` run is
+active. The tracker checks for a run-start receipt before the heartbeat, and
+`ensure_sentinel_heartbeat()` never creates a replacement sentinel. Missing or
+corrupt run state is reported and remains untrusted. Older #989 recovery prose
+in the historical registry row below is superseded by this rule.
 
 Quick-reference guide for all hooks in the autonomous-dev plugin, including activation status, trigger points, and controlling environment variables.
 

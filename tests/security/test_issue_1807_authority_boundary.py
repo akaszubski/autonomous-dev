@@ -606,22 +606,15 @@ def test_control_absent_state_refuses_every_consumer(run):
 def test_control_heartbeat_existing_guards_and_instrument(run):
     """A2c+A2e+A2f (controls, GREEN pre-fix, library-route): guards and instrument intact.
 
-    THREE UNIQUE FAILURES, all on the function A2 above edits, asserted in an
-    order that cannot mask the instrument proof: (1) the recovery branch is
-    REACHABLE and observable for a genuinely ABSENT sentinel — which is what
-    proves A2's digest instrument can see a change at all, and is the one
-    legitimate use of the repair path; (2) #1481 guard #2 — a real foreign owner
-    is preserved; (3) #1481 guard #1 — a synthetic CALLER writes nothing.
+    THREE CONTROLS: (1) a genuinely absent sentinel stays absent rather than
+    becoming a bare recovery record; (2) a real foreign owner is preserved;
+    (3) a synthetic caller writes nothing.
     """
     run.sentinel.unlink(missing_ok=True)
     assert pcs.ensure_sentinel_heartbeat(run.owner, state_path=str(run.sentinel)) is False, (
-        "A2f: recovery reported pre-existing health for an absent sentinel."
+        "A2f: heartbeat reported pre-existing health for an absent sentinel."
     )
-    recovered = read(run) or {}
-    assert recovered.get("recovered") is True and recovered.get("session_id") == run.owner, (
-        f"A2f: the recovery branch wrote nothing for an ABSENT sentinel (got "
-        f"{recovered!r}); A2's digest instrument is then unproven."
-    )
+    assert not run.sentinel.exists(), "A2f: heartbeat invented a bare run carrier"
 
     write(run, ps.sign_state(state_of(run), run.owner))
     before = digest(run.sentinel)

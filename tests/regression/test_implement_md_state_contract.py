@@ -158,8 +158,8 @@ _ROOT_SKIP = (
 # call sites. This replaced two hardcoded ``impl.count(...)``/``batch.count(...)``
 # literals — the THIRD hand-maintained list, and it lived inside this module.
 EXPECTED_SENTINEL_PATH_CALLS = {
-    "implement.md": 3,  # :145, :186, :378
-    "implement-batch.md": 2,  # :745 (indented fence), :849
+    "implement.md": 2,  # one coordinator writer was removed for native adoption
+    "implement-batch.md": 1,  # one coordinator writer was removed
     # UNCHANGED at 1 by Issue #1807, deliberately. A mid-work draft called the
     # canonical resolver at STEP F1 too (making this 2); the provenance repair
     # removed it, because resolve_session_id's chain falls back to the EXISTING
@@ -197,6 +197,9 @@ _PSF_SANCTIONED_DEFAULT = re.compile(
 )
 _PSF_NO_DEFAULT = re.compile(
     r"_?os\.environ\.get\(\s*['\"]PIPELINE_STATE_FILE['\"]\s*\)\s*or\s*None"
+)
+_PSF_NATIVE_OVERRIDE = re.compile(
+    r"override\s*=\s*os\.environ\.get\(['\"]PIPELINE_STATE_FILE['\"]\)"
 )
 _HANDROLLED_RESOLVER = re.compile(r"^\s*def\s+_resolve_session_id\s*\(", re.M)
 _RESOLVE_CALL = re.compile(r"resolve_session_id\(\s*(?P<args>[^)]*)")
@@ -708,13 +711,16 @@ class TestPinnedOccurrenceCounts:
 
     def test_implement_md_state_file_reads_are_pinned(self) -> None:
         total, sanctioned, no_default = state_file_reads(IMPLEMENT_MD.read_text())
-        assert (total, sanctioned, no_default) == (9, 6, 3), (
+        assert (total, sanctioned, no_default) == (9, 6, 2), (
             "PIPELINE_STATE_FILE read sites changed. Every read MUST be either "
             "the sanctioned get_legacy_sentinel_path() default or the "
             "`or None` pass-through; update this pin deliberately."
         )
-        # Nothing outside the two sanctioned forms exists.
-        assert sanctioned + no_default == total
+        # Native adoption reads the override only to refuse a mismatched path.
+        body = executable_text(IMPLEMENT_MD.read_text())
+        assert len(_PSF_NATIVE_OVERRIDE.findall(body)) == 1
+        assert "if override and Path(override) != path:" in body
+        assert sanctioned + no_default + 1 == total
 
     def test_batch_md_state_file_reads_are_pinned(self) -> None:
         """Re-pinned from (1,0,1) by the indentation widening.
@@ -724,46 +730,19 @@ class TestPinnedOccurrenceCounts:
         visible. Both are ``or None`` no-default forms.
         """
         total, sanctioned, no_default = state_file_reads(BATCH_MD.read_text())
-        assert (total, sanctioned, no_default) == (2, 0, 2)
+        assert (total, sanctioned, no_default) == (1, 0, 1)
         assert sanctioned + no_default == total
 
     def test_fix_md_state_file_reads_are_pinned(self) -> None:
-        """MEASURED after FIX 1: (7, 6, 1). Matches the plan's prediction.
-
-        Derivation, verified against the live file: pre-widening (5,0,0) —
-        :95,:138,:352,:392,:647 are in bash fences. The ```python-tag half of
-        the widening added :273 from the pytest-gate fence, giving (6,0,0)
-        pre-fix. FIX 1 turned those six into sanctioned
-        get_legacy_sentinel_path() defaults and added the seventh read as the
-        sole ``or None`` pass-through at the resolve_session_id() call site.
-
-        The STEP F6.5 cleanup is NOT counted here and never was, before or
-        after its conversion to a fence: it resolves through the SHELL form
-        ``${PIPELINE_STATE_FILE:-$(python3 -c …)}``, and ``_PSF_ANY`` matches
-        only ``os.environ.get``. That is LIVE residual 3 from the module
-        docstring, visible right here.
-
-        Re-pinned (7, 6, 1) -> (8, 5, 2) by Issue #1807, MEASURED with
-        ``state_file_reads`` on the live file, not estimated. Two deltas, both in
-        the STEP F1 block: (a) the sentinel is now resolved ONCE into a local via
-        the ``or get_legacy_sentinel_path()`` no-default form and passed to
-        ``atomic_write_json`` as an explicit argument — still the SANCTIONED
-        eager-default spelling, so the counts are UNCHANGED at (7, 6, 1).
-
-        Round trip worth recording, because the intermediate values were real and
-        a later reader will find them in the history. A mid-work draft resolved
-        the owner with ``resolve_session_id(sentinel_path=… or None)`` here, which
-        made it (8, 6, 2); the F1 provenance repair then removed that call — a new
-        run must take its owner from a NATIVE carrier, never from the existing
-        sentinel or the activity log — returning the count to (7, 6, 1). An even
-        earlier draft used ``os.environ.get('PIPELINE_STATE_FILE') or
-        get_legacy_sentinel_path()``, which is NEITHER sanctioned form, and the
-        ``sanctioned + no_default == total`` invariant below is what caught it —
-        the whole reason that line is not redundant with the tuple above.
-        """
+        """Pin six defaulted reads, one resolver pass-through, and the native
+        adoption mismatch guard. The latter may read the override but must
+        refuse a path different from the native hook sentinel (#1807)."""
         total, sanctioned, no_default = state_file_reads(FIX_MD.read_text())
-        assert (total, sanctioned, no_default) == (7, 6, 1)
-        assert sanctioned + no_default == total
+        assert (total, sanctioned, no_default) == (8, 6, 1)
+        body = executable_text(FIX_MD.read_text())
+        assert len(_PSF_NATIVE_OVERRIDE.findall(body)) == 1
+        assert "if override and Path(override) != path:" in body
+        assert sanctioned + no_default + 1 == total
 
     def test_fix_md_state_init_block_uses_atomic_write(self) -> None:
         """Static arm for FIX 1's headline change (the behavioural pair is
@@ -807,7 +786,7 @@ class TestPinnedOccurrenceCounts:
         arbitrary structural count and four such pins would churn on unrelated
         edits.
         """
-        assert len(bash_fences(IMPLEMENT_MD.read_text())) == 39
+        assert len(bash_fences(IMPLEMENT_MD.read_text())) == 38
 
     def test_gh_issue_create_occurrences_are_pinned(self) -> None:
         text = IMPLEMENT_MD.read_text()
@@ -1686,11 +1665,11 @@ def test_write_text_shape_is_also_rejected() -> None:
     assert non_atomic_sentinel_writes(IMPLEMENT_MD.read_text()) == 0
 
 
-def test_heartbeat_recovery_write_is_atomic() -> None:
-    """The code that REPAIRS sentinels must not be able to corrupt one."""
+def test_heartbeat_cannot_write_a_recovered_sentinel() -> None:
+    """Observation must not mint the identity-less carrier it once repaired."""
     src = (LIB_DIR / "pipeline_completion_state.py").read_text()
     assert "sentinel.write_text(" not in src
-    assert "atomic_write_json(sentinel, recovered_sentinel, indent=2)" in src
+    assert "atomic_write_json(sentinel, recovered_sentinel" not in src
 
 
 def test_unreadable_sentinel_is_distinguishable_from_absent(tmp_path) -> None:
@@ -1737,11 +1716,12 @@ class TestGhIssueCreateDocConformance:
 
     def test_step8_pre_existing_failure_path_names_issue_creator(self) -> None:
         text = IMPLEMENT_MD.read_text()
-        line = next(
-            ln for ln in text.splitlines() if "pre-existing-failure" in ln
-        )
-        assert "issue-creator" in line, line
-        assert "gh issue create" not in line
+        lines = text.splitlines()
+        indices = [i for i, line in enumerate(lines) if "pre-existing-failure" in line]
+        assert len(indices) == 1
+        context = "\n".join(lines[max(0, indices[0] - 1):indices[0] + 1])
+        assert "issue-creator" in context, context
+        assert "gh issue create" not in context
 
     def test_dedup_query_and_advisory_contract_survive(self) -> None:
         text = IMPLEMENT_MD.read_text()

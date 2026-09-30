@@ -1659,15 +1659,16 @@ def main() -> int:
             except Exception:
                 pass  # Non-blocking: warning is informational only
 
-        # Sentinel heartbeat check (Issue #989): after recording completion,
-        # verify the <repo>/.claude/local/implement_pipeline_state.json sentinel
-        # (was /tmp/implement_pipeline_state.json pre-#1206) still exists
-        # with the correct session_id. If clear_stale_state() deleted it (e.g.,
-        # because a subprocess ran with a different CLAUDE_SESSION_ID), recreate
-        # a minimal sentinel so downstream steps can still record completions.
+        # A SubagentStop is not proof that /implement is running. Only a
+        # session with an existing run-start receipt may invoke the sentinel
+        # recovery path; otherwise an ordinary Explore agent would create a
+        # bare recovered sentinel and falsely block later work (#1807).
         try:
-            from pipeline_completion_state import ensure_sentinel_heartbeat
-            ensure_sentinel_heartbeat(session_id)
+            from pipeline_completion_state import (
+                ensure_sentinel_heartbeat, get_run_start_receipt,
+            )
+            if get_run_start_receipt(session_id) is not None:
+                ensure_sentinel_heartbeat(session_id)
         except Exception:
             pass  # Non-blocking: heartbeat is a recovery guard, never a gate
 

@@ -7,8 +7,14 @@ covers:
 
 # Automation Hooks Reference
 
-**Last Updated**: 2026-09-28 (`native_run_origin.py` — new UserPromptExpansion/PreToolUse(Skill) origin witness recorder + `unified_session_tracker.py` progression append, Issue #1807 A7/A9, UNMEASURED on the installed route)
+**Last Updated**: 2026-09-30 (#1807 candidate; installed acceptance remains open)
 **Location**: `plugins/autonomous-dev/hooks/`
+
+Current heartbeat behavior: an ordinary agent stop never creates pipeline
+authority. With an existing run-start receipt the tracker checks the sentinel,
+but a missing, corrupt or synthetic-owner carrier is reported without writing
+a bare `recovered` record. Historical #989 recovery descriptions below do not
+describe the current behavior.
 
 See [CLAUDE.md](../CLAUDE.md) for current counts. See [HOOK-REGISTRY.md](HOOK-REGISTRY.md) for environment variables and activation status.
 
