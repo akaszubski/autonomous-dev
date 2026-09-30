@@ -138,10 +138,9 @@ A second security-reviewed, metadata-only diagnostic then found the missing
 hook-local field: `PostToolUse:Agent` carries `tool_response.agentId`, matching
 the `SubagentStop` `agent_id`, while `PostToolUse` and `PreToolUse` share the
 same `tool_use_id`. In both same-type runs, `SubagentStop` preceded
-`PostToolUse`, so the candidate must hold the stop pending and credit
-completion only after the exact join under the launch's run/issue binding.
-This is [schema evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902869319),
-not a passed gate.
+`PostToolUse`. This is [schema evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902869319),
+not a passed gate. The resulting two-event stop/result completion candidate
+failed independent review and is superseded by the foreground design below.
 A third completed foreground diagnostic found `tool_response.status=completed`
 on each `PostToolUse:Agent` after its own stop, including overlapping same-type
 calls. The narrower candidate is now to require explicit foreground execution
@@ -151,10 +150,16 @@ only. Background or missing-status results never count. This avoids a two-event
 stop/result join and its additional pending-stop state, but is not yet accepted:
 remove both the old SubagentStop credit and coordinator `record_agent_completion`
 writers at cutover, claim each launch atomically once by run/issue/tool-use ID,
-and prove replay, wrong scope, failure, auto-background, same-type overlap,
-lost-state, next-dispatch and installed-consumer negatives. Do not disable
+and prove replay, wrong scope, failure, auto-background, same-type overlap
+refusal, lost-state, next-dispatch and installed-consumer negatives. Do not disable
 background execution globally or grant other modes credit by inference
 ([diagnostic and challenge](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902992132)).
+The first cutover may serialize only gate-sensitive native Agent dispatches:
+the next launch refuses while any previous current-run dispatch lacks its exact
+completed result, including a failed result. This trades pipeline-agent
+parallelism for an observable one-shot barrier without adding a receipt service;
+other sessions and non-pipeline work remain unaffected. Measure the cost in a
+native run and keep parallel promotion OPEN until independently proven.
 
 Then migrate one authority transition at a time. A dual-writer diagnostic may
 compare old and new effects but cannot certify A9; it must not create two
