@@ -126,6 +126,22 @@ this route. `SubagentStop` is a candidate completion signal, but three distinct
 task IDs collapsed to one type-level `Explore` completion; its native task/agent
 identity join and failure behavior still need proof. The run was interrupted,
 so neither callback wiring nor a CLI exit certifies a completed workflow.
+One bounded, metadata-only same-type probe then completed with two Explore
+dispatches ([trace finding](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902846156)).
+The native event stream joined each `tool_use_id` to a distinct `task_id`, and
+each `SubagentStop` identified its own task. The hook's `PostToolUse:Agent`
+payload had the tool-use ID but no top-level task/agent ID. This establishes a
+stream-level join, **not** a hook-local join or a safe completion writer. Check
+for an existing stable carrier of that mapping before adding a new one; keep
+A9 open and the same-type/phantom/failure negative arms unchanged.
+A second security-reviewed, metadata-only diagnostic then found the missing
+hook-local field: `PostToolUse:Agent` carries `tool_response.agentId`, matching
+the `SubagentStop` `agent_id`, while `PostToolUse` and `PreToolUse` share the
+same `tool_use_id`. In both same-type runs, `SubagentStop` preceded
+`PostToolUse`, so the candidate must hold the stop pending and credit
+completion only after the exact join under the launch's run/issue binding.
+This is [schema evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902869319),
+not a passed gate.
 
 Then migrate one authority transition at a time. A dual-writer diagnostic may
 compare old and new effects but cannot certify A9; it must not create two
