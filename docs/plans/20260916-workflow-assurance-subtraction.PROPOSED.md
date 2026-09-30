@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-09-28. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-10-01. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -69,6 +69,9 @@ on #1757 is still a candidate, not frozen. Use the
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
+The populated-consumer duplicate native callback is a #1809 RED, and #1818's
+focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
+the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
 
 The [draft #1807 PR](https://github.com/akaszubski/autonomous-dev/pull/1851)
 now has a SHA-pinned native `git-subdir` install diagnostic, including typed
