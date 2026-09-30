@@ -11,6 +11,15 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-10-01 #1801 candidate review: the uncommitted command-span scanner's 30
+focused tests pass, but both shell reachability paths falsely credit an `echo`
+whose quoted argument merely names `python3 plugins/autonomous-dev/lib/synthetic_target.py`.
+The named-interpreter recognizer still searches inside another command's data;
+the [exact reproduced opposite arm](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5914622567)
+blocks source-denominator freeze. Preserve its real execution positives and
+omitted-route controls; do not count the passing focused suite as instrument
+acceptance or silently discard the candidate's dirty worktree.
+
 2026-09-30 user/plugin registration reconciliation (read-only at candidate
 `a99e7b81`, Claude Code 2.1.236): the declared direct-Python path audit found
 three user-level registrations overlapping the plugin carrier:
