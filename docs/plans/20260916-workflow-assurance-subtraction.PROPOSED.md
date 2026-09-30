@@ -713,6 +713,25 @@ must be qualified there as well; do not confuse its validation result with
 installed-consumer proof. The 2026-09-29 source manifest failure and distinct
 marketplace failure are recorded on #1757.
 
+**Pre-F0 carrier dependency correction (2026-09-30).** A disposable native
+marketplace installed the reviewed #1807 plugin bytes and fired
+`UserPromptExpansion`, but Claude loaded a local-directory marketplace from its
+source path; making that directory unavailable changed the plugin to
+`failed to load: cache-miss`. This is native registration evidence, not a
+source-free installed-consumer or A7/A9 result. A second disposable catalog
+with a SHA-pinned `git-subdir` source fetched PR #1851 commit `aa9fba0a` into
+an isolated plugin cache; Claude's native init named that cache path and the
+origin hook fired. This is the carrier for the next #1807 diagnostic: retain
+source-to-cache byte digests, disabled/missing-plugin controls, and native
+run/effect joins. The isolated config was not authenticated, so the hook-only
+run ended with `api_error`; no model workflow or A7/A9 result follows. If this
+route later requires a product schema change, scope only the minimum #1755
+carrier repair through existing implementation, independent review and
+security gates. Preserve the nested marketplace self-maintenance detector and
+unrelated consumer settings;
+do not count this prerequisite as D0 lifecycle, F0 or release acceptance. Full
+install/update/rollback/uninstall qualification remains in D0.
+
 **Measured test-gate prerequisite (#1846, 2026-09-29).** A genuine #1805
 `/implement --tdd-first` STEP 1 full-suite baseline timed out at its configured
 900-second bound and wrote `__TIMEOUT__`; it supplied neither a green baseline
