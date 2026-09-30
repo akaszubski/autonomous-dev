@@ -721,10 +721,13 @@ source path; making that directory unavailable changed the plugin to
 source-free installed-consumer or A7/A9 result. A second disposable catalog
 with a SHA-pinned `git-subdir` source fetched PR #1851 commit `aa9fba0a` into
 an isolated plugin cache; Claude's native init named that cache path and the
-origin hook fired. This is the carrier for the next #1807 diagnostic: retain
-source-to-cache byte digests, disabled/missing-plugin controls, and native
-run/effect joins. The isolated config was not authenticated, so the hook-only
-run ended with `api_error`; no model workflow or A7/A9 result follows. If this
+origin hook fired. A session-only settings overlay then reused the existing
+Claude Max login without changing user settings: the native hook event's
+session ID matched the signed fixture state, and an effective
+`enabledPlugins=false` control loaded no plugin and fired no hook. This is the
+carrier for the next #1807 diagnostic: retain source-to-cache byte digests,
+disabled/missing-plugin controls, and native run/effect joins. These no-tool
+arms prove neither model workflow nor A7/A9. If this
 route later requires a product schema change, scope only the minimum #1755
 carrier repair through existing implementation, independent review and
 security gates. Preserve the nested marketplace self-maintenance detector and
