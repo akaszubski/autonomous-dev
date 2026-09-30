@@ -118,7 +118,13 @@ then run the final same-policy permit/refuse matrix. If a cutover fails, use a
 reversible versioned rollback, not a security exception. Declare a finite mode
 denominator from all documented `/implement` entry forms; every included mode
 must pass or remain explicitly OPEN, never silently fall back to model-owned
-authority. Validate repository root, active-run exclusion, six
+authority. The current denominator is default
+full (including auto-detected light/fix), explicit `--light`, `--tdd-first`,
+`--fix`, `--batch`, `--issues`, and single/batch `--resume`; modifiers
+`--acceptance-first`, `--full-tests`, `--no-worktree` and `--no-cache` inherit
+the selected mode's proof or stay OPEN. The initial native trace samples full
+and fix only; it confers no credit on the other modes. Validate repository
+root, active-run exclusion, six
 bindings, and recovery before writing. Carrier creation must be recoverable
 and fail closed on each injected write failure and concurrent start; a partial
 witness, ledger, secret or sentinel cannot authorize a run. For specialist
