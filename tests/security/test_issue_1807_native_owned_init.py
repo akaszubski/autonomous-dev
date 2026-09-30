@@ -1627,26 +1627,17 @@ def test_skill_origin_cannot_be_laundered_into_typed_user_origin():
 
 
 def test_hook_entrypoint_records_the_origin_class_of_its_native_event():
-    """One initializer, both native events, correct class for each.
-
-    No teardown call between the two events on purpose: a fresh initiation
-    SUPERSEDES the previous chain by construction (``record_native_origin_witness``
-    replaces the whole carrier), which is the behaviour
-    ``test_append_refuses_after_a_new_initiation_supersedes_the_witness`` pins. The
-    second classification flipping from typed to Skill is itself the evidence that
-    the supersede happened — a stale typed witness would keep the first verdict.
-    """
+    """A same-run Skill attempt leaves a bound typed initiation intact."""
     import native_run_origin as hook
 
     assert hook.handle_native_origin_event(_native_fix_payload()) == 0
     state = json.loads(ps.get_legacy_sentinel_path().read_text(encoding="utf-8"))
     assert _classify(state).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
 
     assert hook.handle_native_origin_event(_skill_payload()) == 0
-    assert pcs.append_native_origin_progression(
-        _OWNER, _bindings(state), event="run-bound"
-    )
-    assert _classify(state).origin is ps.RunOrigin.MODEL_SKILL_WITNESSED
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+    assert _classify(state).origin is ps.RunOrigin.TYPED_USER_WITNESSED
 
     # A payload that is not a native initiation is a no-op, never a block. Asserted
     # as "the ledger's bytes are UNCHANGED" rather than "no carrier exists", which
@@ -1660,6 +1651,87 @@ def test_hook_entrypoint_records_the_origin_class_of_its_native_event():
     # And it never creates one where none existed, for a fresh owner.
     assert hook.handle_native_origin_event({"hook_event_name": "Stop"}) == 0
     assert "native_origin" not in _ledger_or_empty(_OTHER_OWNER)
+
+
+def test_skill_attempt_does_not_inherit_typed_witness_across_runs():
+    """A later model run cannot claim the prior typed run's witness."""
+    typed = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert typed is not None
+    later = _run()
+    assert later["run_id"] != typed["run_id"]
+
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload())
+    assert pcs.append_native_origin_progression(
+        _OWNER, _bindings(later), event="run-bound"
+    )
+    assert _classify(later).origin is ps.RunOrigin.MODEL_SKILL_WITNESSED
+    assert _classify(later).typed_user_origin is False
+
+
+def test_skill_attempt_cannot_overwrite_typed_initiation_interleaved_before_lock(monkeypatch):
+    """A typed event arriving before the Skill transaction wins the ledger lock."""
+    first = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert first is not None
+    original_rmw = pcs._locked_rmw
+    injected = {"done": False, "later": None}
+
+    def interleave(owner, mutator, **kwargs):
+        if not injected["done"]:
+            injected["done"] = True
+            injected["later"] = pcs.initialize_native_run_from_event(_native_fix_payload())
+        return original_rmw(owner, mutator, **kwargs)
+
+    monkeypatch.setattr(pcs, "_locked_rmw", interleave)
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload())
+    later = injected["later"]
+    assert later is not None and later["run_id"] != first["run_id"]
+    assert _classify(later).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+
+
+def test_skill_attempt_preserves_typed_witness_pending_receipt(monkeypatch):
+    """Typed initialization owns its witness before receipt/progression exist."""
+    original_start = pcs.record_run_start
+    observed = {"attempt": None}
+
+    def interleave_start(*args, **kwargs):
+        observed["attempt"] = pcs.record_native_origin_witness(
+            _OWNER, _skill_payload()
+        )
+        return original_start(*args, **kwargs)
+
+    monkeypatch.setattr(pcs, "record_run_start", interleave_start)
+    typed = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert typed is not None
+    assert observed["attempt"] is not None
+    assert _classify(typed).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+
+
+def test_skill_attempt_refuses_malformed_current_sentinel_without_replacing_witness():
+    """Unreadable current authority cannot justify destructive supersession."""
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is not None
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
+    ps.get_legacy_sentinel_path().write_text("{broken", encoding="utf-8")
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+
+
+def test_skill_attempt_refuses_missing_current_sentinel_with_live_typed_run():
+    """A lost sentinel cannot authorize replacement of a bound typed witness."""
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is not None
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
+    ps.get_legacy_sentinel_path().unlink()
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+
+
+def test_native_witness_refuses_when_required_ledger_lock_is_unavailable(monkeypatch):
+    """Witness replacement cannot use the ledger's generic unlocked fallback."""
+    def no_lock(*_args, **_kwargs):
+        raise OSError("lock unavailable")
+
+    monkeypatch.setattr(pcs.fcntl, "flock", no_lock)
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert "native_origin" not in _ledger_or_empty()
 
 
 def test_subagent_stop_progression_seam_reads_the_sentinel(tmp_path):

@@ -2133,28 +2133,89 @@ def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]
         # that existing reaper, not to add a teardown seam here. Named, not
         # silently accepted: this is a resource leak, never an authority hole
         # (every witness is bound to its run's receipt and cannot outlive it).
-        witness_id = f"nw-{generate_run_id()}"
-        claim = {
-            "args": payload.get("command_args") if event == "UserPromptExpansion" else "",
-            "command": payload.get("command_name") if event == "UserPromptExpansion" else "",
-            "event": event,
-            "seq": 0,
-            "skill": (payload.get("tool_input") or {}).get("skill")
-            if event == "PreToolUse"
-            else "",
-            "witness_id": witness_id,
-            "witnessed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        claim = {key: ("" if value is None else value) for key, value in claim.items()}
-        if not isinstance(claim["args"], str):
-            claim["args"] = ""
-        record = sign_state(
-            _native_origin_record(owner, witness_id, NATIVE_ORIGIN_WITNESS_MODE, claim),
-            owner,
-        )
+        outcome: Dict[str, Optional[str]] = {"witness_id": None}
 
         def _mutator(state: dict) -> None:
             _ensure_state_inplace(state, owner)
+            if event == "PreToolUse":
+                # This event is an ATTEMPT, including Skills another hook denies.
+                # Decide against the same ledger snapshot that we may replace;
+                # otherwise a concurrent typed initiation can be overwritten.
+                try:
+                    try:
+                        from .pipeline_state import verify_state_hmac
+                    except ImportError:
+                        from pipeline_state import verify_state_hmac
+                    pending = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
+                    if isinstance(pending, dict) and pending.get("progression") == []:
+                        witness = pending.get("witness")
+                        typed, _reason = _verified_native_record(
+                            witness, owner, NATIVE_ORIGIN_WITNESS_MODE,
+                            verify_state_hmac,
+                        )
+                        if (
+                            typed is not None
+                            and typed.get("event") == "UserPromptExpansion"
+                            and typed.get("witness_id") == witness.get("run_id")
+                            and typed.get("seq") == 0
+                        ):
+                            # Typed initialization writes witness, receipt,
+                            # sentinel, then progression. Preserve its pending
+                            # witness before those later carriers exist.
+                            outcome["witness_id"] = witness["run_id"]
+                            return
+                    sentinel_path = get_legacy_sentinel_path()
+                    current = (
+                        json.loads(sentinel_path.read_text(encoding="utf-8"))
+                        if sentinel_path.exists() else None
+                    )
+                    if current is None and state.get(_NATIVE_ORIGIN_LEDGER_KEY) is not None:
+                        raise ValueError("current sentinel is missing for a live run")
+                    if current is not None:
+                        if not isinstance(current, dict):
+                            raise ValueError("current sentinel is not an object")
+                        if current.get("session_id") != owner:
+                            raise ValueError("current sentinel belongs to another owner")
+                        if not isinstance(current.get("hmac"), str) or not verify_state_hmac(
+                            current, owner, strict=True
+                        ):
+                            raise ValueError("current sentinel signature is invalid")
+                        if state.get("current_run_id") == current.get("run_id"):
+                            bindings = {
+                                key: current.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS
+                            }
+                            existing = check_native_origin(
+                                owner, bindings, _ledger_state=state
+                            )
+                            if existing.valid and existing.event == "UserPromptExpansion":
+                                witness = state[_NATIVE_ORIGIN_LEDGER_KEY]["witness"]
+                                outcome["witness_id"] = witness["run_id"]
+                                return
+                except (OSError, ValueError, TypeError, AttributeError, ImportError) as exc:
+                    _native_origin_note(
+                        f"Skill witness refused: current origin cannot be verified: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    return
+
+            witness_id = f"nw-{generate_run_id()}"
+            claim = {
+                "args": payload.get("command_args") if event == "UserPromptExpansion" else "",
+                "command": payload.get("command_name") if event == "UserPromptExpansion" else "",
+                "event": event,
+                "seq": 0,
+                "skill": (payload.get("tool_input") or {}).get("skill")
+                if event == "PreToolUse" else "",
+                "witness_id": witness_id,
+                "witnessed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            claim = {key: ("" if value is None else value) for key, value in claim.items()}
+            if not isinstance(claim["args"], str):
+                claim["args"] = ""
+            record = sign_state(
+                _native_origin_record(owner, witness_id, NATIVE_ORIGIN_WITNESS_MODE, claim),
+                owner,
+            )
             # A fresh initiation SUPERSEDES any earlier chain: a witness is
             # per-run, and carrying a previous run's progression forward is
             # exactly the cross-run inheritance #1045/#1807 refuse.
@@ -2162,9 +2223,10 @@ def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]
                 "witness": record,
                 "progression": [],
             }
+            outcome["witness_id"] = witness_id
 
-        _locked_rmw(owner, _mutator)
-        return witness_id
+        _locked_rmw(owner, _mutator, require_lock=True)
+        return outcome["witness_id"]
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _native_origin_note(f"no witness minted: {type(exc).__name__}: {exc}")
         return None
@@ -2553,11 +2615,15 @@ def _verified_native_record(
     return claim, ""
 
 
-def check_native_origin(session_id: str, bindings: Any) -> NativeOriginCheck:
+def check_native_origin(
+    session_id: str, bindings: Any, *, _ledger_state: Optional[dict] = None
+) -> NativeOriginCheck:
     """Report what the ledger says about the native origin of a run.
 
     Reads the witness chain for *session_id* and verifies it against the run
-    *bindings* the caller presents. Returns FACTS; the mapping from native event
+    *bindings* the caller presents. The private ``_ledger_state`` argument lets
+    the witness writer verify the snapshot already held under its session lock.
+    Returns FACTS; the mapping from native event
     to origin class belongs to ``pipeline_state.classify_current_run_authority``,
     which is the single consumer and the single vocabulary.
 
@@ -2597,7 +2663,7 @@ def check_native_origin(session_id: str, bindings: Any) -> NativeOriginCheck:
                 instrument_ok=False,
             )
 
-        state = _read_state(owner)
+        state = _ledger_state if _ledger_state is not None else _read_state(owner)
         origin = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
         if origin is None:
             return NativeOriginCheck(
@@ -4192,6 +4258,7 @@ def _locked_rmw(
     mutator: Callable[[dict], None],
     *,
     run_id: Optional[str] = None,
+    require_lock: bool = False,
 ) -> None:
     """Read-modify-write the per-session state under an external lockfile.
 
@@ -4231,6 +4298,9 @@ def _locked_rmw(
             the lockfile key matches the state file's per-run key for
             scope parity. Must match ``_RUN_ID_RE`` (``[a-zA-Z0-9_-]{1,64}``);
             ValueError is raised otherwise.
+        require_lock: Refuse on lock open/acquisition failure. Native-origin
+            witness replacement needs an atomic decision and write; other
+            callers retain the historical unlocked fallback.
 
     Issue #1544 made this the ONLY path to the on-disk write: all state
     mutators route through here, and ``_write_state`` self-wraps in this
@@ -4285,6 +4355,8 @@ def _locked_rmw(
         # process that's already blocked on it.
         lock_fh = open(lock_path, "a+")
     except OSError:
+        if require_lock:
+            raise OSError("required state lockfile could not be opened")
         # Lockfile couldn't be opened (permissions, full /tmp). Fall
         # back to the unlocked path — never raise out of state code.
         # #1544: the write itself is atomic, so this fallback can lose a
@@ -4299,6 +4371,8 @@ def _locked_rmw(
         try:
             fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
         except OSError:
+            if require_lock:
+                raise OSError("required state lock could not be acquired")
             # Fail-open: a flock failure is rare (typically NFS) and
             # the gate must keep functioning. Drop straight into the
             # unlocked R-M-W path. Safe since #1544: the write itself
