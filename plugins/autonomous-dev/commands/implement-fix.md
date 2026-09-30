@@ -96,8 +96,11 @@ in the fix description must not become the run issue.
 
 ```bash
 ISSUE_NUMBER=$(python3 -c "
-import sys
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+import os, sys
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_completion_state import extract_native_issue_number
 number = extract_native_issue_number(sys.argv[1])
 print(number if number is not None else '')
@@ -118,7 +121,10 @@ Initialize the fix-mode pipeline state file BEFORE running the alignment gate pr
 NATIVE_ADOPTION="$(python3 -c "
 import json, os, subprocess, sys
 from pathlib import Path
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_state import classify_current_run_authority, get_legacy_sentinel_path
 from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, check_native_origin, get_run_start_receipt, is_synthetic_session_id
 path = Path(get_legacy_sentinel_path())

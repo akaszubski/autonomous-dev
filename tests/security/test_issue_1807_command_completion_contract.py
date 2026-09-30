@@ -29,6 +29,12 @@ def test_commands_never_direct_write_completion_credit():
         assert "record_agent_completion(" not in source, name
 
 
+def test_batch_run_start_never_degrades_to_session_scope():
+    source = (COMMANDS / "implement-batch.md").read_text()
+    assert "RUN-START-DEGRADED" not in source
+    assert "_ok = record_run_start(_sid, '$ISSUE_RUN_ID')" not in source
+
+
 def test_verdict_recording_remains_separate():
     for name in ("implement.md", "implement-batch.md"):
         source = (COMMANDS / name).read_text()

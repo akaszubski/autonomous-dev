@@ -168,8 +168,11 @@ Starting batch processing in worktree: .worktrees/$BATCH_ID
 Before executing the pipeline for each sub-issue in cluster mode, the coordinator MUST call `advance_batch_state(issue_number)` from `plugins/autonomous-dev/lib/batch_orchestrator.py`. This sets the `CURRENT_BATCH_ISSUE` env var AND advances `<cwd>/.claude/batch_state.json`'s `current_index` so the `session_activity_logger.py` hook can stamp every downstream Agent PostToolUse entry with the correct `batch_issue_number`. Without this call every sub-issue's completions are tagged with the FIRST issue number, making per-sub-issue attribution invisible in `.claude/logs/activity/*.jsonl` (the failure mode observed across 4 distinct sessions in July 2026).
 
 ```python
-import sys
-sys.path.insert(0, "plugins/autonomous-dev/lib")
+import os, sys
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from batch_orchestrator import advance_batch_state
 advance_batch_state(issue_number)  # sets env + advances state file
 ```
@@ -188,7 +191,10 @@ For each feature in the list:
    **Cross-machine claim release on terminal failure** (Issue: race fix): if the failure is terminal (batch will STOP), call `release_issue` for every BATCH_CLAIMED_ISSUES entry before exiting:
    ```python
    import os, sys
-   sys.path.insert(0, "plugins/autonomous-dev/lib")
+   for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+       if os.path.isdir(_p):
+           sys.path.insert(0, _p)
+           break
    from issue_claim import release_issue
    actor = os.environ.get("BATCH_CLAIM_ACTOR", "")
    for n in os.environ.get("BATCH_CLAIMED_ISSUES", "").split(","):
@@ -525,7 +531,10 @@ After ALL features in batch are processed, YOU (the coordinator) MUST finalize:
    **Release cross-machine claims** (Issue: race fix): after closing issues, release every claim acquired in STEP I1.4. Best-effort: failures are logged but do not fail the batch.
    ```python
    import os, sys
-   sys.path.insert(0, "plugins/autonomous-dev/lib")
+   for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+       if os.path.isdir(_p):
+           sys.path.insert(0, _p)
+           break
    from issue_claim import release_issue
    actor = os.environ.get("BATCH_CLAIM_ACTOR", "")
    for n in os.environ.get("BATCH_CLAIMED_ISSUES", "").split(","):
@@ -642,7 +651,10 @@ The claim signal is a GitHub Issue label `in-progress` PLUS a marker comment. Bo
 
 ```python
 import os, sys
-sys.path.insert(0, "plugins/autonomous-dev/lib")
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from issue_claim import is_claimed, claim_issue, actor_string
 
 run_id = os.environ.get("BATCH_ID", os.environ.get("PIPELINE_RUN_ID", f"run-{os.getpid()}"))
@@ -761,10 +773,10 @@ Same as BATCH FILE MODE:
    try:
        _ok = record_run_start(_sid, '$ISSUE_RUN_ID', issue_number=int('$ISSUE_NUMBER'))
    except TypeError:
-       # Deployed copy predates the issue_number keyword. Fall back rather than
-       # abort — the batch aggregate gates degrade to pre-#1045 permissive.
-       print('[RUN-START-DEGRADED run_id=$ISSUE_RUN_ID] deployed pipeline_completion_state.record_run_start has no issue_number keyword; batch CIA/doc-master gates stay session-scoped. Run: bash scripts/deploy-all.sh', file=sys.stderr)
-       _ok = record_run_start(_sid, '$ISSUE_RUN_ID')
+       # An older deployed copy cannot bind this issue. Never silently relax
+       # batch CIA/doc-master ownership to session scope (#1045/#1807).
+       print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID] deployed pipeline_completion_state.record_run_start cannot bind issue_number. Run: bash scripts/deploy-all.sh', file=sys.stderr)
+       sys.exit(1)
    if not _ok:
        print('[RUN-START-FAILED run_id=$ISSUE_RUN_ID]', file=sys.stderr)
        sys.exit(1)

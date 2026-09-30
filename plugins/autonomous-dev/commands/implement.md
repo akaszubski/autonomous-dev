@@ -214,8 +214,11 @@ if [[ "ARGUMENTS" == *--issues* || "ARGUMENTS" == *--batch* ]]; then
   ISSUE_NUMBERS=$(echo "ARGUMENTS" | grep -oE '#?([0-9]+)' | head -10 | tr -d '#')
 else
   ISSUE_NUMBERS=$(python3 -c "
-import sys
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+import os, sys
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_completion_state import extract_native_issue_number
 number = extract_native_issue_number(sys.argv[1])
 print(number if number is not None else '')
@@ -287,7 +290,10 @@ if removed:
 NATIVE_ADOPTION="$(python3 -c "
 import json, os, subprocess, sys
 from pathlib import Path
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_state import classify_current_run_authority, get_legacy_sentinel_path
 from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, check_native_origin, get_run_start_receipt, is_synthetic_session_id
 path = Path(get_legacy_sentinel_path())
@@ -485,8 +491,11 @@ RUN_ID="$NATIVE_ADOPTION"
 # Native initiation owns the authority carriers, while STEP 0 still owns the
 # per-run pipeline checkpoint and lock used by downstream resume/step logic.
 LOCK_FD=$(python3 -c "
-import sys
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+import os, sys
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_state import acquire_run_lock
 fd = acquire_run_lock('$RUN_ID')
 if fd is None:
@@ -494,8 +503,11 @@ if fd is None:
 print(fd)
 ") || { echo 'BLOCKED: Native run lock held'; exit 1; }
 python3 -c "
-import sys
-sys.path.insert(0, 'plugins/autonomous-dev/lib')
+import os, sys
+for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
+    if os.path.isdir(_p):
+        sys.path.insert(0, _p)
+        break
 from pipeline_state import create_pipeline, save_pipeline
 save_pipeline(create_pipeline('$RUN_ID', 'FEATURE_DESC', mode='MODE'))
 " || exit 1
