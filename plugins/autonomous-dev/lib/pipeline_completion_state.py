@@ -2186,7 +2186,7 @@ def extract_native_issue_number(args: str) -> Optional[int]:
     if issue_refs:
         return int(issue_refs[0]) if len(set(issue_refs)) == 1 else None
     try:
-        bare = [token for token in shlex.split(args) if token not in ("--fix", "--full")]
+        bare = [token for token in shlex.split(args) if token not in ("--fix", "--full", "--tdd-first")]
     except ValueError:
         return None
     return int(bare[0]) if len(bare) == 1 and re.fullmatch(r"[1-9][0-9]*", bare[0]) else None
@@ -2206,7 +2206,11 @@ def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
         if event != "UserPromptExpansion":
             _native_origin_note(f"run initialization refused: {reason or 'not typed'}")
             return None
-        if payload.get("command_source") not in ("user", "custom"):
+        # Claude Code 2.1.236 identifies a typed command supplied by a native
+        # plugin as "plugin"; "projectSettings" is the project-command form.
+        # Neither value alone proves the actor: the native event and protected
+        # hook carrier still supply that boundary (#1807).
+        if payload.get("command_source") not in ("user", "custom", "plugin", "projectSettings"):
             return None
         args = payload.get("command_args", "")
         prompt = payload.get("prompt")
@@ -2214,7 +2218,7 @@ def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
             return None
         tokens = shlex.split(args)
         flags = {token for token in tokens if token.startswith("-")}
-        if flags - {"--fix", "--full"} or len(flags) > 1:
+        if flags - {"--fix", "--full", "--tdd-first"} or len(flags) > 1:
             return None
         if not any(not token.startswith("-") for token in tokens):
             return None
@@ -2225,7 +2229,7 @@ def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
         issue_number = extract_native_issue_number(args)
         if issue_number is None:
             issue_number = ""
-        mode = "fix" if "--fix" in flags else "full"
+        mode = "fix" if "--fix" in flags else "tdd-first" if "--tdd-first" in flags else "full"
         base = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=Path.cwd(),
             capture_output=True, text=True, check=True, timeout=2,

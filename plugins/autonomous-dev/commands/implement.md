@@ -422,7 +422,12 @@ try:
 except ImportError:
     print('[RUN-START-FAILED run_id=$RUN_ID] record_run_start absent from the deployed pipeline_completion_state on sys.path. Run: bash scripts/deploy-all.sh', file=sys.stderr)
     sys.exit(1)
-if not record_run_start(sid, '$RUN_ID'):
+issue_raw = os.environ.get('ISSUE_NUMBER', '')
+if issue_raw and (not issue_raw.isdecimal() or int(issue_raw) < 1):
+    print('[RUN-START-FAILED run_id=$RUN_ID] invalid issue number', file=sys.stderr)
+    sys.exit(1)
+issue_number = int(issue_raw) if issue_raw else ''
+if not record_run_start(sid, '$RUN_ID', issue_number=issue_number if issue_number != '' else None):
     print('[RUN-START-FAILED run_id=$RUN_ID]', file=sys.stderr)
     sys.exit(1)
 
@@ -434,10 +439,9 @@ state = {
     'session_id': sid,
     # Issue #1807 (all-six binding): issue_number and subject are signed too, so
     # the sentinel is tamper-evident across every required binding. Read from the
-    # environment with '' defaults so this never crashes when the coordinator did
-    # not export them, and so untrusted feature text is never interpolated into
-    # this source.
-    'issue_number': os.environ.get('ISSUE_NUMBER', ''),
+    # environment with '' defaults, converting an issue ID to its canonical
+    # integer type, and never interpolate untrusted feature text into this source.
+    'issue_number': issue_number,
     'subject': os.environ.get('FEATURE_DESCRIPTION', '')
 }
 state = sign_state(state, sid)

@@ -1271,6 +1271,7 @@ def _run_coordinator_block(
     sentinel: Path | None = None,
     run_id: str,
     session_id: str,
+    issue_number: str | None = None,
 ):
     """Materialise and execute the ``python3 -c`` block of ``doc`` containing
     ``anchor``, in a subprocess rooted at ``repo``.
@@ -1299,6 +1300,10 @@ def _run_coordinator_block(
     else:
         env["PIPELINE_STATE_FILE"] = str(sentinel)
     env["CLAUDE_SESSION_ID"] = session_id
+    if issue_number is None:
+        env.pop("ISSUE_NUMBER", None)
+    else:
+        env["ISSUE_NUMBER"] = issue_number
     return subprocess.run(
         [sys.executable, str(script)],
         cwd=str(repo),
@@ -1610,6 +1615,33 @@ def test_fix_state_write_permit_arm(fix_state_repo) -> None:
     written = json.loads(written_path.read_text())
     assert written["mode"] == "fix"
     assert written["explicitly_invoked"] is True
+
+
+@pytest.mark.parametrize("doc,anchor", [(IMPLEMENT_MD, STEP0_ANCHOR), (FIX_MD, FIX_STEP0_ANCHOR)])
+def test_coordinator_bootstrap_binds_integer_issue_number(step0_repo, doc, anchor) -> None:
+    """An issue-scoped run must retain the integer identity expected by native dispatch."""
+    repo, _local, sentinel, run_id, session_id = step0_repo
+    proc = _run_coordinator_block(
+        doc, anchor, repo, sentinel=sentinel, run_id=run_id,
+        session_id=session_id, issue_number="1807",
+    )
+    assert proc.returncode == 0, proc.stderr
+    written = json.loads(sentinel.read_text())
+    assert written["issue_number"] == 1807
+
+
+@pytest.mark.parametrize("doc,anchor", [(IMPLEMENT_MD, STEP0_ANCHOR), (FIX_MD, FIX_STEP0_ANCHOR)])
+def test_coordinator_bootstrap_rejects_invalid_issue_number(step0_repo, doc, anchor) -> None:
+    """Malformed scope never writes a new signed run sentinel."""
+    repo, _local, sentinel, run_id, session_id = step0_repo
+    before = sentinel.read_bytes()
+    proc = _run_coordinator_block(
+        doc, anchor, repo, sentinel=sentinel, run_id=run_id,
+        session_id=session_id, issue_number="18oops",
+    )
+    assert proc.returncode != 0
+    assert "invalid issue number" in proc.stderr
+    assert sentinel.read_bytes() == before
 
 
 def test_fix_state_write_is_atomic_dir_readonly(fix_state_repo) -> None:

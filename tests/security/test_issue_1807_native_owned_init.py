@@ -701,6 +701,48 @@ def test_typed_fix_expansion_initializes_bound_run_before_model_bash(capsys):
     assert capsys.readouterr().out == "", "hook must not print carrier data to stdout"
 
 
+def test_typed_tdd_first_expansion_initializes_bound_run():
+    """The documented full TDD mode must receive typed-user run authority."""
+    payload = _typed_payload(args="--tdd-first #1755")
+    payload["command_name"] = "autonomous-dev:implement"
+    payload["command_source"] = "plugin"
+    payload["prompt"] = "/autonomous-dev:implement --tdd-first #1755"
+
+    state = pcs.initialize_native_run_from_event(payload)
+
+    assert isinstance(state, dict)
+    assert state["mode"] == "tdd-first"
+    assert state["issue_number"] == 1755
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+def test_observed_plugin_command_source_initializes_fix_run():
+    """Native plugin commands report command_source=plugin, not custom."""
+    payload = _native_fix_payload()
+    payload["command_source"] = "plugin"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == "fix"
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+@pytest.mark.parametrize("args", ["--unknown #1755", "--tdd-first --unknown #1755"])
+def test_native_initializer_rejects_unknown_tdd_flags_without_carriers(args):
+    payload = _typed_payload(args=args)
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+    assert "native_origin" not in _ledger_or_empty()
+
+
+def test_model_skill_tdd_first_does_not_initialize_user_run():
+    payload = _skill_payload(skill="autonomous-dev:implement")
+    payload["tool_input"]["args"] = "--tdd-first #1755"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert "native_origin" not in _ledger_or_empty()
+
+
 @pytest.mark.parametrize(
     "mutation",
     ["model_skill", "fabricated_event", "conflicting_mode", "missing_owner", "empty_subject"],

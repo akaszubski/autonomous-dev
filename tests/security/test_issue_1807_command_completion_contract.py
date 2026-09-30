@@ -47,6 +47,7 @@ def test_post_batch_cia_finishes_before_commit():
     ("issue 1807 has 2 failures", 1807),
     ("fix 2 tests", None),
     ("1807", 1807),
+    ("--tdd-first 1807", 1807),
     ("no issue mentioned", None),
 ])
 def test_canonical_issue_parser_examples(args, expected):

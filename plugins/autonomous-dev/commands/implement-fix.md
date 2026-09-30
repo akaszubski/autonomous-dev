@@ -194,15 +194,20 @@ if is_synthetic_session_id(sid):
 # Run-start receipt, BEFORE any specialist dispatch (Issue #1045 + #1807). The
 # signed sentinel alone is mintable by this very caller; the receipt is the
 # second carrier classify_current_run_authority() requires.
-if not record_run_start(sid, '$RUN_ID'):
+issue_raw = os.environ.get('ISSUE_NUMBER', '')
+if issue_raw and (not issue_raw.isdecimal() or int(issue_raw) < 1):
+    print('BLOCKED (STEP F1, Issue #1807): invalid issue number', file=sys.stderr)
+    sys.exit(1)
+issue_number = int(issue_raw) if issue_raw else ''
+if not record_run_start(sid, '$RUN_ID', issue_number=issue_number if issue_number != '' else None):
     print('[RUN-START-FAILED run_id=$RUN_ID] fix mode cannot proceed without a run-start receipt (Issue #1807).', file=sys.stderr)
     sys.exit(1)
 # Issue #1807 (all-six binding): issue_number and subject are signed too, so the
 # sentinel is tamper-evident across every required binding. Read from the
-# environment with '' defaults — never crash if the coordinator did not export
-# them, and never interpolate untrusted text into this source (a description with
-# a quote cannot break the literal). issue_number is recovered from here at F3.
-state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time()), 'session_start': '$(date +%Y-%m-%dT%H:%M:%S)', 'run_id': '$RUN_ID', 'session_id': sid, 'issue_number': os.environ.get('ISSUE_NUMBER', ''), 'subject': os.environ.get('FEATURE_DESCRIPTION', '')}
+# environment with '' defaults, converting an issue ID to its canonical integer
+# type; never interpolate untrusted text into this source (a description with a
+# quote cannot break the literal). issue_number is recovered from here at F3.
+state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time()), 'session_start': '$(date +%Y-%m-%dT%H:%M:%S)', 'run_id': '$RUN_ID', 'session_id': sid, 'issue_number': issue_number, 'subject': os.environ.get('FEATURE_DESCRIPTION', '')}
 state = sign_state(state, sid)
 atomic_write_json(sentinel, state)
 # Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
