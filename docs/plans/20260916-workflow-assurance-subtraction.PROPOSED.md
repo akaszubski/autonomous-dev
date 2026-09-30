@@ -82,7 +82,19 @@ write/refusal matrix, and clean/populated consumers remain unproven. The old
 virtual `pytest-gate` marker also remains noncertifying without #1818's
 evidence-bound gate consumer. Keep the draft unmerged and do not deny model
 writes to all protected carriers until each remaining verdict/remediation
-transition is migrated or retired. [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
+transition is migrated or retired. Commit `78d41e63` adds the #1807
+ordinary-Agent false-refusal repair: no heartbeat-created recovery sentinel,
+including with a stale receipt, and an old bare recovery record cannot be
+called healthy. The 403-case focused suite passed. A real Claude foreground
+Explore in a fresh, byte-verified consumer with project/local settings emitted
+SubagentStop and PostToolUse Agent without creating pipeline state
+([evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903509877)).
+The default settings composition also loaded a stale user-level SubagentStop
+hook, which *did* recreate the bare sentinel despite current installed bytes;
+this is a deployment conflict to detect or safely migrate under #1809, not a
+reason to claim installed acceptance
+([conflict](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5903511515)).
+[The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
 records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
