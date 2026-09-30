@@ -4,6 +4,22 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## 2026-10-01 native sequencing checkpoint
+
+The scoped #1809 real Claude `/implement --fix` run ended before functional
+edits: F2 used `pytest ... 2>&1 | tail -60`, which discards pytest's raw exit.
+The run and pytest children are gone; the PR #1851 worktree is clean. Its
+[terminal evidence](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5914769225)
+is a failed diagnostic, not an F2, #1809 or A9 pass. The same instrument gap
+is tracked on [#1818](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914773591).
+Do not launch #1805's known TDD-first full-suite timeout route unchanged.
+Its separate clean worktree was advanced to committed base `57d0e1e4` and
+re-walked 238 modules (148 REACHED, 90 UNKNOWN); the new quoted-echo
+false-credit has a preserved [Bash oracle](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5914757106).
+The oversized dirty scanner candidate remains unpromoted. Resolve the test
+gate's raw-exit and independent-evidence boundary before native retry; no
+release denominator or F4/F0 outcome is accepted here.
+
 ## 2026-10-01 #1818 reducer checkpoint — not F4 acceptance
 
 The real-process RED for a passed pytest call followed by teardown ERROR was
