@@ -34,6 +34,8 @@ Agent: implementer
 import argparse
 import json
 import os
+import re
+import shlex
 import sys
 import tempfile
 from pathlib import Path
@@ -188,6 +190,117 @@ _PLUGIN_OWNED_CALLBACKS = {
     "native_run_origin.py", "session_activity_logger.py",
     "unified_session_tracker.py",
 }
+
+
+def _audit_hook_callbacks(path: Path, settings: Any) -> list[dict]:
+    """Read directly executed Python hook paths, without executing commands."""
+    if not isinstance(settings, dict) or not isinstance(settings.get("hooks", {}), dict):
+        raise ValueError(f"Expected hooks object: {path}")
+    callbacks = []
+    for event, entries in settings.get("hooks", {}).items():
+        if not isinstance(event, str) or not isinstance(entries, list):
+            raise ValueError(f"Malformed hook event: {path}: {event}")
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                raise ValueError(f"Malformed hook entry: {path}: {event}")
+            matcher = entry.get("matcher", "")
+            if not isinstance(matcher, str):
+                raise ValueError(f"Malformed hook matcher: {path}: {event}")
+            for hook in entry["hooks"]:
+                if not isinstance(hook, dict):
+                    raise ValueError(f"Malformed callback: {path}: {event}")
+                if hook.get("type") != "command":
+                    continue
+                command, args = hook.get("command"), hook.get("args", [])
+                if not isinstance(command, str) or not isinstance(args, list) or not all(
+                    isinstance(arg, str) for arg in args
+                ):
+                    raise ValueError(f"Malformed command callback: {path}: {event}")
+                # A filename mentioned by echo, a Python -c string, or a
+                # trailing argument is not the executable hook. Handle the
+                # two shipped forms: env assignments + python path and the
+                # plugin's command='python3', args=[path, ...]. Wrappers are
+                # outside this declared-direct-path audit.
+                try:
+                    tokens = shlex.split(command) + args
+                except ValueError as error:
+                    raise ValueError(f"Malformed hook command: {path}: {event}") from error
+                while tokens and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=\S+", tokens[0]):
+                    tokens.pop(0)
+                if tokens and tokens[0] == "env":
+                    tokens.pop(0)
+                if not tokens or not re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(tokens[0]).name):
+                    continue
+                targets = tokens[1:]
+                while targets and targets[0] in {"-u", "-B", "-E", "-I"}:
+                    targets.pop(0)
+                if not targets or targets[0] in {"-c", "-m"}:
+                    continue
+                match = re.search(r"(?:^|/)hooks/([A-Za-z0-9_.-]+\.py)$", targets[0])
+                if match:
+                    callbacks.append({"source": str(path), "event": event,
+                                      "matcher": matcher, "basename": match.group(1)})
+    return callbacks
+
+
+def _hook_matchers_overlap(left: str, right: str) -> bool:
+    """Prove disjointness only for literal matcher alternatives.
+
+    Regex-like or unknown matcher forms remain possible overlaps; a safety
+    preflight must not certify them as disjoint by guessing.
+    """
+    if left == "*" or right == "*":
+        return True
+    literal = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+    left_parts, right_parts = left.split("|"), right.split("|")
+    if all(literal.fullmatch(part) for part in [*left_parts, *right_parts]):
+        return bool(set(left_parts) & set(right_parts))
+    return True
+
+
+def audit_global_plugin(global_settings: Path | None = None) -> Dict[str, Any]:
+    """Find declared direct-Python callback overlaps across user and plugin tiers.
+
+    This is deliberately a read-only preflight, not a migration. The installer
+    must not silently modify user-level settings to make plugin installation pass.
+    A no-overlap result does not establish plugin activation or wrapper effects.
+    """
+    global_path = global_settings or Path.home() / ".claude" / "settings.json"
+    plugin_path = _find_plugin_root() / "hooks" / "hooks.json"
+    try:
+        plugin = json.loads(plugin_path.read_text(encoding="utf-8"))
+        if not isinstance(plugin, dict) or "hooks" not in plugin:
+            raise ValueError(f"Expected plugin hooks object: {plugin_path}")
+        plugin_callbacks = _audit_hook_callbacks(plugin_path, plugin)
+        if not plugin_callbacks:
+            raise ValueError(f"No command callbacks in plugin hooks: {plugin_path}")
+        if global_path.exists():
+            global_data = json.loads(global_path.read_text(encoding="utf-8"))
+            global_callbacks = _audit_hook_callbacks(global_path, global_data)
+        else:
+            global_callbacks = []
+    except (OSError, ValueError) as error:
+        return {"success": False, "conflicts": [], "scope": "declared-direct-python-paths",
+                "message": f"Hook audit cannot verify settings: {error}"}
+
+    plugin_by_key: dict[tuple[str, str], list[dict]] = {}
+    for item in plugin_callbacks:
+        plugin_by_key.setdefault((item["event"], item["basename"]), []).append(item)
+    conflicts = [
+        {"event": item["event"], "basename": item["basename"],
+         "global_source": item["source"], "plugin_source": plugin_path.as_posix(),
+         "global_matcher": item["matcher"],
+         "plugin_matcher": plugin_item["matcher"]}
+        for item in global_callbacks
+        for plugin_item in plugin_by_key.get((item["event"], item["basename"]), [])
+        if _hook_matchers_overlap(item["matcher"], plugin_item["matcher"])
+    ]
+    return {
+        "success": not conflicts,
+        "conflicts": conflicts,
+        "scope": "declared-direct-python-paths; plugin activation and wrappers unverified",
+        "message": f"{len(conflicts)} declared user/plugin hook registration overlap(s)",
+    }
 
 
 def _owned_legacy_command(event: str, matcher: str, hook: Any) -> bool:
@@ -578,6 +691,16 @@ def main() -> None:
         type=str,
         help="Sync per-repo <path>/.claude/settings.json hooks",
     )
+    mode_group.add_argument(
+        "--audit-global-plugin",
+        action="store_true",
+        help="Read-only audit of global settings against plugin hook registrations",
+    )
+    parser.add_argument(
+        "--global-settings",
+        type=Path,
+        help="Global settings path for --audit-global-plugin (default: ~/.claude/settings.json)",
+    )
 
     parser.add_argument(
         "--dry-run",
@@ -591,9 +714,15 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    if args.global_settings is not None and not args.audit_global_plugin:
+        parser.error("--global-settings requires --audit-global-plugin")
+    if args.audit_global_plugin and (args.dry_run or args.count_only):
+        parser.error("audit mode cannot be combined with sync options")
 
     try:
-        if args.global_mode:
+        if args.audit_global_plugin:
+            result = audit_global_plugin(args.global_settings)
+        elif args.global_mode:
             result = sync_global(dry_run=args.dry_run, count_only=args.count_only)
         else:
             result = sync_repo(args.repo, dry_run=args.dry_run, count_only=args.count_only)

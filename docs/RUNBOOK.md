@@ -267,22 +267,36 @@ Session-history SQL examples live in the **global** `~/.claude/CLAUDE.md` since 
 
 **Component counts** (kept here so test_documentation_congruence verifies they stay in sync with disk): 6 settings templates in `plugins/autonomous-dev/templates/`. Agent/skill/command/hook/library counts live in `CLAUDE.md`.
 
-**Bootstrap-First Architecture** — install.sh is the primary installation method.
+**Current distribution** — `install.sh` remains the legacy installation method;
+plugin-native packaging is a draft release candidate, not an accepted replacement.
 
 ```bash
 bash <(curl -sSL https://raw.githubusercontent.com/akaszubski/autonomous-dev/master/install.sh)
 ```
 
-**Why bootstrap-first?** autonomous-dev requires global infrastructure that the marketplace cannot configure:
-- Global hooks in `~/.claude/hooks/`
-- Python libraries in `~/.claude/lib/`
-- Specific `~/.claude/settings.json` format
+The legacy installer copies hooks and libraries and registers project-local
+hooks. User-level hook registration is opt-in (`--global-settings`), not a
+prerequisite for every repo. An existing user-level registration still loads
+alongside project/plugin hooks and may conflict with them.
 
 **What install.sh does:**
 - Downloads all plugin components
 - Installs global infrastructure (hooks, libs)
 - Installs project components (commands, agents, config)
-- Non-blocking: Missing components don't block workflow
+- Validates installed components; do not infer runtime correctness from a
+  successful copy alone.
+
+Before a **plugin-native qualification run**, use the read-only diagnostic:
+
+```bash
+python3 plugins/autonomous-dev/scripts/sync_settings_hooks.py --audit-global-plugin
+```
+
+It reports declared direct-Python callback overlaps between user settings and
+the plugin hook manifest without changing either file. A zero exit does **not**
+prove that the plugin is enabled, that wrappers do not call the same hook, or
+that a real Claude workflow passes. Resolve reported overlaps only after
+checking active runs; the #1809 installer/interlock release gate remains open.
 
 **Uninstall:**
 ```bash
