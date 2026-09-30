@@ -4249,3 +4249,25 @@ bounded source-plugin diagnostic, **not** installed-carrier parity, specialist
 dispatch, OS containment, A7/A9, F0 or release acceptance. The candidate
 passed 224 focused tests and Ruff; independent review remains REQUEST_CHANGES
 pending native security/effect proof.
+
+2026-10-01 #1807 installed-origin continuation after draft repair
+`a9f5a09c` (PR #1851): a SHA-pinned `git-subdir` plugin was installed into a
+fresh disposable Claude cache; the installed `pipeline_completion_state.py`
+matched the committed source SHA-256 `f3ef3f4c…`. In a disposable consumer,
+typed `/autonomous-dev:implement --fix #1807` fired native
+`UserPromptExpansion`, initialized signed run `428fab9ff2679c38` in Claude
+session `6e247b0c-21ec-4b8d-bd08-c0d981400077`, and reached a foreground
+alignment-classifier Agent call with matching PreToolUse, SubagentStop,
+PostToolUse and joined ledger receipt. A resumed same-session diagnostic then
+invoked `Skill(autonomous-dev:implement-fix)`: native `PreToolUse:Skill`
+fired, the tool result had `is_error=true`, and the ledger retained its
+original typed `UserPromptExpansion` witness and two signed progression
+records. Independent classification of the installed signed state returned
+`AUTHORIZED / TYPED_USER_WITNESSED / typed_user_origin=true`; tracked fixture
+files and user settings were unchanged. Raw initial stream SHA-256
+`26a85644…`, Skill stream `0661083f…`, ledger `caec4647…`, sentinel
+`0b5c027a…`. Full paths, joins and limits are in
+[#1807's evidence comment](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913770245).
+This is a passing native diagnostic for same-run denied-Skill preservation
+and first-specialist join, **not** the complete A7/A9 venue and containment
+matrix, F0, or release acceptance. The draft issue remains open.
