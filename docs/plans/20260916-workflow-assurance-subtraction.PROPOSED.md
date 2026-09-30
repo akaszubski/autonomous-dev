@@ -117,6 +117,15 @@ no `PostToolUse` or `SubagentStop` callback, and the ledger had no progression o
 completion despite CLI success. Resolve the single effective callback registration
 owner and #1809 duplicate-template risk before repeating this trace; full-mode
 and real completion are still unmeasured.
+The next plugin-only diagnostic with those callbacks registered is also a
+[non-pass](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902740562): three
+background Explore dispatches each emitted `PostToolUse:Agent` immediately
+after `task_started`, before the corresponding `SubagentStop` and completed
+task notification. Thus `PostToolUse:Agent` is **not** the completion owner for
+this route. `SubagentStop` is a candidate completion signal, but three distinct
+task IDs collapsed to one type-level `Explore` completion; its native task/agent
+identity join and failure behavior still need proof. The run was interrupted,
+so neither callback wiring nor a CLI exit certifies a completed workflow.
 
 Then migrate one authority transition at a time. A dual-writer diagnostic may
 compare old and new effects but cannot certify A9; it must not create two
@@ -135,11 +144,16 @@ root, active-run exclusion, six
 bindings, and recovery before writing. Carrier creation must be recoverable
 and fail closed on each injected write failure and concurrent start; a partial
 witness, ledger, secret or sentinel cannot authorize a run. For specialist
-completion, require an independently identified real return, run-scoped
-idempotence and a synchronous commit before the next dispatch. A next-dispatch
-guarded read must observe that completion, while injected completion failure
-must refuse dispatch; event order alone is insufficient. `SubagentStop` is
-corroboration, not ordering authority. Only then remove that model-side
+completion, do not use background `PostToolUse:Agent` as a completion signal.
+First prove that `SubagentStop` supplies or can be joined to the exact dispatched
+task ID, agent identity and run, including same-type overlap, phantom,
+duplicate and failed-agent arms. It may own completion only after that proof;
+the existing pre-dispatch guard must then observe its atomic commit or refuse
+the next dispatch. Injected completion failure must refuse dispatch; callback
+order alone is insufficient. If the native identity join cannot be established,
+test a documented foreground-only workflow as an explicit compatibility and
+performance trade-off, not a silent shortcut or global loss of consumer
+background capability. Only then remove that model-side
 write. Repeat for doc verdict, remediation, base changes and cleanup, or
 retire the carrier if no longer needed. Reuse the existing state writer,
 `session_activity_logger` event route and settings merger; do not add a store,
