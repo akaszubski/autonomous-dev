@@ -123,6 +123,13 @@ native `/implement --fix #1807` then stopped before the first specialist:
 No production edit or gate bypass occurred. This is a self-maintenance hook
 deadlock, not a reason to retry unchanged or call A9 accepted
 ([record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903841937)).
+Read-only transcript/source reconciliation located the boundary mismatch:
+`implement-fix.md` overwrote the native carrier with a signed string issue ID,
+while the Agent scope verifier correctly requires an integer; `implement.md`
+has the same command pattern. The F1 snippet also ignores the native
+progression result. Repair the existing command/ledger owner under a scoped
+self-maintenance exception, not by loosening the Agent refusal
+([cause](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903851930)).
 [The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
 records the current candidate and remaining negative controls. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
