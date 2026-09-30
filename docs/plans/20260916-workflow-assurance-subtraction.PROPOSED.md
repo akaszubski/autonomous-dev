@@ -110,6 +110,13 @@ cannot distinguish and order a genuine return for overlapping same-type
 agents, do not promote the current activity logger or invent an identity. Keep
 the current synchronous coordinator write until a different native transition
 is proved, and record A9 as OPEN. This trace is diagnostic, not F0 acceptance.
+The first fix diagnostic at committed `e0c1e9e4` is a
+[non-pass](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5902621235):
+typed expansion and Agent dispatch occurred, but the installed plugin registered
+no `PostToolUse` or `SubagentStop` callback, and the ledger had no progression or
+completion despite CLI success. Resolve the single effective callback registration
+owner and #1809 duplicate-template risk before repeating this trace; full-mode
+and real completion are still unmeasured.
 
 Then migrate one authority transition at a time. A dual-writer diagnostic may
 compare old and new effects but cannot certify A9; it must not create two
