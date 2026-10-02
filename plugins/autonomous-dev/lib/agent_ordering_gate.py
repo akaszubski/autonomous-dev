@@ -82,6 +82,22 @@ def normalize_agent_identity(raw_name: str) -> str:
     return name
 
 
+def is_known_pipeline_agent(raw_name: str) -> bool:
+    """Return whether an identity denotes an existing owned pipeline role.
+
+    Args:
+        raw_name: Bare or registered plugin-namespaced specialist identity.
+
+    Returns:
+        True for a canonical ordering role or the alignment first-stage role.
+        Foreign namespaces and unknown roles never become owned identities.
+    """
+    if not isinstance(raw_name, str):
+        return False
+    role = normalize_agent_identity(raw_name)
+    return role in STEP_ORDER or role == "alignment-classifier"
+
+
 # Full set of agents for a complete pipeline run
 FULL_PIPELINE_AGENTS = {
     "researcher-local",

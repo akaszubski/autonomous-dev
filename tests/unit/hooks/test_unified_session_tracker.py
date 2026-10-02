@@ -83,6 +83,86 @@ def test_pipeline_docs_use_explicit_payload_owner(tmp_path, monkeypatch):
     assert tracker.session_data["claude_session_id"] == "payload-owner"
 
 
+@pytest.mark.parametrize("status", ["success", "error"])
+def test_native_pipeline_report_real_persistence_without_test_mode(tmp_path, monkeypatch, status):
+    import unified_session_tracker as ust
+    from agent_tracker import AgentTracker
+    import security_utils
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    # Model the fresh consumer process's detected project root, not its test-mode
+    # temp-directory exemption; all persistence and validation APIs remain real.
+    monkeypatch.setattr(security_utils, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setenv("CLAUDE_AGENT_NAME", "foreign-coordinator")
+    monkeypatch.setattr(ust, "TRACK_PIPELINE", True)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    monkeypatch.setattr(ust, "AgentTracker", AgentTracker)
+    assert ust.track_pipeline_completion("autonomous-dev:alignment-classifier", "Intent examined", status,
+                                         session_id="native-report-owner")
+    reports = list((tmp_path / "docs" / "sessions").glob("*-pipeline.json"))
+    assert len(reports) == 1
+    report = json.loads(reports[0].read_text())
+    assert report["claude_session_id"] == "native-report-owner"
+    assert [entry["agent"] for entry in report["agents"]] == ["alignment-classifier"]
+    assert report["agents"][0]["status"] == ("completed" if status == "success" else "failed")
+
+
+def test_native_duration_does_not_create_unowned_report(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    assert ust._compute_duration_ms("native-report-owner") == 0
+    assert not (tmp_path / "docs" / "sessions").exists()
+
+
+def test_installed_report_api_has_no_source_fallback(tmp_path):
+    import shutil
+    import subprocess
+    installed = tmp_path / "installed"
+    source = Path(ust.__file__).resolve().parent.parent
+    shutil.copytree(source / "lib", installed / "lib", ignore=shutil.ignore_patterns("__pycache__"))
+    (installed / "hooks").mkdir()
+    shutil.copy2(source / "hooks" / "unified_session_tracker.py", installed / "hooks")
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / ".git").mkdir()
+    script = """
+import sys,json
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import unified_session_tracker as hook
+assert hook._compute_duration_ms('installed-owner') == 0
+assert hook.track_pipeline_completion('autonomous-dev:alignment-classifier', 'Intent examined', 'success', session_id='installed-owner')
+reports=list(Path('docs/sessions').glob('*pipeline.json'))
+assert len(reports)==1
+report=json.loads(reports[0].read_text())
+assert report['claude_session_id']=='installed-owner'
+assert report['agents'][0]['agent']=='alignment-classifier'
+assert report['agents'][0]['status']=='completed'
+import agent_tracker
+assert Path(agent_tracker.__file__).is_relative_to(Path(sys.argv[1]).parent)
+"""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("PYTHONPATH", "PYTEST_CURRENT_TEST", "CLAUDE_SESSION_ID", "CLAUDE_AGENT_NAME")}
+    result = subprocess.run([sys.executable, "-I", "-c", script, str(installed / "hooks")],
+                            cwd=consumer, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("method", ["start_agent", "complete_agent", "fail_agent"])
+def test_real_tracker_unknown_role_never_uses_pytest_exemption(tmp_path, monkeypatch, method):
+    import security_utils
+    from agent_tracker import AgentTracker
+    monkeypatch.setattr(security_utils, "PROJECT_ROOT", tmp_path)
+    tracker = AgentTracker(session_file=str(tmp_path / "report.json"))
+    previous = tracker.session_file.read_bytes()
+    with pytest.raises(ValueError, match="known owned pipeline role"):
+        getattr(tracker, method)("unregistered-role", "Intent examined")
+    assert tracker.session_file.read_bytes() == previous
+
+
 def test_basic_docs_do_not_merge_owners_with_same_prefix(tmp_path, monkeypatch):
     import unified_session_tracker as ust
     monkeypatch.chdir(tmp_path)

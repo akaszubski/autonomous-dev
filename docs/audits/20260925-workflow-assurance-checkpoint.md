@@ -7,13 +7,50 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Committed source is `d433a3a5`; canonical
+before the historical entries below. Committed source is `eec40e0c`; canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
 and pushed with independent provisional source review, 193 focused cases passing,
 and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
+
+### Current installed trace — independently verified, bounded scope
+
+Fresh installed `eec40e0c` session `15d4b0ef-d302-4c43-b3e0-05a3091d2c74`,
+run `fa3f6b0ba0c72444`, completed no-tools initialization (raw 0, 21.139s)
+and Agent continuation (raw 0, 73.622s). Independent review directly joined the
+actual deny/permit/deny tool calls, native hook IDs and supported stdout traces,
+child metadata, activity/refusal records and exact current-run reservation.
+Denied reviewers acquired neither launch nor completion credit. Installed cache
+remained exactly 650 files/modes with no extras or bytecode. This closes the
+scoped trace diagnostic, not A9/F0 or required-file-read proof.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-trace-native.7h6AQGQU/NATIVE_TRACE_RESULT.md`
+and [independent native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962847705).
+Both owned process groups were absent afterward. Canonical alignment completion
+has the current-run stamp in issue, unscoped and zero scopes; do not claim only
+the issue scope exists. The exact native join has one permitted call.
+
+Separate defect: structured session reporting failed to persist its owner and
+agent entries; source tests mocked the real persistence mechanism. Markdown
+ownership and installed version are correct. A scoped real-persistence repair
+is in progress, without granting the reports authority. Runtime-generated docs
+make the disposable consumer dirty; installed cache bytes are unchanged.
+
+The separately reviewed carrier continuation executed all 17 frozen arms:
+16 protected operations returned OS errno 1 and the ordinary write produced
+the expected 20 bytes. It exited 0 in 163.443s; process group 6635 was absent.
+Independent sentinel, ledger and exact fresh-key digests remained unchanged;
+protected descendants were absent. Evidence:
+`/Users/akaszubski/.codex/artifacts/adev-a9-trace-native.7h6AQGQU/BASH_RESULT.md`.
+This is scoped carrier proof, not the remaining A9 matrix or general exit capture.
+
+Next: finish the report repair and its review, then remaining trusted
+input, mode and transition obligations before #1818. Do not repeat the verified
+dispatch case unchanged. A9/F0 and release remain OPEN.
+
+### Earlier registration and namespace diagnostics — historical
 
 Fresh installed session `0593b03b-706b-4dc0-8c01-0c659f893e56` finished its
 no-tools initialization with raw exit 0 in 17.674s. All 650 installed Git
@@ -39,8 +76,9 @@ The continuation terminated with raw exit 0 after 83.986 seconds. Inspection
 found remaining defects: denied attempts still acquired legacy launch flags;
 native hook responses lacked an explicit tool/telemetry trace; post-tool and
 stop records lacked required identity fields; session reports used consumer
-revision rather than installed plugin version. Scoped repairs are uncommitted
-and under independent review. Source tests do not close those native gaps.
+revision rather than installed plugin version. Those source repairs were later
+reviewed and committed at `eec40e0c`; the current native result above supersedes
+this earlier next-action checkpoint, while preserving its failed evidence.
 
 Next: finish the shared trace in the existing callbacks, review the settled
 combined repair, commit through normal checks, install fresh committed bytes,
@@ -64,7 +102,8 @@ both native processes are terminal, so do not restart either unchanged.
 Still required: qualify the fresh installed guard and trusted-input effects
 before #1818. Source cases
 preserve ordinary non-pipeline Agent permit and final hook/activity/block-receipt
-agreement including failures; actual native child-session binding is unproven.
+agreement including failures; one foreground child join is now independently
+verified above, not every mode or lifecycle.
 Native Task lifecycle is explicitly HOLD; only the non-native legacy Task
 path has a preserved source-level positive, not all consumer/harness versions.
 A9, F0, release census, product delivery and consumer release remain OPEN.

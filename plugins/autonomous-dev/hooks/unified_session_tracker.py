@@ -412,8 +412,12 @@ def _resolve_agent_type_from_transcript(transcript_path: str) -> str:
         return ""
 
 
-def _compute_duration_ms() -> int:
+def _compute_duration_ms(session_id: Optional[str] = None) -> int:
     """Compute duration_ms by diffing against agent_tracker started_at.
+
+    Args:
+        session_id: Native payload owner. Read only its existing report; never
+            create a default report while measuring a native completion.
 
     Returns:
         Duration in milliseconds, or 0 if not available.
@@ -422,8 +426,19 @@ def _compute_duration_ms() -> int:
         return 0
 
     try:
-        tracker = AgentTracker()
-        session_data = tracker.get_current_session()
+        if session_id and session_id != "unknown":
+            safe_sid = hashlib.sha256(session_id.encode()).hexdigest()
+            session_file = Path.cwd() / "docs" / "sessions" / (
+                f"{datetime.now():%Y%m%d}-{safe_sid}-pipeline.json"
+            )
+            if not session_file.is_file():
+                return 0
+            session_data = json.loads(session_file.read_text())
+            if session_data.get("claude_session_id") != session_id:
+                return 0
+        else:
+            tracker = AgentTracker()
+            session_data = tracker.get_current_session()
         if session_data and "started_at" in session_data:
             started_at_str = session_data["started_at"]
             # Parse ISO format timestamp
@@ -772,6 +787,8 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
         return False
 
     try:
+        from agent_ordering_gate import normalize_agent_identity
+        agent_name = normalize_agent_identity(agent_name)
         if session_id and session_id != "unknown":
             # Use the existing explicit-path API rather than environmental
             # attribution or the most recent unrelated consumer session.
@@ -797,7 +814,8 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
                 summary = f"[{feature_ref}] {summary}"
 
             # Auto-track agent first (idempotent)
-            tracker.auto_track_from_environment(message=summary)
+            if not session_id or session_id == "unknown":
+                tracker.auto_track_from_environment(message=summary)
 
             # Complete the agent
             tracker.complete_agent(agent_name, summary, tools)
@@ -808,7 +826,8 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
                 error_msg = f"[{feature_ref}] {error_msg}"
 
             # Auto-track even for failures
-            tracker.auto_track_from_environment(message=error_msg)
+            if not session_id or session_id == "unknown":
+                tracker.auto_track_from_environment(message=error_msg)
 
             # Fail the agent
             tracker.fail_agent(agent_name, error_msg)
@@ -1497,7 +1516,7 @@ def main() -> int:
             except (TypeError, ValueError):
                 duration_ms = 0
         if duration_ms == 0:
-            duration_ms = _compute_duration_ms()
+            duration_ms = _compute_duration_ms(session_id if '--native' in sys.argv else None)
 
         # Issue #1396: heartbeat-drop. Claude Code emits SubagentStop for
         # internal/tool-level firings that carry NO usable identity: empty
