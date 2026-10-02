@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-10-01. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-10-03. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -57,7 +57,7 @@ preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
-Current execution pointer (2026-10-01): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+Current execution pointer (2026-10-03): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
 native run identity, origin and containment remain unaccepted. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
@@ -98,6 +98,31 @@ has been observed in this attempt. Keep N-BASH and A9 OPEN. The
 carry exact hashes and limitations. The older project-local copy procedure
 below is historical; reuse the SHA-pinned native install method for further
 diagnostics without calling that a released D0 carrier.
+
+The 2026-10-03 #1818 bootstrap candidate is **REJECTED / NOT PROMOTABLE**
+([independent review record](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5961532412)).
+Its focused tests passed, but the command never obtained the frozen N4B skip
+observation, accepted a self-supplied manifest, and stored unauthenticated
+independent-result dictionaries. Preserve its isolated worktree and tests as
+failed evidence; do not install or count its reviewer permit. The existing
+run-start ledger is explicitly model-writable until A9. A digest or HMAC that
+the same actor can mint does not repair this origin gap.
+
+Execution order therefore follows the real dependency: use the already
+authorized scoped maintenance exception and independent external review to
+finish #1807's native origin and carrier-containment proof; qualify #1818's
+observer-to-protected-ledger-to-reviewer route only after that boundary passes.
+The maintenance exception permits repair only; it supplies no A9 acceptance.
+In parallel, freeze #1818's obligation manifest outside the tested actor and
+exercise its capture/comparison cases as provisional diagnostics. No diagnostic
+may grant native progression or release credit. Reuse the existing observer,
+ledger and signer; additional stores or parallel receipt frameworks are not
+the next step. Keep every frozen refusal, including actual command-path N4B,
+model-written receipt, narrowed manifest, interrupted capture and bare marker.
+The next A9 check reuses the stock sandbox venue and measures actual carrier
+effects under the same policy as the trusted-hook positive, with exact current
+subject bytes and independent before/after observations. Repeating an old
+preflight or relying on a model declining the tool call does not close it.
 
 ### #1807/A9 coherent lifecycle repair (not yet accepted)
 
