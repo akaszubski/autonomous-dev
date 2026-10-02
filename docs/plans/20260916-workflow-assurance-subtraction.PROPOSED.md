@@ -668,17 +668,50 @@ pytest process ran. Its per-node reports are **attested under the recorded,
 reviewed pytest configuration**, including `conftest.py` and loaded plugins;
 pinning their bytes does not independently prove their truth. Required
 security-critical outcomes are also exercised by separately authored frozen
-acceptance/counterfactual cases through the existing independent oracle,
-against the same installed product behavior where applicable. That oracle's
+acceptance/counterfactual cases through an independent acceptance runner,
+against the same installed product behavior where applicable. The current F0
+oracle records process exit and selection but **does not expose skip/pass per
+node**; it cannot by itself decide the revised N4 outcome. That oracle's
 `--noconftest` profile cannot be substituted for the ordinary suite or its
 fixture semantics. Keep the forged skipped-test event as a refusal control:
 F4 remains HOLD until either (a) a genuine independent observer rejects N4
 and qualifies P1/P2 at the installed transition under the existing contract,
 or (b) an explicit old→new mapping for N4 and P1/P2 changes the trust
-assumption with separate approval and independent review. Branch (b) is a
-proposed decision, not authorized by this plan edit; do not present the frozen
-oracle as proof of ordinary-suite node execution. A hash or second child
-plugin is not branch (a), approval, or proof.
+assumption with separate approval and independent review. A hash or second
+child plugin is not branch (a) or proof.
+
+**2026-10-03 branch-(b) decision, pending independent review and revised-case
+freeze.** The user authorized the smaller honest contract after the N4
+counterexample; this decision does not itself pass F4 or authorize promotion.
+Preserve the original [frozen matrix](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914465347)
+as historical RED evidence, and publish the revised case rows on #1818 before
+implementation. The old→new mapping is:
+
+| Old claim | Revised claim and required refusal |
+|---|---|
+| P1: exact independently executed ordinary-suite denominator and full green | The parent proves the exact process, raw exit, complete capture and run/profile binding; required IDs are frozen outside the child and reconciled with its **configuration-bound** collected/executed report. F4 may permit *reviewer dispatch only* with an explicitly labelled suite-attestation receipt. It cannot qualify product behavior, release, or independently observed per-node execution. Empty/incomplete selection refuses. |
+| P2: no new failures on an independently known same denominator | Compare the same nonempty, externally frozen required-ID set and reviewed effective test profile against the completed base; report *no new child-reported failures*, never independently verified global green. Independently authored changed-behavior, opposite and counterfactual cases must pass before downstream product acceptance; missing/failed external cases refuse. |
+| N4: every forged child event/descriptor is independently detected | A child event, terminal line or descriptor can never solely authorize reviewer dispatch. Preserve the original skip→pass reproduction as historical RED. The revised frozen negative uses a SHA-256-bound tiny unconditional-skip subject, then a separate controlled `--noconftest` acceptance process with plugin autoload disabled, exact recorded argv/config and explicit per-node skip observation, raw exit and selected ID; a forged ordinary-child pass contradicts that observation and refuses F4 at the installed route. The present `oracle.sh` emits no skip/pass observation, so it cannot satisfy this row unchanged. Keep the observation in directly affected acceptance tests, not a second product signer or gate. Post-capture edits, cross-surface conflicts, unreviewed config changes or absent independent evidence for a required critical outcome also refuse. This revised case detects its frozen forgery and specified conflicts, not every possible consistent fabrication inside the reviewed pytest child; that remains an explicit limitation of ordinary-suite attestation. |
+
+The acceptance IDs come from a pre-edit manifest authored by the independent
+test-master/spec-validator, not pytest's child output. Bind that manifest to a
+base test-file inventory and the changed-behavior map; deleted, renamed or
+changed required tests and newly changed behavior without a reviewed test
+mapping invalidate it. A child-selected denominator cannot silently narrow
+the claim. This is a reviewed obligation map, not a claim that static analysis
+discovers every possible test. The old N4 stays historical RED; the revised N4
+must be frozen and run as a new case, never retroactively marked green.
+
+N1–N3 and N5–N9 retain their frozen refusals; the actual installed coordinator
+→ hook → ordering-gate → reviewer route must exercise them. `conftest.py` and
+plugins are reviewed, digest-bound *inputs* for the ordinary suite, not trusted
+observers; a changed or unresolved inventory invalidates the base. The
+independent oracle owns only its separately frozen critical cases and cannot
+certify ordinary fixture semantics. Keep process attestation, behavioral
+verification and release acceptance as distinct claims; no model report or
+suite-attestation receipt alone may promote a candidate. If a required case
+cannot be expressed without assuming child self-attestation, keep F4 HOLD and
+revisit the contract before editing code.
 
 Implement the bridge as one vertical slice: capture the base once per exact
 revision **and effective test profile** (argv, environment, configuration,
