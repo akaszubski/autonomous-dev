@@ -39,6 +39,21 @@ Later capture-source changes require their own changed-contract verification.
 The #1801 scanner's quoted-echo false execution credit is being repaired in
 parallel in its existing owner, not by importing the rejected large parser.
 
+The source correction is independently reviewed at scanner SHA-256
+`a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`.
+It shares conservative command recognition, preserves real command routes and
+refuses quoted command data. The same 238-member corpus changes from 147 REACHED /
+91 UNKNOWN to 146 / 92: only `secret_patterns.py` loses its false grounding through
+JSON command data naming `security_scan.py`. This is a source-only correction,
+not completed inventory acceptance or native execution proof. No ratchet repin.
+The focused result is 44 passes; full owner is 290 passes / two failures. An exact
+prior-source comparison retains the local-only tracker and project-updater
+failures; the candidate additionally exposes the secret-patterns obligation.
+Full/baseline terminal transcriptions are explicitly labelled in the evidence,
+not substituted for original raw capture. Inventory verdict remains REQUEST_CHANGES.
+Evidence: `1801-candidate-checkpoint.md`, `1801-owner-final.txt` and
+`1801-baseline-focused.txt` in `adev-1807-obligation-map.GIxlDb5f`.
+
 ### Latest bounded native result — read, report and protocol verified
 
 Fresh installed `dc89c92e` session `9eb9b043-ed53-44e3-a0ae-885395ef8b8a`,
