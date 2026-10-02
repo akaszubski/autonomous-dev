@@ -726,6 +726,85 @@ def test_observed_plugin_command_source_initializes_fix_run():
     assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
 
 
+@pytest.mark.parametrize("mode", ["--fix", "--full", "--tdd-first"])
+def test_native_initializer_preserves_multiline_intent_without_shell_parsing(mode):
+    """#1807: prose apostrophes must not break the typed command header."""
+    intent = (
+        "This is the authorized disposable native-initialization diagnostic described "
+        "in this consumer's PROJECT.md, not an implementation or release attempt. "
+        "Tools are intentionally disabled for this initial step. Stop before F1 and "
+        "do not dispatch, edit, or claim acceptance. Reply INITIALIZATION_STOPPED so "
+        "the independent supervisor can inspect native-created run identity before "
+        "a separately reviewed continuation."
+    )
+    args = f"{mode} #1807\n\n{intent}\n"
+    payload = _native_fix_payload()
+    payload["command_args"] = args
+    payload["prompt"] = f"/autonomous-dev:implement {args}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == {"--fix": "fix", "--full": "full", "--tdd-first": "tdd-first"}[mode]
+    assert state["issue_number"] == 1807
+    assert state["subject"] == args.strip()
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807', "--unknown #1807", "--fix --full #1807", "--fix"])
+def test_native_initializer_refuses_malformed_header_despite_valid_intent(header):
+    """Intent cannot repair a malformed invocation or supply its missing subject."""
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nFix issue #1807; don't ignore validation."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+@pytest.mark.parametrize("header,issue", [("--fix #1807", 1807), ("--full inspect parsing", "")])
+def test_native_initializer_body_cannot_supply_flags_or_issue(header, issue, newline):
+    """Body references and mode-looking prose are intent, not invocation authority."""
+    payload = _native_fix_payload()
+    args = newline.join([header, "", "Don't use --tdd-first or --unknown; compare issue #1818."])
+    payload["command_args"] = args
+    payload["prompt"] = f"/autonomous-dev:implement {args}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == ("fix" if header.startswith("--fix") else "full")
+    assert state["issue_number"] == issue
+    assert state["subject"] == args
+
+
+def test_native_initializer_conflicting_header_issues_remain_refused():
+    payload = _native_fix_payload()
+    payload["command_args"] = "--fix #1807 #1818\n\nOnly fix #1807."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807"', '"--fix" #1807'])
+def test_native_initializer_accepts_shell_quoted_header(header):
+    """Quoted header tokens preserve their ordinary invocation meaning."""
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nDon't use --full; compare #1818."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == "fix"
+    assert state["issue_number"] == 1807
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807', '--fix "#1807" "#1818"'])
+def test_native_initializer_refuses_malformed_or_conflicting_quoted_header(header):
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nOnly fix #1807."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+
+
 @pytest.mark.parametrize("args", ["--unknown #1755", "--tdd-first --unknown #1755"])
 def test_native_initializer_rejects_unknown_tdd_flags_without_carriers(args):
     payload = _typed_payload(args=args)

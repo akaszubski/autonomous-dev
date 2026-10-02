@@ -2278,17 +2278,23 @@ def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
         prompt = payload.get("prompt")
         if not isinstance(args, str) or not isinstance(prompt, str) or not prompt.strip():
             return None
-        tokens = shlex.split(args)
+        # Native command_args includes the remaining multiline user intent.
+        # Only the invocation line has shell-style argument grammar; parsing
+        # prose as shell syntax rejects ordinary apostrophes and lets body
+        # references change the command's issue or mode. Keep the complete
+        # intent in subject, but derive invocation authority from its header.
+        header = args.splitlines()[0] if args.splitlines() else ""
+        tokens = shlex.split(header)
         flags = {token for token in tokens if token.startswith("-")}
         if flags - {"--fix", "--full", "--tdd-first"} or len(flags) > 1:
             return None
         if not any(not token.startswith("-") for token in tokens):
             return None
         subject = args.strip()
-        issue_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b|\bissue\s+#?([1-9][0-9]*)\b", args, re.IGNORECASE)
+        issue_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b|\bissue\s+#?([1-9][0-9]*)\b", header, re.IGNORECASE)
         if len({left or right for left, right in issue_refs}) > 1:
             return None
-        issue_number = extract_native_issue_number(args)
+        issue_number = extract_native_issue_number(header)
         if issue_number is None:
             issue_number = ""
         mode = "fix" if "--fix" in flags else "tdd-first" if "--tdd-first" in flags else "full"

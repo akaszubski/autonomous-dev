@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Security
+- **Native command header separated from multiline intent (#1807, offline candidate)**: Initialization parses mode and issue only from the invocation line, retaining the complete intent as its subject. This prevents ordinary prose apostrophes from breaking initialization and body references from changing invocation identity. Real-Claude initialization exposed the defect; native A9/F0 acceptance remains open.
 - **Native origin same-run preservation (#1807, offline candidate)**: A denied model `Skill` attempt no longer replaces a signed typed-user witness for the current run. Witness decisions now use one required ledger lock and refuse missing or malformed current authority; tests cover the denied attempt, interleaving, lock failure, and cross-run model origin. This is not installed-native acceptance: A7/A9/F0 remain open.
 - **Native origin hook was absent from the plugin and rejected Claude's actual command spelling (#1807, #1851)**: The plugin now registers the existing recorder for typed command expansion and model-invoked Skill events. The recognizer accepts only the observed `autonomous-dev:implement` namespace while continuing to refuse spoofed namespaces. This is a partial bootstrap repair; native run initialization, OS containment and installed-consumer proof remain open.
 - **Alignment-gate `escalate -> user_approved` upgrade accepted a caller-supplied boolean and fabricated an approval trail (Refs #1802)**:
