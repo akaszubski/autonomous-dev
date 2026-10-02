@@ -15,6 +15,30 @@ and pushed with independent provisional source review, 193 focused cases passing
 and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
 
+### Latest source and offline capture progress
+
+Source correction `270feb8b` removes coordinator run-authority initialization
+instructions from full/fix routing; `15e963d2` makes the resume regression check
+the permanent native-owner/provenance/checkpoint contract instead of a temporary
+OPEN label. The affected module passed 88 cases; the latter normal commit gate
+completed with 14 passes and one inherited skip in 6.42s. Neither commit inherits
+the earlier installed runtime's native acceptance automatically.
+
+The #1818 stock capture diagnostic exercised nine restricted child launches:
+ordinary pass, inherited failure, controlled skip, explicit environment, signal,
+timeout, output overflow, and forged ordinary pass versus controlled skip.
+The comparison refused the forged result; all nine owned process groups were
+absent afterward. No receipt was published. Final capture review remains open:
+the trusted outside parent must not execute consumer-configured Git helpers or
+inherit ambient credentials. That same-owner repair is underway; the diagnostic
+is not installed reviewer progression or F0 acceptance.
+
+Evidence: `stock-qualification-v1.txt` under
+`/Users/akaszubski/.codex/artifacts/adev-1818-offline-capture.0Q0xx74D`.
+Later capture-source changes require their own changed-contract verification.
+The #1801 scanner's quoted-echo false execution credit is being repaired in
+parallel in its existing owner, not by importing the rejected large parser.
+
 ### Latest bounded native result — read, report and protocol verified
 
 Fresh installed `dc89c92e` session `9eb9b043-ed53-44e3-a0ae-885395ef8b8a`,
