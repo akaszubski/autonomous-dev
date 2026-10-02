@@ -126,6 +126,25 @@ preflight or relying on a model declining the tool call does not close it.
 
 ### #1807/A9 coherent lifecycle repair (not yet accepted)
 
+2026-10-03 execution correction: commit `3e2d7bf2` separates the native
+invocation header from multiline intent. The byte-identical failed prompt then
+created a strictly verified typed-user run in a fresh SHA-pinned native install.
+The subsequent Bash attempt remains **NON-PASS**: it inspected the fixture rather
+than executing the required effects, and `--tools Bash` did not suppress cloud
+MCP capabilities. The owned process was terminated; all three carrier hashes
+remained unchanged and no ordinary canary was created. Before another attempt,
+verify the actual tool catalog and allow bounded nonsecret preparatory inspection
+explicitly; CLI permission approval is not an exclusive command allowlist.
+
+The scoped command-adoption cutover must preserve the existing full-mode
+checkpoint used by resume/finalization. Move its initialization to the existing
+native state owner rather than restoring model signing/key reads. This includes
+the existing checkpoint helpers and failure/concurrent-start cases, not a new
+store or lock framework. A lock descriptor printed by a short-lived process does
+not protect the run lifetime; retain concurrency and resume as OPEN until actual
+effects pass. The provisional command deletion earns no maintenance-reduction
+or workflow acceptance before those consumers remain functional.
+
 The user has authorized the narrow bootstrap repair, not a reduction of A9's
 security or installed-workflow proof. Commit `7d639a1a` closes the tested
 specialist-completion and settings-retry bypasses, but mode coverage and
