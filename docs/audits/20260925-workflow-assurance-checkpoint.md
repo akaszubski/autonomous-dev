@@ -72,6 +72,17 @@ Stock runtime launch arguments contain ephemeral local proxy authentication:
 the reusable capture must omit/redact these before evidence export.
 
 Original #1807 matrix recovered from the retained historical run:
+The missing actual-production heartbeat reproduction is now separately verified:
+six isolated old/candidate cases invoked the archived production function and
+actual atomic writer, with independently rehashed before/after bytes. The old
+ownerless run-bearing state lost identity; the candidate preserved exact bytes.
+Same-owner and wrong-owner neighbors stayed unchanged. This is not a recovered
+historical native digest or full A4/F0 acceptance. A later duplicate launch
+refused before function execution because its case directory already existed;
+that coordination failure is preserved, with no overwrite or retry.
+[Production reproduction](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963306638).
+
+Original matrix location:
 `/Users/akaszubski/.codex/worktrees/sentinel-1807-fresh/autonomous-dev/.claude/local/1807-evidence-run-4857bd6db1d88337/1807_frozen_acceptance_matrix.md`.
 Its SHA-256 `126f3e297d707cfb00f1c3adabde8d32a09837ef68bafe6f2d7a5543a922265f`
 matches that run's recorded evidence digest. Original A9 is documentation/test
