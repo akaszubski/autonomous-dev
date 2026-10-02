@@ -7,7 +7,7 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Committed source is `91cc06d8`; canonical
+before the historical entries below. Committed runtime source is `dc89c92e`; canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
@@ -15,7 +15,39 @@ and pushed with independent provisional source review, 193 focused cases passing
 and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
 
-### Latest full-mode result — real reads/report persistence, protocol failure
+### Latest bounded native result — read, report and protocol verified
+
+Fresh installed `dc89c92e` session `9eb9b043-ed53-44e3-a0ae-885395ef8b8a`,
+run `ae15079ebcb283b6`, initialized full mode (raw 0, 19.259s), with verified
+typed origin, signed bindings and 13 pending checkpoint steps. The continuation
+exited raw 0 in 44.075s. Independent review verified the actual child Read,
+exact parent tool/child/run joins, owned completed report and whole SubagentStop
+stdout as one JSON envelope; report progress appeared only on stderr. Ordinary
+JSON decoding resolved every trace without replacement or inferred identifiers.
+The installed 650-file byte/mode tree and frozen inputs stayed unchanged; both
+process groups were empty afterward. The classifier returned ambiguous, which
+is preserved: this case does not qualify full workflow alignment or A9/F0.
+
+Evidence: [native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963069802)
+and `/Users/akaszubski/.codex/artifacts/adev-a9-json-native.Zx7cNHl1/RESULT.md`.
+Next: remaining trusted-input, mode and transition cases, not another unchanged
+retry of this protocol case.
+
+In parallel, the independently reviewed credential-free stock parent/child
+probe exited raw 0 in 0.415s: ordinary writes and parent-write positive succeeded;
+protected receipt write and parent signal were denied; receipt digest stayed
+unchanged and cleanup was verified. Task-port denial and absent macOS `/proc`
+are limited observations, not universal memory/descriptor containment.
+[Scoped result](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5963069985).
+The minimal #1818 route reuses the existing runner, native callback, ledger and
+reviewer gate. It still needs protected manifest/profile provisioning, an
+installed stock launcher, a narrowly bounded observer callback budget and the
+actual native positive/negative transition proof. No privileged consumer pytest,
+new daemon/store, bootstrap release credit or relaxed negative case is allowed.
+Stock runtime launch arguments contain ephemeral local proxy authentication:
+the reusable capture must omit/redact these before evidence export.
+
+### Earlier full-mode result — real reads/report persistence, protocol failure
 
 Fresh installed `91cc06d8` session `bdab2115-f922-4c92-91f1-26d98c46e58e`,
 run `58f9de639894110d`, completed initialization (raw 0, 31.336s), with exact
