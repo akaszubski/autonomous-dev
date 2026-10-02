@@ -1444,7 +1444,7 @@ def save_pipeline(state: PipelineState) -> Path:
         "redispatch_agents": state.redispatch_agents,
         "remediation_occurred": state.remediation_occurred,  # Issue #1271
     }
-    path.write_text(json.dumps(data, indent=2))
+    atomic_write_json(path, data, indent=2)
     return path
 
 

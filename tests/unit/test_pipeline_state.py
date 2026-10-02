@@ -14,6 +14,7 @@ Total: 27 tests
 """
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -49,6 +50,34 @@ from pipeline_state import (
     save_pipeline,
     skip_step,
 )
+
+
+def test_save_pipeline_restricts_checkpoint_permissions(pipeline_with_tmp):
+    """Native-owned checkpoints reuse restrictive atomic persistence."""
+    state, _root = pipeline_with_tmp
+    previous = os.umask(0o022)
+    try:
+        path = save_pipeline(state)
+    finally:
+        os.umask(previous)
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_save_pipeline_failed_replace_preserves_checkpoint(pipeline_with_tmp, monkeypatch):
+    """Failure retains the previous bytes and removes the temporary candidate."""
+    state, root = pipeline_with_tmp
+    path = save_pipeline(state)
+    before = path.read_bytes()
+
+    def refuse_replace(source, target):
+        raise OSError("replacement unavailable")
+
+    monkeypatch.setattr("pipeline_state.os.replace", refuse_replace)
+    state.feature = "Changed workflow intent"
+    with pytest.raises(OSError, match="replacement unavailable"):
+        save_pipeline(state)
+    assert path.read_bytes() == before
+    assert not list(root.glob("*.tmp"))
 
 
 # =============================================================================

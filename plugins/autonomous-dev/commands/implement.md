@@ -267,286 +267,63 @@ fi
 
 Store `ISSUE_BODY` and `ISSUE_TITLE` as pipeline context. If `gh issue view` fails, proceed without issue body (ISSUE_BODY remains empty). Do NOT block the pipeline on fetch failure.
 
-Activate pipeline state:
-```bash
-# Garbage-collect stale state files from prior crashed runs (Issue #1048)
-python3 -c "
-import sys, os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_completion_state import _gc_stale_states
-result = _gc_stale_states()
-removed = result['state_files_removed'] + result['sentinels_removed'] + result['lockfiles_removed']
-if removed:
-    print(f'GC: removed {removed} stale state file(s)')
-" 2>/dev/null || true
+The native UserPromptExpansion hook owns run creation and authentication. This
+model-side block only reads public correlation fields; it does not verify a MAC,
+read signing keys, mint a receipt, or authorize a dispatch. Native PreToolUse
+must independently authenticate the runtime owner before Agent use. This remains
+HOLD until installed guard registration and native qualification are proven.
+Missing or inconsistent native state stops the command; never bootstrap it here.
 
+```bash
 # NATIVE STEP 0 ADOPTION START
-# A typed UserPromptExpansion already created and signed this run. Validate its
-# owner, receipt, mode, issue, subject, base and origin before using its ID.
-# A present but invalid sentinel is a blocker, never a cue to bootstrap over it.
 NATIVE_ADOPTION="$(python3 -c "
-import json, os, subprocess, sys
+import json, os, re, subprocess, sys
 from pathlib import Path
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import classify_current_run_authority, get_legacy_sentinel_path
-from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, check_native_origin, get_run_start_receipt, is_synthetic_session_id
-path = Path(get_legacy_sentinel_path())
-override = os.environ.get('PIPELINE_STATE_FILE')
-if override and Path(override) != path:
-    print('BLOCKED (STEP 0, Issue #1807): PIPELINE_STATE_FILE differs from the native hook sentinel', file=sys.stderr)
-    sys.exit(1)
-if not path.exists():
-    print('__MODEL_BOOTSTRAP__')
-    sys.exit(0)
 try:
+    root = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip()).resolve()
+    path = root / '.claude' / 'local' / 'implement_pipeline_state.json'
+    override = os.environ.get('PIPELINE_STATE_FILE')
+    if override and Path(override).resolve() != path:
+        raise ValueError('PIPELINE_STATE_FILE differs from the native hook sentinel')
     state = json.loads(path.read_text())
-    sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
-    assert not is_synthetic_session_id(sid), 'native owner unavailable'
-    assert isinstance(state, dict), 'sentinel is not an object'
-    assert state.get('mode') == 'MODE', 'mode mismatch'
-    assert state.get('issue_number', '') in ('', int(os.environ['ISSUE_NUMBER'])) if os.environ.get('ISSUE_NUMBER') else state.get('issue_number', '') == '', 'issue mismatch'
-    assert isinstance(state.get('subject'), str) and state['subject'].strip(), 'subject missing'
+    if not isinstance(state, dict):
+        raise ValueError('sentinel is not an object')
+    if state.get('mode') != 'MODE':
+        raise ValueError('mode mismatch')
+    issue_raw = os.environ.get('ISSUE_NUMBER', '')
+    if issue_raw and (not issue_raw.isdecimal() or int(issue_raw) < 1):
+        raise ValueError('invalid issue number')
+    issue = int(issue_raw) if issue_raw else ''
+    if state.get('issue_number', '') != issue:
+        raise ValueError('issue mismatch')
+    if not isinstance(state.get('subject'), str) or not state['subject'].strip():
+        raise ValueError('subject missing')
     base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-    assert state.get('base_commit') == base, 'base commit mismatch'
-    assert get_run_start_receipt(sid) == state.get('run_id'), 'run receipt mismatch'
-    verdict = classify_current_run_authority(state, sid, receipt_lookup=get_run_start_receipt)
-    assert verdict.authorized and verdict.typed_user_origin, 'typed origin not authorized'
-    bindings = {key: state.get(key, '') for key in NATIVE_ORIGIN_BINDING_KEYS}
-    witness = check_native_origin(sid, bindings)
-    assert witness.instrument_ok and witness.valid and witness.event == 'UserPromptExpansion', 'origin witness mismatch'
-    print(state['run_id'])
-except (AssertionError, OSError, ValueError, KeyError, TypeError) as exc:
-    print('BLOCKED (STEP 0, Issue #1807): native run adoption failed: ' + str(exc), file=sys.stderr)
+    if state.get('base_commit') != base:
+        raise ValueError('base commit mismatch')
+    owner = state.get('session_id')
+    if not isinstance(owner, str) or not owner.strip() or owner.startswith(('unknown', 'stop-', 'test-')):
+        raise ValueError('native owner unavailable')
+    sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
+    if sid and sid != owner:
+        raise ValueError('owner mismatch')
+    run_id = state.get('run_id')
+    if not isinstance(run_id, str) or not re.fullmatch('[0-9a-f]{16}', run_id):
+        raise ValueError('run identity malformed')
+    print(run_id)
+except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as exc:
+    print('BLOCKED (STEP 0, Issue #1807): native run correlation failed: ' + str(exc) + '. Re-run the typed command after repairing the native initializer; do not write state here.', file=sys.stderr)
     sys.exit(1)
 ")" || exit 1
 # NATIVE STEP 0 ADOPTION END
-if [ "$NATIVE_ADOPTION" = '__MODEL_BOOTSTRAP__' ]; then
-RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
-export RUN_ID
-# Issue #1376: resolve sentinel via get_legacy_sentinel_path() so coordinator
-# writes and hook reads land at the same path. Pre-#1376 this hardcoded
-# /tmp/implement_pipeline_${RUN_ID}.json, which broke the hook's mode-aware
-# agent-completeness gate in --light mode (hook reads <repo>/.claude/local/,
-# coordinator wrote to /tmp/, mode="light" invisible to hook).
-#
-# Issue #1807: the resolved path lands in PIPELINE_SENTINEL, a NON-protected
-# variable. Pre-#1807 this block assigned the PROTECTED sentinel-path variable
-# and then exported it, and the DEPLOYED #557/#606 spoofing guard REFUSES that
-# shape. MEASURED against hooks/unified_pre_tool.py::_detect_env_spoofing on
-# 2026-09-27: assign-then-export -> "BLOCKED: Inline env var spoofing detected";
-# `echo hello` and the PIPELINE_SENTINEL form -> None (negative controls); a
-# known inline `VAR=value python3 script.py` -> BLOCKED (positive control). So
-# STEP 0 could not run as written without tripping the guard, and the guard is
-# correct — it is NOT to be narrowed to admit this.
-#
-# Nothing downstream breaks, because that export was never the mechanism that
-# made hooks agree: hook processes do not inherit a Bash-tool subshell's
-# environment (#779), and every reader already defaults to the canonical
-# get_legacy_sentinel_path() — the SAME per-repo path this block computes
-# (#1376). An operator who sets the variable BEFORE launching the CLI still
-# wins: that is an inherited variable, not an inline assignment, and every read
-# honours it.
-PIPELINE_SENTINEL="$(python3 -c "
-import sys, os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p); break
-from pipeline_state import get_legacy_sentinel_path
-print(get_legacy_sentinel_path())
-")"
-# REQUIRED: atomic_write_json needs the parent directory to exist.
-mkdir -p "$(dirname "$PIPELINE_SENTINEL")"
-PIPELINE_START=$(date +%s)
-
-# Acquire exclusive non-blocking run lock (Issue #1047)
-LOCK_FD=$(python3 -c "
-import sys, os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p); break
-from pipeline_state import acquire_run_lock
-fd = acquire_run_lock('${RUN_ID}')
-if fd is None:
-    print('LOCK_HELD', flush=True)
-    sys.exit(1)
-print(fd)
-" 2>/dev/null || echo "LOCK_HELD")
-if [ "$LOCK_FD" = "LOCK_HELD" ]; then
-    echo "BLOCKED: Another /implement is in progress in this process (lock held). Wait, use a separate Claude Code window, or remove /tmp/pipeline_${RUN_ID}.lock if stale."
-    exit 1
-fi
-python3 -c "
-import sys, os as _os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', _os.path.expanduser('~/.claude/lib')):
-    if _os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import create_pipeline, save_pipeline
-state = create_pipeline('$RUN_ID', 'FEATURE_DESC', mode='MODE')
-save_pipeline(state)
-print(f'Pipeline {state.run_id} initialized')
-"
-python3 -c "
-import sys, os, json, time
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import sign_state
-
-# Canonical session-ID resolution (Issues #904, #1093): env → sentinel
-# (mtime < 3600s) → activity log → 'unknown'. Honors a prior-written sentinel
-# when the env var was dropped by a subshell, e.g. /implement --resume
-# re-entering STEP 0. sentinel_path= is REQUIRED — the helper does not read
-# PIPELINE_STATE_FILE itself.
-#
-# NAMED BEHAVIOUR CHANGE vs the deleted inline copy: the #1093 activity-log
-# fallback can now return a REAL session id where the copy returned 'unknown'.
-# That is an improvement, not a regression — signing the sentinel HMAC with
-# 'unknown' mismatched the hook's own resolved sid either way.
-from pipeline_completion_state import resolve_session_id
-
-sid = resolve_session_id(sentinel_path=os.environ.get('PIPELINE_STATE_FILE') or None)
-
-# Issue #1045 — REQUIRED. Stamp this run's identity into the session
-# completion-state file BEFORE any agent runs. Without it the completeness
-# gate is keyed by SESSION, so a second /implement run inside one session
-# inherits the authority the first run earned and reads 'satisfied' with
-# zero agents executed (confused deputy). Idempotent, so --resume
-# re-entering STEP 0 with the same RUN_ID keeps the earlier completions.
-# sys.path prefers .claude/lib, so the copy loaded here is the DEPLOYED one.
-# A stale deployment lacks record_run_start; say so actionably instead of
-# emitting a bare ImportError traceback.
-try:
-    from pipeline_completion_state import record_run_start
-except ImportError:
-    print('[RUN-START-FAILED run_id=$RUN_ID] record_run_start absent from the deployed pipeline_completion_state on sys.path. Run: bash scripts/deploy-all.sh', file=sys.stderr)
-    sys.exit(1)
-issue_raw = os.environ.get('ISSUE_NUMBER', '')
-if issue_raw and (not issue_raw.isdecimal() or int(issue_raw) < 1):
-    print('[RUN-START-FAILED run_id=$RUN_ID] invalid issue number', file=sys.stderr)
-    sys.exit(1)
-issue_number = int(issue_raw) if issue_raw else ''
-if not record_run_start(sid, '$RUN_ID', issue_number=issue_number if issue_number != '' else None):
-    print('[RUN-START-FAILED run_id=$RUN_ID]', file=sys.stderr)
-    sys.exit(1)
-
-state = {
-    'session_start': '$(date +%Y-%m-%dT%H:%M:%S)',
-    'mode': 'MODE',
-    'run_id': '$RUN_ID',
-    'explicitly_invoked': True,
-    'session_id': sid,
-    # Issue #1807 (all-six binding): issue_number and subject are signed too, so
-    # the sentinel is tamper-evident across every required binding. Read from the
-    # environment with '' defaults, converting an issue ID to its canonical
-    # integer type, and never interpolate untrusted feature text into this source.
-    'issue_number': issue_number,
-    'subject': os.environ.get('FEATURE_DESCRIPTION', '')
-}
-state = sign_state(state, sid)
-# ATOMIC. open(path,'w') truncates at OPEN time, so a kill between the open
-# and the json.dump left a 0-BYTE sentinel with the prior content already
-# gone; ensure_sentinel_heartbeat() then failed json.loads and recreated it as
-# a bare {session_id, recovered, recovered_at}, which _is_pipeline_active()
-# classifies NOT-active by design (#1384) — blocking STEP 11 issue filing
-# during a genuinely live pipeline. Since #1807 that breadcrumb also refuses
-# agent DISPATCH and completion credit, and the only valid outcome is a FRESH
-# run: do NOT hand-write the missing identity fields and re-sign, because a
-# valid MAC after a coordinator rewrite proves a signing-capable API was used,
-# not that the identity is authentic. atomic_write_json mkstemps IN THE
-# DESTINATION DIRECTORY (same filesystem, or os.replace raises EXDEV), chmods
-# 0o600 before the rename, and os.replace is atomic per rename(2).
-# The mkdir -p above is REQUIRED: atomic_write_json needs the parent to exist.
-# Deliberately NO directory fsync — that buys OS-crash durability, not the
-# killed-process hazard actually observed, at syscall cost in a 5s-budget path.
-# Concurrent writers racing the same path remain unprotected (unchanged).
-# Errors PROPAGATE: a pipeline that cannot write its own sentinel must not
-# proceed silently.
-from pathlib import Path
-from pipeline_state import atomic_write_json, get_legacy_sentinel_path
-atomic_write_json(
-    Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))),
-    state,
-)
-# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
-# one when this command was typed. This is the only place the witness (minted
-# before any run id existed) is bound to this run. SILENT no-op when there is no
-# witness — additive, never a gate, and it cannot CREATE origin: only a native
-# hook writes a witness.
-try:
-    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
-    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
-except ImportError:
-    pass
-"
-else
 RUN_ID="$NATIVE_ADOPTION"
-# Native initiation owns the authority carriers, while STEP 0 still owns the
-# per-run pipeline checkpoint and lock used by downstream resume/step logic.
-LOCK_FD=$(python3 -c "
-import os, sys
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import acquire_run_lock
-fd = acquire_run_lock('$RUN_ID')
-if fd is None:
-    sys.exit(1)
-print(fd)
-") || { echo 'BLOCKED: Native run lock held'; exit 1; }
-python3 -c "
-import os, sys
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import create_pipeline, save_pipeline
-save_pipeline(create_pipeline('$RUN_ID', 'FEATURE_DESC', mode='MODE'))
-" || exit 1
-fi
 export RUN_ID
-
-# ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9): MODEL-OWNED bootstrap.
-# classify_current_run_authority reports RunOrigin.MODEL_BOOTSTRAP for a run
-# initialized only from here, and that remains a fully AUTHORIZED run — the origin
-# level is strictly additive. It is bootstrap because the principal the controls
-# constrain is the one writing the carriers. Only hooks/native_run_origin.py,
-# invoked by the runtime on a TYPED /implement, can produce
-# RunOrigin.TYPED_USER_WITNESSED. Do NOT write a witness from here, and do not read
-# a green origin verdict as provenance — the OS boundary that would make it
-# unforgeable is not in place (A9 OPEN, UNMEASURED).
-
-# PIPELINE_BASE_COMMIT capture (Issue #1069). REQUIRED: anchors all downstream
-# `git diff --name-only` invocations (acceptance criteria, spec-validator
-# dispatch at STEP 8.5, security-sensitivity scan) to the commit SHA at
-# pipeline start. Without this anchor, `git diff HEAD` includes pre-existing
-# working-tree modifications and produces false-positive FAIL verdicts.
-# FORBIDDEN: skipping this capture, or emitting `git diff --name-only HEAD`
-# in any acceptance criterion or spec-validator prompt template downstream —
-# all such commands MUST use `git diff --name-only $PIPELINE_BASE_COMMIT`.
-PIPELINE_BASE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
-python3 -c "
-import sys, os
-for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
-    if os.path.isdir(_p):
-        sys.path.insert(0, _p)
-        break
-from pipeline_state import set_pipeline_base_commit
-from pipeline_state import get_legacy_sentinel_path
-state_path = os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path()))
-ok = set_pipeline_base_commit('$PIPELINE_BASE_COMMIT', state_path=state_path)
-print(f'PIPELINE_BASE_COMMIT recorded: $PIPELINE_BASE_COMMIT (ok={ok})')
-"
+PIPELINE_BASE_COMMIT=$(git rev-parse HEAD) || exit 1
 export PIPELINE_BASE_COMMIT
 ```
+
+Correlation success is not authorization or A9 proof. Full/fix native qualification
+is required separately; light, batch and resume qualification remains open.
 
 **--force flag (narrow scope, Issue #936)**: Recognize `--force` in ARGUMENTS. `--force` bypasses ONLY the STEP 0a closed-issue BLOCK and the STEP 0a merge-status WARNING. It does NOT bypass test gates, security gates, or any other HARD GATE in the pipeline. Use ONLY when the issue is intentionally being re-opened or worked on a different surface. Detection: `FORCE_FLAG=$(echo "ARGUMENTS" | grep -oE '\-\-force' | head -1)`. Pass `FORCE_FLAG` to STEP 0a.
 

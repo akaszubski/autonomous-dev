@@ -2307,33 +2307,77 @@ def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
         sign_state, _verify, generate_run_id = _native_origin_signers()
         if sign_state is None or generate_run_id is None:
             return None
-        run_id = generate_run_id()
-        owner = owner.strip()
-        # The witness must be minted before the receipt and binding. Validation
-        # above runs first, so rejected requests create no carriers.
-        if record_native_origin_witness(owner, payload) is None:
-            return None
-        if not record_run_start(
-            owner, run_id,
-            issue_number=issue_number if isinstance(issue_number, int) else None,
-        ):
-            return None
-        state = {
-            "session_start": datetime.now(timezone.utc).isoformat(),
-            "mode": mode,
-            "run_id": run_id,
-            "explicitly_invoked": True,
-            "session_id": owner,
-            "issue_number": issue_number,
-            "subject": subject,
-            "base_commit": base,
-        }
-        state = sign_state(state, owner)
-        atomic_write_json(get_legacy_sentinel_path(), state)
-        bindings = {key: state.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS}
-        if not append_native_origin_progression(owner, bindings, event="run-bound"):
-            return None
-        return state
+        def _publish_native_run() -> Optional[dict]:
+            # The witness must be minted before the receipt and binding. Validation
+            # above runs first, so rejected requests create no carriers.
+            if record_native_origin_witness(owner, payload) is None:
+                return None
+            if not record_run_start(
+                owner, run_id,
+                issue_number=issue_number if isinstance(issue_number, int) else None,
+            ):
+                return None
+            state = {
+                "session_start": datetime.now(timezone.utc).isoformat(),
+                "mode": mode,
+                "run_id": run_id,
+                "explicitly_invoked": True,
+                "session_id": owner,
+                "issue_number": issue_number,
+                "subject": subject,
+                "base_commit": base,
+            }
+            state = sign_state(state, owner)
+            bindings = {key: state.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS}
+            if not append_native_origin_progression(owner, bindings, event="run-bound"):
+                return None
+            # Publish the authorizing sentinel last: a refused progression must
+            # never leave a new signed state consumable as model-bootstrap.
+            atomic_write_json(get_legacy_sentinel_path(), state)
+            return state
+
+        try:
+            from . import pipeline_state as pipeline
+        except ImportError:
+            import pipeline_state as pipeline
+        sentinel = get_legacy_sentinel_path().resolve()
+        # Existing run-lock mechanism, scoped ONLY to native initialization.
+        # Canonicalize aliases so every owner at this repository takes one mutex.
+        # This is not a lock held for the lifetime of the workflow.
+        init_key = "native-init-" + hashlib.sha256(str(sentinel).encode()).hexdigest()[:24]
+        init_fd = pipeline.acquire_run_lock(init_key)
+        if init_fd is None:
+            raise OSError("native initialization is already in progress")
+        try:
+            owner = owner.strip()
+            if sentinel.exists():
+                prior = json.loads(sentinel.read_text())
+                prior_owner = prior.get("session_id") if isinstance(prior, dict) else None
+                if isinstance(prior_owner, str) and prior_owner != owner:
+                    verdict = pipeline.classify_current_run_authority(
+                        prior, prior_owner, receipt_lookup=get_run_start_receipt,
+                    )
+                    if verdict.authorized:
+                        raise ValueError("another owner has an authorized current run")
+            # Same-owner typed invocation intentionally supersedes its earlier run.
+            # Checkpoint failure must precede ANY new witness or authority carrier.
+            run_id = generate_run_id()
+            checkpoint = pipeline.create_pipeline(run_id, subject, mode=mode)
+            pipeline.save_pipeline(checkpoint)
+            restored = pipeline.load_pipeline(run_id)
+            if (
+                restored is None
+                or restored.run_id != run_id
+                or restored.mode != mode
+                or restored.feature != subject
+                or restored.steps != checkpoint.steps
+                or set(restored.steps) != {step.value for step in pipeline.STEP_SEQUENCE}
+                or any(step.get("status") != "pending" for step in restored.steps.values())
+            ):
+                raise ValueError("native checkpoint reload does not match initialization")
+            return _publish_native_run()
+        finally:
+            pipeline.release_run_lock(init_fd)
     except Exception as exc:  # noqa: BLE001 - native hook must never block
         _native_origin_note(f"run initialization refused: {type(exc).__name__}: {exc}")
         return None

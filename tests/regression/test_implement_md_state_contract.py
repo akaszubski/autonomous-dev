@@ -108,8 +108,6 @@ Issues: #989, #1041, #1206, #1376, #1384, #1481, #1512
 
 from __future__ import annotations
 
-import glob
-import hashlib
 import json
 import os
 import re
@@ -158,7 +156,7 @@ _ROOT_SKIP = (
 # call sites. This replaced two hardcoded ``impl.count(...)``/``batch.count(...)``
 # literals — the THIRD hand-maintained list, and it lived inside this module.
 EXPECTED_SENTINEL_PATH_CALLS = {
-    "implement.md": 2,  # one coordinator writer was removed for native adoption
+    "implement.md": 1,  # native ownership removes model origination resolver
     "implement-batch.md": 1,  # one coordinator writer was removed
     # UNCHANGED at 1 by Issue #1807, deliberately. A mid-work draft called the
     # canonical resolver at STEP F1 too (making this 2); the provenance repair
@@ -420,7 +418,10 @@ def extract_python_c_block(text: str, anchor: str) -> str:
     """Return the body of the ``python3 -c "..."`` block containing ``anchor``."""
     idx = text.index(anchor)
     start = text.rindex('python3 -c "', 0, idx) + len('python3 -c "')
-    end = text.index('\n"\n', start)
+    closing = re.search(r'\n"(?:\n|\)" \|\| exit 1)', text[start:])
+    if closing is None:
+        raise ValueError('Python command block has no recognized closing delimiter')
+    end = start + closing.start()
     return text[start:end]
 
 
@@ -711,7 +712,7 @@ class TestPinnedOccurrenceCounts:
 
     def test_implement_md_state_file_reads_are_pinned(self) -> None:
         total, sanctioned, no_default = state_file_reads(IMPLEMENT_MD.read_text())
-        assert (total, sanctioned, no_default) == (9, 6, 2), (
+        assert (total, sanctioned, no_default) == (6, 4, 1), (
             "PIPELINE_STATE_FILE read sites changed. Every read MUST be either "
             "the sanctioned get_legacy_sentinel_path() default or the "
             "`or None` pass-through; update this pin deliberately."
@@ -719,7 +720,7 @@ class TestPinnedOccurrenceCounts:
         # Native adoption reads the override only to refuse a mismatched path.
         body = executable_text(IMPLEMENT_MD.read_text())
         assert len(_PSF_NATIVE_OVERRIDE.findall(body)) == 1
-        assert "if override and Path(override) != path:" in body
+        assert "if override and Path(override).resolve() != path:" in body
         assert sanctioned + no_default + 1 == total
 
     def test_batch_md_state_file_reads_are_pinned(self) -> None:
@@ -738,17 +739,17 @@ class TestPinnedOccurrenceCounts:
         adoption mismatch guard. The latter may read the override but must
         refuse a path different from the native hook sentinel (#1807)."""
         total, sanctioned, no_default = state_file_reads(FIX_MD.read_text())
-        assert (total, sanctioned, no_default) == (8, 6, 1)
+        assert (total, sanctioned, no_default) == (7, 5, 1)
         body = executable_text(FIX_MD.read_text())
         assert len(_PSF_NATIVE_OVERRIDE.findall(body)) == 1
-        assert "if override and Path(override) != path:" in body
+        assert "if override and Path(override).resolve() != path:" in body
         assert sanctioned + no_default + 1 == total
 
     def test_fix_md_state_init_block_uses_atomic_write(self) -> None:
         """Static arm for FIX 1's headline change (the behavioural pair is
         ``test_fix_state_write_permit_arm`` / ``…_dir_readonly``)."""
         block = extract_python_c_block(FIX_MD.read_text(), FIX_STEP0_ANCHOR)
-        assert "atomic_write_json(" in block
+        assert "path.read_text()" in block
         assert non_atomic_sentinel_writes(block) == 0
         # No FUNCTIONAL open() survives. Comment lines are skipped on purpose:
         # the block's rationale comment quotes ``open(path,'w')`` by name, and
@@ -1017,21 +1018,17 @@ class TestSentinelPathDefault:
             "STEP 0 must not assign/export the protected PIPELINE_STATE_FILE — "
             "the deployed spoofing guard refuses it (Issue #1807)"
         )
-        assert 'PIPELINE_SENTINEL="$(python3 -c "' in text, (
-            "the canonical path must still be resolved into a non-protected "
-            "variable"
-        )
-        assert 'mkdir -p "$(dirname "$PIPELINE_SENTINEL")"' in text, (
-            "atomic_write_json requires the parent directory to exist"
-        )
-        assert "from pipeline_state import get_legacy_sentinel_path" in text, (
-            "the path must come from the canonical resolver, not a literal"
-        )
+        block = extract_python_c_block(text, STEP0_ANCHOR)
+        assert "root / '.claude' / 'local' / 'implement_pipeline_state.json'" in block
+        assert "Path(override).resolve() != path" in block
+        assert "get_legacy_sentinel_path()" in (LIB_DIR / "pipeline_completion_state.py").read_text()
         sys.path.insert(0, str(HOOK_DIR))
         sys.path.insert(0, str(LIB_DIR))
         import unified_pre_tool as upt
 
         assert "PIPELINE_STATE_FILE" in upt.PROTECTED_ENV_VARS
+        assert upt._detect_env_spoofing("PIPELINE_STATE_FILE=/tmp/fake python3 script.py")
+        assert upt._detect_env_spoofing("echo native correlation") is None
 
 
 # ---------------------------------------------------------------------------
@@ -1216,7 +1213,7 @@ class TestResumeZeroSubjectPins:
 # 4. FIX 1 — the STEP 0 sentinel write is atomic (behavioural, both arms)
 # ---------------------------------------------------------------------------
 
-STEP0_ANCHOR = "state = sign_state(state, sid)"
+STEP0_ANCHOR = "BLOCKED (STEP 0, Issue #1807)"
 KNOWN_GOOD = {"session_id": "prior-owner", "run_id": "prior", "mode": "full"}
 
 
@@ -1242,21 +1239,11 @@ def step0_repo(tmp_path: Path):
     sentinel = local / "implement_pipeline_state.json"
     sentinel.write_text(json.dumps(KNOWN_GOOD))
 
-    run_id = "t" + uuid.uuid4().hex[:12]
+    run_id = uuid.uuid4().hex[:16]
     session_id = "sess-" + uuid.uuid4().hex[:12]
     yield repo, local, sentinel, run_id, session_id
 
-    # Consecutive-run isolation: record_run_start writes real /tmp state.
-    digest = hashlib.sha256(session_id.encode()).hexdigest()[:8]
-    for pattern in (
-        f"/tmp/pipeline_agent_completions_{run_id}*",
-        f"/tmp/pipeline_agent_completions_{digest}*",
-    ):
-        for stale in glob.glob(pattern):
-            try:
-                os.unlink(stale)
-            except OSError:
-                pass
+    # All native ledger/checkpoint/lock carriers resolve inside this fixture.
     try:
         local.chmod(0o700)
     except OSError:
@@ -1315,21 +1302,64 @@ def _run_coordinator_block(
 
 
 def _run_step0(repo: Path, sentinel: Path, run_id: str, session_id: str):
-    """Materialise and execute implement.md's STEP 0 sentinel block."""
-    return _run_coordinator_block(
-        IMPLEMENT_MD,
-        STEP0_ANCHOR,
-        repo,
-        sentinel=sentinel,
-        run_id=run_id,
-        session_id=session_id,
+    """Execute the native owner, not the retired model writer."""
+    return _run_native_initializer(repo, sentinel, session_id, "full", run_id)
+
+
+def _run_native_initializer(repo, sentinel, session_id, mode, run_id, issue_number=None):
+    """Reuse the real native initializer with every carrier isolated in the fixture."""
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    if subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--verify", "HEAD"],
+        capture_output=True,
+    ).returncode:
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "user.name=Test", "-c",
+             "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "fixture"],
+            check=True,
+        )
+    src = f'''
+import sys, json
+from pathlib import Path
+sys.path.insert(0, {str(REPO_ROOT)!r})
+sys.path.insert(0, {str(LIB_DIR)!r})
+from pytest import MonkeyPatch
+import pipeline_state as ps
+import pipeline_completion_state as pcs
+from tests.helpers.state_isolation import redirect_pipeline_state
+repo = Path({str(repo)!r})
+native_path = ps.get_legacy_sentinel_path
+mp = MonkeyPatch()
+root = repo / 'native-fixture-state'
+redirect_pipeline_state(mp, root, ps, pcs)
+target = {str(sentinel) if sentinel is not None else None!r}
+resolver = (lambda: Path(target)) if target else (lambda: native_path(repo))
+ps.get_legacy_sentinel_path = resolver
+pcs.get_legacy_sentinel_path = resolver
+ps.get_state_path = lambda rid: root / ('checkpoint-' + rid + '.json')
+ps.get_lockfile_path = lambda rid: root / ('run-' + rid + '.lock')
+ids = iter([{run_id!r}, 'witness-{run_id}'])
+ps.generate_run_id = lambda: next(ids)
+scope = {issue_number!r}
+args = ('--fix ' if {mode!r} == 'fix' else '') + ('#' + str(scope) if scope else 'Repair native run ownership')
+state = pcs.initialize_native_run_from_event({{
+    'hook_event_name': 'UserPromptExpansion', 'command_name': 'implement',
+    'command_source': 'user', 'session_id': {session_id!r},
+    'command_args': args, 'prompt': '/implement ' + args,
+}})
+sys.exit(0 if state is not None else 1)
+'''
+    return subprocess.run(
+        [sys.executable, "-c", src], cwd=repo, capture_output=True, text=True,
+        env=dict(os.environ), timeout=120,
     )
 
 
 def test_step0_block_is_extractable_and_uses_atomic_write() -> None:
     """Guards the extractor for the two behavioural tests below."""
     block = extract_python_c_block(IMPLEMENT_MD.read_text(), STEP0_ANCHOR)
-    assert "atomic_write_json(" in block
+    assert "path.read_text()" in block
+    assert "atomic_write_json(get_legacy_sentinel_path(), state)" in (LIB_DIR / "pipeline_completion_state.py").read_text()
     assert non_atomic_sentinel_writes(block) == 0
     assert "```" not in block
 
@@ -1337,9 +1367,9 @@ def test_step0_block_is_extractable_and_uses_atomic_write() -> None:
 def test_step0_write_permit_arm(step0_repo) -> None:
     """PERMIT arm: a writable directory produces a valid signed sentinel."""
     repo, _local, sentinel, run_id, session_id = step0_repo
-    proc = _run_step0(repo, sentinel, run_id, session_id)
+    proc = _run_native_initializer(repo, None, session_id, "full", run_id)
     assert proc.returncode == 0, proc.stderr
-
+    sentinel = repo / '.claude/local/implement_pipeline_state.json'
     written = json.loads(sentinel.read_text())
     assert written["session_id"] == session_id
     assert written["run_id"] == run_id
@@ -1349,6 +1379,12 @@ def test_step0_write_permit_arm(step0_repo) -> None:
     # so _is_pipeline_active() classifies it ACTIVE.
     assert any(written.get(k) for k in ("run_id", "mode", "explicitly_invoked"))
     assert "hmac" in written or "signature" in written or "nonce" in written
+    before = sentinel.read_bytes()
+    adopted = _run_coordinator_block(
+        IMPLEMENT_MD, STEP0_ANCHOR, repo, run_id=run_id, session_id=session_id,
+    )
+    assert adopted.returncode == 0, adopted.stderr
+    assert sentinel.read_bytes() == before
 
 
 def test_step0_write_leaves_no_orphan_tmp(step0_repo) -> None:
@@ -1358,6 +1394,7 @@ def test_step0_write_leaves_no_orphan_tmp(step0_repo) -> None:
     assert proc.returncode == 0, proc.stderr
     leftovers = [p.name for p in local.iterdir() if p.name != sentinel.name]
     assert leftovers == [], f"orphaned temp files: {leftovers}"
+    assert not list(repo.rglob('*.tmp'))
 
 
 def test_step0_write_is_atomic_dir_readonly(step0_repo) -> None:
@@ -1388,6 +1425,7 @@ def test_step0_write_is_atomic_dir_readonly(step0_repo) -> None:
     after = sentinel.read_bytes()
     assert after == before, "prior sentinel content was destroyed"
     assert after != b"", "sentinel was truncated to 0 bytes"
+    assert not list(local.glob('*.tmp')), 'native failure left an orphaned temporary file'
 
 
 # ---------------------------------------------------------------------------
@@ -1396,35 +1434,16 @@ def test_step0_write_is_atomic_dir_readonly(step0_repo) -> None:
 
 
 def _run_fix_f1(repo, run_id, *, session_id):
-    """Run the F1 block with *session_id* in the environment, or none at all.
-
-    Args:
-        repo: The temp repo to run in.
-        run_id: Run id substituted into the block.
-        session_id: Native session id to export, or ``None`` to export none.
-
-    Returns:
-        The ``CompletedProcess``.
-    """
-    block = extract_python_c_block(FIX_MD.read_text(), FIX_STEP0_ANCHOR)
-    src = block.replace("$(date +%Y-%m-%dT%H:%M:%S)", "2026-09-27T00:00:00").replace(
-        "$RUN_ID", run_id
-    )
-    script = repo / "f1_block.py"
-    script.write_text(src)
-    env = dict(os.environ)
-    env.pop("PIPELINE_STATE_FILE", None)
-    for name in ("CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID"):
-        env.pop(name, None)
+    """Native owner initializes; F1 only correlates. Absent owner never mints."""
     if session_id is not None:
-        env["CLAUDE_SESSION_ID"] = session_id
-    return subprocess.run(
-        [sys.executable, str(script)],
-        cwd=str(repo),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
+        initialized = _run_native_initializer(repo, None, session_id, "fix", run_id)
+        if initialized.returncode:
+            return initialized
+    else:
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    return _run_coordinator_block(
+        FIX_MD, FIX_STEP0_ANCHOR, repo, run_id=run_id,
+        session_id=session_id or "", sentinel=None,
     )
 
 
@@ -1446,30 +1465,25 @@ def test_fix_f1_refuses_to_originate_an_owner_from_a_stale_sentinel(fix_state_re
     local = repo / ".claude" / "local"
     local.mkdir(parents=True, exist_ok=True)
     stale = local / "implement_pipeline_state.json"
-    stale.write_text(
-        json.dumps(
-            {
-                "session_id": "11111111-2222-3333-4444-555555555555",
-                "mode": "fix",
-                "run_id": "previousrun00001",
-                "explicitly_invoked": True,
-            }
-        )
-    )
+    previous_owner = "11111111-2222-3333-4444-555555555555"
+    initialized = _run_native_initializer(repo, stale, previous_owner, "fix", run_id)
+    assert initialized.returncode == 0, initialized.stderr
+    state = json.loads(stale.read_text())
+    assert state["session_id"] == previous_owner and state["hmac"]
+    current_base = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    assert state["base_commit"] == current_base
     before = stale.read_bytes()
+    fixture_state = repo / "native-fixture-state"
+    checkpoints_before = {p.name: p.read_bytes() for p in fixture_state.glob("checkpoint-*")}
 
-    proc = _run_fix_f1(repo, run_id, session_id=None)
+    proc = _run_native_initializer(repo, stale, None, "fix", uuid.uuid4().hex[:16])
 
-    assert proc.returncode != 0, (
-        f"F1 originated a run with no native owner. stdout={proc.stdout!r}"
-    )
-    assert "BLOCKED (STEP F1, Issue #1807)" in proc.stderr, proc.stderr
-    assert stale.read_bytes() == before, (
-        "F1 refused but still rewrote the sentinel; a refusal must write nothing"
-    )
-    assert "previousrun00001" in stale.read_text(), (
-        "the prior run's identity was replaced during a refusal"
-    )
+    assert proc.returncode != 0, "missing native owner must not mint a new run"
+    assert "payload carries no session_id" in proc.stderr, proc.stderr
+    assert "runtime did not name an owner" in proc.stderr
+    assert stale.read_bytes() == before
+    assert json.loads(stale.read_text())["run_id"] == run_id
+    assert {p.name: p.read_bytes() for p in fixture_state.glob("checkpoint-*")} == checkpoints_before
 
 
 def test_fix_f1_binds_a_native_owner_and_survives_a_heartbeat(fix_state_repo):
@@ -1518,11 +1532,11 @@ def test_fix_f1_binds_a_native_owner_and_survives_a_heartbeat(fix_state_repo):
 # block has a different shape and no signing.
 # ---------------------------------------------------------------------------
 
-FIX_STEP0_ANCHOR = "'mode': 'fix'"
+FIX_STEP0_ANCHOR = "BLOCKED (STEP F1, Issue #1807)"
 
 
 @pytest.fixture
-def fix_state_repo(tmp_path: Path):
+def fix_state_repo(tmp_path: Path, monkeypatch):
     """A synthetic repo with NO ``.claude/local/`` — the block must create it.
 
     The ``.claude/lib`` symlink is REQUIRED and is not decoration: the
@@ -1535,6 +1549,7 @@ def fix_state_repo(tmp_path: Path):
     repo = tmp_path / "fixrepo"
     (repo / ".claude").mkdir(parents=True)
     (repo / ".claude" / "lib").symlink_to(LIB_DIR, target_is_directory=True)
+    monkeypatch.setenv("HOME", str(repo / "native-fixture-state" / "home"))
 
     # This fixture is the ONE that lets the block resolve its own root: the
     # permit arm passes ``sentinel=None`` so ``get_legacy_sentinel_path()``
@@ -1555,20 +1570,10 @@ def fix_state_repo(tmp_path: Path):
         "outside any checkout."
     )
 
-    run_id = "t" + uuid.uuid4().hex[:12]
+    run_id = uuid.uuid4().hex[:16]
     session_id = "sess-" + uuid.uuid4().hex[:12]
     yield repo, run_id, session_id
 
-    digest = hashlib.sha256(session_id.encode()).hexdigest()[:8]
-    for pattern in (
-        f"/tmp/pipeline_agent_completions_{run_id}*",
-        f"/tmp/pipeline_agent_completions_{digest}*",
-    ):
-        for stale in glob.glob(pattern):
-            try:
-                os.unlink(stale)
-            except OSError:
-                pass
 
 
 def test_fix_state_block_is_extractable_and_uses_atomic_write() -> None:
@@ -1579,7 +1584,8 @@ def test_fix_state_block_is_extractable_and_uses_atomic_write() -> None:
         f"{text.count(FIX_STEP0_ANCHOR)}"
     )
     block = extract_python_c_block(text, FIX_STEP0_ANCHOR)
-    assert "atomic_write_json(" in block
+    assert "path.read_text()" in block
+    assert "atomic_write_json(get_legacy_sentinel_path(), state)" in (LIB_DIR / "pipeline_completion_state.py").read_text()
     assert non_atomic_sentinel_writes(block) == 0
     assert "```" not in block
 
@@ -1602,9 +1608,7 @@ def test_fix_state_write_permit_arm(fix_state_repo) -> None:
     repo, run_id, session_id = fix_state_repo
     assert not (repo / ".claude" / "local").exists(), "fixture must start with no local/"
 
-    proc = _run_coordinator_block(
-        FIX_MD, FIX_STEP0_ANCHOR, repo, sentinel=None, run_id=run_id, session_id=session_id
-    )
+    proc = _run_fix_f1(repo, run_id, session_id=session_id)
     assert proc.returncode == 0, proc.stderr
 
     written_path = repo / ".claude" / "local" / "implement_pipeline_state.json"
@@ -1621,22 +1625,31 @@ def test_fix_state_write_permit_arm(fix_state_repo) -> None:
 def test_coordinator_bootstrap_binds_integer_issue_number(step0_repo, doc, anchor) -> None:
     """An issue-scoped run must retain the integer identity expected by native dispatch."""
     repo, _local, sentinel, run_id, session_id = step0_repo
-    proc = _run_coordinator_block(
-        doc, anchor, repo, sentinel=sentinel, run_id=run_id,
-        session_id=session_id, issue_number="1807",
-    )
+    mode = 'fix' if doc == FIX_MD else 'full'
+    proc = _run_native_initializer(repo, None, session_id, mode, run_id, 1807)
     assert proc.returncode == 0, proc.stderr
+    sentinel = repo / '.claude/local/implement_pipeline_state.json'
     written = json.loads(sentinel.read_text())
     assert written["issue_number"] == 1807
+    before = sentinel.read_bytes()
+    adopted = _run_coordinator_block(
+        doc, anchor, repo, run_id=run_id, session_id=session_id, issue_number='1807',
+    )
+    assert adopted.returncode == 0, adopted.stderr
+    assert sentinel.read_bytes() == before
 
 
 @pytest.mark.parametrize("doc,anchor", [(IMPLEMENT_MD, STEP0_ANCHOR), (FIX_MD, FIX_STEP0_ANCHOR)])
 def test_coordinator_bootstrap_rejects_invalid_issue_number(step0_repo, doc, anchor) -> None:
     """Malformed scope never writes a new signed run sentinel."""
     repo, _local, sentinel, run_id, session_id = step0_repo
+    mode = 'fix' if doc == FIX_MD else 'full'
+    initialized = _run_native_initializer(repo, None, session_id, mode, run_id, 1807)
+    assert initialized.returncode == 0, initialized.stderr
+    sentinel = repo / '.claude/local/implement_pipeline_state.json'
     before = sentinel.read_bytes()
     proc = _run_coordinator_block(
-        doc, anchor, repo, sentinel=sentinel, run_id=run_id,
+        doc, anchor, repo, run_id=run_id,
         session_id=session_id, issue_number="18oops",
     )
     assert proc.returncode != 0
@@ -1665,14 +1678,7 @@ def test_fix_state_write_is_atomic_dir_readonly(fix_state_repo) -> None:
 
     local.chmod(0o500)
     try:
-        proc = _run_coordinator_block(
-            FIX_MD,
-            FIX_STEP0_ANCHOR,
-            repo,
-            sentinel=sentinel,
-            run_id=run_id,
-            session_id=session_id,
-        )
+        proc = _run_native_initializer(repo, sentinel, session_id, 'fix', run_id)
     finally:
         local.chmod(0o700)
 
@@ -1683,6 +1689,7 @@ def test_fix_state_write_is_atomic_dir_readonly(fix_state_repo) -> None:
     after = sentinel.read_bytes()
     assert after == before, "prior sentinel content was destroyed"
     assert after != b"", "sentinel was truncated to 0 bytes"
+    assert not list(local.glob('*.tmp')), 'native failure left an orphaned temporary file'
 
 
 def test_write_text_shape_is_also_rejected() -> None:

@@ -632,6 +632,8 @@ NAMED_CASES = _cases("named")
 def _isolated(monkeypatch, tmp_path):
     """Redirect sentinel, secret store and ledger into tmp_path, then reap."""
     redirect_pipeline_state(monkeypatch, tmp_path, ps, pcs)
+    monkeypatch.setattr(ps, "get_state_path", lambda run_id: tmp_path / f"checkpoint-{run_id}.json")
+    monkeypatch.setattr(ps, "get_lockfile_path", lambda run_id: tmp_path / f"run-{run_id}.lock")
     yield
     for owner in (_OWNER, _OTHER_OWNER):
         clear_run_artifacts(owner)
@@ -699,6 +701,121 @@ def test_typed_fix_expansion_initializes_bound_run_before_model_bash(capsys):
     assert origin.event == "UserPromptExpansion"
     assert _classify(state).authorized is True
     assert capsys.readouterr().out == "", "hook must not print carrier data to stdout"
+
+
+def test_native_full_checkpoint_precedes_authority_publication(monkeypatch):
+    """Existing resume checkpoint is complete before native authority is minted."""
+    original = pcs.record_native_origin_witness
+    seen = []
+
+    def observe(owner, payload):
+        checkpoints = list(ps.get_state_path("placeholder").parent.glob("checkpoint-*.json"))
+        assert len(checkpoints) == 1
+        data = json.loads(checkpoints[0].read_text())
+        seen.append(data)
+        return original(owner, payload)
+
+    monkeypatch.setattr(pcs, "record_native_origin_witness", observe)
+    state = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert state is not None
+    restored = ps.load_pipeline(state["run_id"])
+    assert restored is not None
+    assert restored.run_id == state["run_id"]
+    assert restored.mode == state["mode"] == "full"
+    assert restored.feature == state["subject"]
+    assert restored.steps == seen[0]["steps"]
+    assert set(restored.steps) == {step.value for step in ps.STEP_SEQUENCE}
+    assert all(step["status"] == "pending" for step in restored.steps.values())
+
+
+@pytest.mark.parametrize("fault", ["save", "reload", "steps"])
+def test_checkpoint_failure_publishes_no_new_authority(monkeypatch, fault):
+    """Checkpoint faults retain diagnostic remnants, never publish a run."""
+    if fault == "save":
+        def fail_save(state):
+            raise OSError("checkpoint storage unavailable")
+        monkeypatch.setattr(ps, "save_pipeline", fail_save)
+    elif fault == "reload":
+        monkeypatch.setattr(ps, "load_pipeline", lambda run_id: None)
+    else:
+        original = ps.load_pipeline
+        def corrupt_steps(run_id):
+            state = original(run_id)
+            state.steps = {}
+            return state
+        monkeypatch.setattr(ps, "load_pipeline", corrupt_steps)
+    assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert not pcs._state_file_path(_OWNER).exists()
+
+
+def test_native_initialization_mutex_and_other_owner_refusal():
+    """Only init is serialized; same-owner typed supersession remains supported."""
+    key = "native-init-" + hashlib.sha256(str(ps.get_legacy_sentinel_path().resolve()).encode()).hexdigest()[:24]
+    fd = ps.acquire_run_lock(key)
+    assert fd is not None
+    try:
+        assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+        assert not ps.get_legacy_sentinel_path().exists()
+    finally:
+        ps.release_run_lock(fd)
+    first = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert first is not None
+    before = ps.get_legacy_sentinel_path().read_bytes()
+    assert pcs.initialize_native_run_from_event(_typed_payload(_OTHER_OWNER, "#1807")) is None
+    assert ps.get_legacy_sentinel_path().read_bytes() == before
+    second = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert second is not None and second["run_id"] != first["run_id"]
+
+
+def test_progression_refusal_does_not_publish_signed_authority(monkeypatch, tmp_path):
+    """A late native publication fault leaves no sentinel a consumer can accept."""
+    monkeypatch.setattr(pcs, "append_native_origin_progression", lambda *args, **kwargs: False)
+    assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+    sentinel = ps.get_legacy_sentinel_path()
+    assert not sentinel.exists()
+    assert not ps.classify_current_run_authority(
+        None, _OWNER, receipt_lookup=pcs.get_run_start_receipt,
+    ).authorized
+    # Execute the command consumer against the missing sentinel after this fault.
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    text = (_REPO_ROOT / "plugins/autonomous-dev/commands/implement-fix.md").read_text()
+    block = text.split("# NATIVE F1 ADOPTION START", 1)[1].split("# NATIVE F1 ADOPTION END", 1)[0]
+    env = dict(os.environ, ISSUE_NUMBER="1807")
+    env.pop("PIPELINE_STATE_FILE", None)
+    result = subprocess.run(
+        ["bash", "-c", block], cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "native run correlation failed" in result.stderr
+    assert "No such file" in result.stderr
+
+
+@pytest.mark.parametrize("prior_run", [False, True])
+def test_final_sentinel_replace_fault_never_authorizes_new_run(monkeypatch, prior_run):
+    """Failed final publication preserves old bytes but their receipt is stale."""
+    first = pcs.initialize_native_run_from_event(_native_fix_payload()) if prior_run else None
+    sentinel = ps.get_legacy_sentinel_path()
+    before = sentinel.read_bytes() if prior_run else None
+    original = pcs.atomic_write_json
+
+    def fail_sentinel(path, state, **kwargs):
+        if Path(path).resolve() == sentinel.resolve():
+            raise OSError("final sentinel replacement unavailable")
+        return original(path, state, **kwargs)
+
+    monkeypatch.setattr(pcs, "atomic_write_json", fail_sentinel)
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is None
+    after = sentinel.read_bytes() if sentinel.exists() else None
+    assert after == before
+    verdict = ps.classify_current_run_authority(
+        first, _OWNER, receipt_lookup=pcs.get_run_start_receipt,
+    )
+    assert not verdict.authorized
+    if prior_run:
+        assert pcs.get_run_start_receipt(_OWNER) != first["run_id"]
 
 
 def test_typed_tdd_first_expansion_initializes_bound_run():
