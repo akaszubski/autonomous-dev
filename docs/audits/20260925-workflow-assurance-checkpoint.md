@@ -47,6 +47,24 @@ new daemon/store, bootstrap release credit or relaxed negative case is allowed.
 Stock runtime launch arguments contain ephemeral local proxy authentication:
 the reusable capture must omit/redact these before evidence export.
 
+Original #1807 matrix recovered from the retained historical run:
+`/Users/akaszubski/.codex/worktrees/sentinel-1807-fresh/autonomous-dev/.claude/local/1807-evidence-run-4857bd6db1d88337/1807_frozen_acceptance_matrix.md`.
+Its SHA-256 `126f3e297d707cfb00f1c3adabde8d32a09837ef68bafe6f2d7a5543a922265f`
+matches that run's recorded evidence digest. Original A9 is documentation/test
+congruence; distinguish it from later A7/A9 native-boundary amendments rather
+than replacing either inventory with an expanded cross-product.
+
+The independently reviewed #1818 edit contract is recorded in
+`/Users/akaszubski/.codex/artifacts/adev-1818-readiness.eAn9a9at/readiness.md`.
+Activation remains unproven: no shipped provisioner currently establishes the
+protected external obligation manifest and installed stock-runtime closure.
+Use existing native packaging/settings owners, not writable policy fallbacks
+or a Codex-private artifact path as product authority. Capture/comparison can
+be repaired offline without granting reviewer progression. Before activation,
+freeze one remaining-time deadline including cleanup and specify the existing
+ledger's pending/final receipt rule when cancellation follows publication;
+an absolute claim that cancellation always leaves no receipt is not established.
+
 ### Earlier full-mode result — real reads/report persistence, protocol failure
 
 Fresh installed `91cc06d8` session `bdab2115-f922-4c92-91f1-26d98c46e58e`,
