@@ -164,13 +164,13 @@ export RUN_ID
 Correlation success is not authorization or A9 proof. Full/fix native qualification
 is required separately; light, batch and resume qualification remains open.
 
-Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. Initialize the fix-mode pipeline state BEFORE the verdict step so record_alignment_verdict writes alignment_passed and alignment_verdict into it.
+Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. The native initializer must already have established the bound fix-mode state adopted above before the verdict step; if that state or its native authority is missing, BLOCK and diagnose the initializer. The coordinator must not initialize, reconstruct or sign state to make the verdict write succeed.
 
 This is the same alignment gate as the full pipeline STEP 1.
 
 #### Prompt Baseline Reset (Defensive — Issue #1088 F3)
 
-Before initializing pipeline state, clear any stale `prompt_baselines.json` from a prior session. /fix mode by design dispatches shorter, focused prompts; stale baselines from prior runs frequently exceed the 20% shrinkage threshold against fresh fix-mode prompts and produce false-positive integrity blocks.
+Before specialist dispatch, clear any stale `prompt_baselines.json` from a prior session. /fix mode by design dispatches shorter, focused prompts; stale baselines from prior runs frequently exceed the 20% shrinkage threshold against fresh fix-mode prompts and produce false-positive integrity blocks. This baseline reset does not initialize or authorize the native run.
 
 ```python
 import sys, os

@@ -1862,3 +1862,23 @@ def test_issue_creator_is_the_sole_authorized_agent() -> None:
     )
     agent_files = manifest["components"]["agents"]["files"]
     assert any(f.endswith("/issue-creator.md") for f in agent_files), agent_files
+
+
+def test_issue_1807_resume_routing_never_instructs_model_run_writer() -> None:
+    """Original A9: routing prose must not contradict native-owned adoption."""
+    text = IMPLEMENT_MD.read_text()
+    routing = text.split("### STEP 0: Parse Mode and Route", 1)[1].split(
+        "**Mutual exclusivity**", 1
+    )[0]
+    assert "record_run_start(" not in routing, "Resume routing instructs a model authority writer"
+    assert "native resume qualification remains OPEN" in routing
+
+
+def test_issue_1807_fix_alignment_requires_existing_native_state() -> None:
+    """Original A9: verdict preparation adopts state instead of creating it."""
+    text = FIX_MD.read_text()
+    alignment = text.split("Correlation success is not authorization", 1)[1].split(
+        "#### Prompt Baseline Reset", 1
+    )[0]
+    assert "Initialize the fix-mode pipeline state" not in alignment
+    assert "native initializer" in alignment and "BLOCK" in alignment
