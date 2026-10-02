@@ -643,6 +643,68 @@ only after resolving the full pipeline's existing exit-zero prerequisite, or
 retain its work as explicitly provisional; do not reinterpret those two red
 tests as validation of the capture feature.
 
+### #1818 maintenance bridge — separate suite attestation from independent proof
+
+The current self-maintenance loop requires one bounded repair of the existing
+test-process owner, result binding and actual next-agent consumer, not another
+test framework. The previous one-time #1818 bootstrap was consumed; a further
+protected-source exception requires fresh explicit authority, named files and
+an independent review. Its proposed edit surface is the existing F2/F3 command
+owners (`commands/implement.md`, `commands/implement-fix.md`), process owner
+(`lib/test_runner.py`), F4 consumer (`lib/agent_ordering_gate.py` and only its
+necessary existing state/hook caller), and directly affected tests/docs—not
+policy, installer or a new signer/store. Freeze the failing case, base revision,
+expected old→new obligation mapping and exact file allowlist before that
+exception. The bounded bootstrap ends when the installed F2→F4 route preserves
+pytest's raw exit and complete capture, N4 forged evidence plus bare-marker and
+missing-raw-exit attempts still refuse the next specialist, and
+independent review accounts for every changed owner; an unfinished slice stays
+provisional. The bootstrap cannot mint F4, F0 or release credit, bypass a security gate, or
+silently change the frozen [#1818 P1/P2 and N1–N9 matrix](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914465347).
+
+Two claims must remain distinct. A parent-observed raw process exit, exact
+selection/configuration and bound artifact can establish that a specified
+pytest process ran. Its per-node reports are **attested under the recorded,
+reviewed pytest configuration**, including `conftest.py` and loaded plugins;
+pinning their bytes does not independently prove their truth. Required
+security-critical outcomes are also exercised by separately authored frozen
+acceptance/counterfactual cases through the existing independent oracle,
+against the same installed product behavior where applicable. That oracle's
+`--noconftest` profile cannot be substituted for the ordinary suite or its
+fixture semantics. Keep the forged skipped-test event as a refusal control:
+F4 remains HOLD until either (a) a genuine independent observer rejects N4
+and qualifies P1/P2 at the installed transition under the existing contract,
+or (b) an explicit old→new mapping for N4 and P1/P2 changes the trust
+assumption with separate approval and independent review. Branch (b) is a
+proposed decision, not authorized by this plan edit; do not present the frozen
+oracle as proof of ordinary-suite node execution. A hash or second child
+plugin is not branch (a), approval, or proof.
+
+Implement the bridge as one vertical slice: capture the base once per exact
+revision **and effective test profile** (argv, environment, configuration,
+loaded plugins and selected subject), with raw exit and complete output;
+invalidate that base if any binding changes. Freeze the required acceptance
+IDs outside the pytest child and reconcile them with the captured selection;
+ordinary-suite collected IDs remain configuration-bound attestation, not an
+independently discovered denominator. Empty, incomplete or changed selection
+refuses qualification. Observe argv and environment at the parent; treat
+plugin/`conftest.py` inventory as configuration-bound attestation unless an
+independent observer establishes the runtime load, and HOLD if the inventory
+cannot be reconciled. Run bounded changed-behavior, opposite and
+counterfactual cases during repair; compare the same qualified denominator
+for new failures; then run the required broad and installed native proof at
+promotion. Never pipe away pytest's exit, relabel focused green as full green,
+or require a repeated full-suite run after every local edit. Exercise the real
+Claude coordinator → hook → reviewer-dispatch transition on valid and invalid
+receipts, not merely a reducer unit test or agent report. Keep a before/after
+map of process owners, gate markers, tests, dependencies and operator steps;
+retire duplicate owners only after their distinct outcomes are preserved.
+Parallel inventory and delivery-contract work may proceed, but no migration
+promotion borrows this bootstrap's result. Final release also needs distinct
+clean and populated source-free installed-consumer proof and a measured
+dependency-inclusive net reduction in code, tests, dependencies and operator
+steps—not merely a before/after owner map.
+
 For every frozen acceptance row, record the claim, required observation and its
 authority, observation method, subject/run identity, temporal validity where
 applicable, result, limitation and decision. These are fields of the existing
@@ -965,7 +1027,10 @@ is identified:
 
 > Execute the workflow-assurance plan end to end to deliver a smaller, maintainable
 > autonomous-dev toolkit aligned with PROJECT.md. First freeze the finite release
-> control and consumer inventory, then complete F0, qualify the minimal verifier,
+> control and consumer inventory, then repair the self-maintenance test gate as
+> the bounded #1818 vertical slice without weakening its frozen acceptance;
+> distinguish configuration-bound suite attestation from independent behavioral
+> proof. Complete F0, qualify the minimal verifier,
 > package plugin-native delivery, release the sensitive-write slice, connect
 > evidence to existing SDLC gates, migrate the remaining included controls and
 > prove clean and populated consumer installation/update/recovery. Preserve
