@@ -1871,7 +1871,8 @@ def test_issue_1807_resume_routing_never_instructs_model_run_writer() -> None:
         "**Mutual exclusivity**", 1
     )[0]
     assert "record_run_start(" not in routing, "Resume routing instructs a model authority writer"
-    assert "native resume qualification remains OPEN" in routing
+    assert "native owner" in routing
+    assert "current-run provenance and checkpoint continuity" in routing
 
 
 def test_issue_1807_fix_alignment_requires_existing_native_state() -> None:
