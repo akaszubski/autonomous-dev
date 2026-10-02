@@ -613,17 +613,20 @@ def _determine_success(output: str) -> bool:
 class SessionTracker:
     """Basic session logging to docs/sessions/."""
 
-    def __init__(self):
+    def __init__(self, session_id: Optional[str] = None):
         """Initialize session tracker.
 
         When CLAUDE_SESSION_ID is set, session files include the session ID in
         their filename to prevent cross-session contamination (Issue #594).
+
+        Args:
+            session_id: Actual hook payload owner; defaults to legacy environment.
         """
         self.session_dir = Path("docs/sessions")
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         # Read CLAUDE_SESSION_ID for session isolation (Issue #594)
-        claude_session_id = os.environ.get("CLAUDE_SESSION_ID")
+        claude_session_id = session_id or os.environ.get("CLAUDE_SESSION_ID")
 
         # Find or create session file for today
         today = datetime.now().strftime("%Y%m%d")
@@ -633,14 +636,16 @@ class SessionTracker:
             if claude_session_id:
                 # Filter by session ID substring in filename
                 # Files created with this session ID include it in the name
-                safe_sid = claude_session_id.replace("/", "_").replace("\\", "_")
-                matching = [f for f in session_files if safe_sid in f.name]
+                safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                owner_digest = hashlib.sha256(claude_session_id.encode()).hexdigest()
+                matching = [f for f in session_files if (safe_sid in f.name or owner_digest in f.name)
+                            and f"**Claude Session ID**: {claude_session_id}\n" in f.read_text()]
                 if matching:
                     self.session_file = sorted(matching)[-1]
                 else:
                     # No match — create new session file for this session
                     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                    safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                    safe_sid = hashlib.sha256(claude_session_id.encode()).hexdigest()
                     self.session_file = self.session_dir / f"{timestamp}-{safe_sid}-session.md"
                     self.session_file.write_text(
                         f"# Session {timestamp}\n\n"
@@ -655,7 +660,7 @@ class SessionTracker:
             # Create new session file
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             if claude_session_id:
-                safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                safe_sid = hashlib.sha256(claude_session_id.encode()).hexdigest()
                 filename = f"{timestamp}-{safe_sid}-session.md"
                 session_header = (
                     f"# Session {timestamp}\n\n"
@@ -689,13 +694,14 @@ class SessionTracker:
             f.write(entry)
 
 
-def track_basic_session(agent_name: str, message: str) -> bool:
+def track_basic_session(agent_name: str, message: str, session_id: Optional[str] = None) -> bool:
     """
     Track agent completion in basic session log.
 
     Args:
         agent_name: Name of agent
         message: Completion message
+        session_id: Actual hook payload owner, when provided.
 
     Returns:
         True if logged successfully, False otherwise
@@ -704,7 +710,7 @@ def track_basic_session(agent_name: str, message: str) -> bool:
         return False
 
     try:
-        tracker = SessionTracker()
+        tracker = SessionTracker(session_id=session_id)
         tracker.log(agent_name, message)
         return True
     except Exception:
@@ -748,7 +754,8 @@ def extract_tools_from_output(output: str) -> Optional[List[str]]:
     return tools if tools else None
 
 
-def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: str) -> bool:
+def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: str,
+                              session_id: Optional[str] = None) -> bool:
     """
     Track agent completion in structured pipeline.
 
@@ -756,6 +763,7 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
         agent_name: Name of agent
         agent_output: Agent output text
         agent_status: "success" or "error"
+        session_id: Actual hook payload owner, when provided.
 
     Returns:
         True if tracked successfully, False otherwise
@@ -764,7 +772,17 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
         return False
 
     try:
-        tracker = AgentTracker()
+        if session_id and session_id != "unknown":
+            # Use the existing explicit-path API rather than environmental
+            # attribution or the most recent unrelated consumer session.
+            safe_sid = hashlib.sha256(session_id.encode()).hexdigest()
+            session_file = Path.cwd() / "docs" / "sessions" / (
+                f"{datetime.now():%Y%m%d}-{safe_sid}-pipeline.json"
+            )
+            tracker = AgentTracker(session_file=str(session_file))
+            tracker.session_data["claude_session_id"] = session_id
+        else:
+            tracker = AgentTracker()
 
         # Read feature_ref from environment (batch mode)
         feature_ref = os.environ.get("PIPELINE_FEATURE_REF", "")
@@ -1115,6 +1133,7 @@ def _write_jsonl_entry(
     agent_transcript_path: str,
     session_id: str,
     success: bool,
+    agent_id: str = "",
 ) -> bool:
     """Write a structured JSONL entry for the SubagentStop event.
 
@@ -1125,6 +1144,7 @@ def _write_jsonl_entry(
         agent_transcript_path: Validated transcript path or empty string.
         session_id: Session identifier.
         success: Whether the agent completed successfully.
+        agent_id: Actual child ID supplied by the native hook, never inferred.
 
     Returns:
         True if written successfully, False otherwise.
@@ -1146,6 +1166,8 @@ def _write_jsonl_entry(
             "session_id": session_id,
             "success": success,
         }
+        if isinstance(agent_id, str) and agent_id.strip():
+            entry["agent_id"] = agent_id
 
         # Include feature_ref from environment when in batch mode
         feature_ref = os.environ.get("PIPELINE_FEATURE_REF", "")
@@ -1153,7 +1175,11 @@ def _write_jsonl_entry(
             entry["feature_ref"] = feature_ref
 
         # Include plugin version for diagnostics (Issue #630)
-        entry["plugin_version"] = get_plugin_version() if HAS_VERSION_READER else "unknown"
+        # Installed hook identity owns this measurement. Consumer CWD and its
+        # git HEAD are not evidence of the plugin that executed this hook.
+        entry["plugin_version"] = get_plugin_version(
+            plugin_root=Path(__file__).resolve().parent.parent
+        ) if HAS_VERSION_READER else "unknown"
 
         with open(log_file, "a") as f:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
@@ -1528,10 +1554,10 @@ def main() -> int:
 
         # Dispatch tracking (all are non-blocking)
         # Basic session logging
-        track_basic_session(agent_name, summary)
+        track_basic_session(agent_name, summary, session_id=session_id)
 
         # Structured pipeline tracking
-        track_pipeline_completion(agent_name, agent_output, agent_status)
+        track_pipeline_completion(agent_name, agent_output, agent_status, session_id=session_id)
 
         # JSONL activity logging for CI agent visibility
         _write_jsonl_entry(
@@ -1541,6 +1567,7 @@ def main() -> int:
             agent_transcript_path=agent_transcript_path,
             session_id=session_id,
             success=success,
+            agent_id=(hook_input or {}).get("agent_id", ""),
         )
 
         # Pipeline ordering state — record agent completion (Issues #625, #629, #632)
@@ -1691,13 +1718,20 @@ def main() -> int:
             pass  # Non-blocking: progression evidence is additive, never a gate
 
         # Plan-critic stage advance (Staged Plan-Exit Pipeline)
+        system_message = ""
         if agent_name == "plan-critic":
             suggestion = _advance_plan_mode_stage()
             if suggestion is not None:
-                try:
-                    print(json.dumps({"systemMessage": suggestion}))
-                except Exception:
-                    pass  # Non-blocking: message output is advisory only
+                system_message = suggestion
+        if "--native" in sys.argv[1:]:
+            from hook_telemetry import format_native_trace
+            marker = format_native_trace(
+                "SubagentStop", session_id=(hook_input or {}).get("session_id"),
+                agent_id=(hook_input or {}).get("agent_id"),
+            )
+            system_message = f"{system_message}\n{marker}" if system_message else marker
+        if system_message:
+            print(json.dumps({"systemMessage": system_message}))
 
         # PROJECT.md progress updates (only for doc-master)
         if should_trigger_progress_update(agent_name) and check_pipeline_complete():

@@ -1778,11 +1778,11 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
         session_id = _session_id or os.getenv("CLAUDE_SESSION_ID", "unknown")
         issue_number = _get_current_issue_number()
 
-        # Issue #686: Record agent launch BEFORE checking prerequisites.
-        # This tracks that PreToolUse fired for this agent, enabling the
-        # parallel-mode defense-in-depth guard to distinguish "running
-        # concurrently" from "skipped entirely".
-        record_agent_launch(session_id, target_agent, issue_number=issue_number)
+        # Preserve legacy Task observation. Native Agent launch credit instead
+        # comes from the exact reservation after the final admission decision;
+        # a denied attempt is not a running specialist.
+        if tool_name == "Task":
+            record_agent_launch(session_id, target_agent, issue_number=issue_number)
 
         completed = get_completed_agents(session_id, issue_number=issue_number)
         launched = get_launched_agents(session_id, issue_number=issue_number)
@@ -7342,12 +7342,35 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
             "tool_use_id": _native_dispatch_input.get("tool_use_id", ""),
             "session_id": _native_dispatch_input.get("session_id", ""),
         })
+        # A refusal still belongs to the verified current run, when available.
+        # Never derive this attribution from a merely present/foreign sentinel.
+        try:
+            from pipeline_state import classify_current_run_authority
+            owner = _native_dispatch_input.get("session_id", "")
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            state = _load_pipeline_state_verified()
+            if (state and isinstance(owner, str) and owner.strip()
+                    and (not env_owner or env_owner == owner)
+                    and classify_current_run_authority(state, owner).typed_user_origin):
+                _native_decision_metadata["run_id"] = state["run_id"]
+        except Exception:
+            # Correlation failure cannot manufacture run attribution or alter a
+            # refusal; the separate admission path below remains fail-closed.
+            _native_decision_metadata.pop("run_id", None)
+            import logging
+            # Do not include exception text: it may contain sensitive carrier
+            # content. Retain a sanitized exception and its traceback instead.
+            logging.getLogger("unified_pre_tool.native_trace").error(
+                "Native decision run correlation failed; attribution omitted",
+                exc_info=(RuntimeError, RuntimeError("native correlation failure"), sys.exc_info()[2]),
+            )
     # Native Agent reservations belong to the final permission owner, never a
     # parallel observer. Denials/asks must not occupy the next dispatch lane.
     if decision == "allow" and _native_dispatch_input.get("tool_name") == "Agent":
         try:
             from pipeline_completion_state import (
-                is_synthetic_session_id, register_native_agent_dispatch, run_credit_refusal,
+                get_native_agent_run_id, is_synthetic_session_id,
+                register_native_agent_dispatch, run_credit_refusal,
             )
             from pipeline_state import classify_current_run_authority
 
@@ -7358,8 +7381,6 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
             sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(get_legacy_sentinel_path())
             refusal = run_credit_refusal(owner, sentinel_path=sentinel_path, native_dispatch=True)
             state = _load_pipeline_state_verified()
-            if state:
-                _native_decision_metadata["run_id"] = state.get("run_id", "")
             env_owner = os.environ.get("CLAUDE_SESSION_ID")
             if env_owner and env_owner != owner:
                 decision, reason = "deny", "Agent session identity mismatch"
@@ -7379,10 +7400,26 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
                 )
                 if verdict != "registered":
                     decision, reason = "deny", f"Native Agent dispatch refused: {verdict}"
+                else:
+                    _native_decision_metadata.pop("run_id", None)
+                    admitted_run = get_native_agent_run_id(owner, payload.get("tool_use_id", ""))
+                    if admitted_run is not None:
+                        _native_decision_metadata["run_id"] = admitted_run
+                    reason = "Native foreground Agent admitted with exact current typed-user reservation"
         except Exception as exc:
             decision, reason = "deny", f"Native Agent dispatch unavailable: {exc}"
     if _native_dispatch_input.get("tool_name") == "Agent":
         _write_pretool_activity("Agent", _native_dispatch_input.get("tool_input", {}) or {}, decision, reason)
+        # systemMessage is an existing native-protocol field. This bounded JSON
+        # line links native hook_id/output to the actual tool identity without
+        # adding unsupported envelope keys or relying on temporal proximity.
+        from hook_telemetry import format_native_trace
+        marker = format_native_trace(
+            "PreToolUse", session_id=_native_decision_metadata.get("session_id"),
+            tool_use_id=_native_decision_metadata.get("tool_use_id"),
+            run_id=_native_decision_metadata.get("run_id"), decision=decision,
+        )
+        system_message = f"{system_message}\n{marker}" if system_message else marker
     _emit_decision(decision, reason, system_message=system_message)
 
 

@@ -31,6 +31,55 @@ sys.path.insert(
 import session_activity_logger as sal
 
 
+@pytest.mark.parametrize("verified_run", [None, "verified-current-run"])
+def test_post_tooluse_preserves_native_raw_ids(tmp_path, monkeypatch, verified_run, capsys):
+    import pipeline_completion_state as pcs
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", lambda sid, tid: verified_run)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Agent",
+               "session_id": "native-owner", "tool_use_id": "actual-tool",
+               "tool_input": {}, "tool_response": {"agentId": "actual-child",
+                                                        "status": "completed"}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert entry["tool"] == "Agent"
+    assert entry["tool_use_id"] == "actual-tool"
+    assert entry["agent_id"] == "actual-child"
+    if verified_run:
+        assert entry["run_id"] == verified_run
+    else:
+        assert "run_id" not in entry
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["continue"] is True
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace["hook_event_name"] == "PostToolUse"
+    assert trace["tool_use_id"] == "actual-tool"
+    assert trace["agent_id"] == "actual-child"
+    assert trace.get("run_id") == verified_run
+
+
+def test_native_telemetry_exception_does_not_emit_raw_secret(tmp_path, monkeypatch, caplog):
+    import pipeline_completion_state as pcs
+    secret_marker = "INJECTED_SECRET_MARKER"
+    def fail(*args):
+        raise RuntimeError(secret_marker)
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", fail)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Agent",
+               "session_id": "owner", "tool_use_id": "actual-tool"}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    assert "INJECTED_SECRET_MARKER" not in caplog.text
+    assert "native correlation failure" in caplog.text
+    assert caplog.records[-1].exc_info[2] is not None
+
 class TestSummarizeInput:
     """Test input summarization for different tool types."""
 
@@ -270,7 +319,7 @@ class TestMainPostToolUse:
         assert len(log_files) == 1
         entry = json.loads(log_files[0].read_text().splitlines()[0])
         assert entry["tool"] == "Read"
-        assert entry["session_id"] == "test123"
+        assert entry["session_id"] == "unknown"
         assert "timestamp" in entry
 
     def test_debug_mode(self, tmp_path):
@@ -490,7 +539,7 @@ class TestPostToolUseHookField:
                         sal.main()
 
         entry = json.loads(list(log_dir.glob("*.jsonl"))[0].read_text().splitlines()[0])
-        assert entry["session_id"] == "from-env"
+        assert entry["session_id"] == "from-hook-input"
 
 
 class TestSessionDatePinning:
@@ -770,6 +819,7 @@ class TestAgentEventPriority:
         log_dir = tmp_path / ".claude" / "logs" / "activity"
         hook_input = json.dumps({
             "tool_name": "Agent",
+            "session_id": "priority-agent",
             "tool_input": {"description": "research", "subagent_type": "researcher", "prompt": "find patterns"},
             "tool_output": {"output": "found patterns"},
         })
@@ -985,8 +1035,8 @@ class TestSessionActivityLoggerPreToolUseCaching:
         assert popped["description"] == "fix bug"
         assert before <= popped["start_time"] <= after
 
-    def test_pretool_agent_caches_subagent_type(self, tmp_path, monkeypatch):
-        """PreToolUse for tool_name=Agent (newer Claude Code) also caches."""
+    def test_pretool_agent_observer_does_not_create_fifo_credit(self, tmp_path, monkeypatch):
+        """Native reservation belongs to the final guard, never this observer."""
         import subagent_invocation_cache as sic
         monkeypatch.setattr(
             sic,
@@ -1007,8 +1057,7 @@ class TestSessionActivityLoggerPreToolUseCaching:
                     sal.main()
 
         popped = sic.pop_invocation("pre-agent-1")
-        assert popped is not None
-        assert popped["subagent_type"] == "reviewer"
+        assert popped is None
 
     def test_pretool_non_agent_tool_does_not_cache(self, tmp_path, monkeypatch):
         """PreToolUse for non-Task/Agent tools (e.g. Read) does NOT cache."""

@@ -94,6 +94,7 @@ def test_namespaced_fix_ordering_through_actual_main(real_native_state, monkeypa
     assert "implementer" in first["permissionDecisionReason"]
     assert "pytest-gate" in first["permissionDecisionReason"]
     assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+    assert pcs.get_launched_agents(state["session_id"], issue_number=1807) == set()
     positive = invoke("autonomous-dev:alignment-classifier", "alignment")
     assert positive["permissionDecision"] == "allow", positive
     assert pcs.join_native_agent_result(state["session_id"], "alignment", "alignment-agent", "completed", False) == "completed"
@@ -104,6 +105,51 @@ def test_namespaced_fix_ordering_through_actual_main(real_native_state, monkeypa
     assert set(joins) == {"alignment"}
     assert joins["alignment"]["agent_type"] == "autonomous-dev:alignment-classifier"
     assert pcs.get_completed_agents(state["session_id"], issue_number=1807) == {"alignment-classifier"}
+    assert pcs.get_launched_agents(state["session_id"], issue_number=1807) == {"alignment-classifier"}
+
+
+@pytest.mark.parametrize("decision,owner", [("allow", None), ("deny", None), ("allow", "foreign-owner")])
+def test_native_output_trace_joins_actual_decision_without_forged_run(
+    real_native_state, monkeypatch, capsys, decision, owner,
+):
+    state = real_native_state
+    callback_owner = state["session_id"] if owner is None else owner
+    payload = {
+        "tool_name": "Agent", "session_id": callback_owner, "tool_use_id": "trace-call",
+        "tool_input": {"subagent_type": "autonomous-dev:alignment-classifier", "run_in_background": False},
+    }
+    monkeypatch.setattr(guard, "_session_id", callback_owner)
+    monkeypatch.setattr(guard, "_native_dispatch_input", payload)
+    guard.output_decision(decision, "workflow verdict", system_message="Keep this human message")
+    envelope = json.loads(capsys.readouterr().out)
+    human, marker = envelope["systemMessage"].split("\nAUTONOMOUS_DEV_NATIVE_TRACE ")
+    assert human == "Keep this human message"
+    trace = json.loads(marker)
+    assert trace["tool_use_id"] == "trace-call"
+    assert trace["session_id"] == callback_owner
+    assert trace["decision"] == envelope["hookSpecificOutput"]["permissionDecision"]
+    if owner is None:
+        assert trace["run_id"] == state["run_id"]
+    else:
+        assert "run_id" not in trace
+        assert trace["decision"] == "deny"
+
+
+@pytest.mark.parametrize("admitted_run", ["current-exact-run", None])
+def test_allow_trace_uses_final_exact_join_not_preliminary_run(real_native_state, monkeypatch, capsys, admitted_run):
+    state = real_native_state
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", lambda *_args: admitted_run)
+    monkeypatch.setattr(guard, "_session_id", state["session_id"])
+    monkeypatch.setattr(guard, "_native_dispatch_input", {
+        "tool_name": "Agent", "session_id": state["session_id"], "tool_use_id": "race-trace",
+        "tool_input": {"subagent_type": "autonomous-dev:alignment-classifier", "run_in_background": False},
+    })
+    guard.output_decision("allow", "workflow verdict")
+    envelope = json.loads(capsys.readouterr().out)
+    trace = json.loads(envelope["systemMessage"].split("AUTONOMOUS_DEV_NATIVE_TRACE ")[1])
+    assert envelope["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert trace.get("run_id") == admitted_run
+    assert trace.get("run_id") != state["run_id"]
 
 
 def test_owned_role_typo_refuses_without_native_reservation(real_native_state, monkeypatch, capsys):
@@ -134,6 +180,58 @@ def test_completion_alias_is_applied_only_after_raw_run_stamp_filter(real_native
     ledger["completion_run_ids"]["1807"][role] = "superseded"
     pcs._write_state(owner, ledger)
     assert pcs.get_completed_agents(owner, issue_number=1807) == set()
+
+
+@pytest.mark.parametrize("fault", [None, "foreign-owner", "wrong-run", "wrong-issue", "wrong-id", "partial-origin", "missing"])
+def test_exact_native_join_reader_never_invents_attribution(real_native_state, fault):
+    state = real_native_state
+    owner = state["session_id"]
+    assert pcs.register_native_agent_dispatch(owner, "joined", "autonomous-dev:alignment-classifier", False) == "registered"
+    ledger = pcs._read_state(owner)
+    if fault == "wrong-run":
+        ledger["native_agent_joins"]["joined"]["run_id"] = "foreign-run"
+    elif fault == "wrong-issue":
+        ledger["native_agent_joins"]["joined"]["issue_number"] = 99
+    elif fault == "wrong-id":
+        ledger["native_agent_joins"]["joined"]["tool_use_id"] = "another"
+    elif fault == "partial-origin":
+        ledger["native_origin"] = {}
+    pcs._write_state(owner, ledger)
+    result = pcs.get_native_agent_run_id("foreign-owner" if fault == "foreign-owner" else owner,
+                                         "missing" if fault == "missing" else "joined")
+    assert result == (state["run_id"] if fault is None else None)
+    if fault != "foreign-owner":
+        assert pcs.get_launched_agents(owner, issue_number=1807) == (
+            {"alignment-classifier"} if fault in (None, "missing") else set()
+        )
+
+
+@pytest.mark.parametrize("fault", ["run", "issue", "missing", "read-fault"])
+def test_native_join_reader_refuses_changed_second_carrier(real_native_state, monkeypatch, fault):
+    state = real_native_state
+    owner = state["session_id"]
+    assert pcs.register_native_agent_dispatch(owner, "joined", "autonomous-dev:alignment-classifier", False) == "registered"
+    original_scope = pcs._signed_native_agent_scope
+    scope = original_scope(owner)
+    monkeypatch.setattr(pcs, "_signed_native_agent_scope", lambda _owner: scope)
+    carrier = Path(os.environ["PIPELINE_STATE_FILE"])
+    if fault == "missing":
+        carrier.unlink()
+    elif fault == "read-fault":
+        original_read = Path.read_text
+        def read_text(path, *args, **kwargs):
+            if path == carrier:
+                raise OSError("carrier unreadable")
+            return original_read(path, *args, **kwargs)
+        monkeypatch.setattr(Path, "read_text", read_text)
+    else:
+        changed = dict(state)
+        changed["run_id" if fault == "run" else "issue_number"] = "later-run" if fault == "run" else 99
+        carrier.write_text(json.dumps(changed))
+        # The second carrier could itself be authorized; its changed identity
+        # must still not attribute the earlier ledger's join.
+        monkeypatch.setattr(ps, "classify_current_run_authority", lambda *_a: type("Verdict", (), {"typed_user_origin": True})())
+    assert pcs.get_native_agent_run_id(owner, "joined") is None
 
 
 @pytest.mark.parametrize("owner", ["", "foreign-owner"])

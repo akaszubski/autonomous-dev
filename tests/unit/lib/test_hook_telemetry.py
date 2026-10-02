@@ -32,6 +32,26 @@ import hook_telemetry  # noqa: E402
 import hook_recovery  # noqa: E402
 
 
+@pytest.mark.parametrize("invalid", [None, "x" * 129, "bad\nvalue", {"token": "secret"}])
+def test_native_trace_omits_unsupported_identifiers(invalid):
+    marker = hook_telemetry.format_native_trace("PostToolUse", session_id="actual-owner",
+        tool_use_id=invalid, agent_id=invalid, run_id=invalid, decision="unsupported")
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace == {"hook_event_name": "PostToolUse", "session_id": "actual-owner"}
+
+
+def test_native_trace_preserves_actual_ids_and_final_decision():
+    marker = hook_telemetry.format_native_trace("PreToolUse", session_id="owner",
+        tool_use_id="toolu_actual", run_id="verified-run", decision="deny")
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace["tool_use_id"] == "toolu_actual"
+    assert trace["run_id"] == "verified-run"
+    assert trace["decision"] == "deny"
+    with pytest.raises(ValueError):
+        hook_telemetry.format_native_trace("InventedCallback")
+    assert "decision" not in hook_telemetry.format_native_trace("PostToolUse", decision={})
+
+
 @pytest.fixture(autouse=True)
 def _clean_telemetry_env(monkeypatch):
     """Ensure telemetry env vars are unset for each test by default."""

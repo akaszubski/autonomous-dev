@@ -1291,7 +1291,7 @@ def native_agent_join_active(session_id: str) -> bool:
     # of issue scope or completion authority.
     try:
         from pipeline_state import verify_state_hmac
-        sentinel = json.loads(get_legacy_sentinel_path().read_text())
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
         return bool(
             isinstance(sentinel, dict)
             and sentinel.get("session_id") == session_id
@@ -1306,7 +1306,7 @@ def _signed_native_agent_scope(session_id: str) -> Optional[dict]:
     """Read the signed run carrier; unsigned/stale/foreign scope has no authority."""
     try:
         from pipeline_state import verify_state_hmac
-        sentinel = json.loads(get_legacy_sentinel_path().read_text())
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
         if (not isinstance(sentinel, dict)
                 or sentinel.get("session_id") != session_id
                 or sentinel.get("explicitly_invoked") is not True
@@ -1317,6 +1317,48 @@ def _signed_native_agent_scope(session_id: str) -> Optional[dict]:
             return None
         return {"run_id": sentinel.get("run_id"), "issue_number": issue}
     except (ImportError, OSError, ValueError, TypeError):
+        return None
+
+
+def get_native_agent_run_id(session_id: str, tool_use_id: str) -> Optional[str]:
+    """Return the verified run for an exact native Agent join, or no attribution.
+
+    Args:
+        session_id: Native callback owner, not a model-supplied parent identity.
+        tool_use_id: Exact foreground dispatch/result identity.
+
+    Returns:
+        Current typed-user run identifier only when the signed scope, ledger
+        owner and raw join bindings agree; otherwise ``None``. No ledger content
+        is written, although the existing state reader refreshes ledger mtime.
+    """
+    if not all(isinstance(value, str) and value.strip() for value in (session_id, tool_use_id)):
+        return None
+    try:
+        from pipeline_state import classify_current_run_authority
+        scope = _signed_native_agent_scope(session_id)
+        state = _read_state(session_id)
+        if (scope is None or not _native_agent_join_active(state)
+                or state.get("session_id") != session_id
+                or scope["run_id"] != state.get("current_run_id")):
+            return None
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
+        if (not isinstance(sentinel, dict)
+                or sentinel.get("session_id") != session_id
+                or sentinel.get("run_id") != scope["run_id"]
+                or sentinel.get("issue_number", "") != scope["issue_number"]
+                or not classify_current_run_authority(sentinel, session_id).typed_user_origin):
+            return None
+        joins = state.get("native_agent_joins", {})
+        entry = joins.get(tool_use_id) if isinstance(joins, dict) else None
+        if (not isinstance(entry, dict) or entry.get("tool_use_id") != tool_use_id
+                or entry.get("run_id") != scope["run_id"]
+                or entry.get("issue_number") != scope["issue_number"]
+                or entry.get("status") not in ("reserved", "completed", "failed")
+                or not isinstance(entry.get("agent_type"), str) or not entry["agent_type"].strip()):
+            return None
+        return scope["run_id"]
+    except (ImportError, OSError, ValueError, TypeError, AttributeError):
         return None
 
 
@@ -3455,6 +3497,27 @@ def get_launched_agents(
 
     result = set()
     state = _read_state(session_id)
+    signed_scope = _signed_native_agent_scope(session_id)
+    if _native_agent_join_active(state) or signed_scope is not None:
+        # Native launch credit is exact admission, not a pre-permission observer
+        # boolean. Filter raw binding first, then expose canonical policy roles.
+        if (signed_scope is None or state.get("session_id") != session_id
+                or signed_scope["run_id"] != state.get("current_run_id")):
+            return set()
+        joins = state.get("native_agent_joins", {})
+        if not isinstance(joins, dict):
+            return set()
+        return {
+            normalize_agent_identity(entry["agent_type"])
+            for tool_id, entry in joins.items()
+            if isinstance(entry, dict) and entry.get("tool_use_id") == tool_id
+            and entry.get("run_id") == signed_scope["run_id"]
+            and entry.get("issue_number") == signed_scope["issue_number"]
+            and str(entry.get("issue_number")) == str(issue_number)
+            and entry.get("status") in ("reserved", "completed")
+            and isinstance(entry.get("agent_type"), str) and entry["agent_type"].strip()
+            and get_native_agent_run_id(session_id, tool_id) == signed_scope["run_id"]
+        }
     if state:
         launches = state.get("launches", {})
         issue_key = str(issue_number)

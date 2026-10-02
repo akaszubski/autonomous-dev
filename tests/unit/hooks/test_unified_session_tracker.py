@@ -19,6 +19,102 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+def test_native_stop_retains_actual_identity_and_measured_version(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.setattr(ust, "_find_log_dir", lambda: tmp_path)
+    monkeypatch.setattr(ust, "_get_session_date", lambda sid: "2026-10-03")
+    assert ust._write_jsonl_entry(
+        subagent_type="autonomous-dev:alignment-classifier", duration_ms=0,
+        result_word_count=3, agent_transcript_path="/tmp/child.jsonl",
+        session_id="native-owner", success=True, agent_id="actual-child",
+    )
+    entry = json.loads((tmp_path / "2026-10-03.jsonl").read_text())
+    assert entry["agent_id"] == "actual-child"
+    assert "tool_use_id" not in entry
+    assert "run_id" not in entry
+    assert "(" not in entry["plugin_version"]
+
+
+def test_session_tracker_uses_payload_owner(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    tracker = ust.SessionTracker(session_id="native-payload-owner")
+    assert "native-payload-owner" in tracker.session_file.read_text()
+    assert ust.SessionTracker(session_id="native-payload-owner").session_file == tracker.session_file
+
+
+@pytest.mark.parametrize("installed_version", ["3.8.0", None])
+def test_stop_version_does_not_use_consumer_identity(tmp_path, monkeypatch, installed_version):
+    import unified_session_tracker as ust
+    installed = tmp_path / "installed"
+    hook = installed / "hooks" / "unified_session_tracker.py"
+    hook.parent.mkdir(parents=True)
+    manifest = installed / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir()
+    if installed_version:
+        manifest.write_text(json.dumps({"version": installed_version}))
+    consumer_manifest = tmp_path / "plugins" / "autonomous-dev" / "plugin.json"
+    consumer_manifest.parent.mkdir(parents=True)
+    consumer_manifest.write_text(json.dumps({"version": "consumer-decoy"}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "__file__", str(hook))
+    monkeypatch.setattr(ust, "_find_log_dir", lambda: tmp_path / "logs")
+    monkeypatch.setattr(ust, "_get_session_date", lambda sid: "2026-10-03")
+    assert ust._write_jsonl_entry(subagent_type="reviewer", duration_ms=0,
+        result_word_count=1, agent_transcript_path="", session_id="owner", success=True)
+    entry = json.loads((tmp_path / "logs" / "2026-10-03.jsonl").read_text())
+    assert entry["plugin_version"] == (installed_version or "unknown")
+
+
+def test_pipeline_docs_use_explicit_payload_owner(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    tracker = MagicMock()
+    tracker.session_data = {}
+    factory = MagicMock(return_value=tracker)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "TRACK_PIPELINE", True)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    monkeypatch.setattr(ust, "AgentTracker", factory, raising=False)
+    assert ust.track_pipeline_completion("reviewer", "Done", "success", session_id="payload-owner")
+    session_file = Path(factory.call_args.kwargs["session_file"])
+    assert session_file.parent == tmp_path / "docs" / "sessions"
+    assert len(session_file.name) < 100
+    assert tracker.session_data["claude_session_id"] == "payload-owner"
+
+
+def test_basic_docs_do_not_merge_owners_with_same_prefix(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    first = ust.SessionTracker(session_id="0123456789abcdef-owner-a")
+    second = ust.SessionTracker(session_id="0123456789abcdef-owner-b")
+    assert first.session_file != second.session_file
+    assert "owner-a" in first.session_file.read_text()
+    assert "owner-b" in second.session_file.read_text()
+    assert ust.SessionTracker(session_id="0123456789abcdef-owner-a").session_file == first.session_file
+
+
+def test_native_stop_trace_preserves_existing_suggestion(monkeypatch, capsys):
+    import unified_session_tracker as ust
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setattr(sys, "argv", ["unified_session_tracker.py", "--native"])
+    monkeypatch.setattr(ust, "track_basic_session", lambda *a, **k: True)
+    monkeypatch.setattr(ust, "track_pipeline_completion", lambda *a, **k: True)
+    monkeypatch.setattr(ust, "_write_jsonl_entry", lambda **k: True)
+    monkeypatch.setattr(ust, "_advance_plan_mode_stage", lambda: "Existing plan suggestion")
+    payload = {"agent_type": "plan-critic", "session_id": "native-stop-owner",
+               "agent_id": "actual-child", "last_assistant_message": "Done"}
+    with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+        assert ust.main() == 0
+    envelope = json.loads(capsys.readouterr().out)
+    suggestion, marker = envelope["systemMessage"].split("\n", 1)
+    assert suggestion == "Existing plan suggestion"
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace == {"hook_event_name": "SubagentStop", "session_id": "native-stop-owner",
+                     "agent_id": "actual-child"}
+    assert "hookSpecificOutput" not in envelope
+
+
 @pytest.fixture(autouse=True)
 def _clean_subagent_stop_markers():
     """Clean /tmp dedup markers before each test (Issue #1176 isolation).

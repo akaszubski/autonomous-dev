@@ -7,7 +7,7 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Reviewed source is `1c2a8ad1`; canonical
+before the historical entries below. Committed source is `d433a3a5`; canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
@@ -26,12 +26,29 @@ That process is terminal. Preflight of the Agent continuation found a registered
 namespace bypass: the exact fix-mode source RED admitted `autonomous-dev:reviewer`
 without implementer or pytest-gate prerequisites. Its [preserved failing case](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962524692)
 and independently traced hook route require the scoped shared-identity repair
-before native continuation. The repair is under independent review; its actual
-hook-path deny/alignment-permit/deny source cases pass, but are not native proof.
-Next: commit the reviewed repair, install fresh committed bytes, then run the
-separately reviewed Agent admission/result diagnostic and the remaining
-installed-policy effects and transition obligations. Do not repeat the old
-initialization or run the known-defective installed cache unchanged.
+before native continuation. That namespace repair was independently reviewed,
+committed and installed fresh at `d433a3a5`. Its real native continuation denied
+a premature reviewer, permitted the alignment classifier, and denied the reviewer
+again. The permitted parent call, actual child metadata and current-run ledger
+join agreed; neither denied reviewer acquired a native completion. This is
+bounded native evidence, not complete provenance or A9 acceptance.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-role-native.m1wEf4Dr/NATIVE_AGENT_RESULT.md`
+and [the native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962676528).
+The continuation terminated with raw exit 0 after 83.986 seconds. Inspection
+found remaining defects: denied attempts still acquired legacy launch flags;
+native hook responses lacked an explicit tool/telemetry trace; post-tool and
+stop records lacked required identity fields; session reports used consumer
+revision rather than installed plugin version. Scoped repairs are uncommitted
+and under independent review. Source tests do not close those native gaps.
+
+Next: finish the shared trace in the existing callbacks, review the settled
+combined repair, commit through normal checks, install fresh committed bytes,
+and replay the changed native admission/result case before the remaining
+installed-policy effects and transition obligations. Do not repeat an unchanged
+native case or treat old installed bytes as the new subject. Tracked cache bytes
+matched, but two extra bytecode files appeared after execution during inspection;
+their origin is unproven, so total cache immutability is not established.
 
 ### Previous installed carrier diagnostic — historical
 
