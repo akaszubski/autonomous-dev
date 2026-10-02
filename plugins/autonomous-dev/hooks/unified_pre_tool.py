@@ -785,14 +785,17 @@ PIPELINE_AGENTS = [
 # (known pipeline role) — stripping an arbitrary prefix would let
 # "evil:implementer" authorize itself as the implementer.
 #
-# Hardcoded rather than read from plugins/autonomous-dev/.claude-plugin/
-# plugin.json on purpose: this hook runs under a 5s budget on every tool call,
+# Shared with ordering and completion views rather than read from plugin.json:
+# this hook runs under a bounded budget on every tool call,
 # and the installed copy at .claude/hooks/ has no plugin manifest beside it, so
 # a manifest read would be both a per-call I/O cost and unreliable at the one
 # location that matters. tests/regression/test_issue_1811_namespaced_agent_
 # identity.py cross-validates this constant against plugin.json so the two
 # cannot drift silently.
-REGISTERED_PLUGIN_NAMESPACES: frozenset = frozenset({'autonomous-dev'})
+from agent_ordering_gate import (  # noqa: E402 - hook library path bootstrap above
+    REGISTERED_PLUGIN_NAMESPACES,
+    normalize_agent_identity,
+)
 
 
 def _normalize_agent_identity(raw_name: str) -> str:
@@ -816,10 +819,8 @@ def _normalize_agent_identity(raw_name: str) -> str:
     Returns:
         The bare pipeline role when both halves validate, else ``raw_name``.
     """
-    if ':' not in raw_name:
-        return raw_name
-    namespace, _, role = raw_name.partition(':')
-    if namespace in REGISTERED_PLUGIN_NAMESPACES and role in PIPELINE_AGENTS:
+    role = normalize_agent_identity(raw_name)
+    if role in PIPELINE_AGENTS:
         return role
     return raw_name
 
@@ -1526,7 +1527,7 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
         return ("allow", "Not an agent invocation")
 
     # Extract agent type first — needed for minimum word count check
-    agent_type = tool_input.get("subagent_type", "").strip().lower()
+    agent_type = normalize_agent_identity(tool_input.get("subagent_type", ""))
     if not agent_type:
         return ("allow", "Could not determine agent type")
 
@@ -1760,6 +1761,10 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
             target_agent = _extract_subagent_type(task_desc)
         if not target_agent:
             return ("allow", "Could not determine target agent - allowing")
+        canonical_target = normalize_agent_identity(target_agent)
+        namespace = target_agent.partition(":")[0]
+        if ":" in target_agent and namespace in REGISTERED_PLUGIN_NAMESPACES and canonical_target == target_agent:
+            return ("deny", "Unknown owned pipeline role; use an installed autonomous-dev role")
 
         # Import completion state and ordering gate
         from pipeline_completion_state import (
@@ -10351,7 +10356,7 @@ def main():
                     # Issue #1227: Set redispatch flag when ordering gate denies
                     try:
                         from prompt_integrity import set_redispatch_flag
-                        target_agent = tool_input.get('subagent_type', '').strip().lower()
+                        target_agent = normalize_agent_identity(tool_input.get('subagent_type', ''))
                         if target_agent:
                             set_redispatch_flag(target_agent)
                     except Exception:

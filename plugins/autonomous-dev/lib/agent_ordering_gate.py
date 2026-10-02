@@ -59,6 +59,29 @@ except ImportError:
         ("test-master", "implementer"),
     ]
 
+REGISTERED_PLUGIN_NAMESPACES = frozenset({"autonomous-dev"})
+
+
+def normalize_agent_identity(raw_name: str) -> str:
+    """Return an owned pipeline role without weakening foreign identities.
+
+    Args:
+        raw_name: Bare or plugin-namespaced agent identity.
+
+    Returns:
+        Canonical role only for an exact registered namespace and known role;
+        otherwise the stripped, lowercased original identity. Native receipt
+        callers must retain the raw identity for exact dispatch/result joins.
+    """
+    name = raw_name.strip().lower()
+    namespace, separator, role = name.partition(":")
+    if separator and namespace in REGISTERED_PLUGIN_NAMESPACES and (
+        role in STEP_ORDER or role == "alignment-classifier"
+    ):
+        return role
+    return name
+
+
 # Full set of agents for a complete pipeline run
 FULL_PIPELINE_AGENTS = {
     "researcher-local",
@@ -197,7 +220,10 @@ def check_ordering_prerequisites(
     Returns:
         GateResult indicating whether the agent may proceed.
     """
-    target = target_agent.strip().lower()
+    target = normalize_agent_identity(target_agent)
+    completed_agents = {normalize_agent_identity(agent) for agent in completed_agents}
+    if launched_agents is not None:
+        launched_agents = {normalize_agent_identity(agent) for agent in launched_agents}
 
     # Unknown agents pass through
     if target not in STEP_ORDER:

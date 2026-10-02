@@ -3231,8 +3231,12 @@ def get_completed_agents(
             scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Returns:
-        Set of agent type strings that completed successfully.
+        Canonical owned-role strings that completed successfully. Raw receipt
+        identity and run stamps are validated before aliases are applied;
+        foreign plugin identities are never stripped.
     """
+    from agent_ordering_gate import normalize_agent_identity
+
     result: set[str] = set()
     state = _read_state(session_id, run_id=run_id)
     if state:
@@ -3255,13 +3259,13 @@ def get_completed_agents(
     # Run-id-scoped state files are per-invocation; the 'unknown' bootstrap
     # path only applies to the legacy session-id-hashed scheme. (#1041)
     if run_id:
-        return result
+        return {normalize_agent_identity(agent) for agent in result}
 
     # A native run is owned by its signed session and run receipt. The legacy
     # 'unknown' merge would import another session's completion into that owner.
     # Keep the permissive fallback only for non-native legacy sessions.
     if _native_agent_join_active(state) or _signed_native_agent_scope(session_id) is not None:
-        return result
+        return {normalize_agent_identity(agent) for agent in result}
 
     # Merge completions from the 'unknown' session. The coordinator may have
     # recorded some agent completions before CLAUDE_SESSION_ID was available,
@@ -3279,12 +3283,12 @@ def get_completed_agents(
                 mtime = path.stat().st_mtime
                 if time.time() - mtime > STALE_UNKNOWN_TTL_SECONDS:
                     # Stale 'unknown' state — do NOT merge.
-                    return result
+                    return {normalize_agent_identity(agent) for agent in result}
             else:
-                return result
+                return {normalize_agent_identity(agent) for agent in result}
         except OSError:
             # Fail-safe: if stat fails we can't verify freshness, skip merge.
-            return result
+            return {normalize_agent_identity(agent) for agent in result}
 
         fallback_state = _read_state("unknown")
         if fallback_state:
@@ -3315,7 +3319,7 @@ def get_completed_agents(
                     )
                     result |= fallback_result
 
-    return result
+    return {normalize_agent_identity(agent) for agent in result}
 def get_planner_completion_count(session_id: str, since_timestamp: float) -> int:
     """Count planner completions after a given epoch timestamp.
     
@@ -3442,10 +3446,13 @@ def get_launched_agents(
         issue_number: The issue number (0 for non-batch).
 
     Returns:
-        Set of agent type strings that have been launched.
+        Canonical owned-role strings that have been launched; raw ledger
+        identities remain unchanged and foreign namespaces remain distinct.
 
     Issues: #686, #738
     """
+    from agent_ordering_gate import normalize_agent_identity
+
     result = set()
     state = _read_state(session_id)
     if state:
@@ -3465,7 +3472,7 @@ def get_launched_agents(
             fallback_result = {k for k, v in issue_launches.items() if v}
             result |= fallback_result
 
-    return result
+    return {normalize_agent_identity(agent) for agent in result}
 
 
 def record_prompt_baseline(

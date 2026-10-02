@@ -57,6 +57,85 @@ def _emit_guard(monkeypatch, capsys, state, decision, tool_id, owner=None):
     return json.loads(capsys.readouterr().out)["hookSpecificOutput"]
 
 
+def test_namespaced_fix_ordering_through_actual_main(real_native_state, monkeypatch, capsys):
+    state = pcs.initialize_native_run_from_event({
+        "hook_event_name": "UserPromptExpansion", "command_name": "implement",
+        "command_args": "--fix #1807", "command_source": "user",
+        "prompt": "/implement --fix #1807", "session_id": real_native_state["session_id"],
+    })
+    assert state is not None and state["mode"] == "fix"
+    prompt = (
+        "Review the frozen diagnostic admission sequence against consumer intent. "
+        "No product implementation or test-gate result exists in this run. Do not edit files, "
+        "execute commands, read secrets, inspect directories, delegate work, or certify acceptance. "
+        "If the guard permits this deliberately premature dispatch, report that unexpected outcome "
+        "and stop; do not invent prerequisite completion or repair the workflow. This invocation "
+        "is an externally supervised negative control for the existing fix-mode ordering guard, "
+        "not an authorization to perform release review. Preserve uncertainty and provide no "
+        "success claim about the wider workflow. The consumer scope permits bounded guard-admission "
+        "observation only, excludes product changes and deployment, and leaves native Task lifecycle, "
+        "child-session identity, security, full-workflow and release qualification open. No implementer "
+        "output, changed-file evidence or passing pytest-gate receipt has been supplied for issue 1807."
+    )
+
+    def invoke(role, tool_id):
+        payload = {
+            "hook_event_name": "PreToolUse", "tool_name": "Agent",
+            "session_id": state["session_id"], "tool_use_id": tool_id,
+            "tool_input": {"subagent_type": role, "run_in_background": False, "prompt": prompt},
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        with pytest.raises(SystemExit):
+            guard.main()
+        return json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+
+    first = invoke("autonomous-dev:reviewer", "premature-review")
+    assert first["permissionDecision"] == "deny", first
+    assert "implementer" in first["permissionDecisionReason"]
+    assert "pytest-gate" in first["permissionDecisionReason"]
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+    positive = invoke("autonomous-dev:alignment-classifier", "alignment")
+    assert positive["permissionDecision"] == "allow", positive
+    assert pcs.join_native_agent_result(state["session_id"], "alignment", "alignment-agent", "completed", False) == "completed"
+    second = invoke("autonomous-dev:reviewer", "still-premature")
+    assert second["permissionDecision"] == "deny", second
+    assert "implementer" in second["permissionDecisionReason"]
+    joins = pcs._read_state(state["session_id"])["native_agent_joins"]
+    assert set(joins) == {"alignment"}
+    assert joins["alignment"]["agent_type"] == "autonomous-dev:alignment-classifier"
+    assert pcs.get_completed_agents(state["session_id"], issue_number=1807) == {"alignment-classifier"}
+
+
+def test_owned_role_typo_refuses_without_native_reservation(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    role = "autonomous-dev:reviewerr"
+    payload = {
+        "hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": state["session_id"],
+        "tool_use_id": "owned-typo", "tool_input": {"subagent_type": role, "run_in_background": False},
+    }
+    monkeypatch.setattr(guard, "_session_id", state["session_id"])
+    monkeypatch.setattr(guard, "_native_dispatch_input", payload)
+    decision, reason = guard.validate_pipeline_ordering("Agent", payload["tool_input"])
+    guard.output_decision(decision, reason)
+    result = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert result["permissionDecision"] == "deny"
+    assert "Unknown owned pipeline role" in result["permissionDecisionReason"]
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+
+
+def test_completion_alias_is_applied_only_after_raw_run_stamp_filter(real_native_state):
+    state = real_native_state
+    owner = state["session_id"]
+    role = "autonomous-dev:implementer"
+    assert pcs.register_native_agent_dispatch(owner, "implement", role, False) == "registered"
+    assert pcs.join_native_agent_result(owner, "implement", "implement-agent", "completed", False) == "completed"
+    assert pcs.get_completed_agents(owner, issue_number=1807) == {"implementer"}
+    ledger = pcs._read_state(owner)
+    ledger["completion_run_ids"]["1807"][role] = "superseded"
+    pcs._write_state(owner, ledger)
+    assert pcs.get_completed_agents(owner, issue_number=1807) == set()
+
+
 @pytest.mark.parametrize("owner", ["", "foreign-owner"])
 def test_final_permission_owner_refuses_identity_then_permits_retry(
     real_native_state, monkeypatch, capsys, owner,

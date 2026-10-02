@@ -22,9 +22,16 @@ owner, strict HMAC, run `85de3f2bb6afc930`, and consumer base `3f6a8692`;
 independent review confirmed the native stream contained no tool calls.
 Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-guard-native.OMfuefev/INITIAL_RESULT.md`
 and [#1807's initialization record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962462405).
-That process is terminal. Next is the separately reviewed same-session real
-Agent admission/result diagnostic, followed by the remaining installed-policy
-effects and transition obligations; do not repeat initialization unchanged.
+That process is terminal. Preflight of the Agent continuation found a registered
+namespace bypass: the exact fix-mode source RED admitted `autonomous-dev:reviewer`
+without implementer or pytest-gate prerequisites. Its [preserved failing case](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962524692)
+and independently traced hook route require the scoped shared-identity repair
+before native continuation. The repair is under independent review; its actual
+hook-path deny/alignment-permit/deny source cases pass, but are not native proof.
+Next: commit the reviewed repair, install fresh committed bytes, then run the
+separately reviewed Agent admission/result diagnostic and the remaining
+installed-policy effects and transition obligations. Do not repeat the old
+initialization or run the known-defective installed cache unchanged.
 
 ### Previous installed carrier diagnostic — historical
 
