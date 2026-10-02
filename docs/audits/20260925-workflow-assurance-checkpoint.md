@@ -4,6 +4,33 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## Current restart pointer — 2026-10-03
+
+Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
+before the historical entries below. Reviewed source is `8998218f`; canonical
+plan commit is `08535ac9`. The working checkout is
+`/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
+It now has uncommitted guard-registration, dispatch-reservation and telemetry
+repairs with independent provisional source review and 193 focused cases passing;
+do not treat source approval as native qualification or deploy them.
+
+Fresh installed native session `5a686b62-fcc7-4404-ab9a-41492a5814c3`
+completed initialization (18.230s) and the Bash diagnostic (140.113s), both
+raw exit 0. Actual registries were empty and Bash-only respectively. Installed
+signature/owner/user-origin checks passed; all 17 scoped carrier-effect arms
+executed (16 protected denials, ordinary permit), with unchanged protected hashes.
+A historical-key-directory enumeration attempt was denied, not an exposure.
+Evidence is `/Users/akaszubski/.codex/artifacts/adev-a9-owner-native.JyihnsLW`;
+both native processes are terminal, so do not restart either unchanged.
+
+Next: commit the reviewed candidate through the normal gate, then qualify the
+fresh installed guard and trusted-input effects before #1818. Source cases
+preserve ordinary non-pipeline Agent permit and final hook/activity/block-receipt
+agreement including failures; actual native child-session binding is unproven.
+Native Task lifecycle is explicitly HOLD; only the non-native legacy Task
+path has a preserved source-level positive, not all consumer/harness versions.
+A9, F0, release census, product delivery and consumer release remain OPEN.
+
 ## 2026-10-01 native sequencing checkpoint
 
 The #1818 child-event false pass was independently reproduced three times on

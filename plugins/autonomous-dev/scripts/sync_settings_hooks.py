@@ -188,7 +188,7 @@ def _detect_stale_local_warnings(
 
 _PLUGIN_OWNED_CALLBACKS = {
     "native_run_origin.py", "session_activity_logger.py",
-    "unified_session_tracker.py",
+    "unified_session_tracker.py", "unified_pre_tool.py",
 }
 
 
@@ -325,6 +325,7 @@ def _owned_legacy_command(event: str, matcher: str, hook: Any) -> bool:
         return False
     return (
         (event == "UserPromptExpansion" and basename == "native_run_origin.py")
+        or (event == "PreToolUse" and matcher == "*" and basename == "unified_pre_tool.py")
         or (event == "PreToolUse" and matcher == "Skill" and basename == "native_run_origin.py")
         or (event == "PreToolUse" and basename == "session_activity_logger.py"
             and bool({"Task", "Agent"} & set(matcher.split("|"))))

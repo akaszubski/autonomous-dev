@@ -75,6 +75,16 @@ def _commands(settings):
             for entry in entries for hook in entry.get("hooks", [])]
 
 
+def test_native_guard_migration_retires_only_exact_legacy_owner():
+    legacy = {"type": "command", "command": "python3 ~/.claude/hooks/unified_pre_tool.py"}
+    foreign = {"type": "command", "command": "python3 /opt/consumer/unified_pre_tool.py"}
+    hooks = {"PreToolUse": [{"matcher": "*", "hooks": [legacy, foreign]}]}
+    migrated, removed = _strip_plugin_owned(hooks)
+    assert removed == 1
+    assert migrated == {"PreToolUse": [{"matcher": "*", "hooks": [foreign]}]}
+    assert hooks["PreToolUse"][0]["hooks"] == [legacy, foreign]
+
+
 def test_populated_global_and_local_survive_two_installs(tmp_path):
     user = tmp_path / ".claude" / "settings.json"
     user.parent.mkdir()

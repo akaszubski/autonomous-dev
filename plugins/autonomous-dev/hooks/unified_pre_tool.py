@@ -76,6 +76,8 @@ from typing import Any, Dict, Tuple, List, Optional
 # Module-level session_id extracted from hook stdin (set in main()).
 # Logging functions fall back to this when CLAUDE_SESSION_ID env var is absent.
 _session_id: str = "unknown"
+_native_dispatch_input: dict = {}
+_native_decision_metadata: dict = {}
 
 # Defensive import of python_write_detector (Issue #589).
 # Falls back to None so inline regex continues to work if import fails.
@@ -2140,6 +2142,27 @@ def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
                     )
                 )
                 sys.exit(0)
+            # A native sentinel is only a projection of a currently RESERVED
+            # exact dispatch. Failed terminal cleanup cannot extend authority
+            # merely by leaving this file active until its TTL.
+            state = _load_pipeline_state_verified()
+            if state:
+                from pipeline_state import classify_current_run_authority
+                if classify_current_run_authority(state, _native_stdin_identity()).typed_user_origin:
+                    from agent_dispatch_sentinel import _path as _dispatch_path
+                    from pipeline_completion_state import _read_state
+                    dispatch = json.loads(_dispatch_path().read_text(encoding="utf-8"))
+                    ledger = _read_state(_native_stdin_identity())
+                    generation = dispatch.get("generation")
+                    join = ledger.get("native_agent_joins", {}).get(generation, {})
+                    if (
+                        ledger.get("current_run_id") != state.get("run_id")
+                        or join.get("run_id") != state.get("run_id")
+                        or join.get("tool_use_id") != generation
+                        or join.get("status") != "reserved"
+                    ):
+                        output_decision("deny", "Protected edit requires a currently reserved native Agent dispatch")
+                        sys.exit(0)
         except ImportError:
             # Issue #1296: Fail CLOSED when sentinel library missing for security-critical check
             file_name = Path(file_path).name if file_path else "unknown"
@@ -2157,6 +2180,9 @@ def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
                     f"Blocking protected-path edit for security. (Issue #1296)"
                 )
             )
+            sys.exit(0)
+        except Exception as exc:
+            output_decision("deny", f"Protected dispatch authority unavailable: {exc}")
             sys.exit(0)
         # implementer-dispatched edit: permit as before (fall through to WPG/other checks)
         return
@@ -7239,6 +7265,14 @@ def _log_write_gate_bypass_deferred(file_path: str, call_key: str) -> None:
 
 
 def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
+    # Native Agent logging is deferred until the permission owner resolves the
+    # reservation. Preliminary validators must not emit a contradictory allow.
+    if tool_name == "Agent" and _native_dispatch_input.get("tool_name") == "Agent":
+        return
+    _write_pretool_activity(tool_name, tool_input, decision, reason)
+
+
+def _write_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
     """Log PreToolUse decision to shared activity log."""
     try:
         import json as _json
@@ -7273,13 +7307,16 @@ def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reaso
             "agent": _get_active_agent_name() or "main",
             **summary,
         }
+        if tool_name == "Agent" and _native_dispatch_input.get("tool_name") == "Agent":
+            entry["tool_use_id"] = _native_dispatch_input.get("tool_use_id", "")
+            if _native_decision_metadata.get("run_id"):
+                entry["run_id"] = _native_decision_metadata["run_id"]
         with open(log_dir / f"{date_str}.jsonl", "a") as f:
             f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
     except Exception:
         pass
 
 
-@block_event_decorator("unified_pre_tool.py")
 def output_decision(decision: str, reason: str, *, system_message: str = ""):
     """Output the hook decision in required format.
 
@@ -7294,6 +7331,59 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
     deny-reason text can be reconstructed without grepping session
     transcripts. The decorator is idempotent and never raises.
     """
+    _native_decision_metadata.clear()
+    if _native_dispatch_input.get("tool_name") == "Agent":
+        _native_decision_metadata.update({
+            "tool_use_id": _native_dispatch_input.get("tool_use_id", ""),
+            "session_id": _native_dispatch_input.get("session_id", ""),
+        })
+    # Native Agent reservations belong to the final permission owner, never a
+    # parallel observer. Denials/asks must not occupy the next dispatch lane.
+    if decision == "allow" and _native_dispatch_input.get("tool_name") == "Agent":
+        try:
+            from pipeline_completion_state import (
+                is_synthetic_session_id, register_native_agent_dispatch, run_credit_refusal,
+            )
+            from pipeline_state import classify_current_run_authority
+
+            payload = _native_dispatch_input
+            owner = payload.get("session_id", "")
+            if not isinstance(owner, str) or not owner.strip() or is_synthetic_session_id(owner):
+                raise ValueError("missing or invalid native Agent callback owner")
+            sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(get_legacy_sentinel_path())
+            refusal = run_credit_refusal(owner, sentinel_path=sentinel_path, native_dispatch=True)
+            state = _load_pipeline_state_verified()
+            if state:
+                _native_decision_metadata["run_id"] = state.get("run_id", "")
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            if env_owner and env_owner != owner:
+                decision, reason = "deny", "Agent session identity mismatch"
+            elif refusal:
+                decision, reason = "deny", refusal
+            elif state is None and not os.path.lexists(sentinel_path):
+                pass  # Genuine no-run neighbour: no native credit or reservation.
+            elif state is None or not classify_current_run_authority(state, owner).typed_user_origin:
+                decision, reason = "deny", "Native Agent requires current typed-user authority"
+            else:
+                fields = payload.get("tool_input", {}) or {}
+                from session_activity_logger import prepare_agent_dispatch
+                verdict = register_native_agent_dispatch(
+                    owner, payload.get("tool_use_id", ""),
+                    fields.get("subagent_type", ""), fields.get("run_in_background"),
+                    prepare=lambda: prepare_agent_dispatch(payload, strict=True),
+                )
+                if verdict != "registered":
+                    decision, reason = "deny", f"Native Agent dispatch refused: {verdict}"
+        except Exception as exc:
+            decision, reason = "deny", f"Native Agent dispatch unavailable: {exc}"
+    if _native_dispatch_input.get("tool_name") == "Agent":
+        _write_pretool_activity("Agent", _native_dispatch_input.get("tool_input", {}) or {}, decision, reason)
+    _emit_decision(decision, reason, system_message=system_message)
+
+
+@block_event_decorator("unified_pre_tool.py", metadata=_native_decision_metadata)
+def _emit_decision(decision: str, reason: str, *, system_message: str = ""):
+    """Emit only the final verdict so existing block telemetry sees refusals."""
     output = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -8963,6 +9053,8 @@ def _phase_e_skip(
 
 def main():
     """Main entry point - dispatch to all validators and combine decisions."""
+    global _native_dispatch_input
+    _native_dispatch_input = {}
     try:
         # Load environment variables
         load_env()
@@ -8970,6 +9062,7 @@ def main():
         # Read input from stdin
         try:
             input_data = json.load(sys.stdin)
+            _native_dispatch_input = input_data
         except json.JSONDecodeError as e:
             # Invalid JSON - ask user (don't block on invalid input)
             output_decision("ask", f"Invalid input JSON: {e}")

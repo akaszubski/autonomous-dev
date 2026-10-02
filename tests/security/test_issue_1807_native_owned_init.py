@@ -2052,6 +2052,26 @@ def test_plugin_native_origin_registration_is_executable_and_scoped():
         ]
 
 
+def test_plugin_native_guard_registration_covers_every_tool():
+    """#1807: native installs must execute the existing guard, not just observers."""
+    declaration = json.loads((_HOOK_DIR / "hooks.json").read_text(encoding="utf-8"))
+    expected_path = "${CLAUDE_PLUGIN_ROOT}/hooks/unified_pre_tool.py"
+    guards = [
+        (group, entry)
+        for group in declaration["hooks"]["PreToolUse"]
+        for entry in group.get("hooks", [])
+        if expected_path in entry.get("args", [])
+    ]
+    assert guards, "The native plugin omits the authorizing PreToolUse guard"
+    assert all(group["matcher"] == "*" for group, _ in guards)
+    assert all(entry == {
+        "type": "command", "command": "python3",
+        "args": [expected_path], "timeout": 20,
+    } for _, entry in guards)
+    assert len(guards) == 1, "Duplicate guard callbacks consume the same dispatch"
+    assert (_HOOK_DIR / "unified_pre_tool.py").is_file()
+
+
 def test_hook_metadata_declares_both_registrations():
     """The hook's own metadata must agree with the settings surfaces (source-side)."""
     meta = json.loads(

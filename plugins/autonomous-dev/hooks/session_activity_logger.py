@@ -206,6 +206,41 @@ def _classify_task_agent_phantom(
         return ("write", {})
 
 
+def prepare_agent_dispatch(payload: dict, *, strict: bool = False) -> None:
+    """Prepare the existing protected-edit sentinel after dispatch admission.
+
+    Args:
+        payload: Observed tool callback. Native ``Agent`` uses its exact
+            ``tool_use_id`` as the sentinel generation and never appends FIFO
+            cache entries. Legacy ``Task`` retains UUID/FIFO correlation.
+        strict: Propagate sentinel publication failures for the native
+            reservation owner's scoped abort. The default retains the legacy
+            Task warning behavior; it does not certify native Task lifecycle.
+
+    The sentinel is written atomically LAST. Native publication failure cannot
+    newly arm it; prior sentinel bytes remain owned by the prior generation.
+    Missing Agent tool identity raises before publication. Native PostToolUse,
+    not anonymous SubagentStop, owns exact terminal compare-and-delete.
+    """
+    fields = payload.get("tool_input", {}) or {}
+    owner = payload.get("session_id") or "unknown"
+    agent = (fields.get("subagent_type", "") or "").strip()
+    native_agent = payload.get("tool_name") == "Agent"
+    generation = payload.get("tool_use_id", "") if native_agent else uuid.uuid4().hex
+    if native_agent and (not isinstance(generation, str) or not generation.strip()):
+        raise ValueError("Native Agent dispatch requires an exact tool_use_id")
+    if agent and not native_agent:
+        _sic_cache_invocation(owner, agent, start_time=time.time(),
+                              description=fields.get("description", ""), generation=generation)
+    try:
+        from agent_dispatch_sentinel import write
+        write(agent_name=agent or "unknown", generation=generation)
+    except Exception as exc:
+        if strict:
+            raise
+        sys.stderr.write(f"[agent_dispatch_sentinel] WARNING: write failed: {exc}\n")
+
+
 def main():
     """Log tool call activity to structured JSONL."""
     # Opt-out check: false=off, true=summary, debug=full raw stdin
@@ -304,60 +339,12 @@ def main():
         if hook_event == "PreToolUse":
             pre_tool_name = hook_input.get("tool_name", "")
             if pre_tool_name in ("Task", "Agent"):
-                pre_tool_input = hook_input.get("tool_input", {}) or {}
-                pre_session_id = (
-                    hook_input.get("session_id") or "unknown"
-                )
-                pre_subagent_type = (pre_tool_input.get("subagent_type", "") or "").strip()
                 if pre_tool_name == "Agent":
-                    try:
-                        env_owner = os.environ.get("CLAUDE_SESSION_ID")
-                        if env_owner and env_owner != pre_session_id:
-                            print(json.dumps({"decision": "block", "reason": "Agent session identity mismatch"}))
-                            sys.exit(0)
-                        from pipeline_completion_state import (
-                            native_agent_join_active, register_native_agent_dispatch,
-                        )
-                        verdict = register_native_agent_dispatch(
-                            pre_session_id,
-                            hook_input.get("tool_use_id", ""),
-                            pre_subagent_type,
-                            pre_tool_input.get("run_in_background"),
-                        )
-                        if verdict != "registered" and (
-                            verdict != "inactive" or native_agent_join_active(pre_session_id)
-                        ):
-                            sys.stderr.write(f"[native-agent-join] dispatch refused: {verdict}\n")
-                            print(json.dumps({"decision": "block", "reason": f"Native Agent dispatch refused: {verdict}"}))
-                            sys.exit(0)
-                    except Exception as exc:
-                        sys.stderr.write(f"[native-agent-join] dispatch unavailable: {exc}\n")
-                        print(json.dumps({"decision": "block", "reason": "Native Agent dispatch registration unavailable"}))
-                        sys.exit(0)
-                # Issue #1484: keep telemetry and protected-edit sentinel on
-                # the same generation, after native dispatch registration.
-                generation = uuid.uuid4().hex
-                if pre_subagent_type:
-                    _sic_cache_invocation(
-                        pre_session_id,
-                        pre_subagent_type,
-                        start_time=time.time(),
-                        description=pre_tool_input.get("description", ""),
-                        generation=generation,
-                    )
-                # Issue #1296: write agent-dispatch sentinel so unified_pre_tool can distinguish
-                # coordinator-direct edits from implementer-dispatched edits to protected paths.
-                try:
-                    from agent_dispatch_sentinel import write as _ads_write
-                    _ads_write(
-                        agent_name=pre_subagent_type if pre_subagent_type else "unknown",
-                        generation=generation,
-                    )
-                except Exception as e:
-                    # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
-                    sys.stderr.write(
-                        f"[agent_dispatch_sentinel] WARNING: write failed: {e}\n"
-                    )
+                    # #1807: the unified guard owns final permission and native
+                    # reservation. A parallel observer cannot reserve a denied
+                    # dispatch or grant specialist completion credit.
+                    sys.exit(0)
+                prepare_agent_dispatch(hook_input)
             # Always exit on PreToolUse — we don't write a log entry from this hook
             # (unified_pre_tool.py owns PreToolUse activity logging).
             sys.exit(0)
@@ -378,7 +365,8 @@ def main():
         # back to the fixed DEFAULT_TTL_SECONDS crash backstop.
         try:
             from agent_dispatch_sentinel import refresh as _ads_refresh
-            _ads_refresh()
+            if tool_name != "Agent":
+                _ads_refresh()
         except Exception as e:
             # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
             sys.stderr.write(
@@ -403,6 +391,12 @@ def main():
                     bool(response.get("is_error") or response.get("error"))
                     if isinstance(response, dict) else True,
                 )
+                if verdict in ("completed", "failed"):
+                    # The exact join owns terminal lifecycle, not anonymous
+                    # SubagentStop/FIFO recovery. Compare-and-delete preserves
+                    # another dispatch and makes replays non-authorizing.
+                    from agent_dispatch_sentinel import clear
+                    clear(expected_generation=hook_input.get("tool_use_id", ""))
                 if verdict not in ("inactive", "completed"):
                     sys.stderr.write(f"[native-agent-join] result uncredited: {verdict}\n")
             except (ImportError, ValueError, OSError) as exc:

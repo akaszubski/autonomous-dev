@@ -2,7 +2,9 @@
 
 import io
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -12,8 +14,336 @@ sys.path.insert(0, str(ROOT / "lib"))
 sys.path.insert(0, str(ROOT / "hooks"))
 
 import pipeline_completion_state as pcs  # noqa: E402 - plugin paths above
+import pipeline_state as ps  # noqa: E402 - plugin paths above
 import session_activity_logger as logger  # noqa: E402 - plugin paths above
 import unified_session_tracker as tracker  # noqa: E402 - plugin paths above
+import unified_pre_tool as guard  # noqa: E402 - plugin paths above
+import agent_dispatch_sentinel as ads  # noqa: E402 - plugin paths above
+import subagent_invocation_cache as invocation_cache  # noqa: E402 - plugin paths above
+from tests.helpers.state_isolation import redirect_pipeline_state  # noqa: E402
+
+
+@pytest.fixture
+def real_native_state(monkeypatch, tmp_path):
+    """Actual initializer/classifier/ledger chain, not a fabricated verdict."""
+    redirect_pipeline_state(monkeypatch, tmp_path, ps, pcs)
+    monkeypatch.setattr(ps, "get_state_path", lambda run: tmp_path / f"checkpoint-{run}.json")
+    monkeypatch.setattr(ps, "get_lockfile_path", lambda run: tmp_path / f"lock-{run}")
+    monkeypatch.setattr(guard, "get_legacy_sentinel_path", ps.get_legacy_sentinel_path)
+    monkeypatch.setattr(guard, "_is_stale_session", lambda *_a: False)
+    monkeypatch.setattr(ads, "_path", lambda *_a: tmp_path / "active-dispatch.json")
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    state = pcs.initialize_native_run_from_event({
+        "hook_event_name": "UserPromptExpansion", "command_name": "implement",
+        "command_args": "#1807", "command_source": "user",
+        "prompt": "/implement #1807", "session_id": "native-dispatch-owner",
+    })
+    assert state is not None
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(ps.get_legacy_sentinel_path()))
+    monkeypatch.setattr(guard, "_native_dispatch_input", {})
+    return state
+
+
+def _emit_guard(monkeypatch, capsys, state, decision, tool_id, owner=None):
+    payload = {
+        "hook_event_name": "PreToolUse", "tool_name": "Agent",
+        "session_id": state["session_id"] if owner is None else owner,
+        "tool_use_id": tool_id,
+        "tool_input": {"subagent_type": "reviewer", "run_in_background": False},
+    }
+    monkeypatch.setattr(guard, "_session_id", payload["session_id"])
+    monkeypatch.setattr(guard, "_native_dispatch_input", payload)
+    guard.output_decision(decision, "frozen workflow decision")
+    return json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+
+
+@pytest.mark.parametrize("owner", ["", "foreign-owner"])
+def test_final_permission_owner_refuses_identity_then_permits_retry(
+    real_native_state, monkeypatch, capsys, owner,
+):
+    state = real_native_state
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "rejected", owner)
+    assert result["permissionDecision"] == "deny"
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "legitimate")
+    assert result["permissionDecision"] == "allow"
+    assert pcs._read_state(state["session_id"])["native_agent_joins"]["legitimate"]["status"] == "reserved"
+
+
+def test_denied_callback_and_observer_do_not_reserve_retry(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    assert _emit_guard(monkeypatch, capsys, state, "deny", "rejected")["permissionDecision"] == "deny"
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(guard._native_dispatch_input)))
+    monkeypatch.setattr(logger, "_sic_cache_invocation", lambda *_a, **_k: pytest.fail("Agent observer must be inert"))
+    with pytest.raises(SystemExit):
+        logger.main()
+    assert capsys.readouterr().out == ""
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+    assert ps.classify_current_run_authority(state, state["session_id"]).typed_user_origin
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "retry")
+    assert result["permissionDecision"] == "allow", result
+
+
+@pytest.mark.parametrize("fault", ["lost-ledger", "wrong-run", "partial-witness", "background", "foreign-env"])
+def test_final_guard_native_refusals_preserve_empty_lane(real_native_state, monkeypatch, capsys, fault):
+    state = real_native_state
+    owner = state["session_id"]
+    ledger = pcs._read_state(owner)
+    before = ps.get_legacy_sentinel_path().read_bytes()
+    if fault == "lost-ledger":
+        pcs._state_file_path(owner).unlink()
+    elif fault == "wrong-run":
+        pcs._write_state(owner, {**ledger, "current_run_id": "foreign-run"})
+    elif fault == "partial-witness":
+        ps.get_legacy_sentinel_path().unlink()
+        pcs._write_state(owner, {"native_origin": ledger["native_origin"]})
+    elif fault == "foreign-env":
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "foreign-owner")
+    payload = {
+        "hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": owner,
+        "tool_use_id": "rejected", "tool_input": {
+            "subagent_type": "reviewer", "run_in_background": fault == "background",
+        },
+    }
+    monkeypatch.setattr(guard, "_session_id", owner)
+    monkeypatch.setattr(guard, "_native_dispatch_input", payload)
+    guard.output_decision("allow", "workflow permitted")
+    result = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert result["permissionDecision"] == "deny", result
+    assert pcs._read_state(owner).get("native_agent_joins", {}) == {}
+    pcs._write_state(owner, ledger)
+    ps.get_legacy_sentinel_path().write_bytes(before)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    assert _emit_guard(monkeypatch, capsys, state, "allow", "retry")["permissionDecision"] == "allow"
+
+
+def test_ordinary_no_run_agent_permits_without_native_credit(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    ps.get_legacy_sentinel_path().unlink()
+    pcs._state_file_path(state["session_id"]).unlink()
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "ordinary")
+    assert result["permissionDecision"] == "allow"
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+
+
+@pytest.mark.parametrize("fault", ["corrupt", "stale", "unreadable", "malformed-origin", "joins-only", "dangling-sentinel"])
+def test_present_broken_carriers_never_downgrade_to_ordinary(real_native_state, monkeypatch, capsys, fault):
+    state = real_native_state
+    sentinel = ps.get_legacy_sentinel_path()
+    ledger = pcs._state_file_path(state["session_id"])
+    sentinel.unlink()
+    if fault == "corrupt":
+        ledger.write_text("{broken")
+    elif fault == "stale":
+        ledger.write_text('{"completions": {}}')
+        os.utime(ledger, (time.time() - 8000, time.time() - 8000))
+    elif fault == "unreadable":
+        real_read = Path.read_text
+        def denied_read(path, *args, **kwargs):
+            if path == ledger:
+                raise PermissionError("injected inaccessible ledger")
+            return real_read(path, *args, **kwargs)
+        monkeypatch.setattr(Path, "read_text", denied_read)
+    elif fault == "malformed-origin":
+        ledger.write_text('{"native_origin": "invalid"}')
+    elif fault == "joins-only":
+        ledger.write_text('{"native_agent_joins": {}}')
+    else:
+        ledger.unlink()
+        sentinel.symlink_to(sentinel.with_name("missing-target"))
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "rejected")
+    assert result["permissionDecision"] == "deny", result
+
+
+def test_valid_blank_legacy_ledger_remains_ordinary(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    ps.get_legacy_sentinel_path().unlink()
+    pcs._write_state(state["session_id"], {"completions": {}})
+    assert _emit_guard(monkeypatch, capsys, state, "allow", "ordinary")["permissionDecision"] == "allow"
+
+
+def test_final_refusal_activity_and_block_receipt_agree(real_native_state, monkeypatch, capsys, tmp_path):
+    state = real_native_state
+    monkeypatch.setattr(guard, "_resolved_logs_dir", lambda: tmp_path / "logs")
+    monkeypatch.delenv("HOOK_TELEMETRY_DISABLED", raising=False)
+    monkeypatch.delenv("HOOK_RECOVERY_DISABLED", raising=False)
+    records = []
+    telemetry_globals = guard._emit_decision.__globals__
+    assert callable(telemetry_globals["log_block_event"])
+    monkeypatch.setitem(telemetry_globals, "log_block_event", lambda **row: records.append({**row, "metadata": dict(row["metadata"])}))
+    monkeypatch.setattr(pcs, "register_native_agent_dispatch", lambda *_a, **_k: "write_failed")
+    payload = {"tool_name": "Agent", "session_id": state["session_id"], "tool_use_id": "fault",
+               "tool_input": {"subagent_type": "reviewer", "run_in_background": False}}
+    monkeypatch.setattr(guard, "_session_id", state["session_id"])
+    monkeypatch.setattr(guard, "_native_dispatch_input", payload)
+    guard._log_pretool_activity("Agent", payload["tool_input"], "allow", "preliminary")
+    guard.output_decision("allow", "preliminary")
+    envelope = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    rows = [json.loads(line) for path in (tmp_path / "logs" / "activity").glob("*.jsonl") for line in path.read_text().splitlines()]
+    assert [row["decision"] for row in rows] == ["deny"]
+    assert envelope["permissionDecision"] == "deny"
+    assert len(records) == 1
+    assert rows[0]["tool_use_id"] == records[0]["metadata"]["tool_use_id"] == "fault"
+    assert rows[0]["run_id"] == records[0]["metadata"]["run_id"] == state["run_id"]
+    assert records[0]["reason"] == envelope["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_dispatch_readback_fault_cleans_only_its_own_attempt(native_state, monkeypatch, cleanup_fails):
+    original_read = pcs._read_state
+    original_rmw = pcs._locked_rmw
+    readback_failed = False
+    writes = 0
+
+    def read(*args, **kwargs):
+        nonlocal readback_failed
+        value = original_read(*args, **kwargs)
+        if not readback_failed and "attempt" in value.get("native_agent_joins", {}):
+            readback_failed = True
+            raise OSError("injected post-write readback failure")
+        return value
+
+    def rmw(*args, **kwargs):
+        nonlocal writes
+        writes += 1
+        if cleanup_fails and writes == 2:
+            raise OSError("injected cleanup persistence failure")
+        return original_rmw(*args, **kwargs)
+
+    monkeypatch.setattr(pcs, "_read_state", read)
+    monkeypatch.setattr(pcs, "_locked_rmw", rmw)
+    expected = "cleanup_failed_fresh_native_run_required" if cleanup_fails else "write_failed"
+    assert pcs.register_native_agent_dispatch("s", "attempt", "reviewer", False) == expected
+    joins = original_read("s").get("native_agent_joins", {})
+    assert ("attempt" in joins) is cleanup_fails
+    if cleanup_fails:
+        assert pcs.register_native_agent_dispatch("s", "retry", "reviewer", False) == "in_flight"
+    else:
+        assert pcs.register_native_agent_dispatch("s", "retry", "reviewer", False) == "registered"
+
+
+def test_duplicate_registration_fault_does_not_delete_prior_reservation(native_state, monkeypatch):
+    assert pcs.register_native_agent_dispatch("s", "existing", "reviewer", False) == "registered"
+    before = pcs._read_state("s")
+    original = pcs._locked_rmw
+
+    def fail_after_duplicate(*args, **kwargs):
+        original(*args, **kwargs)
+        raise OSError("injected duplicate persistence fault")
+
+    monkeypatch.setattr(pcs, "_locked_rmw", fail_after_duplicate)
+    assert pcs.register_native_agent_dispatch("s", "existing", "reviewer", False) == "write_failed"
+    assert pcs._read_state("s")["native_agent_joins"] == before["native_agent_joins"]
+
+
+def _post_native_result(monkeypatch, capsys, state, tool_id, owner=None, status="completed"):
+    monkeypatch.setenv("ACTIVITY_LOGGING", "false")
+    monkeypatch.setattr(logger, "_check_and_log_heartbeat", lambda *_a: None)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "hook_event_name": "PostToolUse", "tool_name": "Agent",
+        "session_id": state["session_id"] if owner is None else owner,
+        "tool_use_id": tool_id, "tool_input": {"subagent_type": "reviewer"},
+        "tool_response": {"agentId": f"agent-{tool_id}", "status": status},
+    })))
+    with pytest.raises(SystemExit):
+        logger.main()
+    capsys.readouterr()
+
+
+def test_native_admission_write_fault_preserves_old_sentinel_then_retry(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    ads.write("older", generation="older-generation")
+    prior = ads._path().read_bytes()
+    original_replace = ads.os.replace
+
+    def reject_dispatch_replace(source, target):
+        if Path(target) == ads._path():
+            raise OSError("injected dispatch publication failure")
+        return original_replace(source, target)
+
+    monkeypatch.setattr(ads.os, "replace", reject_dispatch_replace)
+    monkeypatch.setattr(logger, "_sic_cache_invocation", lambda *_a, **_k: pytest.fail("Native Agent must not append FIFO"))
+    result = _emit_guard(monkeypatch, capsys, state, "allow", "failed-publication")
+    assert result["permissionDecision"] == "deny"
+    assert ads._path().read_bytes() == prior
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+    assert list(ads._path().parent.glob(f".{ads._path().name}.*.tmp")) == []
+    monkeypatch.setattr(ads.os, "replace", original_replace)
+    assert _emit_guard(monkeypatch, capsys, state, "allow", "retry")["permissionDecision"] == "allow"
+    assert json.loads(ads._path().read_text())["generation"] == "retry"
+
+
+def test_exact_terminal_result_clears_only_its_dispatch(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    assert _emit_guard(monkeypatch, capsys, state, "allow", "accepted")["permissionDecision"] == "allow"
+    prior = ads._path().read_bytes()
+    _post_native_result(monkeypatch, capsys, state, "accepted", owner="foreign-owner")
+    assert ads._path().read_bytes() == prior
+    _post_native_result(monkeypatch, capsys, state, "accepted")
+    assert not ads._path().exists()
+    ads.write("another", generation="another-dispatch")
+    prior = ads._path().read_bytes()
+    _post_native_result(monkeypatch, capsys, state, "accepted")
+    assert ads._path().read_bytes() == prior
+
+
+def test_missing_result_tool_identity_cannot_clear_legacy_sentinel(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    ads.write("legacy", generation=None)
+    prior = ads._path().read_bytes()
+    _post_native_result(monkeypatch, capsys, state, "")
+    assert ads._path().read_bytes() == prior
+
+
+def test_terminal_clear_failure_cannot_keep_protected_edit_authority(real_native_state, monkeypatch, capsys):
+    state = real_native_state
+    assert _emit_guard(monkeypatch, capsys, state, "allow", "accepted")["permissionDecision"] == "allow"
+    monkeypatch.setattr(guard, "_native_dispatch_input", {})
+    monkeypatch.setattr(guard, "_is_protected_infrastructure", lambda _p: True)
+    monkeypatch.setattr(guard, "_is_pipeline_active", lambda: True)
+    protected = {"file_path": "plugins/autonomous-dev/lib/example.py"}
+    guard._enforce_protected_infrastructure("Edit", protected)
+    monkeypatch.setattr(ads, "clear", lambda **_k: (_ for _ in ()).throw(OSError("injected cleanup fault")))
+    _post_native_result(monkeypatch, capsys, state, "accepted")
+    assert ads.is_active()
+    with pytest.raises(SystemExit):
+        guard._enforce_protected_infrastructure("Edit", protected)
+    result = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert result["permissionDecision"] == "deny"
+    assert "currently reserved" in result["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("native_profile", [False, True])
+def test_task_fifo_lifecycle_is_legacy_only_native_profile_unqualified(monkeypatch, tmp_path, native_profile):
+    """Native Task remains HOLD; unknown native Stops cannot spend legacy FIFO."""
+    owner = f"legacy-task-{tmp_path.name}"
+    monkeypatch.setattr(invocation_cache, "cache_path", lambda _s: tmp_path / "queue.json")
+    monkeypatch.setattr(ads, "_path", lambda *_a: tmp_path / "dispatch.json")
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setenv("TRACK_SESSIONS", "false")
+    monkeypatch.setenv("AUTO_UPDATE_PROGRESS", "false")
+    monkeypatch.setattr(pcs, "native_agent_join_active", lambda _s: False)
+    monkeypatch.setattr(pcs, "get_run_start_receipt", lambda _s: None)
+    monkeypatch.setattr(pcs, "record_agent_completion", lambda **_k: None)
+    logger.prepare_agent_dispatch({"tool_name": "Task", "session_id": owner,
+                                   "tool_input": {"subagent_type": "reviewer"}})
+    queue = invocation_cache.peek_queue(owner)
+    prior = ads._path().read_bytes()
+    transcript = tmp_path / "agent.jsonl"
+    transcript.write_text('{"type":"assistant"}\n')
+    monkeypatch.setattr(sys, "argv", ["unified_session_tracker.py"] + (["--native"] if native_profile else []))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({
+        "hook_event_name": "SubagentStop", "session_id": owner, "agent_type": "reviewer",
+        "agent_id": owner, "agent_transcript_path": str(transcript),
+        "last_assistant_message": "Completed review",
+    })))
+    assert tracker.main() == 0
+    if native_profile:
+        assert invocation_cache.peek_queue(owner) == queue
+        assert ads._path().read_bytes() == prior
+    else:
+        assert invocation_cache.peek_queue(owner) == []
+        assert not ads._path().exists()
 
 
 @pytest.fixture
@@ -83,7 +413,7 @@ def test_public_legacy_writer_cannot_mint_native_specialist_credit(native_state,
     assert pcs.get_completed_agents("s", issue_number=1807) == {"reviewer"}
 
 
-def test_lost_native_ledger_still_blocks_pre_hook(monkeypatch, capsys):
+def test_agent_observer_has_no_independent_ledger_permission_owner(monkeypatch, capsys):
     monkeypatch.setenv("ACTIVITY_LOGGING", "false")
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
     monkeypatch.setattr(pcs, "register_native_agent_dispatch", lambda *_a: "inactive")
@@ -94,7 +424,7 @@ def test_lost_native_ledger_still_blocks_pre_hook(monkeypatch, capsys):
     })))
     with pytest.raises(SystemExit):
         logger.main()
-    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+    assert capsys.readouterr().out == ""  # Observer has no permission ownership.
 
 
 def test_native_dispatch_waits_for_exact_post_completion(native_state):
@@ -138,7 +468,7 @@ def test_missing_issue_ownership_and_write_failure_refuse(native_state, monkeypa
     assert pcs.register_native_agent_dispatch("s", "u2", "reviewer", False) == "write_failed"
 
 
-def test_pre_hook_blocks_background_and_foreign_env_before_cache(monkeypatch, capsys):
+def test_agent_observer_is_inert_for_background_and_foreign_env(monkeypatch, capsys):
     monkeypatch.setenv("ACTIVITY_LOGGING", "false")
     monkeypatch.setenv("CLAUDE_SESSION_ID", "T")
     calls = []
@@ -149,7 +479,7 @@ def test_pre_hook_blocks_background_and_foreign_env_before_cache(monkeypatch, ca
     })))
     with pytest.raises(SystemExit):
         logger.main()
-    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+    assert capsys.readouterr().out == ""
     assert calls == []
     monkeypatch.setenv("CLAUDE_SESSION_ID", "S")
     monkeypatch.setattr(pcs, "register_native_agent_dispatch", lambda *_a: "not_foreground")
@@ -159,7 +489,7 @@ def test_pre_hook_blocks_background_and_foreign_env_before_cache(monkeypatch, ca
     })))
     with pytest.raises(SystemExit):
         logger.main()
-    assert json.loads(capsys.readouterr().out)["decision"] == "block"
+    assert capsys.readouterr().out == ""
     assert calls == []
 
 

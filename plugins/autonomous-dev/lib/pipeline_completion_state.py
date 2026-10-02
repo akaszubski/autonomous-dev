@@ -491,6 +491,7 @@ def run_credit_refusal(
     session_id: str,
     *,
     sentinel_path: Optional[str] = None,
+    native_dispatch: bool = False,
 ) -> Optional[str]:
     """Why completions must NOT be credited to the CURRENT run, or ``None``.
 
@@ -515,6 +516,11 @@ def run_credit_refusal(
         sentinel_path: Sentinel to inspect. Defaults to ``PIPELINE_STATE_FILE``
             when set, else :func:`get_legacy_sentinel_path` — the same
             resolution :func:`sentinel_integrity` uses.
+        native_dispatch: Opt into physical carrier qualification before native
+            Agent admission. Present corrupt, unreadable or stale ledgers,
+            dangling sentinels and partial native claims refuse rather than
+            masquerading as ordinary absence. Valid no-run legacy ledgers
+            remain permitted; the default preserves legacy completion callers.
 
     Returns:
         A refusal message naming the seam and the required next action, or
@@ -527,10 +533,43 @@ def run_credit_refusal(
             get_legacy_sentinel_path()
         )
 
+    native_claim = False
+    native_sentinel_present = False
+    if native_dispatch:
+        # Native dispatch cannot confuse the reader's {} error fallback with
+        # ordinary absence. Keep this stricter carrier qualification opt-in so
+        # legacy session-scoped completion callers retain their contract.
+        try:
+            Path(sentinel_path).lstat()
+            native_sentinel_present = True
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            return f"NATIVE SENTINEL UNAVAILABLE: {exc}; start a fresh /implement run"
+        ledger_path = _state_file_path(session_id)
+        try:
+            ledger_path.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            return f"NATIVE LEDGER UNAVAILABLE: {exc}; start a fresh /implement run"
+        else:
+            try:
+                if time.time() - ledger_path.stat().st_mtime > 7200:
+                    return "NATIVE LEDGER STALE: start a fresh /implement run"
+                ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+                if not isinstance(ledger, dict):
+                    raise ValueError("ledger is not an object")
+                native_claim = any(key in ledger for key in (
+                    "current_run_id", "native_origin", "native_agent_joins",
+                ))
+            except (OSError, ValueError) as exc:
+                return f"NATIVE LEDGER UNAVAILABLE: {exc}; start a fresh /implement run"
+
     sentinel: Optional[dict] = None
     try:
         target = Path(sentinel_path)
-        if target.exists():
+        if target.exists() or native_sentinel_present:
             raw = target.read_text(encoding="utf-8")
             parsed = json.loads(raw)
             sentinel = parsed if isinstance(parsed, dict) else {}
@@ -608,6 +647,8 @@ def run_credit_refusal(
     # CONTROL case #1807 defect 3 must leave ungated. A retained ledger run id
     # with no sentinel to authorize it is A4's ledger-only forgery.
     receipt = get_run_start_receipt(session_id)
+    if not receipt and native_claim:
+        return "PARTIAL NATIVE RUN CLAIM: no authorizing sentinel; start a fresh /implement run"
     if not receipt:
         return None  # No current-run claim to corroborate (pre-#1045 path).
     return (
@@ -1280,9 +1321,30 @@ def _signed_native_agent_scope(session_id: str) -> Optional[dict]:
 
 
 def register_native_agent_dispatch(
-    session_id: str, tool_use_id: str, agent_type: str, run_in_background: Any
+    session_id: str, tool_use_id: str, agent_type: str, run_in_background: Any,
+    *, prepare: Optional[Callable[[], None]] = None,
 ) -> str:
-    """Reserve a foreground Agent tool call in the active signed run."""
+    """Reserve an exact foreground Agent call in the active signed run.
+
+    Args:
+        session_id: Native callback owner, bound to the signed run.
+        tool_use_id: Exact Agent tool-call identity; existing joins are not reused.
+        agent_type: Specialist type receiving completion credit.
+        run_in_background: Must be the explicit boolean ``False``.
+        prepare: Optional trusted native callback, invoked only after this
+            reservation is persisted and read back. It must publish the
+            protected-edit sentinel atomically LAST and raise on failure.
+            Native Agent preparation uses ``tool_use_id`` as its generation
+            and does not append legacy FIFO cache entries.
+
+    Returns:
+        ``registered`` only after reservation and preparation succeed. A
+        preparation/readback failure aborts only this invocation's reservation.
+        Failed abort persistence returns an explicit cleanup-failed result and
+        leaves the run non-reusable; it never reports a clean dispatch lane.
+        The caller must independently resolve permission before invoking this
+        function and must refuse every non-registered native admission result.
+    """
     result = "inactive"
     signed_scope = _signed_native_agent_scope(session_id)
     try:
@@ -1345,14 +1407,43 @@ def register_native_agent_dispatch(
                 completions[agent_type] = False
         result = "registered"
 
+    def _abort_reservation() -> str:
+        """Remove only this attempted join; failed cleanup requires a fresh run."""
+        if signed_scope is None or result != "registered":
+            return "write_failed"
+        run_id = signed_scope["run_id"]
+
+        def _abort(state: dict) -> None:
+            joins = state.get("native_agent_joins", {})
+            if not isinstance(joins, dict):
+                return
+            entry = joins.get(tool_use_id)
+            if (
+                isinstance(entry, dict) and entry.get("run_id") == run_id
+                and entry.get("tool_use_id") == tool_use_id
+                and entry.get("status") == "reserved"
+            ):
+                del joins[tool_use_id]
+
+        try:
+            _locked_rmw(session_id, _abort)
+        except Exception:
+            # Do not claim a clean lane when persistence is unavailable. The
+            # caller refuses; the remaining reservation blocks reuse until a
+            # new typed native run supersedes this conflicted attempt.
+            return "cleanup_failed_fresh_native_run_required"
+        return "write_failed"
+
     try:
         _locked_rmw(session_id, _mutator)
         if result == "registered":
             persisted = _read_state(session_id).get("native_agent_joins", {}).get(tool_use_id)
             if not isinstance(persisted, dict) or persisted.get("status") != "reserved":
-                return "write_failed"
+                return _abort_reservation()
+            if prepare is not None:
+                prepare()
     except Exception:
-        return "write_failed"
+        return _abort_reservation()
     return result
 
 

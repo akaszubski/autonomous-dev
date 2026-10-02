@@ -1355,7 +1355,12 @@ def main() -> int:
         # evaluated before any mutation, and fails toward today's behaviour.
         is_phantom = _is_phantom_subagent_stop(agent_transcript_path_raw)
 
-        if is_phantom:
+        if "--native" in sys.argv[1:]:
+            # Native foreground Agent lifecycle belongs to exact PostToolUse
+            # joins. Never spend a legacy Task's FIFO generation here.
+            cached_invocation = None
+            cache_hit = False
+        elif is_phantom:
             # Do exactly two fewer things: no cache pop, no sentinel clear.
             # Everything downstream is deliberately unchanged.
             cached_invocation = None
