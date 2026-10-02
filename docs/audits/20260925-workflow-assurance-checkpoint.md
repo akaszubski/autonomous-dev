@@ -7,12 +7,26 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Reviewed source is `8998218f`; canonical
+before the historical entries below. Reviewed source is `1c2a8ad1`; canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
-It now has uncommitted guard-registration, dispatch-reservation and telemetry
-repairs with independent provisional source review and 193 focused cases passing;
-do not treat source approval as native qualification or deploy them.
+The guard-registration, dispatch-reservation and telemetry repairs are committed
+and pushed with independent provisional source review, 193 focused cases passing,
+and normal commit checks; no bypass was used. Source approval is not native
+qualification or release authorization.
+
+Fresh installed session `0593b03b-706b-4dc0-8c01-0c659f893e56` finished its
+no-tools initialization with raw exit 0 in 17.674s. All 650 installed Git
+blob/mode comparisons matched. Installed-only inspection verified typed origin,
+owner, strict HMAC, run `85de3f2bb6afc930`, and consumer base `3f6a8692`;
+independent review confirmed the native stream contained no tool calls.
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-guard-native.OMfuefev/INITIAL_RESULT.md`
+and [#1807's initialization record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962462405).
+That process is terminal. Next is the separately reviewed same-session real
+Agent admission/result diagnostic, followed by the remaining installed-policy
+effects and transition obligations; do not repeat initialization unchanged.
+
+### Previous installed carrier diagnostic — historical
 
 Fresh installed native session `5a686b62-fcc7-4404-ab9a-41492a5814c3`
 completed initialization (18.230s) and the Bash diagnostic (140.113s), both
@@ -23,8 +37,8 @@ A historical-key-directory enumeration attempt was denied, not an exposure.
 Evidence is `/Users/akaszubski/.codex/artifacts/adev-a9-owner-native.JyihnsLW`;
 both native processes are terminal, so do not restart either unchanged.
 
-Next: commit the reviewed candidate through the normal gate, then qualify the
-fresh installed guard and trusted-input effects before #1818. Source cases
+Still required: qualify the fresh installed guard and trusted-input effects
+before #1818. Source cases
 preserve ordinary non-pipeline Agent permit and final hook/activity/block-receipt
 agreement including failures; actual native child-session binding is unproven.
 Native Task lifecycle is explicitly HOLD; only the non-native legacy Task
