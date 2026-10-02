@@ -7,7 +7,7 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Committed source is `eec40e0c`; canonical
+before the historical entries below. Committed source is `91cc06d8`; canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
@@ -15,7 +15,32 @@ and pushed with independent provisional source review, 193 focused cases passing
 and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
 
-### Current installed trace — independently verified, bounded scope
+### Latest full-mode result — real reads/report persistence, protocol failure
+
+Fresh installed `91cc06d8` session `bdab2115-f922-4c92-91f1-26d98c46e58e`,
+run `58f9de639894110d`, completed initialization (raw 0, 31.336s), with exact
+six bindings and full checkpoint parity: 13 pending steps. The continuation
+finished raw 0 in 40.865s. Independent review verified one parent Agent, its
+child's actual canonical intent-file Read, exact child/ledger joins and persisted
+owner-bound JSON/Markdown reports. No parent Read or supplied-context substitution.
+Installed bytes remained unchanged, with 650 members and no bytecode or extras;
+both process groups were absent afterward.
+
+FAILED: SubagentStop stdout contained four human report-progress lines before
+its JSON envelope. Hook success does not prove native JSON ingestion. The
+source fix separates native report feedback onto stderr and retains legacy CLI
+stdout; a real source-free whole-callback regression preserves the RED and
+checks the entire envelope plus actual report persistence. Its source review
+and fresh changed-source native verification remain required.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-full-report-native.c61vgAFE/FULL_RESULT.md`
+and [full-mode observation](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962962692).
+Next: finish the callback-output repair, then the remaining trusted-input,
+mode and transition obligations. The parallel #1818 investigation reuses the
+existing stock restricted-child launcher; it must not run consumer tests with
+privileged hook access. A9/F0 and release remain OPEN.
+
+### Earlier installed trace — independently verified, bounded scope
 
 Fresh installed `eec40e0c` session `15d4b0ef-d302-4c43-b3e0-05a3091d2c74`,
 run `fa3f6b0ba0c72444`, completed no-tools initialization (raw 0, 21.139s)
@@ -35,7 +60,8 @@ the issue scope exists. The exact native join has one permitted call.
 Separate defect: structured session reporting failed to persist its owner and
 agent entries; source tests mocked the real persistence mechanism. Markdown
 ownership and installed version are correct. A scoped real-persistence repair
-is in progress, without granting the reports authority. Runtime-generated docs
+was committed at `91cc06d8` and real persistence was observed above, without
+granting reports authority. Runtime-generated docs
 make the disposable consumer dirty; installed cache bytes are unchanged.
 
 The separately reviewed carrier continuation executed all 17 frozen arms:
@@ -46,7 +72,7 @@ protected descendants were absent. Evidence:
 `/Users/akaszubski/.codex/artifacts/adev-a9-trace-native.7h6AQGQU/BASH_RESULT.md`.
 This is scoped carrier proof, not the remaining A9 matrix or general exit capture.
 
-Next: finish the report repair and its review, then remaining trusted
+At this earlier checkpoint the next work was the report repair, then trusted
 input, mode and transition obligations before #1818. Do not repeat the verified
 dispatch case unchanged. A9/F0 and release remain OPEN.
 

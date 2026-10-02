@@ -29,6 +29,7 @@ Usage:
 # Issue #953: Hook safety — wrap main() with safe_main so hook crashes never
 # block Claude Code. The wrap is purely an outer safety net; success-path
 # return codes are preserved (int return → exit code, sys.exit → propagated).
+from contextlib import nullcontext, redirect_stdout
 import sys as _sys_953  # alias to avoid colliding with hook-local sys imports
 from pathlib import Path as _Path_953
 
@@ -1571,12 +1572,12 @@ def main() -> int:
         # Create summary message
         summary = agent_output[:100].replace("\n", " ") if agent_output else "Completed"
 
-        # Dispatch tracking (all are non-blocking)
-        # Basic session logging
-        track_basic_session(agent_name, summary, session_id=session_id)
-
-        # Structured pipeline tracking
-        track_pipeline_completion(agent_name, agent_output, agent_status, session_id=session_id)
+        # Native callback stdout is a single JSON protocol envelope. Preserve
+        # existing report progress/errors on stderr; legacy CLI keeps stdout.
+        report_output = redirect_stdout(sys.stderr) if "--native" in sys.argv[1:] else nullcontext()
+        with report_output:
+            track_basic_session(agent_name, summary, session_id=session_id)
+            track_pipeline_completion(agent_name, agent_output, agent_status, session_id=session_id)
 
         # JSONL activity logging for CI agent visibility
         _write_jsonl_entry(

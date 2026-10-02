@@ -12,11 +12,65 @@ import io
 import json
 import os
 import sys
+import subprocess
+import uuid
 from pathlib import Path
 from typing import Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_real_callback_stdout_protocol_and_report_persistence(tmp_path, native):
+    """Run the entire callback with real installed runtime APIs, no tracker mocks."""
+    repo = Path(__file__).resolve().parents[3]
+    installed = tmp_path / "installed"
+    installed.mkdir()
+    archive = subprocess.run(["git", "-C", str(repo), "archive", "HEAD",
+        "plugins/autonomous-dev"], check=True, capture_output=True)
+    subprocess.run(["tar", "-xf", "-", "-C", str(installed)],
+                   input=archive.stdout, check=True, capture_output=True)
+    plugin = installed / "plugins" / "autonomous-dev"
+    # Explicit candidate injection before execution; child has no source path.
+    hook = plugin / "hooks" / "unified_session_tracker.py"
+    hook.write_bytes((repo / "plugins" / "autonomous-dev" / "hooks" / hook.name).read_bytes())
+    assert hook.read_bytes() == (repo / "plugins" / "autonomous-dev" / "hooks" / hook.name).read_bytes()
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run(["git", "init", "-q", str(consumer)], check=True)
+    (consumer / "PROJECT.md").write_text("# Disposable callback consumer\n")
+    owner = str(uuid.uuid4())
+    child = "actual-child-" + uuid.uuid4().hex
+    payload = {"session_id": owner, "agent_id": child,
+               "agent_type": "autonomous-dev:alignment-classifier",
+               "last_assistant_message": "Read tool classified the supplied diagnostic successfully."}
+    env = dict(os.environ)
+    for name in ("PYTHONPATH", "CLAUDE_SESSION_ID", "CLAUDE_CONFIG_DIR",
+                 "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+                 "PIPELINE_STATE_FILE", "PIPELINE_RUN_ID", "PIPELINE_ISSUE_NUMBER"):
+        env.pop(name, None)
+    env.update(PYTHONDONTWRITEBYTECODE="1", TRACK_SESSIONS="true", TRACK_PIPELINE="true")
+    result = subprocess.run([sys.executable, str(hook)] + (["--native"] if native else []),
+        input=json.dumps(payload), text=True, capture_output=True, cwd=consumer, env=env, timeout=30)
+    assert result.returncode == 0
+    reports = list((consumer / "docs" / "sessions").glob("*-pipeline.json"))
+    if native:
+        assert len(reports) == 1
+    report = next(data for data in (json.loads(file.read_text()) for file in reports)
+                  if data.get("claude_session_id") == owner)
+    assert report["claude_session_id"] == owner
+    assert any(row["agent"] == "alignment-classifier" and row["status"] == "completed"
+               for row in report["agents"])
+    assert any(owner in file.read_text() for file in (consumer / "docs" / "sessions").glob("*.md"))
+    if native:
+        envelope = json.loads(result.stdout)  # ENTIRE stdout must be one JSON envelope.
+        trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+        assert trace == {"hook_event_name": "SubagentStop", "session_id": owner, "agent_id": child}
+        assert "Completed:" in result.stderr and "Session:" in result.stderr
+        assert "Completed:" not in result.stdout
+    else:
+        assert "Completed:" in result.stdout and "Session:" in result.stdout
 
 
 def test_native_stop_retains_actual_identity_and_measured_version(tmp_path, monkeypatch):
