@@ -93,13 +93,23 @@ until their own repairs and installed acceptance qualify. The populated-consumer
 focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
 the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
 
-The next finite foreign-owner native case retained another RED: the changed
-run-bearing sentinel disappeared; the existing stale-session reader contains
-the matching deletion path before authority classification. The observed denial was missing-sentinel rather than the
-frozen owner-mismatch case. No dispatch credit was added; the original bytes
-were restored after terminal observation. Preserve this failure and qualify a
-new pinned candidate before continuing the sequence; do not count it as a
-passing missing-state arm or let telemetry readers mutate run authority.
+The earlier finite foreign-owner native case retained a RED: the changed
+run-bearing sentinel disappeared before authority classification and the denial
+was missing-sentinel rather than owner-mismatch. Preserve that failed run.
+The independently reviewed reader repair at `e18c5622` now has fresh installed
+native qualification for four bounded dispatch refusals: foreign owner,
+removed owner, absent sentinel with retained ledger, and corrupt JSON. Actual
+requests were denied for their respective causes without reconstruction or
+credit; altered evidence survived until exact fixture cleanup. During these
+four refusal cases, the other carriers and installed inputs remained unchanged.
+The same subject's genuine
+owner dispatch and actual result/completion join also passed independent review
+([proof and retained RED](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964938140)).
+These are not complete A2/A6/A9/F0 or release acceptance. Actual received
+task/child prefixes preceded completion records in the positive case; use that
+observation to freeze the next completion-loss diagnostic, not as an invented
+child PID or a guarantee of perfect wall-clock simultaneity. Completion-loss,
+remaining lifecycle, origin, containment and installation obligations stay open.
 
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
