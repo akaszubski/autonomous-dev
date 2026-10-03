@@ -159,14 +159,25 @@ error_max_turns, not workflow success. These bounded results do not replace
 original A7 valid-new-MAC reader refusal, full lifecycle/provenance, F0 or release
 acceptance; the cap itself is not a containment or exact-call-count guarantee.
 
-The existing outside comparator now has an independently reviewed prospective
-native correlation path (`4b91aed8`, 15 frozen test methods). Replay of the
+The historical outside-comparator prototype has a reviewed native correlation
+path (`4b91aed8`, 15 frozen test methods). Replay of the
 unchanged successful `mTnLPZaQ` native capture independently joined ordinary
 success and protected failure through actual Pre dispatch-run, tool result and
 Post/failure IDs; altered-record counterexamples refused. No Post run was
 fabricated. This is historical correlation only: the F0 documentation consumer
-still reaches legacy receipt comparison, and dependency renewal, installed
+still reaches legacy receipt comparison, and installed
 current-subject proof, complete custody/effects and F0 acceptance remain open.
+The prospective successor (`9e0f5ed2`) composes that path onto the actual qualified
+`aa2697` comparator rather than replacing it with the older prototype. Independent
+review and root checks preserve all existing definitions and cover 15 native,
+52 selected EX and five legacy cases; 62 EX nodes remain unqualified for this
+successor. Its driver (`454c2a4b`, manifest `49d7abe8`) passes the real six-leaf
+offline load path, two legitimate neighbors and 15 refusals after a one-entry
+shadow-package repair. Earlier false-permit evidence is retained. These are
+offline composition/transport results, not activation or native/F0 acceptance.
+The original-schema child join and independently observed same-run initialization
+receipt remain unfinished; protocol and canonical runtime-state mount changes
+require their separately requested trust-boundary decisions before native use.
 The valid-new-MAC native case also remains open; nonce-only binding is not a
 complete substitute. A fresh disposable outside signing-fixture admission is
 proposed separately, without loosening actor permissions or granting proof credit.
