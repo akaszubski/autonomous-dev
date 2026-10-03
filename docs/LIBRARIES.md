@@ -5745,9 +5745,11 @@ deny_list = SettingsGenerator.build_deny_list()
 # Static method - no instance needed
 ```
 
-##### `generate_settings(merge_with: Optional[Dict] = None, *, protected_write_paths: Optional[List[str]] = None, protected_read_paths: Optional[List[str]] = None) -> Dict`
+##### `generate_settings(merge_with: Optional[Dict] = None, *, protected_write_paths: Optional[List[str]] = None, protected_read_paths: Optional[List[str]] = None, preserve_only: bool = False) -> Dict`
 
 The optional protected paths (#1807) are trusted provisioner inputs, not caller authentication. Absolute paths/patterns produce Edit deny rules for writes and Read deny rules for reads, using lexical and current canonical spellings. Generation resolves path metadata but does not create targets or read their contents. Invalid path shapes or stock-policy conflicts raise `ValueError`. Existing installation callers do not supply these arguments; this API returns a configuration candidate and does not activate protected-policy delivery or certify actual native editor behavior. Nested settings preservation uses the existing `SettingsMerger`, not a second merge implementation.
+
+`preserve_only=True` requires an explicit existing settings object and a valid string deny list when present. It adds only the requested protected denies through that same merger, preserving existing allows, asks, sandbox, callbacks and unrelated data without default permissions or metadata. With no requested paths it returns an independent unchanged copy. Default full generation is unchanged; the public writer does not enable this mode. Neither mode authenticates the provisioner or proves native enforcement.
 
 Generate complete settings dictionary with patterns and metadata.
 

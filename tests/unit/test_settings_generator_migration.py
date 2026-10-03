@@ -75,6 +75,34 @@ def test_issue_1807_generation_refusal_preserves_live_settings(tmp_path, monkeyp
     assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
 
 
+@pytest.mark.parametrize("permissions", [None, {"allow": ["Read(/ordinary)"], "deny": ["Edit(/old)"], "ask": ["Bash(custom:*)"]}])
+def test_issue_1807_preserve_only_adds_protected_denies(tmp_path, permissions):
+    profile = {"sandbox": {"enabled": True, "filesystem": {"denyWrite": ["/protected"]}},
+               "disableClaudeAiConnectors": True, "custom": {"hooks": {"x": 1}}}
+    if permissions is not None:
+        profile["permissions"] = permissions
+    original = json.loads(json.dumps(profile))
+    generator = SettingsGenerator(project_root=tmp_path)
+    result = generator.generate_settings(merge_with=profile, preserve_only=True,
+                                         protected_write_paths=[str(tmp_path / "carrier")])
+    assert profile == original
+    assert result["sandbox"] == profile["sandbox"]
+    assert result["disableClaudeAiConnectors"] is True
+    assert result["custom"] == profile["custom"]
+    assert result["permissions"].get("allow") == (permissions or {}).get("allow")
+    assert result["permissions"].get("ask") == (permissions or {}).get("ask")
+    assert set(result) == set(profile) | {"permissions"}
+    assert f"Edit(/{tmp_path}/carrier)" in result["permissions"]["deny"]
+    assert generator.generate_settings(merge_with=profile, preserve_only=True) == profile
+
+
+@pytest.mark.parametrize("profile", [None, [], {"permissions": None}, {"permissions": {"deny": "invalid"}}])
+def test_issue_1807_preserve_only_invalid_profile_refuses(tmp_path, profile):
+    with pytest.raises(ValueError):
+        SettingsGenerator(project_root=tmp_path).generate_settings(
+            merge_with=profile, preserve_only=True, protected_read_paths=[str(tmp_path / "secret")])
+
+
 class TestSettingsGeneratorHookMigration:
     """Test hook migration in settings_generator._deep_merge_settings()."""
 

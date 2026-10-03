@@ -736,6 +736,7 @@ class SettingsGenerator:
         self, merge_with: Optional[Dict] = None, *,
         protected_write_paths: Optional[List[str]] = None,
         protected_read_paths: Optional[List[str]] = None,
+        preserve_only: bool = False,
     ) -> Dict:
         """Generate settings dictionary with all patterns and metadata.
 
@@ -745,6 +746,8 @@ class SettingsGenerator:
             protected_read_paths: Trusted absolute protected paths/patterns for Read rules.
                 These explicit provisioner inputs are not authenticated by this API.
                 No existing installation caller supplies them; activation remains separate.
+            preserve_only: Add only explicit protected denies to the supplied profile,
+                without default permissions or generated metadata. Requires an object.
 
         Returns:
             Settings dictionary ready for JSON serialization
@@ -765,8 +768,19 @@ class SettingsGenerator:
             }
         """
         # Build patterns
-        allow_patterns = self.build_command_patterns()
-        deny_patterns = self.build_deny_list()
+        if preserve_only:
+            if not isinstance(merge_with, dict):
+                raise ValueError("Preserve-only generation requires an existing settings object")
+            permissions = merge_with.get("permissions", {})
+            if not isinstance(permissions, dict) or (
+                "deny" in permissions and (
+                    not isinstance(permissions["deny"], list)
+                    or not all(isinstance(rule, str) for rule in permissions["deny"])
+                )
+            ):
+                raise ValueError("Existing permissions must be an object with a string deny list")
+        allow_patterns = [] if preserve_only else self.build_command_patterns()
+        deny_patterns = [] if preserve_only else self.build_deny_list()
         # Retain lexical and canonical spellings: pinned native versions cannot
         # be assumed to resolve symlink-directory rules. This performs no mkdir
         # or carrier/key read and does not prove native alias containment.
@@ -785,6 +799,10 @@ class SettingsGenerator:
                     rule = f"{tool}(/{spelling})"
                     if rule not in deny_patterns:
                         deny_patterns.append(rule)
+
+        if preserve_only:
+            additions = {"permissions": {"deny": deny_patterns}} if deny_patterns else {}
+            return SettingsMerger(str(self.plugin_dir))._merge_dicts(merge_with, additions)
 
         # Issue #1409: no Write(<path>) companions are emitted. Claude Code
         # "checks file permissions against Edit(path) and Read(path) rules
