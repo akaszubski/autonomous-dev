@@ -2207,14 +2207,17 @@ def _is_stale_session(state: dict, state_path: "Path") -> bool:
     """Check if pipeline state belongs to a different (stale) session (Issue #592).
 
     Compares session_id in state file against current session's _session_id.
-    If different and both are non-empty/non-unknown, state is stale -- remove file.
+    If different and both are non-empty/non-unknown, state is stale. Preserve
+    run-bearing records as authority-refusal evidence; only legacy non-run
+    breadcrumbs are removed. A reader must not convert an invalid run to absence.
 
     Args:
         state: Parsed pipeline state dict.
-        state_path: Path to the state file (for removal).
+        state_path: Path to the state file (legacy non-run cleanup only).
 
     Returns:
-        True if state is stale (file removed), False if current or indeterminate.
+        True if state is foreign, even when its run evidence is preserved;
+        False if current or indeterminate.
 
     Note: When either session_id is "unknown" or empty (e.g., first hook
     invocation before stdin parsing), this returns False (indeterminate).
@@ -2230,6 +2233,10 @@ def _is_stale_session(state: dict, state_path: "Path") -> bool:
         return False  # Cannot determine, fall through to TTL/HMAC
 
     if stored_sid != current_sid:
+        # Key presence includes malformed/empty run identities: deleting those
+        # would also erase the claim that the final native guard must refuse.
+        if "run_id" in state:
+            return True
         try:
             state_path.unlink(missing_ok=True)
         except OSError:
@@ -2359,7 +2366,8 @@ def _get_pipeline_mode_from_state() -> str:
     state.get("mode") regardless of mtime age — a long-running --light run must
     not be misclassified as "full" merely because 30 min elapsed since the last
     state write. The mismatched-known-session leak is already handled earlier by
-    _is_stale_session() (which unlinks the foreign file); indeterminate sessions
+    _is_stale_session() (which preserves foreign run evidence and cleans only
+    legacy non-run breadcrumbs); indeterminate sessions
     remain TTL-guarded, so no cross-session leakage is reintroduced.
 
     Returns:
