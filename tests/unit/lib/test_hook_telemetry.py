@@ -40,6 +40,23 @@ def test_native_trace_omits_unsupported_identifiers(invalid):
     assert trace == {"hook_event_name": "PostToolUse", "session_id": "actual-owner"}
 
 
+def test_safe_native_error_never_fetches_source_or_locals(monkeypatch, caplog):
+    import linecache
+    def forbidden(*args, **kwargs):
+        pytest.fail("Safe diagnostics must not fetch source")
+    with monkeypatch.context() as source_guard:
+        source_guard.setattr(linecache, "getline", forbidden)
+        try:
+            private_local = "PRIVATE_LOCAL_MARKER"
+            raise RuntimeError("LITERAL_EXCEPTION_MARKER")
+        except RuntimeError:
+            hook_telemetry.log_safe_native_error("hook_telemetry", "Fixed diagnostic", sys.exc_info()[2])
+    assert "LITERAL_EXCEPTION_MARKER" not in caplog.text
+    assert private_local not in caplog.text
+    assert "test_safe_native_error_never_fetches_source_or_locals" in caplog.text
+    assert caplog.records[-1].exc_info[2] is None
+
+
 def test_native_trace_preserves_actual_ids_and_final_decision():
     marker = hook_telemetry.format_native_trace("PreToolUse", session_id="owner",
         tool_use_id="toolu_actual", run_id="verified-run", decision="deny")

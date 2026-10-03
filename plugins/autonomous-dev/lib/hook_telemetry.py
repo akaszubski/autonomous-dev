@@ -47,9 +47,11 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import os
 import re
 import sys
+import traceback
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -80,6 +82,28 @@ DISABLE_ENV_VAR: str = "HOOK_TELEMETRY_DISABLED"
 LEGACY_DISABLE_ENV_VAR: str = "HOOK_RECOVERY_DISABLED"
 
 MAX_REASON_LENGTH: int = 8000
+
+
+def log_safe_native_error(logger_name: str, message: str, tb: Any) -> None:
+    """Log fixed context and bounded frame locations, never source or values.
+
+    Args:
+        logger_name: Existing native telemetry logger name.
+        message: Fixed caller-owned diagnostic context, not exception/payload text.
+        tb: Original traceback; only filenames, line numbers and function names
+            are inspected. No source lookup, frame locals or exception rendering.
+    """
+    frames = []
+    for frame, line in traceback.walk_tb(tb):
+        filename = re.sub(r"[\x00-\x1f\x7f]", "?", frame.f_code.co_filename)[:512]
+        function = re.sub(r"[\x00-\x1f\x7f]", "?", frame.f_code.co_name)[:128]
+        frames.append(f"{filename}:{line}:{function}")
+        if len(frames) == 32:
+            break
+    logging.getLogger(logger_name).error(
+        "%s; frames=%s", message, " -> ".join(frames),
+        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+    )
 
 
 def format_native_trace(hook_event_name: str, *, session_id: Any = None,

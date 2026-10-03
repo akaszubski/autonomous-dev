@@ -57,6 +57,89 @@ def _emit_guard(monkeypatch, capsys, state, decision, tool_id, owner=None):
     return json.loads(capsys.readouterr().out)["hookSpecificOutput"]
 
 
+@pytest.mark.parametrize("tool", ["Read", "Edit", "Write", "Bash", "Skill", "mcp__actual__tool"])
+@pytest.mark.parametrize("foreign", [False, True])
+def test_issue_1807_builtin_trace_preserves_decision_and_actual_ids(
+        real_native_state, monkeypatch, capsys, tmp_path, tool, foreign):
+    state = real_native_state
+    owner = "foreign-owner" if foreign else state["session_id"]
+    monkeypatch.setattr(guard, "_session_id", owner)
+    monkeypatch.setattr(guard, "_native_dispatch_input", {
+        "tool_name": tool, "session_id": owner, "tool_use_id": "actual-builtin-call"})
+    monkeypatch.setattr(guard, "_resolved_logs_dir", lambda: tmp_path)
+    guard._log_pretool_activity(tool, {}, "deny", "existing verdict")
+    guard.output_decision("deny", "existing verdict", system_message="Existing guidance")
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["hookSpecificOutput"]["permissionDecision"] == "deny"
+    human, marker = envelope["systemMessage"].split("\nAUTONOMOUS_DEV_NATIVE_TRACE ")
+    assert human == "Existing guidance"
+    trace = json.loads(marker)
+    assert trace["tool_use_id"] == "actual-builtin-call"
+    assert trace["session_id"] == owner
+    assert trace.get("run_id") == (None if foreign else state["run_id"])
+    rows = [json.loads(line) for line in next((tmp_path / "activity").glob("*.jsonl")).read_text().splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["tool"] == tool
+    assert rows[0]["tool_use_id"] == "actual-builtin-call"
+    assert pcs._read_state(state["session_id"]).get("native_agent_joins", {}) == {}
+
+
+@pytest.mark.parametrize("tool_id", [None, "", "x" * 129, "bad\nID", {}])
+def test_issue_1807_invalid_builtin_id_preserves_legacy_envelope(monkeypatch, capsys, tool_id):
+    monkeypatch.setattr(guard, "_native_dispatch_input", {
+        "tool_name": "Skill", "session_id": "actual-owner", "tool_use_id": tool_id})
+    guard.output_decision("allow", "unchanged", system_message="Existing guidance")
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["systemMessage"] == "Existing guidance"
+    assert envelope["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+
+@pytest.mark.parametrize("literal", [False, True])
+@pytest.mark.parametrize("helper_unavailable", [False, True])
+def test_issue_1807_trace_failure_cannot_change_permission(
+        monkeypatch, capsys, caplog, literal, helper_unavailable):
+    import hook_telemetry
+    secret_marker = "SECRET_TRACE_MARKER"
+    def fail(*args, **kwargs):
+        if literal:
+            raise RuntimeError("SECRET_TRACE_MARKER")
+        raise RuntimeError(secret_marker)
+    monkeypatch.setattr(hook_telemetry, "format_native_trace", fail)
+    if helper_unavailable:
+        monkeypatch.setattr(hook_telemetry, "log_safe_native_error", fail)
+    monkeypatch.setattr(guard, "_native_dispatch_input", {
+        "tool_name": "Skill", "session_id": "actual-owner", "tool_use_id": "actual-call"})
+    monkeypatch.setattr(guard, "_load_pipeline_state_verified", lambda: None)
+    guard.output_decision("allow", "unchanged", system_message="Existing guidance")
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["systemMessage"] == "Existing guidance"
+    assert envelope["hookSpecificOutput"]["permissionDecision"] == "allow"
+    assert "SECRET_TRACE_MARKER" not in caplog.text
+    assert "failure" in caplog.text
+    if not helper_unavailable:
+        assert ":fail" in caplog.text
+    assert caplog.records[-1].exc_info[2] is None
+
+
+@pytest.mark.parametrize("fault", ["stale", "env-owner-mismatch", "missing-owner"])
+def test_issue_1807_builtin_run_attribution_refuses_bad_owner(
+        real_native_state, monkeypatch, capsys, fault):
+    owner = real_native_state["session_id"]
+    if fault == "stale":
+        monkeypatch.setattr(guard, "_is_stale_session", lambda *_args: True)
+    elif fault == "env-owner-mismatch":
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "foreign-owner")
+    else:
+        owner = None
+    monkeypatch.setattr(guard, "_native_dispatch_input", {
+        "tool_name": "Skill", "session_id": owner, "tool_use_id": "actual-call"})
+    guard.output_decision("allow", "unchanged")
+    envelope = json.loads(capsys.readouterr().out)
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert "run_id" not in trace
+    assert envelope["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+
 def test_namespaced_fix_ordering_through_actual_main(real_native_state, monkeypatch, capsys):
     state = pcs.initialize_native_run_from_event({
         "hook_event_name": "UserPromptExpansion", "command_name": "implement",

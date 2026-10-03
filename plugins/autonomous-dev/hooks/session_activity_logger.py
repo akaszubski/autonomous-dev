@@ -458,7 +458,7 @@ def main():
         # Preserve runtime correlation identifiers verbatim; telemetry is not
         # authority and must not infer a child/tool identity from timing or role.
         tool_use_id = hook_input.get("tool_use_id")
-        if isinstance(tool_use_id, str) and tool_use_id.strip():
+        if isinstance(tool_use_id, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", tool_use_id):
             entry["tool_use_id"] = tool_use_id
         response = hook_input.get("tool_response")
         if isinstance(response, dict):
@@ -472,10 +472,15 @@ def main():
                 if run_id:
                     entry["run_id"] = run_id
             except (ImportError, ValueError, OSError, RuntimeError):
-                logging.getLogger("session_activity_logger.native_trace").error(
-                    "[native-agent-join] telemetry unavailable",
-                    exc_info=(RuntimeError, RuntimeError("native correlation failure"), sys.exc_info()[2]),
-                )
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_trace",
+                                          "native correlation failure; attribution omitted", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_trace").error(
+                        "native correlation failure; attribution omitted",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                    )
 
         # Write to log file
         log_dir = _find_log_dir()
@@ -486,13 +491,25 @@ def main():
 
         # Native callback correlation survives legacy phantom log suppression;
         # this marker makes no completion claim or authorization decision.
-        if tool_name == "Agent":
-            from hook_telemetry import format_native_trace
-            print(json.dumps({"continue": True, "systemMessage": format_native_trace(
-                "PostToolUse", session_id=hook_input.get("session_id"),
-                tool_use_id=entry.get("tool_use_id"), agent_id=entry.get("agent_id"),
-                run_id=entry.get("run_id"),
-            )}))
+        if (tool_name == "Agent" or (isinstance(tool_use_id, str)
+                and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", tool_use_id))):
+            try:
+                from hook_telemetry import format_native_trace
+                print(json.dumps({"continue": True, "systemMessage": format_native_trace(
+                    "PostToolUse", session_id=hook_input.get("session_id"),
+                    tool_use_id=entry.get("tool_use_id"), agent_id=entry.get("agent_id"),
+                    run_id=entry.get("run_id"),
+                )}))
+            except Exception:
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_trace",
+                                          "Native trace failure; activity recording unchanged", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_trace").error(
+                        "Native trace failure; activity recording unchanged",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                    )
 
         # Issue #1461: phantom-then-real dedup for Task/Agent PostToolUse writes.
         # Runs BEFORE the write so phantom entries never land in the JSONL log

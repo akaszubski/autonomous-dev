@@ -31,6 +31,43 @@ sys.path.insert(
 import session_activity_logger as sal
 
 
+@pytest.mark.parametrize("tool", ["Read", "Edit", "Write", "Bash", "Skill", "mcp__actual__tool"])
+def test_issue_1807_post_builtin_trace_without_agent_credit(tmp_path, monkeypatch, capsys, tool):
+    import pipeline_completion_state as pcs
+    def forbidden(*args, **kwargs):
+        pytest.fail("Builtin callback must not use Agent completion/reservation APIs")
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", forbidden)
+    monkeypatch.setattr(pcs, "join_native_agent_result", forbidden)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": tool,
+               "session_id": "actual-owner", "tool_use_id": "actual-builtin-call", "tool_input": {}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    envelope = json.loads(capsys.readouterr().out)
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace["tool_use_id"] == payload["tool_use_id"]
+    assert trace["session_id"] == payload["session_id"]
+    assert "run_id" not in trace
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert entry["tool"] == tool
+
+
+@pytest.mark.parametrize("tool_id", [None, "", "x" * 129, "bad\nID", {}])
+def test_issue_1807_post_invalid_id_does_not_fabricate_trace(tmp_path, capsys, tool_id):
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Skill",
+               "session_id": "actual-owner", "tool_use_id": tool_id, "tool_input": {}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    assert capsys.readouterr().out == ""
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert "tool_use_id" not in entry
+
+
 @pytest.mark.parametrize("verified_run", [None, "verified-current-run"])
 def test_post_tooluse_preserves_native_raw_ids(tmp_path, monkeypatch, verified_run, capsys):
     import pipeline_completion_state as pcs
@@ -62,10 +99,13 @@ def test_post_tooluse_preserves_native_raw_ids(tmp_path, monkeypatch, verified_r
     assert trace.get("run_id") == verified_run
 
 
-def test_native_telemetry_exception_does_not_emit_raw_secret(tmp_path, monkeypatch, caplog):
+@pytest.mark.parametrize("literal", [False, True])
+def test_native_telemetry_exception_does_not_emit_raw_secret(tmp_path, monkeypatch, caplog, literal):
     import pipeline_completion_state as pcs
     secret_marker = "INJECTED_SECRET_MARKER"
     def fail(*args):
+        if literal:
+            raise RuntimeError("INJECTED_SECRET_MARKER")
         raise RuntimeError(secret_marker)
     monkeypatch.setattr(pcs, "get_native_agent_run_id", fail)
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
@@ -78,7 +118,8 @@ def test_native_telemetry_exception_does_not_emit_raw_secret(tmp_path, monkeypat
             sal.main()
     assert "INJECTED_SECRET_MARKER" not in caplog.text
     assert "native correlation failure" in caplog.text
-    assert caplog.records[-1].exc_info[2] is not None
+    assert "fail" in caplog.text
+    assert caplog.records[-1].exc_info[2] is None
 
 class TestSummarizeInput:
     """Test input summarization for different tool types."""

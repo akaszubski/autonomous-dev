@@ -7312,9 +7312,12 @@ def _write_pretool_activity(tool_name: str, tool_input: Dict, decision: str, rea
             "agent": _get_active_agent_name() or "main",
             **summary,
         }
-        if tool_name == "Agent" and _native_dispatch_input.get("tool_name") == "Agent":
-            entry["tool_use_id"] = _native_dispatch_input.get("tool_use_id", "")
-            if _native_decision_metadata.get("run_id"):
+        callback_id = _native_dispatch_input.get("tool_use_id")
+        if (tool_name == _native_dispatch_input.get("tool_name")
+                and isinstance(callback_id, str)
+                and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", callback_id)):
+            entry["tool_use_id"] = callback_id
+            if tool_name == "Agent" and _native_decision_metadata.get("run_id"):
                 entry["run_id"] = _native_decision_metadata["run_id"]
         with open(log_dir / f"{date_str}.jsonl", "a") as f:
             f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
@@ -7337,7 +7340,10 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
     transcripts. The decorator is idempotent and never raises.
     """
     _native_decision_metadata.clear()
-    if _native_dispatch_input.get("tool_name") == "Agent":
+    callback_id = _native_dispatch_input.get("tool_use_id")
+    native_trace = (isinstance(callback_id, str)
+                    and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", callback_id))
+    if _native_dispatch_input.get("tool_name") == "Agent" or native_trace:
         _native_decision_metadata.update({
             "tool_use_id": _native_dispatch_input.get("tool_use_id", ""),
             "session_id": _native_dispatch_input.get("session_id", ""),
@@ -7359,11 +7365,16 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
             _native_decision_metadata.pop("run_id", None)
             import logging
             # Do not include exception text: it may contain sensitive carrier
-            # content. Retain a sanitized exception and its traceback instead.
-            logging.getLogger("unified_pre_tool.native_trace").error(
-                "Native decision run correlation failed; attribution omitted",
-                exc_info=(RuntimeError, RuntimeError("native correlation failure"), sys.exc_info()[2]),
-            )
+            # content. Retain frame locations without source/locals/value rendering.
+            try:
+                from hook_telemetry import log_safe_native_error
+                log_safe_native_error("unified_pre_tool.native_trace",
+                                      "Native correlation failure; attribution omitted", sys.exc_info()[2])
+            except Exception:
+                logging.getLogger("unified_pre_tool.native_trace").error(
+                    "Native correlation failure; attribution omitted",
+                    exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                )
     # Native Agent reservations belong to the final permission owner, never a
     # parallel observer. Denials/asks must not occupy the next dispatch lane.
     if decision == "allow" and _native_dispatch_input.get("tool_name") == "Agent":
@@ -7410,16 +7421,29 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
             decision, reason = "deny", f"Native Agent dispatch unavailable: {exc}"
     if _native_dispatch_input.get("tool_name") == "Agent":
         _write_pretool_activity("Agent", _native_dispatch_input.get("tool_input", {}) or {}, decision, reason)
+    if _native_dispatch_input.get("tool_name") == "Agent" or native_trace:
         # systemMessage is an existing native-protocol field. This bounded JSON
         # line links native hook_id/output to the actual tool identity without
         # adding unsupported envelope keys or relying on temporal proximity.
-        from hook_telemetry import format_native_trace
-        marker = format_native_trace(
-            "PreToolUse", session_id=_native_decision_metadata.get("session_id"),
-            tool_use_id=_native_decision_metadata.get("tool_use_id"),
-            run_id=_native_decision_metadata.get("run_id"), decision=decision,
-        )
-        system_message = f"{system_message}\n{marker}" if system_message else marker
+        try:
+            from hook_telemetry import format_native_trace
+            marker = format_native_trace(
+                "PreToolUse", session_id=_native_decision_metadata.get("session_id"),
+                tool_use_id=_native_decision_metadata.get("tool_use_id"),
+                run_id=_native_decision_metadata.get("run_id"), decision=decision,
+            )
+            system_message = f"{system_message}\n{marker}" if system_message else marker
+        except Exception:
+            import logging
+            try:
+                from hook_telemetry import log_safe_native_error
+                log_safe_native_error("unified_pre_tool.native_trace",
+                                      "Native trace failure; permission decision unchanged", sys.exc_info()[2])
+            except Exception:
+                logging.getLogger("unified_pre_tool.native_trace").error(
+                    "Native trace failure; permission decision unchanged",
+                    exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                )
     _emit_decision(decision, reason, system_message=system_message)
 
 

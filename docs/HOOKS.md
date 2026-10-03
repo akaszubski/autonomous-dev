@@ -46,6 +46,8 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ### UserPromptSubmit
 
+`session_activity_logger.py` also observes PostToolUse callbacks (#1807): bounded actual session/tool-call IDs support correlation-only `AUTONOMOUS_DEV_NATIVE_TRACE` markers across builtin, Skill and MCP tools when present. Ordinary tools do not receive invented run bindings or Agent completion credit; native Agent completion still requires its existing exact join. This source behavior is not installed-native provenance acceptance.
+
 | Hook | Purpose | Key Env Vars |
 |------|---------|--------------|
 | **unified_prompt_validator.py** | Compaction recovery re-injection (batch and pipeline state) + workflow bypass detection + quality nudges. On each prompt, checks for `.claude/compaction_recovery.json` and if present re-injects saved batch/pipeline context to stderr, then deletes the marker. Pipeline recovery validates staleness and cwd before injecting. **Plan-mode-exit enforcement was moved to PreToolUse (`unified_pre_tool.py`) per Issue #926** — UserPromptSubmit cannot observe in-turn model tool calls (e.g., `gh issue create`, `Task(implementer)`), so the gate was structurally in the wrong place. The marker file format and writer (`plan_mode_exit_detector.py`) are unchanged. **Semantic intent classifier (Phase 1, shadow mode)**: when `INTENT_CLASSIFIER_ENABLED=true`, lazily loads `lib/intent_classifier.py` and annotates each prompt's classification (13 intent classes — `security_critical`, `implement`, `refactor`, `test`, `doc`, `config`, `typo`, `status_query`, `conversation`, `exploration`, `triage`, `remote_ops`, `scratch` — plus AMBIGUOUS sentinel) to the activity log. Default is `false` — when unset/false, output is byte-identical to the pre-classifier version (verified by golden-snapshot test). Phase 1 is telemetry-only; no routing or blocking behavior changes. **Phase D (Issue #998)**: when `INTENT_CLASSIFIER_ENABLED=true`, also calls `lib/session_mode.write_session_mode()` to write a per-session artifact at `/tmp/session_mode_<sha256(session_id)[:8]>.json`; fail-open (write failures swallowed). **Phase E (Issue #999)**: `INTENT_CLASSIFIER_ENFORCE=true` activates downstream enforcement in `unified_pre_tool.py` (5 wrap sites), `plan_gate.py`, and `plan_mode_exit_detector.py` — this hook remains the UserPromptSubmit writer; enforcement is in PreToolUse hooks. | ENFORCE_WORKFLOW, QUALITY_NUDGE_ENABLED, INTENT_CLASSIFIER_ENABLED, INTENT_CLASSIFIER_ENFORCE |
@@ -94,6 +96,8 @@ The PreToolUse hook outputs a JSON object with two distinct channels that have d
 This distinction is fundamental: nudges in `systemMessage` are user-readable but the model cannot act on them. Enforcement directives in `permissionDecisionReason` are model-readable and drive corrective behavior. See MEMORY.md entry "Critical Behavioral Issue" for why this distinction matters.
 
 **unified_pre_tool.py Native Tool Fast Path** (v4.1.0+):
+
+Supported callback output keeps one JSON stdout envelope. Its optional `systemMessage` can include a bounded `AUTONOMOUS_DEV_NATIVE_TRACE` marker with actual available identifiers (#1807), preserving existing human text. Correlation markers neither change permissions nor certify execution; absent identifiers are omitted rather than inferred.
 - Native Claude Code tools (Read, Write, Edit, Bash, Task, etc.) skip the 4-layer MCP validation
 - Governed by settings.json permissions instead
 - Eliminates unwanted permission prompts for standard tools
