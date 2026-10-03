@@ -159,6 +159,18 @@ error_max_turns, not workflow success. These bounded results do not replace
 original A7 valid-new-MAC reader refusal, full lifecycle/provenance, F0 or release
 acceptance; the cap itself is not a containment or exact-call-count guarantee.
 
+The existing outside comparator now has an independently reviewed prospective
+native correlation path (`4b91aed8`, 15 frozen test methods). Replay of the
+unchanged successful `mTnLPZaQ` native capture independently joined ordinary
+success and protected failure through actual Pre dispatch-run, tool result and
+Post/failure IDs; altered-record counterexamples refused. No Post run was
+fabricated. This is historical correlation only: the F0 documentation consumer
+still reaches legacy receipt comparison, and dependency renewal, installed
+current-subject proof, complete custody/effects and F0 acceptance remain open.
+The valid-new-MAC native case also remains open; nonce-only binding is not a
+complete substitute. A fresh disposable outside signing-fixture admission is
+proposed separately, without loosening actor permissions or granting proof credit.
+
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
 it is historical evidence, not the current execution pointer.
