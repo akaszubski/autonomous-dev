@@ -31,6 +31,121 @@ sys.path.insert(
 import session_activity_logger as sal
 
 
+def _observer_payload():
+    return {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+            "session_id": "native-owner", "tool_use_id": "toolu_actual",
+            "cwd": "/work/consumer", "tool_input": {
+                "command": ": autonomous-dev-test-observer", "description": "Request observation"}}
+
+
+def test_observer_recognition_is_only_correlation():
+    assert sal.recognize_test_observer_request(_observer_payload()) == {
+        "session_id": "native-owner", "tool_use_id": "toolu_actual", "cwd": "/work/consumer"}
+
+
+@pytest.mark.parametrize("command", ["echo : autonomous-dev-test-observer",
+    ": autonomous-dev-test-observer | cat", "env X=1 : autonomous-dev-test-observer",
+    ": autonomous-dev-test-observer > receipt", ": autonomous-dev-test-observer candidate",
+    ": autonomous-dev-test-observer\n", " : autonomous-dev-test-observer"])
+def test_observer_rejects_command_lookalikes(command):
+    payload = _observer_payload()
+    payload["tool_input"]["command"] = command
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("field,value", [("session_id", ""), ("tool_use_id", None),
+    ("cwd", "relative"), ("cwd", "/work\nspoof"), ("hook_event_name", "PreToolUse"),
+    ("tool_name", "Skill")])
+def test_observer_rejects_invalid_native_correlation(field, value):
+    payload = _observer_payload()
+    payload[field] = value
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("field", ["phase", "path", "run_id", "manifest", "timeout"])
+def test_observer_rejects_actor_selectors(field):
+    payload = _observer_payload()
+    payload["tool_input"][field] = "actor-controlled"
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+def test_observer_negative_detects_always_recognize_mutant(monkeypatch):
+    monkeypatch.setattr(sal, "recognize_test_observer_request", lambda payload: {"session_id": "forged"})
+    with pytest.raises(AssertionError):
+        test_observer_rejects_command_lookalikes("echo : autonomous-dev-test-observer")
+
+
+@pytest.mark.parametrize("value", [None, 5, "bad\nmetadata", "x" * 1001])
+def test_observer_rejects_invalid_description(value):
+    payload = _observer_payload()
+    payload["tool_input"]["description"] = value
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+def test_observer_rejects_top_level_phase():
+    payload = _observer_payload()
+    payload["phase"] = "candidate"
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("raw,args", [("", []), ("{bad", []),
+    ("[]", []), ("true", []), ("null", []),
+    (json.dumps(_observer_payload()), ["candidate"])])
+def test_explicit_observer_invalid_input_is_nonpass(monkeypatch, raw, args, capsys):
+    monkeypatch.setattr(sys, "argv", ["logger", "--test-observer", *args])
+    monkeypatch.setattr(sys, "stdin", StringIO(raw))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 2
+    assert not capsys.readouterr().out
+
+
+def test_inert_observer_does_not_import_store_or_execute(monkeypatch):
+    import builtins
+    import subprocess
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name in {"pipeline_completion_state", "pipeline_state", "test_runner", "subprocess"}:
+            pytest.fail(f"Inert recognition imported execution/store owner: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: pytest.fail("Inert recognition executed child"))
+    monkeypatch.setattr(sys, "argv", ["logger", "--test-observer"])
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(_observer_payload())))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: pytest.fail("Inert recognition published logs"))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 0
+
+
+def test_ordinary_logger_still_logs_fixed_literal(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["session_activity_logger.py"])
+    monkeypatch.setenv("ACTIVITY_LOGGING", "true")
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(_observer_payload())))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: tmp_path)
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 0
+    assert list(tmp_path.glob("*.jsonl"))
+
+
+@pytest.mark.parametrize("valid,expected", [(True, 0), (False, 2)])
+def test_explicit_observer_mode_precedes_logging_optout(monkeypatch, valid, expected):
+    payload = _observer_payload()
+    if not valid:
+        payload["tool_input"]["command"] += " candidate"
+    monkeypatch.setenv("ACTIVITY_LOGGING", "false")
+    monkeypatch.setattr(sys, "argv", ["session_activity_logger.py", "--test-observer"])
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(payload)))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: pytest.fail("Inert observer must not log/publish"))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == expected
+
+
 @pytest.mark.parametrize("tool", ["Read", "Edit", "Write", "Bash", "Skill", "mcp__actual__tool"])
 def test_issue_1807_post_builtin_trace_without_agent_credit(tmp_path, monkeypatch, capsys, tool):
     import pipeline_completion_state as pcs

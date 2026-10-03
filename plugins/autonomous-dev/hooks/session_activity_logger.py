@@ -242,6 +242,44 @@ def prepare_agent_dispatch(payload: dict, *, strict: bool = False) -> None:
         sys.stderr.write(f"[agent_dispatch_sentinel] WARNING: write failed: {exc}\n")
 
 
+def recognize_test_observer_request(payload: object) -> dict[str, str] | None:
+    """Recognize inert observation correlation, never authority or a pass.
+
+    Args:
+        payload: Native callback input; no ambient identity is substituted.
+
+    Returns:
+        Exact correlation fields for the fixed request, otherwise None.
+        Description is benign metadata from the observed Bash schema;
+        unqualified keys (including timeout) are deliberately unsupported.
+    """
+    if not isinstance(payload, dict):
+        return None
+    if set(payload) & {"phase", "path", "run_id", "manifest", "pass"}:
+        return None
+    if payload.get("hook_event_name") != "PostToolUse" or payload.get("tool_name") != "Bash":
+        return None
+    fields = payload.get("tool_input")
+    if not isinstance(fields, dict) or set(fields) - {"command", "description"}:
+        return None
+    if fields.get("command") != ": autonomous-dev-test-observer":
+        return None
+    if "description" in fields:
+        description = fields["description"]
+        if (not isinstance(description, str) or len(description) > 1000
+                or any(ord(char) < 32 or ord(char) == 127 for char in description)):
+            return None
+    for key in ("session_id", "tool_use_id"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+            return None
+    cwd = payload.get("cwd")
+    if (not isinstance(cwd, str) or not cwd or not Path(cwd).is_absolute()
+            or any(ord(char) < 32 or ord(char) == 127 for char in cwd)):
+        return None
+    return {key: payload[key] for key in ("session_id", "tool_use_id", "cwd")}
+
+
 def main():
     """Log tool call activity to structured JSONL."""
     # Opt-out check: false=off, true=summary, debug=full raw stdin
@@ -250,13 +288,23 @@ def main():
     try:
         _start = time.monotonic()
         # Read hook input from stdin
+        observer_mode = "--test-observer" in sys.argv[1:]
         raw = sys.stdin.read().strip()
         if not raw:
-            sys.exit(0)
+            sys.exit(2 if observer_mode else 0)
 
         try:
             hook_input = json.loads(raw)
         except json.JSONDecodeError:
+            sys.exit(2 if observer_mode else 0)
+
+        if observer_mode:
+            # Inert source preparation: recognition is not authentication,
+            # execution, publication, or security denial. Wiring stays OPEN.
+            if (sys.argv[1:] != ["--test-observer"]
+                    or recognize_test_observer_request(hook_input) is None):
+                sys.stderr.write("Invalid test-observer request; no observation performed.\n")
+                sys.exit(2)
             sys.exit(0)
 
         # An activity-log preference cannot disable native dispatch evidence.

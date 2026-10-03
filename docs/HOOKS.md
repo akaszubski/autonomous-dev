@@ -46,6 +46,8 @@ Hooks provide automated quality enforcement, validation, and workflow automation
 
 ### UserPromptSubmit
 
+**Inactive observation parser (#1818)**: `session_activity_logger.py` has an explicit, unregistered `--test-observer` mode. It recognizes only the literal Bash command `: autonomous-dev-test-observer` in a PostToolUse payload with actual bounded session/tool IDs and an absolute cwd. Recognition exits zero without capture, publication or authority; malformed requests exit two. This branch precedes the activity-logging preference, but ordinary logging is unchanged. Trusted provisioning, terminal observation, callback deadline ownership and native reviewer integration are still pending; this parser is not an activated test gate.
+
 `session_activity_logger.py` also observes PostToolUse callbacks (#1807): bounded actual session/tool-call IDs support correlation-only `AUTONOMOUS_DEV_NATIVE_TRACE` markers across builtin, Skill and MCP tools when present. Ordinary tools do not receive invented run bindings or Agent completion credit; native Agent completion still requires its existing exact join. This source behavior is not installed-native provenance acceptance.
 
 | Hook | Purpose | Key Env Vars |
