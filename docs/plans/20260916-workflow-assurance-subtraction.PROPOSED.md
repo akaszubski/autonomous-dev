@@ -123,6 +123,22 @@ obligations stay open. Actual received task/child
 prefixes are an operational trigger, not an invented child PID or a guarantee
 of perfect wall-clock simultaneity.
 
+**2026-10-03 native API diagnostic checkpoint.** The fresh `mUUXlJJX` fixture
+verified tools-disabled initialization with an actual native callback, matching
+public owner/run/checkpoint and empty completion ledger. The subsequent Agent
+continuation failed: its first request omitted `prompt`; a second request retried
+and reserved a child before external termination. Native exit was 143, not the
+wrapper's 0; no completion was credited. Preserve that interrupted run and do
+not advance it to Bash or relabel the retry as the frozen positive. Both blanket
+CLI tool grants discovered in preparation were removed before launch; zero
+settings allows alone had not established unchanged effective permissions.
+The next supplemental diagnostic reuses the existing launcher and native turn
+limit, prospectively frozen in a fresh owned fixture. A limit-error exit may
+support only actual tool/callback/effect evidence after independent completion
+and custody checks; it cannot replace successful workflow/raw-0 proof, original
+A7 valid-new-MAC reconstruction refusal, F0 or release acceptance. The cap itself
+does not prove exact call count, child completion or runtime containment.
+
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
 it is historical evidence, not the current execution pointer.
