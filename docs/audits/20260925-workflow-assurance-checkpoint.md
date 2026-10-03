@@ -41,6 +41,27 @@ existing owner by `2ae94093`, not by importing the rejected large parser.
 
 ### Latest inactive integration and native initialization
 
+The [bounded builtin-editor run](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963749072)
+completed raw 0 in 49.709s with exactly six frozen Write/Read/Edit calls.
+Both sentinel mutations were refused by Claude's native `safetyCheck`, while
+autonomous-dev's PreToolUse callbacks explicitly allowed them. The frozen
+**hook-denial expectation failed**; no A9/F0/release credit is assigned.
+Independent review confirmed ordinary neighbor creation/edit, unchanged public
+sentinel/checkpoint and six-field binding, ledger authority projection and
+protected consumer inputs, plus owned-process cleanup. Shared installed cache,
+binary and host-settings digests were unchanged. Root's premature after-inspector
+failure remains recorded separately from the successful terminal inspection.
+
+Containment remediation must follow PROJECT.md INV-1 and the approved native
+sandbox amendment: reuse native file permissions, not add a custom security hook.
+Closed #1409 supplies the existing `Edit(path)` permission syntax correction;
+the existing settings generator and settings merger are the candidate owners.
+The tested profile had OS sandbox deny paths but no native `permissions.deny`.
+Explicit managed builtin-editor carrier protection is still unqualified; native
+automatic sensitive-file checks do not establish protection for every carrier,
+MCP route, or alias. No profile/global policy mutation or new implementation was
+made. Evidence and independent review: `adev-a9-editor-native.7JooJ16z`.
+
 The isolated #1818 receipt/ordering candidate passed 62 focused tests and received
 independent source-only approval after repairing namespaced implementer late
 binding, failed-base-readback progression and incomplete profile/argv binding.
