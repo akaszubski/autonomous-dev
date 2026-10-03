@@ -27,8 +27,16 @@ def test_real_callback_stdout_protocol_and_report_persistence(tmp_path, native):
     repo = Path(__file__).resolve().parents[3]
     installed = tmp_path / "installed"
     installed.mkdir()
-    archive = subprocess.run(["git", "-C", str(repo), "archive", "HEAD",
-        "plugins/autonomous-dev"], check=True, capture_output=True)
+    # #1638: archive is default-denied against the real checkout. Keep the
+    # same local object snapshot in a disposable Git root, not a guard waiver.
+    snapshot = tmp_path / "snapshot.git"
+    expected_head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    subprocess.run(["git", "clone", "--bare", "--shared", "--local", str(repo), str(snapshot)],
+                   cwd=tmp_path, check=True, capture_output=True)
+    actual_head = subprocess.check_output(["git", "-C", str(snapshot), "rev-parse", "HEAD"], text=True).strip()
+    assert actual_head == expected_head
+    archive = subprocess.run(["git", "-C", str(snapshot), "archive", expected_head,
+        "plugins/autonomous-dev"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(["tar", "-xf", "-", "-C", str(installed)],
                    input=archive.stdout, check=True, capture_output=True)
     plugin = installed / "plugins" / "autonomous-dev"

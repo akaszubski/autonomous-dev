@@ -79,10 +79,17 @@ current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
 For live source and run evidence, use the [current execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391).
-The latest real MCP pair demonstrated an ordinary edit and a protected OS
-refusal with unchanged public carriers and installed inputs. Its failed-tool
-callback/activity edge is missing, so provenance and A9/F0 remain incomplete;
-this is not a hook-enforcement pass. The populated-consumer duplicate native callback is a #1809 RED, and #1818's
+The earlier `cee6032a` MCP pair demonstrated an ordinary edit and a protected OS
+refusal but lacked the failed-tool callback/activity edge. A fresh installed
+`dac30d0a` pair independently verified that repaired edge using actual tool and
+session identifiers, with unchanged public carriers and installed inputs
+([bounded proof](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964748457)).
+Post/activity records still omit run attribution, so full provenance and
+A9/F0 remain incomplete; this is not a hook-enforcement pass. Actual MCP
+PreToolUse records skipped consumer workflow enforcement, and an isolated
+loader counterarm showed ambient library shadowing; both remain distinct
+[#1809 findings](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5964798052)
+until their own repairs and installed acceptance qualify. The populated-consumer duplicate native callback is a #1809 RED, and #1818's
 focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
 the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
 

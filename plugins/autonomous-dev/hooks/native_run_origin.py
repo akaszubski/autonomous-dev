@@ -50,12 +50,19 @@ for _candidate_lib_953 in (
     _hook_dir_953.parent.parent / "lib",             # ~/.claude/lib (installed)
     _Path_953.home() / ".claude" / "plugins" / "autonomous-dev" / "lib",  # marketplace
 ):
-    if _candidate_lib_953.exists() and str(_candidate_lib_953) not in _sys_953.path:
+    if _candidate_lib_953.is_dir():
+        # The first installed layout owns imports; ambient fallback cannot shadow it.
+        while str(_candidate_lib_953) in _sys_953.path:
+            _sys_953.path.remove(str(_candidate_lib_953))
         _sys_953.path.insert(0, str(_candidate_lib_953))
+        break
 
 try:
+    if not (_candidate_lib_953 / "hook_safety.py").is_file():
+        raise ImportError("Selected hook library is incomplete")
     from hook_safety import safe_main as _safe_main_953
 except ImportError:
+    _sys_953.stderr.write("[hook warning] Selected hook library is incomplete; safety wrapper unavailable.\n")
     # Fallback: no-op wrapper so the hook still loads if hook_safety is missing.
     def _safe_main_953(_fn):
         _result = _fn()
