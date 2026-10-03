@@ -7,8 +7,8 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Latest committed source is `b2222173`;
-the previously native-tested runtime remains `dc89c92e`. Canonical
+before the historical entries below. Latest committed runtime source is `2bd8fa13`;
+the callback provenance diagnostics used `b2222173`, while earlier typed initialization used `dc89c92e`. Canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
@@ -36,8 +36,22 @@ and ordinary tools receive no Agent completion credit. The permanent literal-sec
 negative is retained: changed diagnostics render bounded frame locations, not source,
 locals or original exception values. Rejected earlier patches and teardown failures
 remain evidence. This is source readiness, not fresh installed provenance or A9/F0.
-Next: a fresh SHA-pinned install and independently reviewed four-tool native trace
-case using existing qualification machinery; no global settings mutation.
+The subsequent four-tool trace independently verified actual IDs across Pre/Post
+stdout and activity; its full case remains PARTIAL because raw Bash trailing-newline
+bytes were not observed. The separate single-Skill exact-ID/no-authority case
+[passed independent review](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964137866).
+Its post-run invocation of the pre-only verifier refused generated log inventory;
+that failure remains preserved, alongside a separate successful immutable-byte
+comparison. Neither case establishes containment, complete workflow or F0.
+
+Settings writer ordering at `66d6d56d` preserves live configuration on generation
+refusal before backup/recovery renames. `2bd8fa13` adds explicit preserve-only
+generation to avoid the 38 default allows found in a strict-profile diagnostic.
+Independent source/doc reviews passed; root integration passed 157 cases in 1.00s,
+and the normal documentation gate passed 14 with one inherited skip in 6.28s.
+The public writer and installation callers do not activate protected inputs.
+Next: the fresh pinned installed native-permission diagnostic; the old widened
+candidate stays HOLD. No global settings mutation or subtraction credit.
 
 Source correction `270feb8b` removes coordinator run-authority initialization
 instructions from full/fix routing; `15e963d2` makes the resume regression check
