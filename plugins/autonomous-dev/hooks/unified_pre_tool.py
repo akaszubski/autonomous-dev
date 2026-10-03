@@ -429,32 +429,6 @@ def _maybe_invoke_swe_router(tool_name: str, tool_input: Dict[str, Any],
         # Phase A MUST NEVER affect hook behavior.
         return
 
-# Defensive import of repo_detector (Issue #662).
-# Uses importlib.util.spec_from_file_location to load the module relative to
-# __file__ so the import resolves correctly regardless of sys.path at load time.
-# Fail-closed: if the detector is unavailable, _is_adev_project_fn is None and
-# _is_adev_project() returns True — enforcement is never silently skipped.
-_is_adev_project_fn = None
-try:
-    _hook_dir = Path(__file__).resolve().parent
-    _repo_detector_candidates = [
-        _hook_dir.parent / "lib" / "repo_detector.py",           # plugins/autonomous-dev/lib
-        _hook_dir.parents[2] / "lib" / "repo_detector.py",        # fallback
-    ]
-    for _rd_path in _repo_detector_candidates:
-        if _rd_path.exists():
-            import importlib.util as _rd_ilu
-            _rd_spec = _rd_ilu.spec_from_file_location("repo_detector", str(_rd_path))
-            if _rd_spec and _rd_spec.loader:
-                _rd_mod = importlib.util.module_from_spec(_rd_spec)
-                _rd_spec.loader.exec_module(_rd_mod)
-                _is_adev_project_fn = _rd_mod.is_autonomous_dev_repo
-            break
-except Exception:
-    _is_adev_project_fn = None  # Fallback: fail closed (always enforce)
-
-_REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
-
 # Issue #1178: Prompt-integrity recovery telemetry — paired block + recovery
 # events written to hook-blocks.jsonl via log_block_event. The classifier is
 # inlined at the emission site (no helper); this constant only encodes the
@@ -527,18 +501,6 @@ try:
             _strip_heredoc_fn = _heredoc_mod.strip_heredoc_content
 except Exception:
     _strip_heredoc_fn = None
-
-
-def _is_adev_project() -> bool:
-    """Return True if the current working directory is an autonomous-dev repo.
-
-    Wraps the dynamically-loaded repo_detector.is_autonomous_dev_repo.
-    Falls back to True (fail-closed) when the module could not be loaded,
-    so enforcement is never silently skipped on import failure.
-    """
-    if _is_adev_project_fn is None:
-        return True
-    return _is_adev_project_fn()
 
 
 def _safe_classify_edit_tier(file_path: str, old_string: str, new_string: str) -> tuple:
@@ -10536,20 +10498,8 @@ def main():
             output_decision("allow", reason)
             sys.exit(0)
 
-        # =================================================================
-        # PROJECT GUARD: Non-autonomous-dev projects skip enforcement.
-        # Only non-native (MCP) tools reach this point. For projects
-        # without autonomous-dev, these don't need pipeline enforcement.
-        # Fail-closed: if repo_detector is unavailable, _is_adev_project()
-        # returns True so enforcement continues rather than being silently
-        # skipped. (Issue #662)
-        # =================================================================
-        if not _is_adev_project():
-            reason = "Non-autonomous-dev project - enforcement skipped"
-            _log_pretool_activity(tool_name, tool_input, "allow", reason)
-            output_decision("allow", reason)
-            sys.exit(0)
-
+        # Consumer enforcement is default ON (#1142/#1361). The existing
+        # bypass preamble owns opt-out; source identity is not admission.
         # Plan-Exit Gate for MCP tools (Issue #926, Issue #1503): enforce
         # plan-critic workflow on non-native tool calls (MCP servers). Deny when
         # the call is classified as a WRITE — either by tool name or by argument

@@ -93,6 +93,14 @@ until their own repairs and installed acceptance qualify. The populated-consumer
 focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
 the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
 
+The next finite foreign-owner native case retained another RED: the changed
+run-bearing sentinel disappeared; the existing stale-session reader contains
+the matching deletion path before authority classification. The observed denial was missing-sentinel rather than the
+frozen owner-mismatch case. No dispatch credit was added; the original bytes
+were restored after terminal observation. Preserve this failure and qualify a
+new pinned candidate before continuing the sequence; do not count it as a
+passing missing-state arm or let telemetry readers mutate run authority.
+
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
 it is historical evidence, not the current execution pointer.
