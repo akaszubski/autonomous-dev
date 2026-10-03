@@ -110,10 +110,16 @@ refusal now also passed independent native review: the actual completion stayed
 uncredited, the heartbeat refused identity-less recovery, and the following
 dispatch could not reconstruct authority from the ledger. Exact fixture cleanup
 did not overwrite the retained uncredited join. The original observer timing-miss
-remains failed evidence, not retroactively accepted. These are not complete
-A2/A6/A9/F0 or release acceptance: corrupt identity during completion is still
-distinct from the accepted corrupt-dispatch case. Remaining lifecycle, origin,
-containment and installation obligations stay open. Actual received task/child
+remains failed evidence, not retroactively accepted. A fresh native valid
+completion neighbor, corrupt-during-completion refusal and subsequent
+corrupt-state dispatch refusal have now also passed independent review.
+The new join stayed uncredited; original sentinel cleanup did not overwrite
+the ledger/checkpoint. Installed wrong-argument/unsigned-legacy classifier
+cases and missing/synthetic-owner initializer negatives have bounded raw
+evidence too; injected stdin does not prove native origin and unsigned legacy
+does not prove signed-v1 compatibility. These are not complete A1/A2/A2b/A6/A9/F0
+or release acceptance. Remaining lifecycle, origin, containment and installation
+obligations stay open. Actual received task/child
 prefixes are an operational trigger, not an invented child PID or a guarantee
 of perfect wall-clock simultaneity.
 
