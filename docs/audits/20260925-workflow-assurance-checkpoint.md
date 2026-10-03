@@ -7,7 +7,8 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Committed runtime source is `dc89c92e`; canonical
+before the historical entries below. Latest committed source is `b2222173`;
+the previously native-tested runtime remains `dc89c92e`. Canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
 The guard-registration, dispatch-reservation and telemetry repairs are committed
@@ -16,6 +17,27 @@ and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
 
 ### Latest source and offline capture progress
+
+Settings preservation is committed and pushed at `10d5ad9a`: explicit trusted
+protected-path inputs use the existing generator/merger, preserve unrelated
+consumer configuration, union deny lists and refuse malformed containers or
+conflicting allow lists before writing. Independent review retained both rejected
+predecessors. Root integration passed 147 affected cases in 1.26s; the normal
+documentation gate passed 14 with one inherited skip in 7.38s. Existing callers
+do not activate the new inputs; protected-policy custody and installed enforcement
+remain open.
+
+Native callback correlation and safe diagnostics are committed and pushed at
+`b2222173`. Root verified the six independently approved frozen source/test hashes
+and 228 integration passes in 2.66s. The normal documentation gate passed 14 with
+one inherited skip in 7.66s. Actual callback IDs now travel through existing
+Pre/Post stdout markers and activity records; missing identities are not invented
+and ordinary tools receive no Agent completion credit. The permanent literal-secret
+negative is retained: changed diagnostics render bounded frame locations, not source,
+locals or original exception values. Rejected earlier patches and teardown failures
+remain evidence. This is source readiness, not fresh installed provenance or A9/F0.
+Next: a fresh SHA-pinned install and independently reviewed four-tool native trace
+case using existing qualification machinery; no global settings mutation.
 
 Source correction `270feb8b` removes coordinator run-authority initialization
 instructions from full/fix routing; `15e963d2` makes the resume regression check
