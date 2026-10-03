@@ -132,12 +132,17 @@ wrapper's 0; no completion was credited. Preserve that interrupted run and do
 not advance it to Bash or relabel the retry as the frozen positive. Both blanket
 CLI tool grants discovered in preparation were removed before launch; zero
 settings allows alone had not established unchanged effective permissions.
-The next supplemental diagnostic reuses the existing launcher and native turn
-limit, prospectively frozen in a fresh owned fixture. A limit-error exit may
-support only actual tool/callback/effect evidence after independent completion
-and custody checks; it cannot replace successful workflow/raw-0 proof, original
-A7 valid-new-MAC reconstruction refusal, F0 or release acceptance. The cap itself
-does not prove exact call count, child completion or runtime containment.
+The fresh, prospectively frozen `MOBZ8hir` supplemental diagnostic has now
+completed independent tool-level review: one actual Agent dispatch completed
+with its native child/result/ledger join, followed by one actual Bash fixture.
+The ordinary write succeeded; the ten-target external effect comparison found
+no authority changes. Signing/publication arms reported PermissionError, but
+the refusing syscall was not traced. Ledger rebind returned True despite no
+persisted ledger change: repair this existing-owner result contract before
+using it as a success signal. Both continuations exited with native raw 1 /
+error_max_turns, not workflow success. These bounded results do not replace
+original A7 valid-new-MAC reader refusal, full lifecycle/provenance, F0 or release
+acceptance; the cap itself is not a containment or exact-call-count guarantee.
 
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
