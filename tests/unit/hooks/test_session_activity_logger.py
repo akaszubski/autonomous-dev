@@ -31,6 +31,84 @@ sys.path.insert(
 import session_activity_logger as sal
 
 
+@pytest.mark.parametrize("level", ["false", "debug"])
+@pytest.mark.parametrize("tool", ["mcp__actual__write", "Agent"])
+def test_failure_callback_whole_subprocess_is_bounded(tmp_path, level, tool):
+    import subprocess
+    carriers = [tmp_path / "dispatch.json", tmp_path / "completion.json"]
+    for carrier in carriers:
+        carrier.write_bytes(b'{"existing_authority":"unchanged"}\n')
+    before = [carrier.read_bytes() for carrier in carriers]
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "failure-owner",
+               "tool_use_id": "toolu_failure", "tool_name": tool, "is_interrupt": False,
+               "error": "LITERAL_SECRET_FAILURE", "tool_input": {"secret": "RUNTIME_SECRET_FAILURE"}}
+    script = '''import sys,json
+from pathlib import Path
+sys.path.insert(0,sys.argv[1]);import session_activity_logger as s
+s._find_log_dir=lambda:Path(sys.argv[2])
+def forbidden(*a,**k): raise AssertionError("authority must not be touched")
+import agent_dispatch_sentinel as a;a.refresh=forbidden
+import pipeline_completion_state as p;p.join_native_agent_result=forbidden
+a._path=lambda *args,**kwargs:Path(sys.argv[2])/"dispatch.json"
+p._state_file_path=lambda *args,**kwargs:Path(sys.argv[2])/"completion.json"
+s.main()
+'''
+    result = subprocess.run([sys.executable, "-B", "-c", script,
+                             str(Path(sal.__file__).parent), str(tmp_path)],
+                            input=json.dumps(payload), text=True, capture_output=True,
+                            env={**os.environ, "ACTIVITY_LOGGING": level,
+                                 "CLAUDE_SESSION_ID": "foreign-ambient-owner"}, timeout=10)
+    assert result.returncode == 0
+    envelope = json.loads(result.stdout)
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace == {"hook_event_name": "PostToolUseFailure", "session_id": "failure-owner",
+                     "tool_use_id": "toolu_failure"}
+    rows = [json.loads(x) for x in next(tmp_path.glob("*.jsonl")).read_text().splitlines()]
+    assert len(rows) == 1 and rows[0]["success"] is False
+    assert rows[0]["tool"] == tool and rows[0]["is_interrupt"] is False
+    exported = result.stdout + result.stderr + json.dumps(rows)
+    assert "LITERAL_SECRET_FAILURE" not in exported and "RUNTIME_SECRET_FAILURE" not in exported
+    assert "run_id" not in rows[0] and "input_summary" not in rows[0]
+    assert [carrier.read_bytes() for carrier in carriers] == before
+
+
+@pytest.mark.parametrize("field,value", [("session_id", None), ("tool_use_id", "x" * 129),
+    ("tool_name", "bad\nname"), ("is_interrupt", "false")])
+def test_failure_callback_invalid_identity_is_inert(tmp_path, capsys, field, value):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Agent", "is_interrupt": False}
+    payload[field] = value
+    with patch("sys.stdin", StringIO(json.dumps(payload))), patch.object(sal, "_find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit) as exc:
+            sal.main()
+    assert exc.value.code == 0 and capsys.readouterr().out == ""
+    assert not list(tmp_path.glob("*.jsonl"))
+
+
+def test_failure_observer_mode_refuses_before_failure_logging(tmp_path, capsys):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Bash"}
+    with patch("sys.argv", ["logger", "--test-observer"]), patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch.object(sal, "_find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit) as exc:
+            sal.main()
+    assert exc.value.code == 2 and capsys.readouterr().out == ""
+    assert not list(tmp_path.glob("*.jsonl"))
+
+
+def test_failure_logger_fault_never_exports_exception_source(tmp_path, capsys, monkeypatch):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Agent"}
+    def fault():
+        raise RuntimeError("LITERAL_SECRET_FAILURE_FAULT")
+    monkeypatch.setattr(sal, "_find_log_dir", fault)
+    with patch("sys.stdin", StringIO(json.dumps(payload))):
+        with pytest.raises(SystemExit):
+            sal.main()
+    exported = capsys.readouterr()
+    assert "LITERAL_SECRET_FAILURE_FAULT" not in exported.out + exported.err
+
+
 def _observer_payload():
     return {"hook_event_name": "PostToolUse", "tool_name": "Bash",
             "session_id": "native-owner", "tool_use_id": "toolu_actual",

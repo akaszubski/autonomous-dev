@@ -64,19 +64,25 @@ interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
 respective transitions. Resolve #1807 before another native F0 attempt; do not
 convert a library-route green into native acceptance. The release denominator
-on #1757 is still a candidate, not frozen. #1818's runner and gate-consumer
-changes remain uncommitted diagnostic HOLD; only its test-disposition checkpoint
-was pushed at `4a4b4674`. Read-only review found that its always-false F4
-verifier has no positive promotion path. A scoped uncommitted reducer repair
-now preserves call-pass plus teardown-ERROR, but a new child-event forgery RED
-still prevents #1818 promotion
+on #1757 is still a candidate, not frozen. The independently reviewed inactive
+#1818 runner/PCS/ordering seam was pushed at `09f982a5`; the inert observer
+parser was integrated at `cee6032a`. Neither activates a qualified native
+publisher or grants progression. The earlier always-false F4 verifier and
+child-event forgery findings remain preserved diagnostic failures, not proof
+that the later integrated seam is accepted. The historical reducer preserved
+call-pass plus teardown-ERROR; native custody and actual command-path frozen
+negative cases still prevent #1818 promotion
 ([review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5903691558),
 [forgery RED](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914490492)). Use the
 [restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
-The populated-consumer duplicate native callback is a #1809 RED, and #1818's
+For live source and run evidence, use the [current execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391).
+The latest real MCP pair demonstrated an ordinary edit and a protected OS
+refusal with unchanged public carriers and installed inputs. Its failed-tool
+callback/activity edge is missing, so provenance and A9/F0 remain incomplete;
+this is not a hook-enforcement pass. The populated-consumer duplicate native callback is a #1809 RED, and #1818's
 focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
 the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
 

@@ -112,7 +112,8 @@ def format_native_trace(hook_event_name: str, *, session_id: Any = None,
     """Format bounded native callback correlation, never authorization evidence.
 
     Args:
-        hook_event_name: Explicit PreToolUse, PostToolUse, or SubagentStop callback.
+        hook_event_name: Explicit PreToolUse, PostToolUse, PostToolUseFailure,
+            or SubagentStop callback.
         session_id: Actual callback owner, when supplied.
         tool_use_id: Actual callback tool ID, when supplied.
         agent_id: Actual callback child ID, when supplied.
@@ -125,7 +126,7 @@ def format_native_trace(hook_event_name: str, *, session_id: Any = None,
     Raises:
         ValueError: If the callback is not one of the supported native events.
     """
-    if hook_event_name not in ("PreToolUse", "PostToolUse", "SubagentStop"):
+    if hook_event_name not in ("PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStop"):
         raise ValueError("Unsupported native callback")
     trace = {"hook_event_name": hook_event_name}
     for key, value in (("session_id", session_id), ("tool_use_id", tool_use_id),

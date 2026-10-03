@@ -307,6 +307,42 @@ def main():
                 sys.exit(2)
             sys.exit(0)
 
+        if hook_input.get("hook_event_name") == "PostToolUseFailure":
+            # Failure evidence is bounded and nonauthorizing, even under debug
+            # or logging opt-out. Never traverse success/Agent/sentinel paths.
+            for key in ("session_id", "tool_use_id", "tool_name"):
+                value = hook_input.get(key)
+                if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+                    sys.exit(0)
+            if "is_interrupt" in hook_input and type(hook_input["is_interrupt"]) is not bool:
+                sys.exit(0)
+            try:
+                from hook_telemetry import format_native_trace
+                entry = {"timestamp": datetime.now(timezone.utc).isoformat(),
+                         "hook": "PostToolUseFailure", "tool": hook_input["tool_name"],
+                         "session_id": hook_input["session_id"],
+                         "tool_use_id": hook_input["tool_use_id"], "success": False}
+                if "is_interrupt" in hook_input:
+                    entry["is_interrupt"] = hook_input["is_interrupt"]
+                trace = format_native_trace("PostToolUseFailure",
+                    session_id=entry["session_id"], tool_use_id=entry["tool_use_id"])
+                log_dir = _find_log_dir()
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file = log_dir / f"{_get_session_date(entry['session_id'])}.jsonl"
+                with log_file.open("a") as handle:
+                    handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+                print(json.dumps({"continue": True, "systemMessage": trace}))
+            except Exception:
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_failure",
+                                          "Native failure observation unavailable", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_failure").error(
+                        "Native failure observation unavailable",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None))
+            sys.exit(0)
+
         # An activity-log preference cannot disable native dispatch evidence.
         if log_level == "false" and hook_input.get("tool_name") != "Agent":
             sys.exit(0)

@@ -57,6 +57,49 @@ PRECOMMIT_HOOK_FILES = (
 )
 
 
+def _assert_failure_logger_registration(document: dict, *, native: bool) -> None:
+    groups = document.get("hooks", {}).get("PostToolUseFailure", [])
+    callbacks = [callback for group in groups if group.get("matcher") == "*"
+                 for callback in group.get("hooks", [])
+                 if "session_activity_logger.py" in str(callback)]
+    assert callbacks, "#1807: actual failed tools need their own logger callback"
+    for callback in callbacks:
+        assert callback["type"] == "command" and callback["timeout"] == 5
+        if native:
+            assert callback["command"] == "python3"
+            assert callback["args"] == ["${CLAUDE_PLUGIN_ROOT}/hooks/session_activity_logger.py"]
+        else:
+            assert callback["command"].startswith("python3 ")
+            assert callback["command"].endswith('/.claude/hooks/session_activity_logger.py"')
+
+
+@pytest.mark.parametrize("path", sorted(TEMPLATES_DIR.glob("settings.*.json")),
+                         ids=lambda path: path.name)
+def test_failure_logger_registered_in_every_settings_template(path: Path) -> None:
+    document = json.loads(path.read_text())
+    if path.name == "settings.local.json":
+        # #1183: this permissions-only template must not duplicate settings.json hooks.
+        assert document["hooks"] == {}
+    else:
+        _assert_failure_logger_registration(document, native=False)
+
+
+def test_failure_logger_native_registration_and_manifest_membership() -> None:
+    document = json.loads((HOOKS_DIR / "hooks.json").read_text())
+    _assert_failure_logger_registration(document, native=True)
+    for relative in ("install_manifest.json", "config/install_manifest.json"):
+        manifest = json.loads((HOOKS_DIR.parent / relative).read_text())
+        files = manifest["components"]["hooks"]["files"]
+        member = "plugins/autonomous-dev/hooks/session_activity_logger.py"
+        assert member in files and files.count(member) == 1
+
+
+def test_failure_registration_detector_rejects_omitted_event() -> None:
+    """Counterarm: unrelated success wiring cannot satisfy failure wiring."""
+    with pytest.raises(AssertionError, match="failed tools"):
+        _assert_failure_logger_registration({"hooks": {"PostToolUse": []}}, native=True)
+
+
 def _load_template(name: str) -> dict:
     """Load one settings template as a dict.
 

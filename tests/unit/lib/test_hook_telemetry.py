@@ -57,6 +57,18 @@ def test_safe_native_error_never_fetches_source_or_locals(monkeypatch, caplog):
     assert caplog.records[-1].exc_info[2] is None
 
 
+def test_native_failure_trace_preserves_actual_ids_without_authority():
+    """#1807: failure observation is a distinct event, never success credit."""
+    marker = hook_telemetry.format_native_trace(
+        "PostToolUseFailure", session_id="actual-owner", tool_use_id="toolu_failed"
+    )
+    assert json.loads(marker.split(" ", 1)[1]) == {
+        "hook_event_name": "PostToolUseFailure",
+        "session_id": "actual-owner",
+        "tool_use_id": "toolu_failed",
+    }
+
+
 def test_native_trace_preserves_actual_ids_and_final_decision():
     marker = hook_telemetry.format_native_trace("PreToolUse", session_id="owner",
         tool_use_id="toolu_actual", run_id="verified-run", decision="deny")
