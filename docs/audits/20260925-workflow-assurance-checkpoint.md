@@ -28,16 +28,39 @@ The #1818 stock capture diagnostic exercised nine restricted child launches:
 ordinary pass, inherited failure, controlled skip, explicit environment, signal,
 timeout, output overflow, and forged ordinary pass versus controlled skip.
 The comparison refused the forged result; all nine owned process groups were
-absent afterward. No receipt was published. Final capture review remains open:
-the trusted outside parent must not execute consumer-configured Git helpers or
-inherit ambient credentials. That same-owner repair is underway; the diagnostic
-is not installed reviewer progression or F0 acceptance.
+absent afterward. No receipt was published. Commit `1273fb38` resolves the
+outside-parent Git-helper and ambient-environment defects with independent source
+review and 39 affected tests passing. The diagnostic remains distinct from
+installed reviewer progression or F0 acceptance.
 
 Evidence: `stock-qualification-v1.txt` under
 `/Users/akaszubski/.codex/artifacts/adev-1818-offline-capture.0Q0xx74D`.
 Later capture-source changes require their own changed-contract verification.
-The #1801 scanner's quoted-echo false execution credit is being repaired in
-parallel in its existing owner, not by importing the rejected large parser.
+The #1801 scanner's quoted-echo false execution credit was corrected in its
+existing owner by `2ae94093`, not by importing the rejected large parser.
+
+### Latest inactive integration and native initialization
+
+The isolated #1818 receipt/ordering candidate passed 62 focused tests and received
+independent source-only approval after repairing namespaced implementer late
+binding, failed-base-readback progression and incomplete profile/argv binding.
+It remains uncommitted and inactive: current native callers cannot transport the
+successfully returned acknowledgement snapshot into a fresh reviewer hook.
+The current strict completion contract is unchanged. A genuine choice between
+trusted handoff and independently reviewed atomic-commit semantics is pending;
+neither direct Python calls nor stored final data alone satisfy the current rule.
+Review: `adev-1818-obligation-offline.yCIvBle1/INDEPENDENT_REVIEW_V2.md`.
+Callback parsing separately passed 137 affected tests twice, but performs no
+observation/publication and is not deployed as a working observer.
+
+The [first TDD-first attempt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963609515)
+is unqualified: a supervisor import created bytecode before launch, and failed
+verifier output was mistakenly published as frozen JSON. Both failures remain
+preserved. The [corrected fresh initialization](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963637435)
+completed in 14.073s with actual tools[], expected native/public bindings and
+13 pending checkpoint steps; final cache/input checks and process cleanup passed.
+Public fields are not independent HMAC certification. Full mode lifecycle, A9,
+F0, delivery, migrations and clean/populated consumer acceptance remain open.
 
 The source correction is independently reviewed at scanner SHA-256
 `a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`.
