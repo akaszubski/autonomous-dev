@@ -54,6 +54,27 @@ def test_issue_1807_invalid_protected_paths_are_pure(tmp_path, path):
     assert list(tmp_path.iterdir()) == before
 
 
+@pytest.mark.parametrize("backup", [False, True])
+@pytest.mark.parametrize("content", ['{"sandbox":{"filesystem":{"allowWrite":["/A"]}}}', '{broken'])
+def test_issue_1807_generation_refusal_preserves_live_settings(tmp_path, monkeypatch, backup, content):
+    plugin = tmp_path / "plugin"
+    (plugin / "commands").mkdir(parents=True)
+    generator = SettingsGenerator(plugin_dir=plugin)
+    output = tmp_path / "settings.json"
+    output.write_text(content)
+    neighbor = tmp_path / "neighbor.txt"
+    neighbor.write_text("unchanged")
+    before = {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()}
+    monkeypatch.setattr("settings_generator.validate_path", lambda path, **kwargs: path)
+    monkeypatch.setattr("settings_generator.audit_log", lambda *args, **kwargs: None)
+    def refuse(**kwargs):
+        raise ValueError("controlled generation refusal")
+    monkeypatch.setattr(generator, "generate_settings", refuse)
+    with pytest.raises(ValueError, match="controlled generation refusal"):
+        generator.write_settings(output, merge_existing=True, backup=backup)
+    assert {path.name: path.read_bytes() for path in tmp_path.iterdir() if path.is_file()} == before
+
+
 class TestSettingsGeneratorHookMigration:
     """Test hook migration in settings_generator._deep_merge_settings()."""
 

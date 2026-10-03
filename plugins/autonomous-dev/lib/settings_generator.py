@@ -882,19 +882,24 @@ class SettingsGenerator:
                     existing_content = output_path.read_text()
                     existing_settings = json.loads(existing_content)
                 except json.JSONDecodeError:
-                    # Corrupted JSON - backup and continue with fresh settings
+                    # Defer recovery backup until a replacement validates.
                     corrupted_backup = True
-                    backup_path = output_path.parent / f"{output_path.name}.corrupted"
-                    output_path.rename(backup_path)
 
-                    audit_log(
-                        "settings_generation",
-                        "corrupted_settings_backed_up",
-                        {
-                            "output_path": str(output_path),
-                            "backup_path": str(backup_path),
-                        },
-                    )
+            # Validate the complete candidate before moving any live settings.
+            settings = self.generate_settings(merge_with=existing_settings)
+
+            if corrupted_backup:
+                backup_path = output_path.parent / f"{output_path.name}.corrupted"
+                output_path.rename(backup_path)
+
+                audit_log(
+                    "settings_generation",
+                    "corrupted_settings_backed_up",
+                    {
+                        "output_path": str(output_path),
+                        "backup_path": str(backup_path),
+                    },
+                )
 
             # Step 3: Backup existing file if requested
             if backup and output_path.exists() and not corrupted_backup:
@@ -909,9 +914,6 @@ class SettingsGenerator:
                         "backup_path": str(backup_path),
                     },
                 )
-
-            # Step 4: Generate settings
-            settings = self.generate_settings(merge_with=existing_settings)
 
             # Step 5: Create parent directory if needed
             output_path.parent.mkdir(parents=True, exist_ok=True)

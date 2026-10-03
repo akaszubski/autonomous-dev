@@ -5774,6 +5774,8 @@ Generate complete settings dictionary with patterns and metadata.
 
 Write settings.local.json to disk with optional merge and backup.
 
+Candidate generation/validation completes before the existing backup or corruption-recovery rename (#1807). A generation refusal leaves the live file and directory inventory unchanged; valid backup/recovery behavior remains. This ordering does not establish rollback after a later atomic-write failure or activate trusted protected-path provisioning.
+
 **Parameters**:
 - `output_path` (Path): Path to write settings.local.json
 - `merge_existing` (bool): Whether to merge with existing settings (preserves customizations)
@@ -5783,10 +5785,10 @@ Write settings.local.json to disk with optional merge and backup.
 
 **Workflow**:
 1. Validate output path (security checks)
-2. Create .claude/ directory if missing (with secure permissions)
-3. Backup existing file if requested
-4. Read and merge with existing settings if requested
-5. Generate new settings dictionary
+2. Read existing settings if merging; identify corrupt input without moving it
+3. Generate and validate the replacement settings dictionary
+4. Perform the existing backup or corruption-recovery rename
+5. Create the output parent directory if missing
 6. Atomic write with secure permissions (0o600)
 7. Audit log the operation
 
