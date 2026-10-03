@@ -45,13 +45,13 @@ from typing import Dict, List, Any, Optional
 # Import security utilities
 try:
     from autonomous_dev.lib.security_utils import validate_path, audit_log
-    from autonomous_dev.lib.settings_merger import UNIFIED_HOOK_REPLACEMENTS
+    from autonomous_dev.lib.settings_merger import UNIFIED_HOOK_REPLACEMENTS, SettingsMerger
 except ImportError:
     # Fallback for direct script execution
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
     from security_utils import validate_path, audit_log
-    from settings_merger import UNIFIED_HOOK_REPLACEMENTS
+    from settings_merger import UNIFIED_HOOK_REPLACEMENTS, SettingsMerger
 
 
 # =============================================================================
@@ -732,14 +732,25 @@ class SettingsGenerator:
         # Return default deny list (from module constant)
         return list(DEFAULT_DENY_LIST)
 
-    def generate_settings(self, merge_with: Optional[Dict] = None) -> Dict:
+    def generate_settings(
+        self, merge_with: Optional[Dict] = None, *,
+        protected_write_paths: Optional[List[str]] = None,
+        protected_read_paths: Optional[List[str]] = None,
+    ) -> Dict:
         """Generate settings dictionary with all patterns and metadata.
 
         Args:
             merge_with: Optional existing settings to merge with
+            protected_write_paths: Trusted absolute protected paths/patterns for Edit rules.
+            protected_read_paths: Trusted absolute protected paths/patterns for Read rules.
+                These explicit provisioner inputs are not authenticated by this API.
+                No existing installation caller supplies them; activation remains separate.
 
         Returns:
             Settings dictionary ready for JSON serialization
+
+        Raises:
+            ValueError: Protected paths are malformed or stock allow policies conflict.
 
         Structure:
             {
@@ -756,6 +767,24 @@ class SettingsGenerator:
         # Build patterns
         allow_patterns = self.build_command_patterns()
         deny_patterns = self.build_deny_list()
+        # Retain lexical and canonical spellings: pinned native versions cannot
+        # be assumed to resolve symlink-directory rules. This performs no mkdir
+        # or carrier/key read and does not prove native alias containment.
+        for tool, paths in (("Edit", protected_write_paths), ("Read", protected_read_paths)):
+            if paths is None:
+                continue
+            if not isinstance(paths, (list, tuple)):
+                raise ValueError("Protected paths must be a sequence of absolute strings")
+            for path in paths:
+                if (not isinstance(path, str) or not path.startswith("/")
+                        or path == "/" or ".." in path.split("/")
+                        or any(char in path for char in "\x00\n\r()\\")
+                        or len(path) > 4096):
+                    raise ValueError("Protected path must be an unambiguous absolute path")
+                for spelling in (path, str(Path(path).resolve(strict=False))):
+                    rule = f"{tool}(/{spelling})"
+                    if rule not in deny_patterns:
+                        deny_patterns.append(rule)
 
         # Issue #1409: no Write(<path>) companions are emitted. Claude Code
         # "checks file permissions against Edit(path) and Read(path) rules
@@ -790,36 +819,9 @@ class SettingsGenerator:
 
         # Merge with existing settings if provided
         if merge_with:
-            # Preserve user hooks
-            if "hooks" in merge_with:
-                settings["hooks"] = merge_with["hooks"]
-
-            # Preserve user custom patterns (add to allow list)
-            if "permissions" in merge_with and "allow" in merge_with["permissions"]:
-                user_patterns = merge_with["permissions"]["allow"]
-                # Filter out generated patterns, keep only user's custom ones
-                custom_patterns = [
-                    p for p in user_patterns
-                    if p not in SAFE_COMMAND_PATTERNS
-                ]
-                # Add custom patterns to allow list
-                settings["permissions"]["allow"].extend(custom_patterns)
-
-                # Deduplicate
-                settings["permissions"]["allow"] = list(set(settings["permissions"]["allow"]))
-
-            # Preserve user deny patterns (union with defaults)
-            if "permissions" in merge_with and "deny" in merge_with["permissions"]:
-                user_denies = merge_with["permissions"]["deny"]
-                settings["permissions"]["deny"].extend(user_denies)
-
-                # Deduplicate
-                settings["permissions"]["deny"] = list(set(settings["permissions"]["deny"]))
-
-            # Preserve any other custom keys
-            for key, value in merge_with.items():
-                if key not in settings and key not in ["permissions"]:
-                    settings[key] = value
+            # One merge owner preserves nested permissions and arbitrary consumer
+            # fields. No generated hooks are supplied, so existing hooks stay intact.
+            settings = SettingsMerger(str(self.plugin_dir))._merge_dicts(merge_with, settings)
 
         return settings
 

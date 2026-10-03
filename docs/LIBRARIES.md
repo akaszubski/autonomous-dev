@@ -5319,6 +5319,8 @@ def __init__(self, project_root: str)
 
 Merge template settings with user settings, preserving customizations.
 
+For the exact `sandbox.filesystem` schema, denyRead/denyWrite lists are unioned; nonidentical existing allowRead/allowWrite lists refuse rather than widen access (#1807). Incoming and existing sandbox/filesystem containers must be dictionaries when touched, and policy arrays must contain strings. Public merge returns a non-success result before writing on these conflicts. Missing/empty dictionaries remain valid; newly introduced unrelated dictionaries are deep-copied, including custom nested `hooks` data. This source behavior does not prove protected-policy custody or native containment.
+
 **Parameters**:
 - `template_path` (Path): Path to template settings.local.json
 - `user_path` (Path): Path to user settings.local.json
@@ -5628,7 +5630,7 @@ Validate path for security issues.
 
 ---
 
-## 47. settings_generator.py (749 lines, v3.43.0+)
+## 47. settings_generator.py (v3.43.0+)
 
 **Purpose**: Generate settings.local.json with specific command patterns and comprehensive deny list
 
@@ -5741,7 +5743,9 @@ deny_list = SettingsGenerator.build_deny_list()
 # Static method - no instance needed
 ```
 
-##### `generate_settings(merge_with: Optional[Dict] = None) -> Dict`
+##### `generate_settings(merge_with: Optional[Dict] = None, *, protected_write_paths: Optional[List[str]] = None, protected_read_paths: Optional[List[str]] = None) -> Dict`
+
+The optional protected paths (#1807) are trusted provisioner inputs, not caller authentication. Absolute paths/patterns produce Edit deny rules for writes and Read deny rules for reads, using lexical and current canonical spellings. Generation resolves path metadata but does not create targets or read their contents. Invalid path shapes or stock-policy conflicts raise `ValueError`. Existing installation callers do not supply these arguments; this API returns a configuration candidate and does not activate protected-policy delivery or certify actual native editor behavior. Nested settings preservation uses the existing `SettingsMerger`, not a second merge implementation.
 
 Generate complete settings dictionary with patterns and metadata.
 

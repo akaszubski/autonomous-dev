@@ -22,6 +22,38 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "plugins" / "autono
 from settings_generator import SettingsGenerator
 
 
+def test_issue_1807_protected_paths_and_populated_permissions(tmp_path):
+    """Trusted paths preserve lexical/canonical rules and consumer fields."""
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+    generator = SettingsGenerator(project_root=tmp_path)
+    existing = {"permissions": {"ask": ["Bash(custom:*)"],
+                "defaultMode": "default", "custom": {"value": 1}},
+                "hooks": {"Custom": []}, "custom": True}
+    result = generator.generate_settings(
+        merge_with=existing, protected_write_paths=[str(alias / "future/**")],
+        protected_read_paths=[str(alias / "secret")])
+    for root in (alias, real):
+        assert f"Edit(/{root}/future/**)" in result["permissions"]["deny"]
+        assert f"Read(/{root}/secret)" in result["permissions"]["deny"]
+    assert result["permissions"]["ask"] == existing["permissions"]["ask"]
+    assert result["permissions"]["defaultMode"] == "default"
+    assert result["permissions"]["custom"] == {"value": 1}
+    assert result["hooks"] == existing["hooks"]
+    assert result["custom"] is True
+
+
+@pytest.mark.parametrize("path", ["relative", "/tmp/../secret", "/tmp/a)\nRead(*)", "", "/"])
+def test_issue_1807_invalid_protected_paths_are_pure(tmp_path, path):
+    generator = SettingsGenerator(project_root=tmp_path)
+    before = list(tmp_path.iterdir())
+    with pytest.raises(ValueError):
+        generator.generate_settings(protected_write_paths=[path])
+    assert list(tmp_path.iterdir()) == before
+
+
 class TestSettingsGeneratorHookMigration:
     """Test hook migration in settings_generator._deep_merge_settings()."""
 
