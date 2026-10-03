@@ -323,6 +323,58 @@ _PATH_CHAR = r"(?:\$\{[^}]*\}|\$\([^)]*\)|[^\s;|&()\"'])"
 # being named, not run.
 _COMMAND_POSITION = r"(?:^|[;&|`]|\$\(|\b(?:then|else|elif|if|while|until|do)\b)"
 
+# Only a reviewed command head grants source credit. Substitution syntax that
+# this small recognizer cannot delimit remains UNKNOWN, not presumed execution.
+_COMMAND_HEAD = (
+    r"^\s*(?:(?:then|else|elif|if|while|until|do)\s+)?"
+    r"(?:(?:env|exec)\s+)?(?:[A-Za-z_][A-Za-z0-9_]*="
+    r"(?:\"[^\";|&()`]*\"|'[^';|&()`]*'|[^\s\"'`;|&()]+)\s+)*"
+    r"(?![A-Za-z_][A-Za-z0-9_]*=)"
+)
+
+
+def _shell_command_spans(line: str) -> "tuple[str, ...]":
+    """Split unquoted shell separators; unsupported substitutions grant no credit.
+
+    This is a conservative source recognizer, not a shell interpreter. Quoted
+    separators stay data; backticks, nested substitutions and malformed quotes
+    are unresolved. A complete nonnested assignment substitution is supported.
+    """
+    # A complete assignment wrapping one non-nested command substitution has
+    # an explicit executable boundary. Do not extract substitutions from echo
+    # arguments or quoted data; more complex shell forms remain unresolved.
+    substitution = re.fullmatch(r"\s*[A-Za-z_][A-Za-z0-9_]*=\$\(([^()]*)\)\s*", line)
+    if substitution:
+        return _shell_command_spans(substitution.group(1))
+    spans = []
+    start = 0
+    quote = None
+    escaped = False
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and quote != "'":
+            escaped = True
+            continue
+        if char == "`":
+            return ()
+        if quote:
+            if char == quote:
+                quote = None
+            continue
+        if char in "\"'":
+            quote = char
+        elif line[index:index + 2] == "$(":
+            return ()
+        elif char in ";&|":
+            spans.append(line[start:index])
+            start = index + 1
+    if quote or escaped:
+        return ()
+    spans.append(line[start:])
+    return tuple(span for span in spans if span.strip())
+
 # Hook filenames as they appear inside a settings command string.
 _HOOK_FILENAME = re.compile(r"[\w.\-]+\.(?:py|sh)")
 
@@ -742,6 +794,30 @@ def _invoker_corpus(project_root: Path = PROJECT_ROOT) -> "list[Path]":
     return sorted(found)
 
 
+@pytest.mark.parametrize(
+    "carrier, expected",
+    [
+        ("python3 plugins/autonomous-dev/lib/synthetic_target.py", True),
+        ('python3 "plugins/autonomous-dev/lib/synthetic_target.py"', True),
+        ('echo "python3 plugins/autonomous-dev/lib/synthetic_target.py"', False),
+        ('payload="python3 plugins/autonomous-dev/lib/synthetic_target.py"', False),
+        ('helper_path="`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"', False),
+        ('payload="`echo data` python3 plugins/autonomous-dev/lib/synthetic_target.py"', False),
+        ('value=$(python3 plugins/autonomous-dev/lib/synthetic_target.py)', True),
+        ('PYTHONPATH="plugins/autonomous-dev/lib" python3 plugins/autonomous-dev/lib/synthetic_target.py', True),
+        ("echo '$(python3 plugins/autonomous-dev/lib/synthetic_target.py)'", False),
+    ],
+)
+def test_issue_1801_shared_execution_recognizer_distinguishes_command_data(carrier, expected, tmp_path):
+    """Frozen command-head controls, shared by hook and library instruments."""
+    assert any(_shell_invocation_pattern("synthetic_target.py").search(span)
+               for span in _shell_command_spans(carrier)) is expected
+    assert ("synthetic_target" in _shell_invoked_stems(carrier)) is expected
+    source = tmp_path / "carrier.sh"
+    source.write_text(carrier + "\n", encoding="utf-8")
+    assert ("synthetic_target" in _references_in(source)) is expected
+
+
 def _shell_invocation_pattern(filename: str) -> "re.Pattern[str]":
     """Build a regex matching shell lines that EXECUTE ``filename``.
 
@@ -773,13 +849,13 @@ def _shell_invocation_pattern(filename: str) -> "re.Pattern[str]":
     interpreters = "|".join(_SHELL_INTERPRETERS)
     # Not preceded by a word character, so ``sh`` does not match inside
     # ``finish`` and turn ``finish path/hook.py`` into an invocation.
-    named = rf"(?<![\w.\-/])(?:{interpreters})\s+"
-    var_interp = rf"{_COMMAND_POSITION}\s*[\"']?\$\{{?\w+\}}?[\"']?\s+"
+    named = rf"{_COMMAND_HEAD}(?:{interpreters})\s+"
+    var_interp = rf"{_COMMAND_HEAD}[\"']?\$\{{?\w+\}}?[\"']?\s+"
     return re.compile(
         # interpreter (named, or a variable in command position) + path
         rf"(?:{named}|{var_interp})(?:-\w+\s+)*[\"']?{_PATH_CHAR}*{quoted}"
         # a slash-bearing path in command position
-        rf"|{_COMMAND_POSITION}\s*[\"']?{_PATH_CHAR}*/{_PATH_CHAR}*{quoted}"
+        rf"|{_COMMAND_HEAD}[\"']?{_PATH_CHAR}*/{_PATH_CHAR}*{quoted}"
         # python3 -m <stem>
         rf"|{named}(?:-\w+\s+)*-m\s+[\"']?{stem}\b"
     )
@@ -925,7 +1001,7 @@ def _resolve_importers(
 
         if path.suffix != ".py":
             for lineno, raw in enumerate(source.splitlines(), 1):
-                if pattern.search(_SHELL_COMMENT.sub("", raw)):
+                if any(pattern.search(span) for span in _shell_command_spans(_SHELL_COMMENT.sub("", raw))):
                     evidence.add(f"{path.name}:{lineno} shell-invocation")
             if evidence:
                 resolved[path] = evidence
@@ -1239,8 +1315,8 @@ _ANY_PY_TARGET = r"([\w.\-]+)\.py"
 #: every character class they are built from (``_SHELL_INTERPRETERS``,
 #: ``_PATH_CHAR``, ``_COMMAND_POSITION``) is the #1612 constant itself,
 #: so the two patterns cannot drift in what they consider a command.
-_NAMED_INTERPRETER = rf"(?<![\w.\-/])(?:{'|'.join(_SHELL_INTERPRETERS)})\s+"
-_VARIABLE_INTERPRETER = rf"{_COMMAND_POSITION}\s*[\"']?\$\{{?\w+\}}?[\"']?\s+"
+_NAMED_INTERPRETER = rf"{_COMMAND_HEAD}(?:{'|'.join(_SHELL_INTERPRETERS)})\s+"
+_VARIABLE_INTERPRETER = rf"{_COMMAND_HEAD}[\"']?\$\{{?\w+\}}?[\"']?\s+"
 
 #: The generic form of ``_shell_invocation_pattern``: the same accepted
 #: shapes, with the filename left OPEN so one pass over a file yields
@@ -1256,7 +1332,7 @@ _VARIABLE_INTERPRETER = rf"{_COMMAND_POSITION}\s*[\"']?\$\{{?\w+\}}?[\"']?\s+"
 _SHELL_INVOCATION_ANY = re.compile(
     rf"(?:{_NAMED_INTERPRETER}|{_VARIABLE_INTERPRETER})"
     rf"(?:-\w+\s+)*[\"']?{_PATH_CHAR}*?{_ANY_PY_TARGET}"
-    rf"|{_COMMAND_POSITION}\s*[\"']?{_PATH_CHAR}*?/{_PATH_CHAR}*?{_ANY_PY_TARGET}"
+    rf"|{_COMMAND_HEAD}[\"']?{_PATH_CHAR}*?/{_PATH_CHAR}*?{_ANY_PY_TARGET}"
     rf"|{_NAMED_INTERPRETER}(?:-\w+\s+)*-m\s+[\"']?([\w.]+)\b"
 )
 
@@ -1598,12 +1674,13 @@ def _shell_invoked_stems(
         the module names of every ``-m`` form.
     """
     found: "set[str]" = set()
-    for raw in text.splitlines():
+    for raw in re.sub(r"\\\n[ \t]*", " ", text).splitlines():
         line = _SHELL_COMMENT.sub("", raw)
-        for match in pattern.finditer(line):
-            for group in match.groups():
-                if group:
-                    found.add(group.rsplit(".", 1)[-1])
+        for span in _shell_command_spans(line):
+            for match in pattern.finditer(span):
+                for group in match.groups():
+                    if group:
+                        found.add(group.rsplit(".", 1)[-1])
     return found
 
 
@@ -1732,7 +1809,7 @@ _HELPER_OPERAND = (
 _HELPER_INVOCATION = re.compile(
     rf"{_HELPER_COMMAND_START}"
     rf"(?:{_POSIX_IDENTIFIER}={_ENV_ASSIGNMENT_VALUE}[ \t]+)*"
-    rf"{_NAMED_INTERPRETER}(?:-\w+[ \t]+)*"
+    rf"(?:{'|'.join(_SHELL_INTERPRETERS)})\s+(?:-\w+[ \t]+)*"
     rf"{_HELPER_OPERAND}",
     re.MULTILINE,
 )
@@ -2289,6 +2366,10 @@ def _references_in(path: Path) -> "set[str]":
         return _python_referenced_stems(text, origin=path)
     if path.suffix.lower() in NARRATIVE_SUFFIXES:
         found = _shell_invoked_stems(text, _SHELL_INVOCATION_INTERPRETED)
+        # Explicit inline command examples are code, not arbitrary prose or
+        # quoted shell data. Apply the same command-head recognizer to them.
+        for inline in re.findall(r"(?<!`)`([^`\n]+)`(?!`)", text):
+            found |= _shell_invoked_stems(inline, _SHELL_INVOCATION_INTERPRETED)
         for _language, contents in _fenced_code_blocks(text):
             found |= _shell_invoked_stems(contents, _SHELL_INVOCATION_ANY)
             found |= _same_file_helper_stems(contents)
@@ -8116,30 +8197,14 @@ class TestSourceConnectivityCorrection:
             f"grammar has widened."
         )
 
-    def test_a_backtick_prefix_is_credited_by_the_OLDER_arm_not_this_one(
+    def test_a_backtick_prefix_remains_unresolved_without_false_path_credit(
         self, tmp_path
     ):
-        """TWO INSTRUMENTS DISAGREE, and the disagreement is the finding.
+        """#1801 retires the old false credit, not the negative control.
 
-        ``helper_path="`pwd`/plugins/.../synthetic_target.py"`` is
-        REACHED — and NOT by the recogniser added in #1757, which refuses
-        the right-hand side like every other substitution above. It is
-        credited by the PRE-EXISTING bare-path arm, because
-        ``_COMMAND_POSITION`` lists the backtick as a command position and
-        therefore reads ``` `pwd`/plugins/... ``` as a path being run.
-
-        MEASURED against the pre-#1757 module, not inferred: loading the
-        committed parent revision and calling ``_shell_invoked_stems`` on
-        this exact line already returns ``{'synthetic_target'}``, while
-        the ``$(pwd)`` and ``$root`` forms return nothing.
-
-        This is recorded rather than silently fixed. Narrowing
-        ``_COMMAND_POSITION`` is a change to #1612's grammar with its own
-        blast radius, it is outside the bounded source-connectivity
-        correction, and quietly "resolving" it in the direction that
-        makes a new test green is exactly how a real finding disappears.
-        The arm therefore asserts WHICH recogniser credits it, so that
-        fixing the older one later fails here and is noticed.
+        The old bare-path arm mistook the closing backtick for a command
+        boundary and credited assignment data. Resolving the dynamic helper
+        RHS is still unsupported; UNKNOWN is honest, not proof it never runs.
         """
         rhs = '"`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"'
         carrier = (
@@ -8147,23 +8212,18 @@ class TestSourceConnectivityCorrection:
             f"helper_path={rhs}\n"
             'python3 "$helper_path" --check\n'
         )
-        assert self._verdict(tmp_path, self._HOOK, carrier) == "REACHED", (
-            "the backtick shape is no longer credited at all. If "
-            "_COMMAND_POSITION was narrowed, that is an IMPROVEMENT — "
-            "delete this arm and say so; do not leave it asserting a "
-            "behaviour the instrument no longer has."
+        assert self._verdict(tmp_path, self._HOOK, carrier) == "UNKNOWN", (
+            "unsupported dynamic helper binding acquired false execution credit"
         )
         assert _same_file_helper_stems(carrier) == set(), (
             "the #1757 same-file recogniser resolved a backtick "
             "right-hand side. It must refuse every substitution form; "
-            "the credit above is supposed to come from the older "
-            "bare-path arm alone."
+            "no instrument may guess the resulting helper path."
         )
-        assert "synthetic_target" in _shell_invoked_stems(
+        assert "synthetic_target" not in _shell_invoked_stems(
             carrier, _SHELL_INVOCATION_ANY
         ), (
-            "the older bare-path arm no longer credits the backtick "
-            "line, so the attribution in this docstring is stale."
+            "assignment data was mistaken for a directly executed path"
         )
 
     def test_omitted_route_the_hook_is_not_an_entry_surface(self, tmp_path):

@@ -18,6 +18,29 @@ from pathlib import Path
 
 import pytest
 
+
+@pytest.mark.parametrize("reader,expected", [
+    ("_get_current_issue_number", 0),
+    ("_get_pipeline_mode_from_state", "full"),
+    ("_is_pipeline_active", False),
+    ("_is_explicit_implement_active", False),
+    ("_load_pipeline_state_verified", None),
+])
+def test_foreign_run_readers_preserve_public_carrier(tmp_path, monkeypatch, reader, expected):
+    """Foreign run metadata is ignored without erasing the authority evidence."""
+    state_path = tmp_path / "foreign-run.json"
+    state = _make_state(session_id="session-A", issue_number=1807, mode="fix")
+    _write_state_file(state_path, state)
+    original = state_path.read_bytes()
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+    monkeypatch.delenv("PIPELINE_ISSUE_NUMBER", raising=False)
+    monkeypatch.delenv("PIPELINE_MODE", raising=False)
+    monkeypatch.setattr(unified_pre_tool, "_session_id", "session-B")
+    assert getattr(unified_pre_tool, reader)() == expected
+    assert state_path.exists(), "Foreign run evidence was removed by a reader"
+    assert state_path.read_bytes() == original
+
 # Add hook directory to path
 HOOK_DIR = str(
     Path(__file__).resolve().parents[3]

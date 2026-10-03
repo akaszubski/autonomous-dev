@@ -32,6 +32,55 @@ import hook_telemetry  # noqa: E402
 import hook_recovery  # noqa: E402
 
 
+@pytest.mark.parametrize("invalid", [None, "x" * 129, "bad\nvalue", {"token": "secret"}])
+def test_native_trace_omits_unsupported_identifiers(invalid):
+    marker = hook_telemetry.format_native_trace("PostToolUse", session_id="actual-owner",
+        tool_use_id=invalid, agent_id=invalid, run_id=invalid, decision="unsupported")
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace == {"hook_event_name": "PostToolUse", "session_id": "actual-owner"}
+
+
+def test_safe_native_error_never_fetches_source_or_locals(monkeypatch, caplog):
+    import linecache
+    def forbidden(*args, **kwargs):
+        pytest.fail("Safe diagnostics must not fetch source")
+    with monkeypatch.context() as source_guard:
+        source_guard.setattr(linecache, "getline", forbidden)
+        try:
+            private_local = "PRIVATE_LOCAL_MARKER"
+            raise RuntimeError("LITERAL_EXCEPTION_MARKER")
+        except RuntimeError:
+            hook_telemetry.log_safe_native_error("hook_telemetry", "Fixed diagnostic", sys.exc_info()[2])
+    assert "LITERAL_EXCEPTION_MARKER" not in caplog.text
+    assert private_local not in caplog.text
+    assert "test_safe_native_error_never_fetches_source_or_locals" in caplog.text
+    assert caplog.records[-1].exc_info[2] is None
+
+
+def test_native_failure_trace_preserves_actual_ids_without_authority():
+    """#1807: failure observation is a distinct event, never success credit."""
+    marker = hook_telemetry.format_native_trace(
+        "PostToolUseFailure", session_id="actual-owner", tool_use_id="toolu_failed"
+    )
+    assert json.loads(marker.split(" ", 1)[1]) == {
+        "hook_event_name": "PostToolUseFailure",
+        "session_id": "actual-owner",
+        "tool_use_id": "toolu_failed",
+    }
+
+
+def test_native_trace_preserves_actual_ids_and_final_decision():
+    marker = hook_telemetry.format_native_trace("PreToolUse", session_id="owner",
+        tool_use_id="toolu_actual", run_id="verified-run", decision="deny")
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace["tool_use_id"] == "toolu_actual"
+    assert trace["run_id"] == "verified-run"
+    assert trace["decision"] == "deny"
+    with pytest.raises(ValueError):
+        hook_telemetry.format_native_trace("InventedCallback")
+    assert "decision" not in hook_telemetry.format_native_trace("PostToolUse", decision={})
+
+
 @pytest.fixture(autouse=True)
 def _clean_telemetry_env(monkeypatch):
     """Ensure telemetry env vars are unset for each test by default."""

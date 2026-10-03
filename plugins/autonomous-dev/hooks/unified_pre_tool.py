@@ -76,6 +76,8 @@ from typing import Any, Dict, Tuple, List, Optional
 # Module-level session_id extracted from hook stdin (set in main()).
 # Logging functions fall back to this when CLAUDE_SESSION_ID env var is absent.
 _session_id: str = "unknown"
+_native_dispatch_input: dict = {}
+_native_decision_metadata: dict = {}
 
 # Defensive import of python_write_detector (Issue #589).
 # Falls back to None so inline regex continues to work if import fails.
@@ -427,32 +429,6 @@ def _maybe_invoke_swe_router(tool_name: str, tool_input: Dict[str, Any],
         # Phase A MUST NEVER affect hook behavior.
         return
 
-# Defensive import of repo_detector (Issue #662).
-# Uses importlib.util.spec_from_file_location to load the module relative to
-# __file__ so the import resolves correctly regardless of sys.path at load time.
-# Fail-closed: if the detector is unavailable, _is_adev_project_fn is None and
-# _is_adev_project() returns True — enforcement is never silently skipped.
-_is_adev_project_fn = None
-try:
-    _hook_dir = Path(__file__).resolve().parent
-    _repo_detector_candidates = [
-        _hook_dir.parent / "lib" / "repo_detector.py",           # plugins/autonomous-dev/lib
-        _hook_dir.parents[2] / "lib" / "repo_detector.py",        # fallback
-    ]
-    for _rd_path in _repo_detector_candidates:
-        if _rd_path.exists():
-            import importlib.util as _rd_ilu
-            _rd_spec = _rd_ilu.spec_from_file_location("repo_detector", str(_rd_path))
-            if _rd_spec and _rd_spec.loader:
-                _rd_mod = importlib.util.module_from_spec(_rd_spec)
-                _rd_spec.loader.exec_module(_rd_mod)
-                _is_adev_project_fn = _rd_mod.is_autonomous_dev_repo
-            break
-except Exception:
-    _is_adev_project_fn = None  # Fallback: fail closed (always enforce)
-
-_REPO_DETECTOR_AVAILABLE = _is_adev_project_fn is not None
-
 # Issue #1178: Prompt-integrity recovery telemetry — paired block + recovery
 # events written to hook-blocks.jsonl via log_block_event. The classifier is
 # inlined at the emission site (no helper); this constant only encodes the
@@ -525,18 +501,6 @@ try:
             _strip_heredoc_fn = _heredoc_mod.strip_heredoc_content
 except Exception:
     _strip_heredoc_fn = None
-
-
-def _is_adev_project() -> bool:
-    """Return True if the current working directory is an autonomous-dev repo.
-
-    Wraps the dynamically-loaded repo_detector.is_autonomous_dev_repo.
-    Falls back to True (fail-closed) when the module could not be loaded,
-    so enforcement is never silently skipped on import failure.
-    """
-    if _is_adev_project_fn is None:
-        return True
-    return _is_adev_project_fn()
 
 
 def _safe_classify_edit_tier(file_path: str, old_string: str, new_string: str) -> tuple:
@@ -783,14 +747,17 @@ PIPELINE_AGENTS = [
 # (known pipeline role) — stripping an arbitrary prefix would let
 # "evil:implementer" authorize itself as the implementer.
 #
-# Hardcoded rather than read from plugins/autonomous-dev/.claude-plugin/
-# plugin.json on purpose: this hook runs under a 5s budget on every tool call,
+# Shared with ordering and completion views rather than read from plugin.json:
+# this hook runs under a bounded budget on every tool call,
 # and the installed copy at .claude/hooks/ has no plugin manifest beside it, so
 # a manifest read would be both a per-call I/O cost and unreliable at the one
 # location that matters. tests/regression/test_issue_1811_namespaced_agent_
 # identity.py cross-validates this constant against plugin.json so the two
 # cannot drift silently.
-REGISTERED_PLUGIN_NAMESPACES: frozenset = frozenset({'autonomous-dev'})
+from agent_ordering_gate import (  # noqa: E402 - hook library path bootstrap above
+    REGISTERED_PLUGIN_NAMESPACES,
+    normalize_agent_identity,
+)
 
 
 def _normalize_agent_identity(raw_name: str) -> str:
@@ -814,10 +781,8 @@ def _normalize_agent_identity(raw_name: str) -> str:
     Returns:
         The bare pipeline role when both halves validate, else ``raw_name``.
     """
-    if ':' not in raw_name:
-        return raw_name
-    namespace, _, role = raw_name.partition(':')
-    if namespace in REGISTERED_PLUGIN_NAMESPACES and role in PIPELINE_AGENTS:
+    role = normalize_agent_identity(raw_name)
+    if role in PIPELINE_AGENTS:
         return role
     return raw_name
 
@@ -1524,7 +1489,7 @@ def validate_prompt_integrity(tool_name: str, tool_input: Dict) -> Tuple[str, st
         return ("allow", "Not an agent invocation")
 
     # Extract agent type first — needed for minimum word count check
-    agent_type = tool_input.get("subagent_type", "").strip().lower()
+    agent_type = normalize_agent_identity(tool_input.get("subagent_type", ""))
     if not agent_type:
         return ("allow", "Could not determine agent type")
 
@@ -1758,6 +1723,10 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
             target_agent = _extract_subagent_type(task_desc)
         if not target_agent:
             return ("allow", "Could not determine target agent - allowing")
+        canonical_target = normalize_agent_identity(target_agent)
+        namespace = target_agent.partition(":")[0]
+        if ":" in target_agent and namespace in REGISTERED_PLUGIN_NAMESPACES and canonical_target == target_agent:
+            return ("deny", "Unknown owned pipeline role; use an installed autonomous-dev role")
 
         # Import completion state and ordering gate
         from pipeline_completion_state import (
@@ -1771,11 +1740,11 @@ def validate_pipeline_ordering(tool_name: str, tool_input: Dict) -> Tuple[str, s
         session_id = _session_id or os.getenv("CLAUDE_SESSION_ID", "unknown")
         issue_number = _get_current_issue_number()
 
-        # Issue #686: Record agent launch BEFORE checking prerequisites.
-        # This tracks that PreToolUse fired for this agent, enabling the
-        # parallel-mode defense-in-depth guard to distinguish "running
-        # concurrently" from "skipped entirely".
-        record_agent_launch(session_id, target_agent, issue_number=issue_number)
+        # Preserve legacy Task observation. Native Agent launch credit instead
+        # comes from the exact reservation after the final admission decision;
+        # a denied attempt is not a running specialist.
+        if tool_name == "Task":
+            record_agent_launch(session_id, target_agent, issue_number=issue_number)
 
         completed = get_completed_agents(session_id, issue_number=issue_number)
         launched = get_launched_agents(session_id, issue_number=issue_number)
@@ -2140,6 +2109,27 @@ def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
                     )
                 )
                 sys.exit(0)
+            # A native sentinel is only a projection of a currently RESERVED
+            # exact dispatch. Failed terminal cleanup cannot extend authority
+            # merely by leaving this file active until its TTL.
+            state = _load_pipeline_state_verified()
+            if state:
+                from pipeline_state import classify_current_run_authority
+                if classify_current_run_authority(state, _native_stdin_identity()).typed_user_origin:
+                    from agent_dispatch_sentinel import _path as _dispatch_path
+                    from pipeline_completion_state import _read_state
+                    dispatch = json.loads(_dispatch_path().read_text(encoding="utf-8"))
+                    ledger = _read_state(_native_stdin_identity())
+                    generation = dispatch.get("generation")
+                    join = ledger.get("native_agent_joins", {}).get(generation, {})
+                    if (
+                        ledger.get("current_run_id") != state.get("run_id")
+                        or join.get("run_id") != state.get("run_id")
+                        or join.get("tool_use_id") != generation
+                        or join.get("status") != "reserved"
+                    ):
+                        output_decision("deny", "Protected edit requires a currently reserved native Agent dispatch")
+                        sys.exit(0)
         except ImportError:
             # Issue #1296: Fail CLOSED when sentinel library missing for security-critical check
             file_name = Path(file_path).name if file_path else "unknown"
@@ -2157,6 +2147,9 @@ def _enforce_protected_infrastructure(tool_name: str, tool_input: dict) -> None:
                     f"Blocking protected-path edit for security. (Issue #1296)"
                 )
             )
+            sys.exit(0)
+        except Exception as exc:
+            output_decision("deny", f"Protected dispatch authority unavailable: {exc}")
             sys.exit(0)
         # implementer-dispatched edit: permit as before (fall through to WPG/other checks)
         return
@@ -2214,14 +2207,17 @@ def _is_stale_session(state: dict, state_path: "Path") -> bool:
     """Check if pipeline state belongs to a different (stale) session (Issue #592).
 
     Compares session_id in state file against current session's _session_id.
-    If different and both are non-empty/non-unknown, state is stale -- remove file.
+    If different and both are non-empty/non-unknown, state is stale. Preserve
+    run-bearing records as authority-refusal evidence; only legacy non-run
+    breadcrumbs are removed. A reader must not convert an invalid run to absence.
 
     Args:
         state: Parsed pipeline state dict.
-        state_path: Path to the state file (for removal).
+        state_path: Path to the state file (legacy non-run cleanup only).
 
     Returns:
-        True if state is stale (file removed), False if current or indeterminate.
+        True if state is foreign, even when its run evidence is preserved;
+        False if current or indeterminate.
 
     Note: When either session_id is "unknown" or empty (e.g., first hook
     invocation before stdin parsing), this returns False (indeterminate).
@@ -2237,6 +2233,10 @@ def _is_stale_session(state: dict, state_path: "Path") -> bool:
         return False  # Cannot determine, fall through to TTL/HMAC
 
     if stored_sid != current_sid:
+        # Key presence includes malformed/empty run identities: deleting those
+        # would also erase the claim that the final native guard must refuse.
+        if "run_id" in state:
+            return True
         try:
             state_path.unlink(missing_ok=True)
         except OSError:
@@ -2366,7 +2366,8 @@ def _get_pipeline_mode_from_state() -> str:
     state.get("mode") regardless of mtime age — a long-running --light run must
     not be misclassified as "full" merely because 30 min elapsed since the last
     state write. The mismatched-known-session leak is already handled earlier by
-    _is_stale_session() (which unlinks the foreign file); indeterminate sessions
+    _is_stale_session() (which preserves foreign run evidence and cleans only
+    legacy non-run breadcrumbs); indeterminate sessions
     remain TTL-guarded, so no cross-session leakage is reintroduced.
 
     Returns:
@@ -7239,6 +7240,14 @@ def _log_write_gate_bypass_deferred(file_path: str, call_key: str) -> None:
 
 
 def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
+    # Native Agent logging is deferred until the permission owner resolves the
+    # reservation. Preliminary validators must not emit a contradictory allow.
+    if tool_name == "Agent" and _native_dispatch_input.get("tool_name") == "Agent":
+        return
+    _write_pretool_activity(tool_name, tool_input, decision, reason)
+
+
+def _write_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reason: str) -> None:
     """Log PreToolUse decision to shared activity log."""
     try:
         import json as _json
@@ -7273,13 +7282,19 @@ def _log_pretool_activity(tool_name: str, tool_input: Dict, decision: str, reaso
             "agent": _get_active_agent_name() or "main",
             **summary,
         }
+        callback_id = _native_dispatch_input.get("tool_use_id")
+        if (tool_name == _native_dispatch_input.get("tool_name")
+                and isinstance(callback_id, str)
+                and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", callback_id)):
+            entry["tool_use_id"] = callback_id
+            if tool_name == "Agent" and _native_decision_metadata.get("run_id"):
+                entry["run_id"] = _native_decision_metadata["run_id"]
         with open(log_dir / f"{date_str}.jsonl", "a") as f:
             f.write(_json.dumps(entry, separators=(",", ":")) + "\n")
     except Exception:
         pass
 
 
-@block_event_decorator("unified_pre_tool.py")
 def output_decision(decision: str, reason: str, *, system_message: str = ""):
     """Output the hook decision in required format.
 
@@ -7294,6 +7309,117 @@ def output_decision(decision: str, reason: str, *, system_message: str = ""):
     deny-reason text can be reconstructed without grepping session
     transcripts. The decorator is idempotent and never raises.
     """
+    _native_decision_metadata.clear()
+    callback_id = _native_dispatch_input.get("tool_use_id")
+    native_trace = (isinstance(callback_id, str)
+                    and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", callback_id))
+    if _native_dispatch_input.get("tool_name") == "Agent" or native_trace:
+        _native_decision_metadata.update({
+            "tool_use_id": _native_dispatch_input.get("tool_use_id", ""),
+            "session_id": _native_dispatch_input.get("session_id", ""),
+        })
+        # A refusal still belongs to the verified current run, when available.
+        # Never derive this attribution from a merely present/foreign sentinel.
+        try:
+            from pipeline_state import classify_current_run_authority
+            owner = _native_dispatch_input.get("session_id", "")
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            state = _load_pipeline_state_verified()
+            if (state and isinstance(owner, str) and owner.strip()
+                    and (not env_owner or env_owner == owner)
+                    and classify_current_run_authority(state, owner).typed_user_origin):
+                _native_decision_metadata["run_id"] = state["run_id"]
+        except Exception:
+            # Correlation failure cannot manufacture run attribution or alter a
+            # refusal; the separate admission path below remains fail-closed.
+            _native_decision_metadata.pop("run_id", None)
+            import logging
+            # Do not include exception text: it may contain sensitive carrier
+            # content. Retain frame locations without source/locals/value rendering.
+            try:
+                from hook_telemetry import log_safe_native_error
+                log_safe_native_error("unified_pre_tool.native_trace",
+                                      "Native correlation failure; attribution omitted", sys.exc_info()[2])
+            except Exception:
+                logging.getLogger("unified_pre_tool.native_trace").error(
+                    "Native correlation failure; attribution omitted",
+                    exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                )
+    # Native Agent reservations belong to the final permission owner, never a
+    # parallel observer. Denials/asks must not occupy the next dispatch lane.
+    if decision == "allow" and _native_dispatch_input.get("tool_name") == "Agent":
+        try:
+            from pipeline_completion_state import (
+                get_native_agent_run_id, is_synthetic_session_id,
+                register_native_agent_dispatch, run_credit_refusal,
+            )
+            from pipeline_state import classify_current_run_authority
+
+            payload = _native_dispatch_input
+            owner = payload.get("session_id", "")
+            if not isinstance(owner, str) or not owner.strip() or is_synthetic_session_id(owner):
+                raise ValueError("missing or invalid native Agent callback owner")
+            sentinel_path = os.environ.get("PIPELINE_STATE_FILE") or str(get_legacy_sentinel_path())
+            refusal = run_credit_refusal(owner, sentinel_path=sentinel_path, native_dispatch=True)
+            state = _load_pipeline_state_verified()
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            if env_owner and env_owner != owner:
+                decision, reason = "deny", "Agent session identity mismatch"
+            elif refusal:
+                decision, reason = "deny", refusal
+            elif state is None and not os.path.lexists(sentinel_path):
+                pass  # Genuine no-run neighbour: no native credit or reservation.
+            elif state is None or not classify_current_run_authority(state, owner).typed_user_origin:
+                decision, reason = "deny", "Native Agent requires current typed-user authority"
+            else:
+                fields = payload.get("tool_input", {}) or {}
+                from session_activity_logger import prepare_agent_dispatch
+                verdict = register_native_agent_dispatch(
+                    owner, payload.get("tool_use_id", ""),
+                    fields.get("subagent_type", ""), fields.get("run_in_background"),
+                    prepare=lambda: prepare_agent_dispatch(payload, strict=True),
+                )
+                if verdict != "registered":
+                    decision, reason = "deny", f"Native Agent dispatch refused: {verdict}"
+                else:
+                    _native_decision_metadata.pop("run_id", None)
+                    admitted_run = get_native_agent_run_id(owner, payload.get("tool_use_id", ""))
+                    if admitted_run is not None:
+                        _native_decision_metadata["run_id"] = admitted_run
+                    reason = "Native foreground Agent admitted with exact current typed-user reservation"
+        except Exception as exc:
+            decision, reason = "deny", f"Native Agent dispatch unavailable: {exc}"
+    if _native_dispatch_input.get("tool_name") == "Agent":
+        _write_pretool_activity("Agent", _native_dispatch_input.get("tool_input", {}) or {}, decision, reason)
+    if _native_dispatch_input.get("tool_name") == "Agent" or native_trace:
+        # systemMessage is an existing native-protocol field. This bounded JSON
+        # line links native hook_id/output to the actual tool identity without
+        # adding unsupported envelope keys or relying on temporal proximity.
+        try:
+            from hook_telemetry import format_native_trace
+            marker = format_native_trace(
+                "PreToolUse", session_id=_native_decision_metadata.get("session_id"),
+                tool_use_id=_native_decision_metadata.get("tool_use_id"),
+                run_id=_native_decision_metadata.get("run_id"), decision=decision,
+            )
+            system_message = f"{system_message}\n{marker}" if system_message else marker
+        except Exception:
+            import logging
+            try:
+                from hook_telemetry import log_safe_native_error
+                log_safe_native_error("unified_pre_tool.native_trace",
+                                      "Native trace failure; permission decision unchanged", sys.exc_info()[2])
+            except Exception:
+                logging.getLogger("unified_pre_tool.native_trace").error(
+                    "Native trace failure; permission decision unchanged",
+                    exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                )
+    _emit_decision(decision, reason, system_message=system_message)
+
+
+@block_event_decorator("unified_pre_tool.py", metadata=_native_decision_metadata)
+def _emit_decision(decision: str, reason: str, *, system_message: str = ""):
+    """Emit only the final verdict so existing block telemetry sees refusals."""
     output = {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -8963,6 +9089,8 @@ def _phase_e_skip(
 
 def main():
     """Main entry point - dispatch to all validators and combine decisions."""
+    global _native_dispatch_input
+    _native_dispatch_input = {}
     try:
         # Load environment variables
         load_env()
@@ -8970,6 +9098,7 @@ def main():
         # Read input from stdin
         try:
             input_data = json.load(sys.stdin)
+            _native_dispatch_input = input_data
         except json.JSONDecodeError as e:
             # Invalid JSON - ask user (don't block on invalid input)
             output_decision("ask", f"Invalid input JSON: {e}")
@@ -10258,7 +10387,7 @@ def main():
                     # Issue #1227: Set redispatch flag when ordering gate denies
                     try:
                         from prompt_integrity import set_redispatch_flag
-                        target_agent = tool_input.get('subagent_type', '').strip().lower()
+                        target_agent = normalize_agent_identity(tool_input.get('subagent_type', ''))
                         if target_agent:
                             set_redispatch_flag(target_agent)
                     except Exception:
@@ -10377,20 +10506,8 @@ def main():
             output_decision("allow", reason)
             sys.exit(0)
 
-        # =================================================================
-        # PROJECT GUARD: Non-autonomous-dev projects skip enforcement.
-        # Only non-native (MCP) tools reach this point. For projects
-        # without autonomous-dev, these don't need pipeline enforcement.
-        # Fail-closed: if repo_detector is unavailable, _is_adev_project()
-        # returns True so enforcement continues rather than being silently
-        # skipped. (Issue #662)
-        # =================================================================
-        if not _is_adev_project():
-            reason = "Non-autonomous-dev project - enforcement skipped"
-            _log_pretool_activity(tool_name, tool_input, "allow", reason)
-            output_decision("allow", reason)
-            sys.exit(0)
-
+        # Consumer enforcement is default ON (#1142/#1361). The existing
+        # bypass preamble owns opt-out; source identity is not admission.
         # Plan-Exit Gate for MCP tools (Issue #926, Issue #1503): enforce
         # plan-critic workflow on non-native tool calls (MCP servers). Deny when
         # the call is classified as a WRITE — either by tool name or by argument

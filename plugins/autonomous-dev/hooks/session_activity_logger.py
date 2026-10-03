@@ -40,12 +40,19 @@ for _candidate_lib_953 in (
     _hook_dir_953.parent.parent / "lib",             # ~/.claude/lib (installed)
     _Path_953.home() / ".claude" / "plugins" / "autonomous-dev" / "lib",  # marketplace
 ):
-    if _candidate_lib_953.exists() and str(_candidate_lib_953) not in _sys_953.path:
+    if _candidate_lib_953.is_dir():
+        # The first installed layout owns imports; ambient fallback cannot shadow it.
+        while str(_candidate_lib_953) in _sys_953.path:
+            _sys_953.path.remove(str(_candidate_lib_953))
         _sys_953.path.insert(0, str(_candidate_lib_953))
+        break
 
 try:
+    if not (_candidate_lib_953 / "hook_safety.py").is_file():
+        raise ImportError("Selected hook library is incomplete")
     from hook_safety import safe_main as _safe_main_953
 except ImportError:
+    _sys_953.stderr.write("[hook warning] Selected hook library is incomplete; safety wrapper unavailable.\n")
     # Fallback: no-op wrapper so hooks still load if hook_safety is missing.
     def _safe_main_953(_fn):
         _result = _fn()
@@ -55,6 +62,7 @@ except ImportError:
 
 
 import json
+import logging
 import os
 import re
 import sys
@@ -206,23 +214,144 @@ def _classify_task_agent_phantom(
         return ("write", {})
 
 
+def prepare_agent_dispatch(payload: dict, *, strict: bool = False) -> None:
+    """Prepare the existing protected-edit sentinel after dispatch admission.
+
+    Args:
+        payload: Observed tool callback. Native ``Agent`` uses its exact
+            ``tool_use_id`` as the sentinel generation and never appends FIFO
+            cache entries. Legacy ``Task`` retains UUID/FIFO correlation.
+        strict: Propagate sentinel publication failures for the native
+            reservation owner's scoped abort. The default retains the legacy
+            Task warning behavior; it does not certify native Task lifecycle.
+
+    The sentinel is written atomically LAST. Native publication failure cannot
+    newly arm it; prior sentinel bytes remain owned by the prior generation.
+    Missing Agent tool identity raises before publication. Native PostToolUse,
+    not anonymous SubagentStop, owns exact terminal compare-and-delete.
+    """
+    fields = payload.get("tool_input", {}) or {}
+    owner = payload.get("session_id") or "unknown"
+    agent = (fields.get("subagent_type", "") or "").strip()
+    native_agent = payload.get("tool_name") == "Agent"
+    generation = payload.get("tool_use_id", "") if native_agent else uuid.uuid4().hex
+    if native_agent and (not isinstance(generation, str) or not generation.strip()):
+        raise ValueError("Native Agent dispatch requires an exact tool_use_id")
+    if agent and not native_agent:
+        _sic_cache_invocation(owner, agent, start_time=time.time(),
+                              description=fields.get("description", ""), generation=generation)
+    try:
+        from agent_dispatch_sentinel import write
+        write(agent_name=agent or "unknown", generation=generation)
+    except Exception as exc:
+        if strict:
+            raise
+        sys.stderr.write(f"[agent_dispatch_sentinel] WARNING: write failed: {exc}\n")
+
+
+def recognize_test_observer_request(payload: object) -> dict[str, str] | None:
+    """Recognize inert observation correlation, never authority or a pass.
+
+    Args:
+        payload: Native callback input; no ambient identity is substituted.
+
+    Returns:
+        Exact correlation fields for the fixed request, otherwise None.
+        Description is benign metadata from the observed Bash schema;
+        unqualified keys (including timeout) are deliberately unsupported.
+    """
+    if not isinstance(payload, dict):
+        return None
+    if set(payload) & {"phase", "path", "run_id", "manifest", "pass"}:
+        return None
+    if payload.get("hook_event_name") != "PostToolUse" or payload.get("tool_name") != "Bash":
+        return None
+    fields = payload.get("tool_input")
+    if not isinstance(fields, dict) or set(fields) - {"command", "description"}:
+        return None
+    if fields.get("command") != ": autonomous-dev-test-observer":
+        return None
+    if "description" in fields:
+        description = fields["description"]
+        if (not isinstance(description, str) or len(description) > 1000
+                or any(ord(char) < 32 or ord(char) == 127 for char in description)):
+            return None
+    for key in ("session_id", "tool_use_id"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+            return None
+    cwd = payload.get("cwd")
+    if (not isinstance(cwd, str) or not cwd or not Path(cwd).is_absolute()
+            or any(ord(char) < 32 or ord(char) == 127 for char in cwd)):
+        return None
+    return {key: payload[key] for key in ("session_id", "tool_use_id", "cwd")}
+
+
 def main():
     """Log tool call activity to structured JSONL."""
     # Opt-out check: false=off, true=summary, debug=full raw stdin
     log_level = os.environ.get("ACTIVITY_LOGGING", "true").lower()
-    if log_level == "false":
-        sys.exit(0)
 
     try:
         _start = time.monotonic()
         # Read hook input from stdin
+        observer_mode = "--test-observer" in sys.argv[1:]
         raw = sys.stdin.read().strip()
         if not raw:
-            sys.exit(0)
+            sys.exit(2 if observer_mode else 0)
 
         try:
             hook_input = json.loads(raw)
         except json.JSONDecodeError:
+            sys.exit(2 if observer_mode else 0)
+
+        if observer_mode:
+            # Inert source preparation: recognition is not authentication,
+            # execution, publication, or security denial. Wiring stays OPEN.
+            if (sys.argv[1:] != ["--test-observer"]
+                    or recognize_test_observer_request(hook_input) is None):
+                sys.stderr.write("Invalid test-observer request; no observation performed.\n")
+                sys.exit(2)
+            sys.exit(0)
+
+        if hook_input.get("hook_event_name") == "PostToolUseFailure":
+            # Failure evidence is bounded and nonauthorizing, even under debug
+            # or logging opt-out. Never traverse success/Agent/sentinel paths.
+            for key in ("session_id", "tool_use_id", "tool_name"):
+                value = hook_input.get(key)
+                if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+                    sys.exit(0)
+            if "is_interrupt" in hook_input and type(hook_input["is_interrupt"]) is not bool:
+                sys.exit(0)
+            try:
+                from hook_telemetry import format_native_trace
+                entry = {"timestamp": datetime.now(timezone.utc).isoformat(),
+                         "hook": "PostToolUseFailure", "tool": hook_input["tool_name"],
+                         "session_id": hook_input["session_id"],
+                         "tool_use_id": hook_input["tool_use_id"], "success": False}
+                if "is_interrupt" in hook_input:
+                    entry["is_interrupt"] = hook_input["is_interrupt"]
+                trace = format_native_trace("PostToolUseFailure",
+                    session_id=entry["session_id"], tool_use_id=entry["tool_use_id"])
+                log_dir = _find_log_dir()
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file = log_dir / f"{_get_session_date(entry['session_id'])}.jsonl"
+                with log_file.open("a") as handle:
+                    handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+                print(json.dumps({"continue": True, "systemMessage": trace}))
+            except Exception:
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_failure",
+                                          "Native failure observation unavailable", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_failure").error(
+                        "Native failure observation unavailable",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None))
+            sys.exit(0)
+
+        # An activity-log preference cannot disable native dispatch evidence.
+        if log_level == "false" and hook_input.get("tool_name") != "Agent":
             sys.exit(0)
 
         # Detect hook type from input fields
@@ -302,38 +431,12 @@ def main():
         if hook_event == "PreToolUse":
             pre_tool_name = hook_input.get("tool_name", "")
             if pre_tool_name in ("Task", "Agent"):
-                pre_tool_input = hook_input.get("tool_input", {}) or {}
-                pre_session_id = (
-                    os.environ.get("CLAUDE_SESSION_ID")
-                    or hook_input.get("session_id", "unknown")
-                )
-                pre_subagent_type = (pre_tool_input.get("subagent_type", "") or "").strip()
-                # Issue #1484: mint one per-dispatch generation token shared by the
-                # invocation cache entry and the sentinel payload. SubagentStop
-                # recovers it from the cache and passes it to clear() for a
-                # compare-and-delete that avoids the #1467 ABA disarm race.
-                generation = uuid.uuid4().hex
-                if pre_subagent_type:
-                    _sic_cache_invocation(
-                        pre_session_id,
-                        pre_subagent_type,
-                        start_time=time.time(),
-                        description=pre_tool_input.get("description", ""),
-                        generation=generation,
-                    )
-                # Issue #1296: write agent-dispatch sentinel so unified_pre_tool can distinguish
-                # coordinator-direct edits from implementer-dispatched edits to protected paths.
-                try:
-                    from agent_dispatch_sentinel import write as _ads_write
-                    _ads_write(
-                        agent_name=pre_subagent_type if pre_subagent_type else "unknown",
-                        generation=generation,
-                    )
-                except Exception as e:
-                    # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
-                    sys.stderr.write(
-                        f"[agent_dispatch_sentinel] WARNING: write failed: {e}\n"
-                    )
+                if pre_tool_name == "Agent":
+                    # #1807: the unified guard owns final permission and native
+                    # reservation. A parallel observer cannot reserve a denied
+                    # dispatch or grant specialist completion credit.
+                    sys.exit(0)
+                prepare_agent_dispatch(hook_input)
             # Always exit on PreToolUse — we don't write a log entry from this hook
             # (unified_pre_tool.py owns PreToolUse activity logging).
             sys.exit(0)
@@ -354,7 +457,8 @@ def main():
         # back to the fixed DEFAULT_TTL_SECONDS crash backstop.
         try:
             from agent_dispatch_sentinel import refresh as _ads_refresh
-            _ads_refresh()
+            if tool_name != "Agent":
+                _ads_refresh()
         except Exception as e:
             # Issue #1484 (Fix 4): loud, non-blocking warning instead of silent pass.
             sys.stderr.write(
@@ -362,7 +466,33 @@ def main():
             )
 
         # Session ID: prefer env var, fall back to hook stdin JSON
-        session_id = os.environ.get("CLAUDE_SESSION_ID") or hook_input.get("session_id") or "unknown"
+        session_id = hook_input.get("session_id") or "unknown"
+        if tool_name == "Agent":
+            try:
+                env_owner = os.environ.get("CLAUDE_SESSION_ID")
+                if env_owner and env_owner != session_id:
+                    sys.stderr.write("[native-agent-join] result session identity mismatch\n")
+                    sys.exit(0)
+                from pipeline_completion_state import join_native_agent_result
+                response = hook_input.get("tool_response") or {}
+                verdict = join_native_agent_result(
+                    session_id,
+                    hook_input.get("tool_use_id", ""),
+                    response.get("agentId", "") if isinstance(response, dict) else "",
+                    response.get("status", "") if isinstance(response, dict) else "",
+                    bool(response.get("is_error") or response.get("error"))
+                    if isinstance(response, dict) else True,
+                )
+                if verdict in ("completed", "failed"):
+                    # The exact join owns terminal lifecycle, not anonymous
+                    # SubagentStop/FIFO recovery. Compare-and-delete preserves
+                    # another dispatch and makes replays non-authorizing.
+                    from agent_dispatch_sentinel import clear
+                    clear(expected_generation=hook_input.get("tool_use_id", ""))
+                if verdict not in ("inactive", "completed"):
+                    sys.stderr.write(f"[native-agent-join] result uncredited: {verdict}\n")
+            except (ImportError, ValueError, OSError) as exc:
+                sys.stderr.write(f"[native-agent-join] result unavailable: {exc}\n")
         if session_id == "unknown":
             sys.stderr.write(f"[session_activity_logger] WARNING: session_id resolved to 'unknown' for hook={hook_event}\n")
 
@@ -416,12 +546,61 @@ def main():
                 if _cur_issue:
                     entry["batch_issue_number"] = _cur_issue
 
+        # Preserve runtime correlation identifiers verbatim; telemetry is not
+        # authority and must not infer a child/tool identity from timing or role.
+        tool_use_id = hook_input.get("tool_use_id")
+        if isinstance(tool_use_id, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", tool_use_id):
+            entry["tool_use_id"] = tool_use_id
+        response = hook_input.get("tool_response")
+        if isinstance(response, dict):
+            agent_id = response.get("agentId")
+            if isinstance(agent_id, str) and agent_id.strip():
+                entry["agent_id"] = agent_id
+        if tool_name == "Agent" and isinstance(tool_use_id, str):
+            try:
+                from pipeline_completion_state import get_native_agent_run_id
+                run_id = get_native_agent_run_id(session_id, tool_use_id)
+                if run_id:
+                    entry["run_id"] = run_id
+            except (ImportError, ValueError, OSError, RuntimeError):
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_trace",
+                                          "native correlation failure; attribution omitted", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_trace").error(
+                        "native correlation failure; attribution omitted",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                    )
+
         # Write to log file
         log_dir = _find_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
 
         date_str = _get_session_date(session_id)
         log_file = log_dir / f"{date_str}.jsonl"
+
+        # Native callback correlation survives legacy phantom log suppression;
+        # this marker makes no completion claim or authorization decision.
+        if (tool_name == "Agent" or (isinstance(tool_use_id, str)
+                and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", tool_use_id))):
+            try:
+                from hook_telemetry import format_native_trace
+                print(json.dumps({"continue": True, "systemMessage": format_native_trace(
+                    "PostToolUse", session_id=hook_input.get("session_id"),
+                    tool_use_id=entry.get("tool_use_id"), agent_id=entry.get("agent_id"),
+                    run_id=entry.get("run_id"),
+                )}))
+            except Exception:
+                try:
+                    from hook_telemetry import log_safe_native_error
+                    log_safe_native_error("session_activity_logger.native_trace",
+                                          "Native trace failure; activity recording unchanged", sys.exc_info()[2])
+                except Exception:
+                    logging.getLogger("session_activity_logger.native_trace").error(
+                        "Native trace failure; activity recording unchanged",
+                        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+                    )
 
         # Issue #1461: phantom-then-real dedup for Task/Agent PostToolUse writes.
         # Runs BEFORE the write so phantom entries never land in the JSONL log

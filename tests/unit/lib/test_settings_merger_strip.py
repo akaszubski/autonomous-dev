@@ -23,8 +23,79 @@ if str(_LIB) not in sys.path:
 
 from settings_merger import (  # noqa: E402
     CANONICAL_GLOBAL_HOOKS,
+    SettingsMerger,
     strip_global_duplicates,
 )
+
+
+def test_issue_1807_stock_denials_union_without_mutating_inputs(tmp_path):
+    base = {"sandbox": {"filesystem": {"denyWrite": ["/old"], "denyRead": ["/secret"]}}}
+    original = copy.deepcopy(base)
+    updates = {"sandbox": {"filesystem": {"denyWrite": ["/new"], "denyRead": ["/other"]}}}
+    result = SettingsMerger(str(tmp_path))._merge_dicts(base, updates)
+    assert result["sandbox"]["filesystem"]["denyWrite"] == ["/old", "/new"]
+    assert result["sandbox"]["filesystem"]["denyRead"] == ["/secret", "/other"]
+    assert base == original
+    assert SettingsMerger(str(tmp_path))._merge_dicts(
+        {"custom": {"denyWrite": ["old"]}}, {"custom": {"denyWrite": ["new"]}})["custom"]["denyWrite"] == ["new"]
+
+
+@pytest.mark.parametrize("key", ["allowWrite", "allowRead"])
+def test_issue_1807_stock_allow_conflict_refuses(tmp_path, key):
+    merger = SettingsMerger(str(tmp_path))
+    base = {"sandbox": {"filesystem": {key: ["/old"]}}}
+    with pytest.raises(ValueError):
+        merger._merge_dicts(base, {"sandbox": {"filesystem": {key: ["/new"]}}})
+    assert merger._merge_dicts(base, copy.deepcopy(base)) == base
+
+
+def test_issue_1807_public_merge_conflict_does_not_write(tmp_path):
+    """The existing writer refuses conflicting activation without changing files."""
+    user = tmp_path / "settings.json"
+    template = tmp_path / "template.json"
+    user.write_text(json.dumps({"sandbox": {"filesystem": {"allowWrite": ["/old"]}}}))
+    template.write_text(json.dumps({"sandbox": {"filesystem": {"allowWrite": ["/new"]}}}))
+    before = user.read_bytes()
+    result = SettingsMerger(str(tmp_path)).merge_settings(template, user)
+    assert not result.success
+    assert user.read_bytes() == before
+    assert {path.name for path in tmp_path.iterdir()} == {"settings.json", "template.json"}
+
+
+def test_issue_1807_new_malformed_stock_policy_refuses(tmp_path):
+    with pytest.raises(ValueError):
+        SettingsMerger(str(tmp_path))._merge_dicts(
+            {}, {"sandbox": {"filesystem": {"denyWrite": "not-a-list"}}})
+
+
+@pytest.mark.parametrize("container", ["sandbox", "filesystem"])
+@pytest.mark.parametrize("malformed", [None, [], "disabled"])
+@pytest.mark.parametrize("side", ["base", "updates"])
+def test_issue_1807_malformed_stock_container_refuses(tmp_path, container, malformed, side):
+    valid = {"sandbox": {"filesystem": {"denyWrite": ["/protected"]}}}
+    invalid = {"sandbox": malformed} if container == "sandbox" else {
+        "sandbox": {"filesystem": malformed}}
+    base, updates = (invalid, valid) if side == "base" else (valid, invalid)
+    before = copy.deepcopy(base)
+    with pytest.raises(ValueError, match="container"):
+        SettingsMerger(str(tmp_path))._merge_dicts(base, updates)
+    assert base == before
+
+
+@pytest.mark.parametrize("updates", [{}, {"sandbox": {}}, {"sandbox": {"filesystem": {}}}])
+def test_issue_1807_empty_stock_containers_preserve_denials(tmp_path, updates):
+    base = {"sandbox": {"filesystem": {"denyWrite": ["/protected"]}}}
+    merger = SettingsMerger(str(tmp_path))
+    assert merger._merge_dicts(base, updates) == base
+    assert merger._merge_dicts({}, updates) == updates
+
+
+def test_issue_1807_new_custom_dictionary_preserves_nested_hook_data(tmp_path):
+    updates = {"custom": {"hooks": {"x": 1}, "nested": {"value": ["user"]}}}
+    result = SettingsMerger(str(tmp_path))._merge_dicts({}, updates)
+    assert result == updates
+    result["custom"]["nested"]["value"].append("changed")
+    assert updates["custom"]["nested"]["value"] == ["user"]
 
 
 PLUGIN_SCRIPTS = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "scripts"

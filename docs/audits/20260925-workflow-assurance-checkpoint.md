@@ -4,6 +4,403 @@ Observed 2026-09-25 during the ordinal12 v3 correction. This is a restart pointe
 not acceptance evidence. Canonical scope remains the
 [execution plan](../plans/20260916-workflow-assurance-subtraction.PROPOSED.md).
 
+## Current restart pointer — 2026-10-03
+
+Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
+before the historical entries below. Latest committed runtime source is `09f982a5`;
+the callback provenance diagnostics used `b2222173`, while earlier typed initialization used `dc89c92e`. Canonical
+plan commit is `08535ac9`. The working checkout is
+`/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
+The guard-registration, dispatch-reservation and telemetry repairs are committed
+and pushed with independent provisional source review, 193 focused cases passing,
+and normal commit checks; no bypass was used. Source approval is not native
+qualification or release authorization.
+
+### Latest source and offline capture progress
+
+The inactive #1818 receipt/runner/ordering candidate is committed and pushed at
+`09f982a5`, with independent source and doc/CIA approval. Root selected verification
+passed 111 cases in 12.69s; the normal commit documentation gate passed 14 with one
+inherited skip in 7.07s. It preserves the original failed-acknowledgement-readback
+refusal and transports the same signed returned snapshot without a second signer
+or receipt schema. Native publisher custody, reviewer progression and installed
+qualification remain open. It neither promotes the earlier rejected bootstrap
+nor earns release or maintenance-subtraction credit.
+
+Real credential-free Serena startup/tools-list under the unchanged stock sandbox
+profile now passed after precreating only its already-allowed disposable home.
+Independent review verified the server identity, actual editor schemas and unchanged
+frozen inputs; no editor calls occurred. Original startup failure is retained.
+Whole-process-group cleanup, global-home before/after effects, protected MCP edit
+effects and model-facing callback joins are not proved by this startup check.
+
+Settings preservation is committed and pushed at `10d5ad9a`: explicit trusted
+protected-path inputs use the existing generator/merger, preserve unrelated
+consumer configuration, union deny lists and refuse malformed containers or
+conflicting allow lists before writing. Independent review retained both rejected
+predecessors. Root integration passed 147 affected cases in 1.26s; the normal
+documentation gate passed 14 with one inherited skip in 7.38s. Existing callers
+do not activate the new inputs; protected-policy custody and installed enforcement
+remain open.
+
+Native callback correlation and safe diagnostics are committed and pushed at
+`b2222173`. Root verified the six independently approved frozen source/test hashes
+and 228 integration passes in 2.66s. The normal documentation gate passed 14 with
+one inherited skip in 7.66s. Actual callback IDs now travel through existing
+Pre/Post stdout markers and activity records; missing identities are not invented
+and ordinary tools receive no Agent completion credit. The permanent literal-secret
+negative is retained: changed diagnostics render bounded frame locations, not source,
+locals or original exception values. Rejected earlier patches and teardown failures
+remain evidence. This is source readiness, not fresh installed provenance or A9/F0.
+The subsequent four-tool trace independently verified actual IDs across Pre/Post
+stdout and activity; its full case remains PARTIAL because raw Bash trailing-newline
+bytes were not observed. The separate single-Skill exact-ID/no-authority case
+[passed independent review](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964137866).
+Its post-run invocation of the pre-only verifier refused generated log inventory;
+that failure remains preserved, alongside a separate successful immutable-byte
+comparison. Neither case establishes containment, complete workflow or F0.
+
+Settings writer ordering at `66d6d56d` preserves live configuration on generation
+refusal before backup/recovery renames. `2bd8fa13` adds explicit preserve-only
+generation to avoid the 38 default allows found in a strict-profile diagnostic.
+Independent source/doc reviews passed; root integration passed 157 cases in 1.00s,
+and the normal documentation gate passed 14 with one inherited skip in 6.28s.
+The public writer and installation callers do not activate protected inputs.
+Next: the fresh pinned installed native-permission diagnostic; the old widened
+candidate stays HOLD. No global settings mutation or subtraction credit.
+
+Source correction `270feb8b` removes coordinator run-authority initialization
+instructions from full/fix routing; `15e963d2` makes the resume regression check
+the permanent native-owner/provenance/checkpoint contract instead of a temporary
+OPEN label. The affected module passed 88 cases; the latter normal commit gate
+completed with 14 passes and one inherited skip in 6.42s. Neither commit inherits
+the earlier installed runtime's native acceptance automatically.
+
+The #1818 stock capture diagnostic exercised nine restricted child launches:
+ordinary pass, inherited failure, controlled skip, explicit environment, signal,
+timeout, output overflow, and forged ordinary pass versus controlled skip.
+The comparison refused the forged result; all nine owned process groups were
+absent afterward. No receipt was published. Commit `1273fb38` resolves the
+outside-parent Git-helper and ambient-environment defects with independent source
+review and 39 affected tests passing. The diagnostic remains distinct from
+installed reviewer progression or F0 acceptance.
+
+Evidence: `stock-qualification-v1.txt` under
+`/Users/akaszubski/.codex/artifacts/adev-1818-offline-capture.0Q0xx74D`.
+Later capture-source changes require their own changed-contract verification.
+The #1801 scanner's quoted-echo false execution credit was corrected in its
+existing owner by `2ae94093`, not by importing the rejected large parser.
+
+### Latest inactive integration and native initialization
+
+The [bounded builtin-editor run](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963749072)
+completed raw 0 in 49.709s with exactly six frozen Write/Read/Edit calls.
+Both sentinel mutations were refused by Claude's native `safetyCheck`, while
+autonomous-dev's PreToolUse callbacks explicitly allowed them. The frozen
+**hook-denial expectation failed**; no A9/F0/release credit is assigned.
+Independent review confirmed ordinary neighbor creation/edit, unchanged public
+sentinel/checkpoint and six-field binding, ledger authority projection and
+protected consumer inputs, plus owned-process cleanup. Shared installed cache,
+binary and host-settings digests were unchanged. Root's premature after-inspector
+failure remains recorded separately from the successful terminal inspection.
+
+Containment remediation must follow PROJECT.md INV-1 and the approved native
+sandbox amendment: reuse native file permissions, not add a custom security hook.
+Closed #1409 supplies the existing `Edit(path)` permission syntax correction;
+the existing settings generator and settings merger are the candidate owners.
+The tested profile had OS sandbox deny paths but no native `permissions.deny`.
+Explicit managed builtin-editor carrier protection is still unqualified; native
+automatic sensitive-file checks do not establish protection for every carrier,
+MCP route, or alias. No profile/global policy mutation or new implementation was
+made. Evidence and independent review: `adev-a9-editor-native.7JooJ16z`.
+
+The isolated #1818 receipt/ordering candidate passed 62 focused tests and received
+independent source-only approval after repairing namespaced implementer late
+binding, failed-base-readback progression and incomplete profile/argv binding.
+It remains uncommitted and inactive: current native callers cannot transport the
+successfully returned acknowledgement snapshot into a fresh reviewer hook.
+The current strict completion contract is unchanged. A genuine choice between
+trusted handoff and independently reviewed atomic-commit semantics is pending;
+neither direct Python calls nor stored final data alone satisfy the current rule.
+Review: `adev-1818-obligation-offline.yCIvBle1/INDEPENDENT_REVIEW_V2.md`.
+Callback parsing separately passed 137 affected tests twice, but performs no
+observation/publication and is not deployed as a working observer.
+
+The [first TDD-first attempt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963609515)
+is unqualified: a supervisor import created bytecode before launch, and failed
+verifier output was mistakenly published as frozen JSON. Both failures remain
+preserved. The [corrected fresh initialization](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963637435)
+completed in 14.073s with actual tools[], expected native/public bindings and
+13 pending checkpoint steps; final cache/input checks and process cleanup passed.
+Public fields are not independent HMAC certification. Full mode lifecycle, A9,
+F0, delivery, migrations and clean/populated consumer acceptance remain open.
+
+The source correction is independently reviewed at scanner SHA-256
+`a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`.
+It shares conservative command recognition, preserves real command routes and
+refuses quoted command data. The same 238-member corpus changes from 147 REACHED /
+91 UNKNOWN to 146 / 92: only `secret_patterns.py` loses its false grounding through
+JSON command data naming `security_scan.py`. This is a source-only correction,
+not completed inventory acceptance or native execution proof. No ratchet repin.
+The focused result is 44 passes; full owner is 290 passes / two failures. An exact
+prior-source comparison retains the local-only tracker and project-updater
+failures; the candidate additionally exposes the secret-patterns obligation.
+Full/baseline terminal transcriptions are explicitly labelled in the evidence,
+not substituted for original raw capture. Inventory verdict remains REQUEST_CHANGES.
+Evidence: `1801-candidate-checkpoint.md`, `1801-owner-final.txt` and
+`1801-baseline-focused.txt` in `adev-1807-obligation-map.GIxlDb5f`.
+
+### Applied capture/reducer source — independently approved, inactive
+
+The authoritative runner now contains the reviewed capture/observer/reducer
+portion only, excluding the rejected CLI publisher and all gate activation.
+Runner SHA-256: `c2e57b2e88737478bd76fb8089f3be2bfeab6ffaee4b05fb2eab8ca063f0ec7d`;
+affected test module: `df3be14e1ed98aa10addba1064ae7df2e25b5fd0aa73185e1df3cd86bd15a64f`.
+Applied-main verification passed 39 tests in 0.34s; independent source review
+approved the bounded transfer, with no new lint findings. Earlier open observer
+defects are resolved at this source, not evidence that reviewer progression runs.
+
+The raw-checkout/1 observation has bounded non-following regular-file reads and
+bounded Git inventory pipes; it does not invoke Git worktree converters or
+inherit ambient credentials. Ordinary pytest honors its reviewed configuration.
+Stock diagnostics retain inherited failures and controlled skips, reject forged
+pass reports, preserve raw-byte counts/digests before proxy redaction and verify
+cleanup. Configuration-bound per-node attestation is not independent global truth.
+Endpoint snapshots do not prove immutability throughout a run. Explicit frozen
+subjects must include untracked consumer inputs; legacy automatic source roots
+do not establish a generic consumer dependency closure.
+
+No settings, publisher, ordering, receipt authority or deployment is activated.
+Protected manifest/runtime custody, the installed native callback and all frozen
+transition negatives remain required. Net +643 source/test lines are provisional
+construction cost, not subtraction credit. Evidence stays under
+`adev-1818-offline-capture.0Q0xx74D`, including `clean-main-owned-tests.txt`,
+`main-compatible-capture.patch` and the changed `stock-bounded-final.txt`.
+
+### Latest bounded native result — read, report and protocol verified
+
+Fresh installed `dc89c92e` session `9eb9b043-ed53-44e3-a0ae-885395ef8b8a`,
+run `ae15079ebcb283b6`, initialized full mode (raw 0, 19.259s), with verified
+typed origin, signed bindings and 13 pending checkpoint steps. The continuation
+exited raw 0 in 44.075s. Independent review verified the actual child Read,
+exact parent tool/child/run joins, owned completed report and whole SubagentStop
+stdout as one JSON envelope; report progress appeared only on stderr. Ordinary
+JSON decoding resolved every trace without replacement or inferred identifiers.
+The installed 650-file byte/mode tree and frozen inputs stayed unchanged; both
+process groups were empty afterward. The classifier returned ambiguous, which
+is preserved: this case does not qualify full workflow alignment or A9/F0.
+
+Evidence: [native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963069802)
+and `/Users/akaszubski/.codex/artifacts/adev-a9-json-native.Zx7cNHl1/RESULT.md`.
+Next: remaining trusted-input, mode and transition cases, not another unchanged
+retry of this protocol case.
+
+In parallel, the independently reviewed credential-free stock parent/child
+probe exited raw 0 in 0.415s: ordinary writes and parent-write positive succeeded;
+protected receipt write and parent signal were denied; receipt digest stayed
+unchanged and cleanup was verified. Task-port denial and absent macOS `/proc`
+are limited observations, not universal memory/descriptor containment.
+[Scoped result](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5963069985).
+The minimal #1818 route reuses the existing runner, native callback, ledger and
+reviewer gate. It still needs protected manifest/profile provisioning, an
+installed stock launcher, a narrowly bounded observer callback budget and the
+actual native positive/negative transition proof. No privileged consumer pytest,
+new daemon/store, bootstrap release credit or relaxed negative case is allowed.
+Stock runtime launch arguments contain ephemeral local proxy authentication:
+the reusable capture must omit/redact these before evidence export.
+
+Original #1807 matrix recovered from the retained historical run:
+The missing actual-production heartbeat reproduction is now separately verified:
+six isolated old/candidate cases invoked the archived production function and
+actual atomic writer, with independently rehashed before/after bytes. The old
+ownerless run-bearing state lost identity; the candidate preserved exact bytes.
+Same-owner and wrong-owner neighbors stayed unchanged. This is not a recovered
+historical native digest or full A4/F0 acceptance. A later duplicate launch
+refused before function execution because its case directory already existed;
+that coordination failure is preserved, with no overwrite or retry.
+[Production reproduction](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5963306638).
+
+Original matrix location:
+`/Users/akaszubski/.codex/worktrees/sentinel-1807-fresh/autonomous-dev/.claude/local/1807-evidence-run-4857bd6db1d88337/1807_frozen_acceptance_matrix.md`.
+Its SHA-256 `126f3e297d707cfb00f1c3adabde8d32a09837ef68bafe6f2d7a5543a922265f`
+matches that run's recorded evidence digest. Original A9 is documentation/test
+congruence; distinguish it from later A7/A9 native-boundary amendments rather
+than replacing either inventory with an expanded cross-product.
+
+The independently reviewed #1818 edit contract is recorded in
+`/Users/akaszubski/.codex/artifacts/adev-1818-readiness.eAn9a9at/readiness.md`.
+Activation remains unproven: no shipped provisioner currently establishes the
+protected external obligation manifest and installed stock-runtime closure.
+Use existing native packaging/settings owners, not writable policy fallbacks
+or a Codex-private artifact path as product authority. Capture/comparison can
+be repaired offline without granting reviewer progression. Before activation,
+freeze one remaining-time deadline including cleanup and specify the existing
+ledger's pending/final receipt rule when cancellation follows publication;
+an absolute claim that cancellation always leaves no receipt is not established.
+
+### Earlier full-mode result — real reads/report persistence, protocol failure
+
+Fresh installed `91cc06d8` session `bdab2115-f922-4c92-91f1-26d98c46e58e`,
+run `58f9de639894110d`, completed initialization (raw 0, 31.336s), with exact
+six bindings and full checkpoint parity: 13 pending steps. The continuation
+finished raw 0 in 40.865s. Independent review verified one parent Agent, its
+child's actual canonical intent-file Read, exact child/ledger joins and persisted
+owner-bound JSON/Markdown reports. No parent Read or supplied-context substitution.
+Installed bytes remained unchanged, with 650 members and no bytecode or extras;
+both process groups were absent afterward.
+
+FAILED: SubagentStop stdout contained four human report-progress lines before
+its JSON envelope. Hook success does not prove native JSON ingestion. The
+source fix separates native report feedback onto stderr and retains legacy CLI
+stdout; a real source-free whole-callback regression preserves the RED and
+checks the entire envelope plus actual report persistence. Its source review
+and fresh changed-source native verification remain required.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-full-report-native.c61vgAFE/FULL_RESULT.md`
+and [full-mode observation](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962962692).
+Next: finish the callback-output repair, then the remaining trusted-input,
+mode and transition obligations. The parallel #1818 investigation reuses the
+existing stock restricted-child launcher; it must not run consumer tests with
+privileged hook access. A9/F0 and release remain OPEN.
+
+### Earlier installed trace — independently verified, bounded scope
+
+Fresh installed `eec40e0c` session `15d4b0ef-d302-4c43-b3e0-05a3091d2c74`,
+run `fa3f6b0ba0c72444`, completed no-tools initialization (raw 0, 21.139s)
+and Agent continuation (raw 0, 73.622s). Independent review directly joined the
+actual deny/permit/deny tool calls, native hook IDs and supported stdout traces,
+child metadata, activity/refusal records and exact current-run reservation.
+Denied reviewers acquired neither launch nor completion credit. Installed cache
+remained exactly 650 files/modes with no extras or bytecode. This closes the
+scoped trace diagnostic, not A9/F0 or required-file-read proof.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-trace-native.7h6AQGQU/NATIVE_TRACE_RESULT.md`
+and [independent native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962847705).
+Both owned process groups were absent afterward. Canonical alignment completion
+has the current-run stamp in issue, unscoped and zero scopes; do not claim only
+the issue scope exists. The exact native join has one permitted call.
+
+Separate defect: structured session reporting failed to persist its owner and
+agent entries; source tests mocked the real persistence mechanism. Markdown
+ownership and installed version are correct. A scoped real-persistence repair
+was committed at `91cc06d8` and real persistence was observed above, without
+granting reports authority. Runtime-generated docs
+make the disposable consumer dirty; installed cache bytes are unchanged.
+
+The separately reviewed carrier continuation executed all 17 frozen arms:
+16 protected operations returned OS errno 1 and the ordinary write produced
+the expected 20 bytes. It exited 0 in 163.443s; process group 6635 was absent.
+Independent sentinel, ledger and exact fresh-key digests remained unchanged;
+protected descendants were absent. Evidence:
+`/Users/akaszubski/.codex/artifacts/adev-a9-trace-native.7h6AQGQU/BASH_RESULT.md`.
+This is scoped carrier proof, not the remaining A9 matrix or general exit capture.
+
+At this earlier checkpoint the next work was the report repair, then trusted
+input, mode and transition obligations before #1818. Do not repeat the verified
+dispatch case unchanged. A9/F0 and release remain OPEN.
+
+### Earlier registration and namespace diagnostics — historical
+
+Fresh installed session `0593b03b-706b-4dc0-8c01-0c659f893e56` finished its
+no-tools initialization with raw exit 0 in 17.674s. All 650 installed Git
+blob/mode comparisons matched. Installed-only inspection verified typed origin,
+owner, strict HMAC, run `85de3f2bb6afc930`, and consumer base `3f6a8692`;
+independent review confirmed the native stream contained no tool calls.
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-guard-native.OMfuefev/INITIAL_RESULT.md`
+and [#1807's initialization record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962462405).
+That process is terminal. Preflight of the Agent continuation found a registered
+namespace bypass: the exact fix-mode source RED admitted `autonomous-dev:reviewer`
+without implementer or pytest-gate prerequisites. Its [preserved failing case](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962524692)
+and independently traced hook route require the scoped shared-identity repair
+before native continuation. That namespace repair was independently reviewed,
+committed and installed fresh at `d433a3a5`. Its real native continuation denied
+a premature reviewer, permitted the alignment classifier, and denied the reviewer
+again. The permitted parent call, actual child metadata and current-run ledger
+join agreed; neither denied reviewer acquired a native completion. This is
+bounded native evidence, not complete provenance or A9 acceptance.
+
+Evidence: `/Users/akaszubski/.codex/artifacts/adev-a9-role-native.m1wEf4Dr/NATIVE_AGENT_RESULT.md`
+and [the native result](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5962676528).
+The continuation terminated with raw exit 0 after 83.986 seconds. Inspection
+found remaining defects: denied attempts still acquired legacy launch flags;
+native hook responses lacked an explicit tool/telemetry trace; post-tool and
+stop records lacked required identity fields; session reports used consumer
+revision rather than installed plugin version. Those source repairs were later
+reviewed and committed at `eec40e0c`; the current native result above supersedes
+this earlier next-action checkpoint, while preserving its failed evidence.
+
+Next: finish the shared trace in the existing callbacks, review the settled
+combined repair, commit through normal checks, install fresh committed bytes,
+and replay the changed native admission/result case before the remaining
+installed-policy effects and transition obligations. Do not repeat an unchanged
+native case or treat old installed bytes as the new subject. Tracked cache bytes
+matched, but two extra bytecode files appeared after execution during inspection;
+their origin is unproven, so total cache immutability is not established.
+
+### Previous installed carrier diagnostic — historical
+
+Fresh installed native session `5a686b62-fcc7-4404-ab9a-41492a5814c3`
+completed initialization (18.230s) and the Bash diagnostic (140.113s), both
+raw exit 0. Actual registries were empty and Bash-only respectively. Installed
+signature/owner/user-origin checks passed; all 17 scoped carrier-effect arms
+executed (16 protected denials, ordinary permit), with unchanged protected hashes.
+A historical-key-directory enumeration attempt was denied, not an exposure.
+Evidence is `/Users/akaszubski/.codex/artifacts/adev-a9-owner-native.JyihnsLW`;
+both native processes are terminal, so do not restart either unchanged.
+
+Still required: qualify the fresh installed guard and trusted-input effects
+before #1818. Source cases
+preserve ordinary non-pipeline Agent permit and final hook/activity/block-receipt
+agreement including failures; one foreground child join is now independently
+verified above, not every mode or lifecycle.
+Native Task lifecycle is explicitly HOLD; only the non-native legacy Task
+path has a preserved source-level positive, not all consumer/harness versions.
+A9, F0, release census, product delivery and consumer release remain OPEN.
+
+## 2026-10-01 native sequencing checkpoint
+
+The #1818 child-event false pass was independently reproduced three times on
+2026-10-01 in the dirty `autonomous-dev-1779` candidate using
+`tests/unit/lib/test_test_runner_capture_1818.py::test_issue_1818_test_code_cannot_forge_child_event_as_green`.
+Each run exited 1 because `run_single_test` reported `COMPLETE` and `passed=True`
+after a skipped test's repository `conftest.py` rewrote the child event file and
+printed a fake success summary. This is a stable negative control, not an
+accepted implementation. Preserve the RED and reject any #1818 design that
+merely signs the child event or parses more terminal text. The next design
+decision must identify what independently observes execution, or explicitly
+seek authorization to change the trust assumption; no F4 or F0 credit follows
+from the existing reducer tests.
+
+The scoped #1809 real Claude `/implement --fix` run ended before functional
+edits: F2 used `pytest ... 2>&1 | tail -60`, which discards pytest's raw exit.
+The run and pytest children are gone; the PR #1851 worktree is clean. Its
+[terminal evidence](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5914769225)
+is a failed diagnostic, not an F2, #1809 or A9 pass. The same instrument gap
+is tracked on [#1818](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914773591).
+Do not launch #1805's known TDD-first full-suite timeout route unchanged.
+Its separate clean worktree was advanced to committed base `57d0e1e4` and
+re-walked 238 modules (148 REACHED, 90 UNKNOWN); the new quoted-echo
+false-credit has a preserved [Bash oracle](https://github.com/akaszubski/autonomous-dev/issues/1805#issuecomment-5914757106).
+The oversized dirty scanner candidate remains unpromoted. Resolve the test
+gate's raw-exit and independent-evidence boundary before native retry; no
+release denominator or F4/F0 outcome is accepted here.
+
+## 2026-10-01 #1818 reducer checkpoint — not F4 acceptance
+
+The real-process RED for a passed pytest call followed by teardown ERROR was
+preserved: the candidate reducer had called that completed, nonzero pytest run
+`CAPTURE_FAILURE`. A narrow uncommitted repair in the existing dirty
+`autonomous-dev-1779` checkout now counts call-pass and teardown-error as
+separate phase outcomes. An independent rerun of
+`tests/unit/lib/test_test_runner_capture_1818.py` and
+`tests/unit/lib/test_test_runner.py` passed 17 tests with raw exit 0 in
+65.10 seconds; see [#1818's evidence comment](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914382124).
+This verifies only the reducer. The native `/implement --fix` attempt discarded
+pytest's raw exit through a `grep`/`sed`/`sort` pipeline and is noncertifying.
+The dirty worktree contains other pre-existing changes: review and isolate the
+reducer before committing, and do not promote F4, #1818, F0 or release from
+this focused pass. The release census remains unfrozen.
+
 2026-09-29 D0-02 matrix correction: POPULATED-3 now freezes one overlapping,
 harmless environment key across user/project/local/explicit settings, its expected
 winner order and a native observer requirement. Distinct unrelated values alone
@@ -4230,3 +4627,68 @@ not an unmeasured arithmetic adjustment. The supervising Codex subagents hit
 the account usage limit before native specialist acceptance. Preserved issue
 receipts: [#1846](https://github.com/akaszubski/autonomous-dev/issues/1846#issuecomment-5879771768)
 and [#1848](https://github.com/akaszubski/autonomous-dev/issues/1848#issuecomment-5879770409).
+
+2026-09-30 #1807 native-origin diagnostic after scoped bootstrap commit
+`974666e5`: Claude Code 2.1.236 loaded the candidate as a session plugin in a
+fresh disposable Git repo (`/tmp/adev-1807-native-diag.pW0Qiz`, base
+`ba52f5c7`). With project-only setting sources, empty MCP config, no tools,
+plan permission mode and no session persistence, a typed
+`/autonomous-dev:implement --fix #1807` fired `UserPromptExpansion`; the hook
+reported exit 0. Independently read native state showed mode `fix`, integer
+issue `1807`, the observed session ID, run ID and disposable base commit.
+The separate run-start receipt matched, the origin witness was valid for
+`UserPromptExpansion`, strict HMAC verification passed, and current-run
+classification reported authorized typed-user origin. Claude inference was
+interrupted after that observation because the no-tools diagnostic was not a
+full workflow; its final result was `aborted_streaming`, not successful
+`/implement` execution. This proves the native initialization arm under a
+bounded source-plugin diagnostic, **not** installed-carrier parity, specialist
+dispatch, OS containment, A7/A9, F0 or release acceptance. The candidate
+passed 224 focused tests and Ruff; independent review remains REQUEST_CHANGES
+pending native security/effect proof.
+
+2026-10-01 #1807 installed-origin continuation after draft repair
+`a9f5a09c` (PR #1851): a SHA-pinned `git-subdir` plugin was installed into a
+fresh disposable Claude cache; the installed `pipeline_completion_state.py`
+matched the committed source SHA-256 `f3ef3f4c…`. In a disposable consumer,
+typed `/autonomous-dev:implement --fix #1807` fired native
+`UserPromptExpansion`, initialized signed run `428fab9ff2679c38` in Claude
+session `6e247b0c-21ec-4b8d-bd08-c0d981400077`, and reached a foreground
+alignment-classifier Agent call with matching PreToolUse, SubagentStop,
+PostToolUse and joined ledger receipt. A resumed same-session diagnostic then
+invoked `Skill(autonomous-dev:implement-fix)`: native `PreToolUse:Skill`
+fired, the tool result had `is_error=true`, and the ledger retained its
+original typed `UserPromptExpansion` witness and two signed progression
+records. Independent classification of the installed signed state returned
+`AUTHORIZED / TYPED_USER_WITNESSED / typed_user_origin=true`; tracked fixture
+files and user settings were unchanged. Raw initial stream SHA-256
+`26a85644…`, Skill stream `0661083f…`, ledger `caec4647…`, sentinel
+`0b5c027a…`. Full paths, joins and limits are in
+[#1807's evidence comment](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913770245).
+This is a passing native diagnostic for same-run denied-Skill preservation
+and first-specialist join, **not** the complete A7/A9 venue and containment
+matrix, F0, or release acceptance. The draft issue remains open.
+
+The next installed full-mode diagnostic also initialized a typed signed run
+(`f7a4542a7931f377`), reached its first foreground alignment specialist and
+produced an exact native Agent/ledger join. Alignment then returned
+`ESCALATE` on the disposable fixture and stopped; no complete workflow was
+claimed. Raw stream SHA-256 `f8245500…`, sentinel `60612b13…`, ledger
+`db963063…`; [full-mode issue receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913876947).
+
+An inert-path strict-sandbox control passed on macOS: ordinary Bash append
+succeeded while Bash append to an explicit `denyWrite` file returned
+`operation not permitted` and left its hash unchanged. Under the same policy,
+the native hook did create the signed run sentinel when its path was denied
+to Bash. A subsequent prompt to attack that carrier was refused by the model
+before any Bash call, so it is **not** an OS-denial observation for the
+carrier; N-BASH and A9 remain OPEN. See the
+[boundary issue receipt](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913956132).
+
+A populated-consumer negative then exposed a distinct #1809 conflict: when
+project settings and the installed plugin both registered the origin callback,
+one typed command produced **two** native `UserPromptExpansion` responses and
+one run-start mismatch. The settings file was byte-preserved and the final
+sentinel classified authorized, but effective execution was not exactly once.
+This is a RED install/update conflict arm, not a passing consumer proof;
+[#1809 evidence](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5914204490).

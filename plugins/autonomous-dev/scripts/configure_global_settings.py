@@ -43,7 +43,9 @@ Agent: implementer
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
@@ -56,6 +58,36 @@ except ImportError:
     lib_path = Path(__file__).parent.parent / "lib"
     sys.path.insert(0, str(lib_path))
     from settings_generator import SettingsGenerator, SettingsGeneratorError
+
+
+def _prepare_local_plugin_hooks(claude_dir: Path) -> tuple[dict | None, int]:
+    """Read and validate local settings before either settings file changes."""
+    local_path = claude_dir / "settings.local.json"
+    if not local_path.exists():
+        return None, 0
+    from sync_settings_hooks import _strip_plugin_owned
+    data = json.loads(local_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected settings object: {local_path}")
+    hooks, removed = _strip_plugin_owned(data.get("hooks", {}))
+    if removed:
+        data["hooks"] = hooks
+    return data, removed
+
+
+def _save_global_backup(global_path: Path) -> None:
+    """Preserve the historical upgrade backup before changing either tier."""
+    fd, temporary = tempfile.mkstemp(dir=str(global_path.parent), prefix=".settings.backup.")
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(global_path.read_bytes())
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, global_path.with_suffix(".json.backup"))
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def create_fresh_settings(template_path: Path, global_path: Path) -> Dict[str, Any]:
@@ -92,11 +124,15 @@ def create_fresh_settings(template_path: Path, global_path: Path) -> Dict[str, A
         template_content = template_path.read_text()
         template_settings = json.loads(template_content)
 
-        # Write settings atomically
-        global_path.write_text(json.dumps(template_settings, indent=2) + "\n")
-
-        # Set secure permissions (owner read/write only)
-        global_path.chmod(0o600)
+        from sync_settings_hooks import _write_settings_transaction, _strip_plugin_owned
+        if not isinstance(template_settings, dict):
+            raise ValueError(f"Expected settings object: {template_path}")
+        _strip_plugin_owned(template_settings.get("hooks", {}))
+        local_settings, local_removed = _prepare_local_plugin_hooks(claude_dir)
+        updates = {global_path: template_settings}
+        if local_removed:
+            updates[claude_dir / "settings.local.json"] = local_settings
+        _write_settings_transaction(updates)
 
         return {
             "success": True,
@@ -157,30 +193,27 @@ def upgrade_existing_settings(global_path: Path, template_path: Path) -> Dict[st
                 "error": "template_not_found"
             }
 
-        # Use SettingsGenerator to merge settings
-        # Pass project_root mode to avoid requiring full plugin structure
+        from sync_settings_hooks import _write_settings_transaction, _strip_plugin_owned
+        template_settings = json.loads(template_path.read_text(encoding="utf-8"))
+        existing_settings = json.loads(global_path.read_text(encoding="utf-8"))
+        if not isinstance(template_settings, dict) or not isinstance(existing_settings, dict):
+            raise ValueError("Expected global settings objects")
+        template_settings["hooks"], _ = _strip_plugin_owned(template_settings.get("hooks", {}))
+        existing_settings["hooks"], _ = _strip_plugin_owned(existing_settings.get("hooks", {}))
+        local_settings, local_removed = _prepare_local_plugin_hooks(global_path.parent)
         generator = SettingsGenerator(project_root=Path.home())
-
-        # Call merge_global_settings (handles backup, merge, and write)
-        # Returns merged settings dict on success, raises exception on error
-        merged_settings = generator.merge_global_settings(
-            global_path,
-            template_path,
-            fix_wildcards=True,
-            create_backup=True
-        )
+        merged_settings = generator._deep_merge_settings(template_settings, existing_settings, True)
+        generator._validate_merged_settings(merged_settings)
+        updates = {global_path: merged_settings}
+        if local_removed:
+            updates[global_path.with_name("settings.local.json")] = local_settings
+        _save_global_backup(global_path)
+        _write_settings_transaction(updates)
 
         # Count patterns fixed (check if Bash(:*) was in original)
         patterns_fixed = 0
-        backup_path = global_path.with_suffix(".json.backup")
-        try:
-            if backup_path.exists():
-                original_settings = json.loads(backup_path.read_text())
-                if "permissions" in original_settings and "allow" in original_settings["permissions"]:
-                    broken = [p for p in original_settings["permissions"]["allow"] if p in ["Bash(:*)", "Bash(*)"]]
-                    patterns_fixed = len(broken)
-        except (OSError, IOError, json.JSONDecodeError, KeyError) as e:
-            pass  # Ignore errors reading backup settings
+        original_allow = existing_settings.get("permissions", {}).get("allow", [])
+        patterns_fixed = sum(pattern in ["Bash(:*)", "Bash(*)"] for pattern in original_allow)
 
         # Build message based on patterns fixed
         if patterns_fixed > 0:

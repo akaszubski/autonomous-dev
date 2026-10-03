@@ -11,6 +11,59 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-10-03 current source reconciliation at planning HEAD
+`d87c92e8c51611c810d054fa248b42e8ed77fe67`: the existing scanner owner
+`tests/unit/hooks/test_hook_reachability_ratchet.py`, SHA-256
+`a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`,
+was imported by exact path and ran `library_reachability(PROJECT_ROOT,
+use_cache=False)` with raw exit 0. The same 238-member corpus now reports
+**147 REACHED / 91 UNKNOWN**. Relative to the preceding 146/92 source snapshot,
+only `test_runner.py` changes UNKNOWN → REACHED: `agent_ordering_gate.py:525`
+imports `validate_pytest_dispatch_receipt` in the explicitly inactive, opt-in
+#1818 reviewer seam introduced by `09f982a5`. Native callers do not supply
+those optional inputs; this edge proves source connectivity, not command
+invocation, native execution or reviewer-dispatch admission.
+
+The retained original 97 UNKNOWN inspection population is not replaced or
+re-audited: 89 remain UNKNOWN, eight now have source REACHED witnesses, and
+none is absent from the current corpus. Two current UNKNOWN members were not
+in that original list: `project_md_updater.py` and `secret_patterns.py`.
+Exact difference sets, current member array and changed-member witnesses are
+retained in the existing readiness artifact
+`/Users/akaszubski/.codex/artifacts/adev-1818-readiness.eAn9a9at/CENSUS-CURRENT-ARRAY-RECONCILIATION.json`;
+the concise 89+8+2 reconciliation and existing WA-row missing-input map are in
+`CENSUS-EXACT-RECONCILIATION-ROWS.md` in that same directory. These are scoped
+evidence inputs to this census, not a second authoritative inventory.
+
+The existing source-correction and watched-firing counterfixture classes
+passed 112 cases with terminal raw exit 0 under normal pytest `--no-cov`;
+`CENSUS-COUNTERFIXTURE-RAW.txt` retains the initial running yield separately
+from terminal status. Neither this result nor source counts freeze the release
+denominator. All 20 WA family rows below remain candidate obligations with
+their unresolved caller/profile/disposition and native evidence requirements;
+#1803/#1804/#1805 instrument obligations and the populated-consumer omitted-row
+intervention remain explicit. UNKNOWN grants no retirement, and no native,
+installed-consumer, F0 or replacement-family promotion follows. The historical
+snapshots and original 97-member list below remain point-in-time evidence.
+
+2026-10-03 #1801 source correction: commit `2ae940933e9ebcc7a964f05e5c7dc67a5bcdd910`
+binds the existing scanner to SHA-256
+`a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`.
+Its shared command-head controls refuse the
+[retained echo-data RED](https://github.com/akaszubski/autonomous-dev/issues/1801#issuecomment-5914622567),
+preserve real execution positives and pass the omitted-route controls. The
+same 238-member source corpus changes from 147 REACHED/91 UNKNOWN to
+146 REACHED/92 UNKNOWN; only `secret_patterns.py` loses an old false-grounded
+entry witness. The focused selection passed 44 cases; the full owner passed
+290 and failed two existing nodes: local-only tracker registration and the
+library ratchet (previously `project_md_updater.py`, now also the corrected
+`secret_patterns.py` finding). These are source observations, not a complete
+inventory, installed execution or release acceptance. The rejected uncommitted
+candidate and its 2026-10-01 review remain historical evidence, not a current
+repair instruction.
+Later dated snapshots and their counts below remain historical observations,
+not replacements for this source-bound result.
+
 2026-09-30 user/plugin registration reconciliation (read-only at candidate
 `a99e7b81`, Claude Code 2.1.236): the declared direct-Python path audit found
 three user-level registrations overlapping the plugin carrier:
@@ -130,20 +183,27 @@ Independent read-only review separates inventory closure from later product proo
 
 1. Reconcile the integrated source-route, location and refusal-envelope
    corrections' selected lists without dropping UNKNOWNs or treating
-   source candidates as observed runtime denials. Resolve the distinct
-   backtick-assignment over-credit below before freezing the library
+   source candidates as observed runtime denials. Preserve the corrected
+   backtick-assignment negative below before freezing the library
    denominator; a passing reachability test is not proof that its selected
-   route executed.
+   route executed. The selected #1801 membership delta below is now observed;
+   other instrument and population gaps remain open.
 2. Expand the family rows into exact control/path/caller/profile obligations,
    intended retain/migrate/retire dispositions, acceptance IDs and owning issues;
    resolve the context-size transition, legacy registrations and commit validators.
+   Declared cases can be frozen now; unresolved external/manual consumer
+   populations require inspection or an explicit supported-boundary disposition.
 3. Freeze CLEAN-0/POPULATED-3 recipes and supported consumer boundaries, baseline
    and last-known-good identities. Discover or explicitly disposition remaining
    remote/older transport populations; a named slot does not prove its contents.
+   The recipes below are declared definitions, not observed product/profile,
+   baseline or last-known-good pins.
 4. Reuse the now-passing omitted-entry source fixture as an instrument check;
    demonstrate the populated consumer's registered invocation, marker-deny and
    neighbor-permit with one census row omitted and unchanged runtime behavior,
-   then publish the finite table on #1757.
+   then publish the finite table on #1757. The source omitted-route control
+   passed; the populated-consumer intervention still needs observation. Existing
+   declarations may be published without claiming the unresolved table complete.
 
 All 97 original UNKNOWN members already received bounded source inspection and
 the five declared local consumer checkouts were inspected below; do not restart
@@ -153,23 +213,21 @@ follow the freeze in dependency order; they are not prerequisites to specifying
 their obligations. The incomplete remote installed closure and omitted-entry fault control
 remain inventory blockers, not permission to claim completeness prematurely.
 
-Backtick-assignment instrument defect ([#1801](https://github.com/akaszubski/autonomous-dev/issues/1801), separate from the shipped #1757 source
-correction): `tests/unit/hooks/test_hook_reachability_ratchet.py:8119` records a
-synthetic `helper_path="`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"`
-assignment followed by `python3 "$helper_path"`. The full walker returns
-`REACHED` solely because its older `_COMMAND_POSITION` regex treats a backtick
-inside the assignment as a command boundary; the same-file binding recognizer
-correctly declines to resolve the computed right-hand side. This is **not**
-runtime evidence that the target file executed. Its honest static verdict is
-`UNKNOWN` unless an independent observed execution establishes otherwise.
-The bounded repair must first make this assignment-only false-green `UNKNOWN`,
-preserve a positive control where a literal library path actually occupies a
-shell command position, and preserve the existing live registered route pins.
-It must also challenge a real executable backtick command-position case so a
-regex narrowing does not discard legitimate coverage. Run the ordinary corpus
-and an omitted-route mutant after the repair. Do not change the runtime hook,
-build a general shell interpreter, or silently reclassify dynamic paths as
-unreachable; record any unresolved syntax as `UNKNOWN`.
+Backtick-assignment finding ([#1801](https://github.com/akaszubski/autonomous-dev/issues/1801),
+separate from the shipped #1757 source correction): the retained case
+``helper_path="`pwd`/plugins/autonomous-dev/lib/synthetic_target.py"`` followed
+by `python3 "$helper_path"` previously received false REACHED credit from a
+backtick inside assignment data. Commit `2ae94093` now reports UNKNOWN and
+retains the negative case; it does not claim the dynamic helper never executes.
+Actual command-head, quoted-operand, same-file-helper, bounded substitution and
+Markdown command positives remain covered. Backtick-derived or unsupported
+nested paths remain unresolved, not proven unreachable. The ordinary corpus
+does not qualify the separate real executable backtick-command-position
+challenge; that retained obligation remains open, not deleted by this rewrite.
+The corpus
+and omitted-route controls ran; no runtime hook, general shell interpreter or
+UNKNOWN pin was added to make the source result green. The one changed library
+member is reconciled in WA-O4 below, not silently removed from release scope.
 
 Before freezing a row, add its claim-specific evidence contract: governing intent,
 required direct observation/effect, observation method and authority, subject/run,
@@ -315,7 +373,7 @@ claims that the installed owner has already been chosen or qualified.
 | WA-O1 additional refusers | `P/hooks/enforce_file_organization.py`, `validate_claude_md_size.py`, `validate_paid_dependency.py` | Each real allow/refuse/fault route; include paid dependency emitter despite scanner omission | M0, #1757 |
 | WA-O2 unresolved source controls | `P/hooks/enforce_orchestrator.py`, `enforce_prunable_threshold.py`, `enforce_regression_test.py`, `enforce_tdd.py` | Resolve caller/consumer and retain/migrate/retire with outcome coverage; unknown is not silent exclusion | Census/M0, #1757 |
 | WA-O3 dynamic extensions | `P/hooks/unified_pre_tool.py::_run_extensions` and selected consumer extensions | Discover effective extension population; deny/permit, disabled/missing carrier and omitted-census-entry refusal | Census/M0, #1757 |
-| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; 97 UNKNOWN libraries in the original `401c1ff0` snapshot, 90 on a fresh 2026-09-28 corrected walk (not a frozen denominator) | Reconcile callers and decision/evidence dependencies rather than classifying unused by filename; preserve each required outcome or justify retirement. Neither count proves installed execution | Census/M0, #1757 |
+| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; historical UNKNOWN cohorts remain below. At planning HEAD `d87c92e8` with scanner SHA `a9e8ea…`, the same 238 members yield 147 REACHED/91 UNKNOWN (not a frozen complete denominator) | The inactive #1818 `test_runner.py` import is now source REACHED, not native caller admission. `secret_patterns.py` remains newly UNKNOWN relative to the original 97-member snapshot: `security_scan.py` still imports it, but the old entry witness was a quoted JSON command in `scripts/dogfood-bootstrap.sh`, not shell execution. Resolve the actual registration-writer/caller route; preserve the security outcome under WA-L2b/LEGACY-04. UNKNOWN grants no retirement or deletion credit; source connectivity is not installed execution | Census/M0, #1757/#1801 |
 | WA-L1 plugin lifecycle | Config/native/plugin manifests, `P/lib/settings_merger.py`, existing installers/updaters/resolvers | Source-free installed root, one version/registration owner; clean/populated install/update/repeat/interruption/rollback/uninstall preserves unrelated configuration | D0, #1755/#1758/#1759/#1521/#1522 |
 | WA-L2 delivery routes | `install.sh`, `P/scripts/install.py`, deploy scripts, `P/lib/sync_dispatcher/`, setup/sync commands | Every affected active transport/consumer migrated or explicitly dispositioned; no source fallback or stale extra copy | D0/M0, #1757/#1521/#1522 |
 | WA-L3 commit controls | Configured active `scripts/hooks/pre-commit` and its five archived-hook invocations | Prove applicable shell-branch behavior; each required outcome remains covered before relocating/retiring an archived owner | Census/M0, #1757 |

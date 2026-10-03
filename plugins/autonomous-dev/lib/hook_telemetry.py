@@ -47,8 +47,11 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import os
+import re
 import sys
+import traceback
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -79,6 +82,60 @@ DISABLE_ENV_VAR: str = "HOOK_TELEMETRY_DISABLED"
 LEGACY_DISABLE_ENV_VAR: str = "HOOK_RECOVERY_DISABLED"
 
 MAX_REASON_LENGTH: int = 8000
+
+
+def log_safe_native_error(logger_name: str, message: str, tb: Any) -> None:
+    """Log fixed context and bounded frame locations, never source or values.
+
+    Args:
+        logger_name: Existing native telemetry logger name.
+        message: Fixed caller-owned diagnostic context, not exception/payload text.
+        tb: Original traceback; only filenames, line numbers and function names
+            are inspected. No source lookup, frame locals or exception rendering.
+    """
+    frames = []
+    for frame, line in traceback.walk_tb(tb):
+        filename = re.sub(r"[\x00-\x1f\x7f]", "?", frame.f_code.co_filename)[:512]
+        function = re.sub(r"[\x00-\x1f\x7f]", "?", frame.f_code.co_name)[:128]
+        frames.append(f"{filename}:{line}:{function}")
+        if len(frames) == 32:
+            break
+    logging.getLogger(logger_name).error(
+        "%s; frames=%s", message, " -> ".join(frames),
+        exc_info=(RuntimeError, RuntimeError("native telemetry failure"), None),
+    )
+
+
+def format_native_trace(hook_event_name: str, *, session_id: Any = None,
+                        tool_use_id: Any = None, agent_id: Any = None,
+                        run_id: Any = None, decision: Any = None) -> str:
+    """Format bounded native callback correlation, never authorization evidence.
+
+    Args:
+        hook_event_name: Explicit PreToolUse, PostToolUse, PostToolUseFailure,
+            or SubagentStop callback.
+        session_id: Actual callback owner, when supplied.
+        tool_use_id: Actual callback tool ID, when supplied.
+        agent_id: Actual callback child ID, when supplied.
+        run_id: Run ID returned by the existing validated exact-join accessor.
+        decision: Final native admission decision (allow, deny, or ask).
+
+    Returns:
+        One marker line, omitting missing, malformed, and oversized identifiers.
+
+    Raises:
+        ValueError: If the callback is not one of the supported native events.
+    """
+    if hook_event_name not in ("PreToolUse", "PostToolUse", "PostToolUseFailure", "SubagentStop"):
+        raise ValueError("Unsupported native callback")
+    trace = {"hook_event_name": hook_event_name}
+    for key, value in (("session_id", session_id), ("tool_use_id", tool_use_id),
+                       ("agent_id", agent_id), ("run_id", run_id)):
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", value):
+            trace[key] = value
+    if decision in ("allow", "deny", "ask"):
+        trace["decision"] = decision
+    return "AUTONOMOUS_DEV_NATIVE_TRACE " + json.dumps(trace, separators=(",", ":"))
 
 VALID_DECISION_SHAPES = frozenset(
     {"tuple", "dict", "exit2", "legacy_recovery", "mode_skip", "allow"}

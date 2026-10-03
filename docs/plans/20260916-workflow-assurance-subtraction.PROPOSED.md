@@ -1,6 +1,6 @@
 # Workflow assurance with subtraction — execution design
 
-Updated: 2026-09-30. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
+Updated: 2026-10-03. Program: [#1757](https://github.com/akaszubski/autonomous-dev/issues/1757).
 Canonical plan: this file; its historical filename is retained for stable links.
 
 ## WHY + SCOPE
@@ -57,99 +57,205 @@ preserve unrelated dirty plugin manifest and .Codex contents.
 The source intent file here is root PROJECT.md; .claude/PROJECT.md links to it.
 Do not infer a second intent source from stale .Codex path prose.
 
-Current execution pointer (2026-09-30): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
-native run identity, origin and containment remain unaccepted. Fresh Claude
-fix-mode F1 lost its run identity after recovery; a separate full-mode run
-had a strict-valid owner MAC but no native-origin witness or issue binding.
-Both were stopped before protected edits ([fix-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898569389),
-[full-mode](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5898692507)).
-Do not resume or repair either sentinel. The user authorized a scoped #1807
-native-identity bootstrap on 2026-09-30 while retaining independent review and
-all native, security and release gates. The first repair is in
-[#1851](https://github.com/akaszubski/autonomous-dev/pull/1851): plugin-native
-registration now yields a signed witness for the observed typed
-`autonomous-dev:implement` spelling, with a spoofed-namespace negative control.
-This proves one origin/registration join, not six-binding run initialization,
-OS containment, installed-consumer operation or F0 acceptance. The
-one-time #1818 exception remains separate. The
-subsequent #1807 foreground completion and #1809 settings-migration candidate
-is now saved at draft PR #1851 commit `7d639a1a`. Its exact Agent result join,
-direct-writer refusal, legacy positive control, and interrupted two-file
-settings retry passed a 272-case focused suite and candidate code/security
-review. This is a source checkpoint, **not** A9 or installed acceptance:
-real Claude full/fix progression, one effective installed policy, carrier
-write/refusal matrix, and clean/populated consumers remain unproven. The old
-virtual `pytest-gate` marker also remains noncertifying without #1818's
-evidence-bound gate consumer. Keep the draft unmerged and do not deny model
-writes to all protected carriers until each remaining verdict/remediation
-transition is migrated or retired. Commit `78d41e63` adds the #1807
-ordinary-Agent false-refusal repair: no heartbeat-created recovery sentinel,
-including with a stale receipt, and an old bare recovery record cannot be
-called healthy. The 403-case focused suite passed. A real Claude foreground
-Explore in a fresh, byte-verified consumer with project/local settings emitted
-SubagentStop and PostToolUse Agent without creating pipeline state
-([evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903509877)).
-The default settings composition also loaded a stale user-level SubagentStop
-hook, which *did* recreate the bare sentinel despite current installed bytes;
-this is a deployment conflict to detect or safely migrate under #1809, not a
-reason to claim installed acceptance
-([conflict](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5903511515)).
-Draft PR #1851 commit `a99e7b81` adds a read-only audit for declared
-direct-Python user/plugin hook overlaps. It reports three overlaps in the
-current user settings without changing those settings. This is a narrow
-diagnostic, not proof of effective plugin activation, wrapper commands,
-remote deployment, or the #1809 active-run interlock; no deploy gate was added.
-Claude Code 2.1.236 lists the source plugin's session-only `--plugin-dir`
-carrier and four hook event families, but strict native validation fails on
-the marketplace schema and ignored plugin fields/archived agent frontmatter.
-The legacy copied-file manifest has no native plugin metadata carrier. A
-native installed-and-updated consumer remains unproven
-([diagnosis](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5903665152)).
-For the next A9 acceptance attempt, this is now a prerequisite rather than a
-later D0 cleanup: repair and strictly validate the single native provider
-under #1755 first. The project-local copied-file route remains diagnostic only
-because it has no plugin metadata carrier and its settings omit native origin
-and completion callbacks. #1807 source work may continue meanwhile
-([preflight](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903691399)).
-The first isolated #1755 `/implement --tdd-first` attempt then stopped before
-edits: typed run state existed but native origin was absent and Agent dispatch
-refused `inactive`. The #1807 initializer accepts only `--fix`/`--full`, silently
-excluding the command contract's `--tdd-first`; its scoped RED/repair now precedes
-another #1755 implementation attempt
-([failure](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903791645)).
-The scoped `--tdd-first` case is RED with three refusal controls GREEN, but
-native `/implement --fix #1807` then stopped before the first specialist:
-`unbound_scope` separated the signed sentinel from its ledger run binding.
-No production edit or gate bypass occurred. This is a self-maintenance hook
-deadlock, not a reason to retry unchanged or call A9 accepted
-([record](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903841937)).
-Read-only transcript/source reconciliation located the boundary mismatch:
-`implement-fix.md` overwrote the native carrier with a signed string issue ID,
-while the Agent scope verifier correctly requires an integer; `implement.md`
-has the same command pattern. The F1 snippet also ignores the native
-progression result. Repair the existing command/ledger owner under a scoped
-self-maintenance exception, not by loosening the Agent refusal
-([cause](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903851930)).
-[The #1807 review checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5903279053)
-records the current candidate and remaining negative controls. The
+Current execution pointer (2026-10-03): [#1807](https://github.com/akaszubski/autonomous-dev/issues/1807)
+native run identity, origin and containment remain unaccepted. The
 [#1806](https://github.com/akaszubski/autonomous-dev/issues/1806) overlapping-run
 interlock and [#1809](https://github.com/akaszubski/autonomous-dev/issues/1809)
 deployment/settings-preservation gate remain separate prerequisites at their
 respective transitions. Resolve #1807 before another native F0 attempt; do not
 convert a library-route green into native acceptance. The release denominator
-on #1757 is still a candidate, not frozen. #1818's runner and gate-consumer
-changes remain uncommitted diagnostic HOLD; only its test-disposition checkpoint
-was pushed at `4a4b4674`. Read-only review found that its always-false F4
-verifier has no positive promotion path and that call-pass plus teardown-ERROR
-currently collapses to capture failure; preserve the candidate but repair
-these before #1818 promotion
-([review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5903691558)). Use the
+on #1757 is still a candidate, not frozen. The independently reviewed inactive
+#1818 runner/PCS/ordering seam was pushed at `09f982a5`; the inert observer
+parser was integrated at `cee6032a`. Neither activates a qualified native
+publisher or grants progression. The earlier always-false F4 verifier and
+child-event forgery findings remain preserved diagnostic failures, not proof
+that the later integrated seam is accepted. The historical reducer preserved
+call-pass plus teardown-ERROR; native custody and actual command-path frozen
+negative cases still prevent #1818 promotion
+([review](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5903691558),
+[forgery RED](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914490492)). Use the
 [restart checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
 current issue evidence for live order; the historical EX work below remains the
 next native F0 task after the prerequisite. Its isolated offline preparation
 may proceed in parallel; it is not native admission or acceptance.
+For live source and run evidence, use the [current execution checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391).
+The earlier `cee6032a` MCP pair demonstrated an ordinary edit and a protected OS
+refusal but lacked the failed-tool callback/activity edge. A fresh installed
+`dac30d0a` pair independently verified that repaired edge using actual tool and
+session identifiers, with unchanged public carriers and installed inputs
+([bounded proof](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964748457)).
+Post/activity records still omit run attribution, so full provenance and
+A9/F0 remain incomplete; this is not a hook-enforcement pass. Actual MCP
+PreToolUse records skipped consumer workflow enforcement, and an isolated
+loader counterarm showed ambient library shadowing; both remain distinct
+[#1809 findings](https://github.com/akaszubski/autonomous-dev/issues/1809#issuecomment-5964798052)
+until their own repairs and installed acceptance qualify. The populated-consumer duplicate native callback is a #1809 RED, and #1818's
+focused teardown-ERROR reducer pass is not an F4 receipt; both are recorded in
+the linked checkpoint. R0, D0, migrations and final retrofit remain ahead.
+
+The earlier finite foreign-owner native case retained a RED: the changed
+run-bearing sentinel disappeared before authority classification and the denial
+was missing-sentinel rather than owner-mismatch. Preserve that failed run.
+The independently reviewed reader repair at `e18c5622` now has fresh installed
+native qualification for four bounded dispatch refusals: foreign owner,
+removed owner, absent sentinel with retained ledger, and corrupt JSON. Actual
+requests were denied for their respective causes without reconstruction or
+credit; altered evidence survived until exact fixture cleanup. During these
+four refusal cases, the other carriers and installed inputs remained unchanged.
+The same subject's genuine
+owner dispatch and actual result/completion join also passed independent review
+([proof and retained RED](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964938140)).
+The separately frozen completion-loss case and subsequent absent-identity
+refusal now also passed independent native review: the actual completion stayed
+uncredited, the heartbeat refused identity-less recovery, and the following
+dispatch could not reconstruct authority from the ledger. Exact fixture cleanup
+did not overwrite the retained uncredited join. The original observer timing-miss
+remains failed evidence, not retroactively accepted. A fresh native valid
+completion neighbor, corrupt-during-completion refusal and subsequent
+corrupt-state dispatch refusal have now also passed independent review.
+The new join stayed uncredited; original sentinel cleanup did not overwrite
+the ledger/checkpoint. Installed wrong-argument/unsigned-legacy classifier
+cases and missing/synthetic-owner initializer negatives have bounded raw
+evidence too; injected stdin does not prove native origin and unsigned legacy
+does not prove signed-v1 compatibility. These are not complete A1/A2/A2b/A6/A9/F0
+or release acceptance. Remaining lifecycle, origin, containment and installation
+obligations stay open. Actual received task/child
+prefixes are an operational trigger, not an invented child PID or a guarantee
+of perfect wall-clock simultaneity.
+
+**2026-10-03 native API diagnostic checkpoint.** The fresh `mUUXlJJX` fixture
+verified tools-disabled initialization with an actual native callback, matching
+public owner/run/checkpoint and empty completion ledger. The subsequent Agent
+continuation failed: its first request omitted `prompt`; a second request retried
+and reserved a child before external termination. Native exit was 143, not the
+wrapper's 0; no completion was credited. Preserve that interrupted run and do
+not advance it to Bash or relabel the retry as the frozen positive. Both blanket
+CLI tool grants discovered in preparation were removed before launch; zero
+settings allows alone had not established unchanged effective permissions.
+The fresh, prospectively frozen `MOBZ8hir` supplemental diagnostic has now
+completed independent tool-level review: one actual Agent dispatch completed
+with its native child/result/ledger join, followed by one actual Bash fixture.
+The ordinary write succeeded; the ten-target external effect comparison found
+no authority changes. Signing/publication arms reported PermissionError, but
+the refusing syscall was not traced. Ledger rebind returned True despite no
+persisted ledger change: this historical false-success result is retained.
+The existing-owner persistence acknowledgement was repaired in commit
+`2f9ad028858804c060d373f2fe6250334ef86607`; the focused source checks passed
+124 cases, with a separately reproduced inherited regression failure retained.
+A fresh SHA-pinned installed consumer (`ssnHggAr`) then passed independent
+bounded review: tools-disabled initialization, one completed native Agent,
+and one exact native Bash probe. The denied ledger rebind now returned False;
+authority carriers remained unchanged and the ordinary write succeeded.
+This closes the scoped persistence-result defect, not the original signed-state
+replacement requirement. The fresh Agent and Bash continuations also exited
+with native raw 1 / error_max_turns, not workflow success. Overbroad public
+authentication-metadata observations and a failed effect-checker attempt are
+preserved; this packet does not establish flawless export privacy or secret
+handling. The independent bounded result is recorded in
+`adev-origin-persistence-native.ssnHggAr/BASH-INDEPENDENT-RESULT.md` under the
+local Codex artifacts directory; it is not a portable release proof.
+Both historical continuations exited with native raw 1 /
+error_max_turns, not workflow success. These bounded results do not replace
+original A7 valid-new-MAC reader refusal, full lifecycle/provenance, F0 or release
+acceptance; the cap itself is not a containment or exact-call-count guarantee.
+
+The historical outside-comparator prototype has a reviewed native correlation
+path (`4b91aed8`, 15 frozen test methods). Replay of the
+unchanged successful `mTnLPZaQ` native capture independently joined ordinary
+success and protected failure through actual Pre dispatch-run, tool result and
+Post/failure IDs; altered-record counterexamples refused. No Post run was
+fabricated. This is historical correlation only: the F0 documentation consumer
+still reaches legacy receipt comparison, and installed
+current-subject proof, complete custody/effects and F0 acceptance remain open.
+The prospective successor (`9e0f5ed2`) composes that path onto the actual qualified
+`aa2697` comparator rather than replacing it with the older prototype. Independent
+review and root checks preserve all existing definitions and cover 15 native,
+52 selected EX and five legacy cases; 62 EX nodes remain unqualified for this
+successor. Its driver (`454c2a4b`, manifest `49d7abe8`) passes the real six-leaf
+offline load path, two legitimate neighbors and 15 refusals after a one-entry
+shadow-package repair. Earlier false-permit evidence is retained. These are
+offline composition/transport results, not activation or native/F0 acceptance.
+The original-schema child join and independently observed same-run initialization
+receipt remain unfinished. On 2026-10-03 the user approved the scoped disposable
+worker canonical runtime-state mount and tools-disabled INITIAL / same-session
+RESUME slice. This authorizes preparing and implementing the named boundary,
+not acceptance: freeze the changed loader/parent/service subjects, independently
+review them, verify exact phase-child identity and exits, protect parent control
+channels, and prove genuine initializer publication alongside model-tool authority
+write refusal and final namespace/cgroup cleanup before native qualification.
+Preserve all existing security, capture and release gates. No host-credential
+exposure, global settings change, new signer/store or R0/release promotion is
+authorized by this decision; the separate valid-new-MAC signing fixture remains
+unapproved. Earlier HOLD wording in diagnostic proposals is historical authority
+status, not a reason to repeat this approval request.
+The valid-new-MAC native case also remains open; nonce-only binding is not a
+complete substitute. A fresh disposable outside signing-fixture admission is
+proposed separately, without loosening actor permissions or granting proof credit.
+
+The superseded 2026-09-30 native failure detail remains in the
+[base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
+it is historical evidence, not the current execution pointer.
+
+The [draft #1807 PR](https://github.com/akaszubski/autonomous-dev/pull/1851)
+now has a SHA-pinned native `git-subdir` install diagnostic, including typed
+fix/full initialization, first foreground Agent joins and a denied same-run
+Skill attempt that preserved typed origin. These are bounded diagnostics, not
+the complete A7/A9 or F0 proof. A strict macOS sandbox allowed an ordinary
+Bash write and refused an inert protected-file write; native hook creation of
+the actual signed sentinel also worked under its `denyWrite` policy. The model
+refused to issue Bash against that sentinel, so no OS refusal on the carrier
+has been observed in this attempt. Keep N-BASH and A9 OPEN. The
+[checkpoint](../audits/20260925-workflow-assurance-checkpoint.md) and
+[#1807 evidence](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5913956132)
+carry exact hashes and limitations. The older project-local copy procedure
+below is historical; reuse the SHA-pinned native install method for further
+diagnostics without calling that a released D0 carrier.
+
+The 2026-10-03 #1818 bootstrap candidate is **REJECTED / NOT PROMOTABLE**
+([independent review record](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5961532412)).
+Its focused tests passed, but the command never obtained the frozen N4B skip
+observation, accepted a self-supplied manifest, and stored unauthenticated
+independent-result dictionaries. Preserve its isolated worktree and tests as
+failed evidence; do not install or count its reviewer permit. The existing
+run-start ledger is explicitly model-writable until A9. A digest or HMAC that
+the same actor can mint does not repair this origin gap.
+
+Execution order therefore follows the real dependency: use the already
+authorized scoped maintenance exception and independent external review to
+finish #1807's native origin and carrier-containment proof; qualify #1818's
+observer-to-protected-ledger-to-reviewer route only after that boundary passes.
+The maintenance exception permits repair only; it supplies no A9 acceptance.
+In parallel, freeze #1818's obligation manifest outside the tested actor and
+exercise its capture/comparison cases as provisional diagnostics. No diagnostic
+may grant native progression or release credit. Reuse the existing observer,
+ledger and signer; additional stores or parallel receipt frameworks are not
+the next step. Keep every frozen refusal, including actual command-path N4B,
+model-written receipt, narrowed manifest, interrupted capture and bare marker.
+The next A9 check reuses the stock sandbox venue and measures actual carrier
+effects under the same policy as the trusted-hook positive, with exact current
+subject bytes and independent before/after observations. Repeating an old
+preflight or relying on a model declining the tool call does not close it.
 
 ### #1807/A9 coherent lifecycle repair (not yet accepted)
+
+2026-10-03 execution correction: commit `3e2d7bf2` separates the native
+invocation header from multiline intent. The byte-identical failed prompt then
+created a strictly verified typed-user run in a fresh SHA-pinned native install.
+The subsequent Bash attempt remains **NON-PASS**: it inspected the fixture rather
+than executing the required effects, and `--tools Bash` did not suppress cloud
+MCP capabilities. The owned process was terminated; all three carrier hashes
+remained unchanged and no ordinary canary was created. Before another attempt,
+verify the actual tool catalog and allow bounded nonsecret preparatory inspection
+explicitly; CLI permission approval is not an exclusive command allowlist.
+
+The scoped command-adoption cutover must preserve the existing full-mode
+checkpoint used by resume/finalization. Move its initialization to the existing
+native state owner rather than restoring model signing/key reads. This includes
+the existing checkpoint helpers and failure/concurrent-start cases, not a new
+store or lock framework. A lock descriptor printed by a short-lived process does
+not protect the run lifetime; retain concurrency and resume as OPEN until actual
+effects pass. The provisional command deletion earns no maintenance-reduction
+or workflow acceptance before those consumers remain functional.
 
 The user has authorized the narrow bootstrap repair, not a reduction of A9's
 security or installed-workflow proof. Commit `7d639a1a` closes the tested
@@ -272,7 +378,8 @@ the point-in-time held-lock proof immediately before F0 is still required.
 Native A7/A9 origin and containment, installation and release are also unproven;
 do not infer them from the integrated unit result.
 
-The installed command/hook mismatch found on 2026-09-28 makes a retry against
+Historical 2026-09-28 route (superseded for current diagnostics): the
+installed command/hook mismatch makes a retry against
 the current global profile noncertifying. For **native #1807 test evidence only**,
 reuse the disposable project-local carrier **method** specified in the
 superseded `docs/plans/20260906-repository-integrity-recovery.md` B0-C11,
@@ -692,6 +799,101 @@ only after resolving the full pipeline's existing exit-zero prerequisite, or
 retain its work as explicitly provisional; do not reinterpret those two red
 tests as validation of the capture feature.
 
+### #1818 maintenance bridge — separate suite attestation from independent proof
+
+The current self-maintenance loop requires one bounded repair of the existing
+test-process owner, result binding and actual next-agent consumer, not another
+test framework. The previous one-time #1818 bootstrap was consumed; a further
+protected-source exception requires fresh explicit authority, named files and
+an independent review. Its proposed edit surface is the existing F2/F3 command
+owners (`commands/implement.md`, `commands/implement-fix.md`), process owner
+(`lib/test_runner.py`), F4 consumer (`lib/agent_ordering_gate.py` and only its
+necessary existing state/hook caller), and directly affected tests/docs—not
+policy, installer or a new signer/store. Freeze the failing case, base revision,
+expected old→new obligation mapping and exact file allowlist before that
+exception. The bounded bootstrap ends when the installed F2→F4 route preserves
+pytest's raw exit and complete capture, N4 forged evidence plus bare-marker and
+missing-raw-exit attempts still refuse the next specialist, and
+independent review accounts for every changed owner; an unfinished slice stays
+provisional. The bootstrap cannot mint F4, F0 or release credit, bypass a security gate, or
+silently change the frozen [#1818 P1/P2 and N1–N9 matrix](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914465347).
+
+Two claims must remain distinct. A parent-observed raw process exit, exact
+selection/configuration and bound artifact can establish that a specified
+pytest process ran. Its per-node reports are **attested under the recorded,
+reviewed pytest configuration**, including `conftest.py` and loaded plugins;
+pinning their bytes does not independently prove their truth. Required
+security-critical outcomes are also exercised by separately authored frozen
+acceptance/counterfactual cases through an independent acceptance runner,
+against the same installed product behavior where applicable. The current F0
+oracle records process exit and selection but **does not expose skip/pass per
+node**; it cannot by itself decide the revised N4 outcome. That oracle's
+`--noconftest` profile cannot be substituted for the ordinary suite or its
+fixture semantics. Keep the forged skipped-test event as a refusal control:
+F4 remains HOLD until either (a) a genuine independent observer rejects N4
+and qualifies P1/P2 at the installed transition under the existing contract,
+or (b) an explicit old→new mapping for N4 and P1/P2 changes the trust
+assumption with separate approval and independent review. A hash or second
+child plugin is not branch (a) or proof.
+
+**2026-10-03 branch-(b) decision, pending independent review and revised-case
+freeze.** The user authorized the smaller honest contract after the N4
+counterexample; this decision does not itself pass F4 or authorize promotion.
+Preserve the original [frozen matrix](https://github.com/akaszubski/autonomous-dev/issues/1818#issuecomment-5914465347)
+as historical RED evidence, and publish the revised case rows on #1818 before
+implementation. The old→new mapping is:
+
+| Old claim | Revised claim and required refusal |
+|---|---|
+| P1: exact independently executed ordinary-suite denominator and full green | The parent proves the exact process, raw exit, complete capture and run/profile binding; required IDs are frozen outside the child and reconciled with its **configuration-bound** collected/executed report. F4 may permit *reviewer dispatch only* with an explicitly labelled suite-attestation receipt. It cannot qualify product behavior, release, or independently observed per-node execution. Empty/incomplete selection refuses. |
+| P2: no new failures on an independently known same denominator | Compare the same nonempty, externally frozen required-ID set and reviewed effective test profile against the completed base; report *no new child-reported failures*, never independently verified global green. Independently authored changed-behavior, opposite and counterfactual cases must pass before downstream product acceptance; missing/failed external cases refuse. |
+| N4: every forged child event/descriptor is independently detected | A child event, terminal line or descriptor can never solely authorize reviewer dispatch. Preserve the original skip→pass reproduction as historical RED. The revised frozen negative uses a SHA-256-bound tiny unconditional-skip subject, then a separate controlled `--noconftest` acceptance process with plugin autoload disabled, exact recorded argv/config and explicit per-node skip observation, raw exit and selected ID; a forged ordinary-child pass contradicts that observation and refuses F4 at the installed route. The present `oracle.sh` emits no skip/pass observation, so it cannot satisfy this row unchanged. Keep the observation in directly affected acceptance tests, not a second product signer or gate. Post-capture edits, cross-surface conflicts, unreviewed config changes or absent independent evidence for a required critical outcome also refuse. This revised case detects its frozen forgery and specified conflicts, not every possible consistent fabrication inside the reviewed pytest child; that remains an explicit limitation of ordinary-suite attestation. |
+
+The acceptance IDs come from a pre-edit manifest authored by the independent
+test-master/spec-validator, not pytest's child output. Bind that manifest to a
+base test-file inventory and the changed-behavior map; deleted, renamed or
+changed required tests and newly changed behavior without a reviewed test
+mapping invalidate it. A child-selected denominator cannot silently narrow
+the claim. This is a reviewed obligation map, not a claim that static analysis
+discovers every possible test. The old N4 stays historical RED; the revised N4
+must be frozen and run as a new case, never retroactively marked green.
+
+N1–N3 and N5–N9 retain their frozen refusals; the actual installed coordinator
+→ hook → ordering-gate → reviewer route must exercise them. `conftest.py` and
+plugins are reviewed, digest-bound *inputs* for the ordinary suite, not trusted
+observers; a changed or unresolved inventory invalidates the base. The
+independent oracle owns only its separately frozen critical cases and cannot
+certify ordinary fixture semantics. Keep process attestation, behavioral
+verification and release acceptance as distinct claims; no model report or
+suite-attestation receipt alone may promote a candidate. If a required case
+cannot be expressed without assuming child self-attestation, keep F4 HOLD and
+revisit the contract before editing code.
+
+Implement the bridge as one vertical slice: capture the base once per exact
+revision **and effective test profile** (argv, environment, configuration,
+loaded plugins and selected subject), with raw exit and complete output;
+invalidate that base if any binding changes. Freeze the required acceptance
+IDs outside the pytest child and reconcile them with the captured selection;
+ordinary-suite collected IDs remain configuration-bound attestation, not an
+independently discovered denominator. Empty, incomplete or changed selection
+refuses qualification. Observe argv and environment at the parent; treat
+plugin/`conftest.py` inventory as configuration-bound attestation unless an
+independent observer establishes the runtime load, and HOLD if the inventory
+cannot be reconciled. Run bounded changed-behavior, opposite and
+counterfactual cases during repair; compare the same qualified denominator
+for new failures; then run the required broad and installed native proof at
+promotion. Never pipe away pytest's exit, relabel focused green as full green,
+or require a repeated full-suite run after every local edit. Exercise the real
+Claude coordinator → hook → reviewer-dispatch transition on valid and invalid
+receipts, not merely a reducer unit test or agent report. Keep a before/after
+map of process owners, gate markers, tests, dependencies and operator steps;
+retire duplicate owners only after their distinct outcomes are preserved.
+Parallel inventory and delivery-contract work may proceed, but no migration
+promotion borrows this bootstrap's result. Final release also needs distinct
+clean and populated source-free installed-consumer proof and a measured
+dependency-inclusive net reduction in code, tests, dependencies and operator
+steps—not merely a before/after owner map.
+
 For every frozen acceptance row, record the claim, required observation and its
 authority, observation method, subject/run identity, temporal validity where
 applicable, result, limitation and decision. These are fields of the existing
@@ -824,6 +1026,14 @@ existing settings merging only for the necessary owned consumer delta. Preserve
 unrelated keys, hooks, permissions and comments where the format supports them;
 detect incompatible precedence or duplicate execution before activation.
 Never append the same hook twice or replace the consumer's settings wholesale.
+Treat native `/plugin install` or reload outside a toolkit-owned lifecycle entrypoint
+as an **external activation route**: a source settings-merger cannot interlock that
+action. Qualify it only after an independent effective-layer reconciliation, and
+do not claim pre-activation refusal for an external action unless the pinned
+harness exposes a proven blocking lifecycle event. Inventory hook identity across
+plugin `hooks/hooks.json` and all effective settings layers by event, matcher,
+executable, resolved script and arguments; inspecting `command` alone misses
+native `command: "python3"` entries whose script is in `args`.
 
 Exercise new install, populated-repo retrofit, repeated update, interrupted update,
 rollback and uninstall with the real installed entrypoint. Compare unrelated
@@ -837,9 +1047,12 @@ and the expected lifecycle cases. After implementation produces the candidate,
 but before any acceptance run, freeze its artifact digest and complete
 dependency/profile closure; those pins remain immutable through independent
 proof and explicit promotion. Conflict refusal must prove zero mutation before
-activation. A valid exactly-once result requires one physical hook execution joined
+controlled activation; an already-active external conflict must refuse
+qualification and preserve consumer settings, not be relabelled a prior refusal.
+A valid exactly-once result requires one physical hook execution joined
 to its event and decision; deduplicated receipts or one registration alone cannot
-prove this. Include a duplicate-registration mutant that the observer detects.
+prove this. Include a cross-layer duplicate-registration mutant that the observer
+detects, plus a populated-consumer permit retaining unrelated settings and hooks.
 Enumerate the native lifecycle's observable interruption boundaries before fault
 injection, with the expected prior-or-new complete activation and recovery action
 for each boundary. Unknown or mixed activation fails. Freeze an exact Codex profile
@@ -906,6 +1119,28 @@ must be qualified there as well; do not confuse its validation result with
 `plugin.json` validation or count session-only `--plugin-dir` loading as an
 installed-consumer proof. The 2026-09-29 source manifest failure and distinct
 marketplace failure are recorded on #1757.
+
+**Pre-F0 carrier dependency correction (2026-09-30).** A disposable native
+marketplace installed the reviewed #1807 plugin bytes and fired
+`UserPromptExpansion`, but Claude loaded a local-directory marketplace from its
+source path; making that directory unavailable changed the plugin to
+`failed to load: cache-miss`. This is native registration evidence, not a
+source-free installed-consumer or A7/A9 result. A second disposable catalog
+with a SHA-pinned `git-subdir` source fetched PR #1851 commit `aa9fba0a` into
+an isolated plugin cache; Claude's native init named that cache path and the
+origin hook fired. A session-only settings overlay then reused the existing
+Claude Max login without changing user settings: the native hook event's
+session ID matched the signed fixture state, and an effective
+`enabledPlugins=false` control loaded no plugin and fired no hook. This is the
+carrier for the next #1807 diagnostic: retain source-to-cache byte digests,
+disabled/missing-plugin controls, and native run/effect joins. These no-tool
+arms prove neither model workflow nor A7/A9. If this
+route later requires a product schema change, scope only the minimum #1755
+carrier repair through existing implementation, independent review and
+security gates. Preserve the nested marketplace self-maintenance detector and
+unrelated consumer settings;
+do not count this prerequisite as D0 lifecycle, F0 or release acceptance. Full
+install/update/rollback/uninstall qualification remains in D0.
 
 **Measured test-gate prerequisite (#1846, 2026-09-29).** A genuine #1805
 `/implement --tdd-first` STEP 1 full-suite baseline timed out at its configured
@@ -981,7 +1216,10 @@ is identified:
 
 > Execute the workflow-assurance plan end to end to deliver a smaller, maintainable
 > autonomous-dev toolkit aligned with PROJECT.md. First freeze the finite release
-> control and consumer inventory, then complete F0, qualify the minimal verifier,
+> control and consumer inventory, then repair the self-maintenance test gate as
+> the bounded #1818 vertical slice without weakening its frozen acceptance;
+> distinguish configuration-bound suite attestation from independent behavioral
+> proof. Complete F0, qualify the minimal verifier,
 > package plugin-native delivery, release the sensitive-write slice, connect
 > evidence to existing SDLC gates, migrate the remaining included controls and
 > prove clean and populated consumer installation/update/recovery. Preserve

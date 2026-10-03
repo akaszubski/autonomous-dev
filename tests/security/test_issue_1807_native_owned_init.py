@@ -165,25 +165,22 @@ NATIVE_VENUE_MATRIX: Dict[str, Dict[str, Any]] = {
     },
     "P-SPELLING-OBSERVED": {
         "native_expectation": (
-            "the admitted native trial MUST capture the ACTUAL command_name and "
-            "command_source BYTES for typed `/implement` and `/implement --fix` on "
-            "the INSTALLED plugin, and the recognizer's accepted spelling set is to "
-            "be finalized from those observed bytes — not guessed. Two obligations "
-            "follow. NAMESPACED POSITIVE: if the installed payload arrives "
-            "namespaced (e.g. `autonomous-dev:implement`, the shape #1811 is live "
-            "evidence for), the recognizer must accept EXACTLY that registered "
-            "spelling. NAMESPACED NEGATIVE: a non-registered or spoofed namespace "
-            "spelling must still refuse. Until those bytes exist the recognizer "
-            "stays NARROW and FAILS CLOSED: widening it speculatively is the "
-            "guess-shaped hole #1811 explicitly rejected"
+            "a live Claude Code 2.1.236 --plugin-dir plan-mode probe on 2026-09-30 "
+            "observed UserPromptExpansion with command_name "
+            "`autonomous-dev:implement`, command_args `--fix #1807`, and a signed "
+            "session-bound witness. The recognizer must accept exactly this "
+            "registered namespace and refuse unrelated or suffix-laundered "
+            "namespaces. This is a spelling/registration observation only: the "
+            "full installed workflow, six-binding bootstrap, and A9 containment "
+            "remain UNMEASURED"
         ),
         "native_status": "UNMEASURED",
         "covering_mechanism": "undetermined",
         "required_joins": _TYPED_EXPANSION_JOINS,
         "offline_cases": {
-            "namespaced-refuses-today": {
+            "observed-plugin-namespace": {
                 "kind": "named",
-                "test": "test_namespaced_command_spelling_refuses_today_and_classifies_absent",
+                "test": "test_observed_plugin_namespace_mints_typed_witness_but_other_namespaces_refuse",
             },
         },
     },
@@ -575,7 +572,7 @@ NATIVE_VENUE_MATRIX: Dict[str, Dict[str, Any]] = {
 #: tamper-proof: it sits in the same module as the matrix, so the authoritative
 #: freeze record is the hash reported in the coordinator/issue evidence.
 _FROZEN_MATRIX_SHA256 = (
-    "43beee393bc32a96676f5324791247e951ec8092d21c2a97d6be31c2ee2540bf"
+    "a81700d9ee3e0c6f47591ac78d99f8b0a29d6a7bd6ca6cce0158730824900b29"
 )
 
 #: The three sanctioned join sets, by name, for the spec-text shape check.
@@ -635,6 +632,8 @@ NAMED_CASES = _cases("named")
 def _isolated(monkeypatch, tmp_path):
     """Redirect sentinel, secret store and ledger into tmp_path, then reap."""
     redirect_pipeline_state(monkeypatch, tmp_path, ps, pcs)
+    monkeypatch.setattr(ps, "get_state_path", lambda run_id: tmp_path / f"checkpoint-{run_id}.json")
+    monkeypatch.setattr(ps, "get_lockfile_path", lambda run_id: tmp_path / f"run-{run_id}.lock")
     yield
     for owner in (_OWNER, _OTHER_OWNER):
         clear_run_artifacts(owner)
@@ -660,6 +659,312 @@ def _skill_payload(owner: str = _OWNER, skill: str = "implement") -> Dict[str, A
         "tool_input": {"skill": skill},
         "session_id": owner,
     }
+
+
+def _native_fix_payload() -> Dict[str, Any]:
+    """Observed typed plugin command; ``custom`` names command type, not actor."""
+    payload = _typed_payload(args="--fix #1807")
+    payload["command_name"] = "autonomous-dev:implement"
+    payload["command_source"] = "custom"
+    payload["prompt"] = "/autonomous-dev:implement --fix #1807"
+    return payload
+
+
+def test_typed_fix_expansion_initializes_bound_run_before_model_bash(capsys):
+    """A typed expansion creates all run carriers without a coordinator step."""
+    payload = _native_fix_payload()
+
+    result = pcs.initialize_native_run_from_event(payload)
+
+    assert isinstance(result, dict), "native initializer must return the created state"
+    # The native owner must choose the canonical carrier, not a caller-supplied
+    # PIPELINE_STATE_FILE. The isolation helper redirects this resolver to tmp_path.
+    sentinel = ps.get_legacy_sentinel_path()
+    assert sentinel.is_file()
+    state = json.loads(sentinel.read_text(encoding="utf-8"))
+    assert result == state
+    assert state["session_id"] == payload["session_id"]
+    assert state["mode"] == "fix"
+    assert str(state["issue_number"]) == "1807"
+    assert isinstance(state["subject"], str) and state["subject"].strip()
+    assert isinstance(state["base_commit"], str) and state["base_commit"].strip()
+    assert isinstance(state["run_id"], str) and state["run_id"].strip()
+    assert ps.verify_state_hmac(state, _OWNER, strict=True)
+    secret_path = ps._get_pipeline_secret_path(state["run_id"])
+    assert secret_path.is_file()
+    assert secret_path.read_text(encoding="utf-8").strip() not in json.dumps(result)
+    assert pcs.get_run_start_receipt(_OWNER) == state["run_id"]
+    ledger = _ledger()
+    assert ledger["issue_run_starts"]["1807"] == state["run_id"]
+    origin = pcs.check_native_origin(_OWNER, _bindings(state))
+    assert origin.valid is True, origin.detail
+    assert origin.event == "UserPromptExpansion"
+    assert _classify(state).authorized is True
+    assert capsys.readouterr().out == "", "hook must not print carrier data to stdout"
+
+
+def test_native_full_checkpoint_precedes_authority_publication(monkeypatch):
+    """Existing resume checkpoint is complete before native authority is minted."""
+    original = pcs.record_native_origin_witness
+    seen = []
+
+    def observe(owner, payload):
+        checkpoints = list(ps.get_state_path("placeholder").parent.glob("checkpoint-*.json"))
+        assert len(checkpoints) == 1
+        data = json.loads(checkpoints[0].read_text())
+        seen.append(data)
+        return original(owner, payload)
+
+    monkeypatch.setattr(pcs, "record_native_origin_witness", observe)
+    state = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert state is not None
+    restored = ps.load_pipeline(state["run_id"])
+    assert restored is not None
+    assert restored.run_id == state["run_id"]
+    assert restored.mode == state["mode"] == "full"
+    assert restored.feature == state["subject"]
+    assert restored.steps == seen[0]["steps"]
+    assert set(restored.steps) == {step.value for step in ps.STEP_SEQUENCE}
+    assert all(step["status"] == "pending" for step in restored.steps.values())
+
+
+@pytest.mark.parametrize("fault", ["save", "reload", "steps"])
+def test_checkpoint_failure_publishes_no_new_authority(monkeypatch, fault):
+    """Checkpoint faults retain diagnostic remnants, never publish a run."""
+    if fault == "save":
+        def fail_save(state):
+            raise OSError("checkpoint storage unavailable")
+        monkeypatch.setattr(ps, "save_pipeline", fail_save)
+    elif fault == "reload":
+        monkeypatch.setattr(ps, "load_pipeline", lambda run_id: None)
+    else:
+        original = ps.load_pipeline
+        def corrupt_steps(run_id):
+            state = original(run_id)
+            state.steps = {}
+            return state
+        monkeypatch.setattr(ps, "load_pipeline", corrupt_steps)
+    assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert not pcs._state_file_path(_OWNER).exists()
+
+
+def test_native_initialization_mutex_and_other_owner_refusal():
+    """Only init is serialized; same-owner typed supersession remains supported."""
+    key = "native-init-" + hashlib.sha256(str(ps.get_legacy_sentinel_path().resolve()).encode()).hexdigest()[:24]
+    fd = ps.acquire_run_lock(key)
+    assert fd is not None
+    try:
+        assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+        assert not ps.get_legacy_sentinel_path().exists()
+    finally:
+        ps.release_run_lock(fd)
+    first = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert first is not None
+    before = ps.get_legacy_sentinel_path().read_bytes()
+    assert pcs.initialize_native_run_from_event(_typed_payload(_OTHER_OWNER, "#1807")) is None
+    assert ps.get_legacy_sentinel_path().read_bytes() == before
+    second = pcs.initialize_native_run_from_event(_typed_payload(args="#1807"))
+    assert second is not None and second["run_id"] != first["run_id"]
+
+
+def test_progression_refusal_does_not_publish_signed_authority(monkeypatch, tmp_path):
+    """A late native publication fault leaves no sentinel a consumer can accept."""
+    monkeypatch.setattr(pcs, "append_native_origin_progression", lambda *args, **kwargs: False)
+    assert pcs.initialize_native_run_from_event(_typed_payload(args="#1807")) is None
+    sentinel = ps.get_legacy_sentinel_path()
+    assert not sentinel.exists()
+    assert not ps.classify_current_run_authority(
+        None, _OWNER, receipt_lookup=pcs.get_run_start_receipt,
+    ).authorized
+    # Execute the command consumer against the missing sentinel after this fault.
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    text = (_REPO_ROOT / "plugins/autonomous-dev/commands/implement-fix.md").read_text()
+    block = text.split("# NATIVE F1 ADOPTION START", 1)[1].split("# NATIVE F1 ADOPTION END", 1)[0]
+    env = dict(os.environ, ISSUE_NUMBER="1807")
+    env.pop("PIPELINE_STATE_FILE", None)
+    result = subprocess.run(
+        ["bash", "-c", block], cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "native run correlation failed" in result.stderr
+    assert "No such file" in result.stderr
+
+
+@pytest.mark.parametrize("prior_run", [False, True])
+def test_final_sentinel_replace_fault_never_authorizes_new_run(monkeypatch, prior_run):
+    """Failed final publication preserves old bytes but their receipt is stale."""
+    first = pcs.initialize_native_run_from_event(_native_fix_payload()) if prior_run else None
+    sentinel = ps.get_legacy_sentinel_path()
+    before = sentinel.read_bytes() if prior_run else None
+    original = pcs.atomic_write_json
+
+    def fail_sentinel(path, state, **kwargs):
+        if Path(path).resolve() == sentinel.resolve():
+            raise OSError("final sentinel replacement unavailable")
+        return original(path, state, **kwargs)
+
+    monkeypatch.setattr(pcs, "atomic_write_json", fail_sentinel)
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is None
+    after = sentinel.read_bytes() if sentinel.exists() else None
+    assert after == before
+    verdict = ps.classify_current_run_authority(
+        first, _OWNER, receipt_lookup=pcs.get_run_start_receipt,
+    )
+    assert not verdict.authorized
+    if prior_run:
+        assert pcs.get_run_start_receipt(_OWNER) != first["run_id"]
+
+
+def test_typed_tdd_first_expansion_initializes_bound_run():
+    """The documented full TDD mode must receive typed-user run authority."""
+    payload = _typed_payload(args="--tdd-first #1755")
+    payload["command_name"] = "autonomous-dev:implement"
+    payload["command_source"] = "plugin"
+    payload["prompt"] = "/autonomous-dev:implement --tdd-first #1755"
+
+    state = pcs.initialize_native_run_from_event(payload)
+
+    assert isinstance(state, dict)
+    assert state["mode"] == "tdd-first"
+    assert state["issue_number"] == 1755
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+def test_observed_plugin_command_source_initializes_fix_run():
+    """Native plugin commands report command_source=plugin, not custom."""
+    payload = _native_fix_payload()
+    payload["command_source"] = "plugin"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == "fix"
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+@pytest.mark.parametrize("mode", ["--fix", "--full", "--tdd-first"])
+def test_native_initializer_preserves_multiline_intent_without_shell_parsing(mode):
+    """#1807: prose apostrophes must not break the typed command header."""
+    intent = (
+        "This is the authorized disposable native-initialization diagnostic described "
+        "in this consumer's PROJECT.md, not an implementation or release attempt. "
+        "Tools are intentionally disabled for this initial step. Stop before F1 and "
+        "do not dispatch, edit, or claim acceptance. Reply INITIALIZATION_STOPPED so "
+        "the independent supervisor can inspect native-created run identity before "
+        "a separately reviewed continuation."
+    )
+    args = f"{mode} #1807\n\n{intent}\n"
+    payload = _native_fix_payload()
+    payload["command_args"] = args
+    payload["prompt"] = f"/autonomous-dev:implement {args}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == {"--fix": "fix", "--full": "full", "--tdd-first": "tdd-first"}[mode]
+    assert state["issue_number"] == 1807
+    assert state["subject"] == args.strip()
+    assert pcs.check_native_origin(_OWNER, _bindings(state)).valid is True
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807', "--unknown #1807", "--fix --full #1807", "--fix"])
+def test_native_initializer_refuses_malformed_header_despite_valid_intent(header):
+    """Intent cannot repair a malformed invocation or supply its missing subject."""
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nFix issue #1807; don't ignore validation."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+@pytest.mark.parametrize("header,issue", [("--fix #1807", 1807), ("--full inspect parsing", "")])
+def test_native_initializer_body_cannot_supply_flags_or_issue(header, issue, newline):
+    """Body references and mode-looking prose are intent, not invocation authority."""
+    payload = _native_fix_payload()
+    args = newline.join([header, "", "Don't use --tdd-first or --unknown; compare issue #1818."])
+    payload["command_args"] = args
+    payload["prompt"] = f"/autonomous-dev:implement {args}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == ("fix" if header.startswith("--fix") else "full")
+    assert state["issue_number"] == issue
+    assert state["subject"] == args
+
+
+def test_native_initializer_conflicting_header_issues_remain_refused():
+    payload = _native_fix_payload()
+    payload["command_args"] = "--fix #1807 #1818\n\nOnly fix #1807."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807"', '"--fix" #1807'])
+def test_native_initializer_accepts_shell_quoted_header(header):
+    """Quoted header tokens preserve their ordinary invocation meaning."""
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nDon't use --full; compare #1818."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    state = pcs.initialize_native_run_from_event(payload)
+    assert isinstance(state, dict)
+    assert state["mode"] == "fix"
+    assert state["issue_number"] == 1807
+
+
+@pytest.mark.parametrize("header", ['--fix "#1807', '--fix "#1807" "#1818"'])
+def test_native_initializer_refuses_malformed_or_conflicting_quoted_header(header):
+    payload = _native_fix_payload()
+    payload["command_args"] = f"{header}\n\nOnly fix #1807."
+    payload["prompt"] = f"/autonomous-dev:implement {payload['command_args']}"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+
+
+@pytest.mark.parametrize("args", ["--unknown #1755", "--tdd-first --unknown #1755"])
+def test_native_initializer_rejects_unknown_tdd_flags_without_carriers(args):
+    payload = _typed_payload(args=args)
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert pcs.get_run_start_receipt(_OWNER) is None
+    assert "native_origin" not in _ledger_or_empty()
+
+
+def test_model_skill_tdd_first_does_not_initialize_user_run():
+    payload = _skill_payload(skill="autonomous-dev:implement")
+    payload["tool_input"]["args"] = "--tdd-first #1755"
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert "native_origin" not in _ledger_or_empty()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["model_skill", "fabricated_event", "conflicting_mode", "missing_owner", "empty_subject"],
+)
+def test_native_initializer_refuses_untrusted_or_incomplete_invocations(mutation):
+    """Refusal creates no sentinel, secret, or run-start receipt."""
+    payload = _native_fix_payload()
+    if mutation == "model_skill":
+        payload = _skill_payload(skill="autonomous-dev:implement")
+    elif mutation == "fabricated_event":
+        payload["hook_event_name"] = "PreToolUse"
+        payload["tool_name"] = "Bash"
+    elif mutation == "conflicting_mode":
+        payload["command_args"] = "--fix --light #1807"
+        payload["prompt"] = "/autonomous-dev:implement --fix --light #1807"
+    elif mutation == "missing_owner":
+        payload.pop("session_id")
+    elif mutation == "empty_subject":
+        payload["command_args"] = "--fix"
+        payload["prompt"] = "/autonomous-dev:implement --fix"
+
+    assert pcs.initialize_native_run_from_event(payload) is None
+    assert not ps.get_legacy_sentinel_path().exists()
+    assert not list((Path.home() / ".claude" / "pipeline_secrets").glob("*.key"))
+    assert pcs.get_run_start_receipt(_OWNER) is None
+    assert "native_origin" not in _ledger_or_empty()
 
 
 def _run(owner: str = _OWNER, **fields: Any) -> Dict[str, Any]:
@@ -861,45 +1166,33 @@ def test_typed_user_origin_is_recorded_and_classified(case_id, spec):
     assert verdict.native_origin is True
 
 
-def test_namespaced_command_spelling_refuses_today_and_classifies_absent():
-    """P-SPELLING-OBSERVED: an UNOBSERVED spelling mints nothing and errors nothing.
+def test_observed_plugin_namespace_mints_typed_witness_but_other_namespaces_refuse():
+    """The native CLI delivered autonomous-dev:implement on 2026-09-30.
 
-    The recognizer accepts the bare ``implement`` family only, because that is the
-    only spelling anyone has OBSERVED. A plugin-namespaced payload
-    (``autonomous-dev:implement``) is the shape #1811 is live evidence for, and it
-    may well be what the installed runtime delivers — but widening the pattern on
-    that suspicion is the guess #1811 rejected. So TODAY it refuses, and the
-    refusal is a clean ABSENCE (model-bootstrap origin) rather than an error: a
-    recognizer that crashed on an unknown spelling would take the run with it.
-
-    When the native trial captures the real bytes, the accepted set is finalized
-    from them — and if the payload is namespaced, THIS test is the one that must
-    flip to a positive for exactly the registered spelling, with a spoofed
-    namespace still refusing.
+    Accept only that observed plugin namespace. Arbitrary namespaces and
+    suffix laundering remain non-originating even with native-shaped input.
     """
     state = _run()
     payload = _typed_payload()
     payload["command_name"] = "autonomous-dev:implement"
 
-    assert pcs.record_native_origin_witness(_OWNER, payload) is None, (
-        "an unobserved command spelling must not mint a witness"
+    assert pcs.record_native_origin_witness(_OWNER, payload)
+    assert pcs.append_native_origin_progression(
+        _OWNER, _bindings(state), event="run-bound"
     )
-    assert "native_origin" not in _ledger_or_empty()
 
     verdict = _classify(state)
 
     assert verdict.authorized is True, verdict.detail
-    assert verdict.origin is ps.RunOrigin.MODEL_BOOTSTRAP, (
-        f"an unrecognized spelling must read as ABSENT, not as an error or a "
-        f"refused witness: got {verdict.origin.value}"
-    )
-    assert verdict.typed_user_origin is False
+    assert verdict.origin is ps.RunOrigin.TYPED_USER_WITNESSED
+    assert verdict.typed_user_origin is True
 
-    # NEGATIVE CONTROL of a different shape: a spoofed namespace must also refuse,
-    # so a later widening cannot accidentally admit arbitrary prefixes.
+    # A new initiation supersedes any existing witness; these must not do so.
+    previous = _ledger_or_empty().get("native_origin")
     for spoofed in ("evil:implement", "autonomous-dev:implement-evil:implement"):
         payload["command_name"] = spoofed
         assert pcs.record_native_origin_witness(_OWNER, payload) is None, spoofed
+        assert _ledger_or_empty().get("native_origin") == previous
 
 
 def test_model_skill_origin_is_recorded_but_confers_no_user_authorization():
@@ -1530,29 +1823,17 @@ def test_skill_origin_cannot_be_laundered_into_typed_user_origin():
 
 
 def test_hook_entrypoint_records_the_origin_class_of_its_native_event():
-    """One initializer, both native events, correct class for each.
-
-    No teardown call between the two events on purpose: a fresh initiation
-    SUPERSEDES the previous chain by construction (``record_native_origin_witness``
-    replaces the whole carrier), which is the behaviour
-    ``test_append_refuses_after_a_new_initiation_supersedes_the_witness`` pins. The
-    second classification flipping from typed to Skill is itself the evidence that
-    the supersede happened — a stale typed witness would keep the first verdict.
-    """
+    """A same-run Skill attempt leaves a bound typed initiation intact."""
     import native_run_origin as hook
 
-    state = _run()
-    assert hook.handle_native_origin_event(_typed_payload()) == 0
-    assert pcs.append_native_origin_progression(
-        _OWNER, _bindings(state), event="run-bound"
-    )
+    assert hook.handle_native_origin_event(_native_fix_payload()) == 0
+    state = json.loads(ps.get_legacy_sentinel_path().read_text(encoding="utf-8"))
     assert _classify(state).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
 
     assert hook.handle_native_origin_event(_skill_payload()) == 0
-    assert pcs.append_native_origin_progression(
-        _OWNER, _bindings(state), event="run-bound"
-    )
-    assert _classify(state).origin is ps.RunOrigin.MODEL_SKILL_WITNESSED
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+    assert _classify(state).origin is ps.RunOrigin.TYPED_USER_WITNESSED
 
     # A payload that is not a native initiation is a no-op, never a block. Asserted
     # as "the ledger's bytes are UNCHANGED" rather than "no carrier exists", which
@@ -1566,6 +1847,87 @@ def test_hook_entrypoint_records_the_origin_class_of_its_native_event():
     # And it never creates one where none existed, for a fresh owner.
     assert hook.handle_native_origin_event({"hook_event_name": "Stop"}) == 0
     assert "native_origin" not in _ledger_or_empty(_OTHER_OWNER)
+
+
+def test_skill_attempt_does_not_inherit_typed_witness_across_runs():
+    """A later model run cannot claim the prior typed run's witness."""
+    typed = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert typed is not None
+    later = _run()
+    assert later["run_id"] != typed["run_id"]
+
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload())
+    assert pcs.append_native_origin_progression(
+        _OWNER, _bindings(later), event="run-bound"
+    )
+    assert _classify(later).origin is ps.RunOrigin.MODEL_SKILL_WITNESSED
+    assert _classify(later).typed_user_origin is False
+
+
+def test_skill_attempt_cannot_overwrite_typed_initiation_interleaved_before_lock(monkeypatch):
+    """A typed event arriving before the Skill transaction wins the ledger lock."""
+    first = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert first is not None
+    original_rmw = pcs._locked_rmw
+    injected = {"done": False, "later": None}
+
+    def interleave(owner, mutator, **kwargs):
+        if not injected["done"]:
+            injected["done"] = True
+            injected["later"] = pcs.initialize_native_run_from_event(_native_fix_payload())
+        return original_rmw(owner, mutator, **kwargs)
+
+    monkeypatch.setattr(pcs, "_locked_rmw", interleave)
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload())
+    later = injected["later"]
+    assert later is not None and later["run_id"] != first["run_id"]
+    assert _classify(later).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+
+
+def test_skill_attempt_preserves_typed_witness_pending_receipt(monkeypatch):
+    """Typed initialization owns its witness before receipt/progression exist."""
+    original_start = pcs.record_run_start
+    observed = {"attempt": None}
+
+    def interleave_start(*args, **kwargs):
+        observed["attempt"] = pcs.record_native_origin_witness(
+            _OWNER, _skill_payload()
+        )
+        return original_start(*args, **kwargs)
+
+    monkeypatch.setattr(pcs, "record_run_start", interleave_start)
+    typed = pcs.initialize_native_run_from_event(_native_fix_payload())
+    assert typed is not None
+    assert observed["attempt"] is not None
+    assert _classify(typed).origin is ps.RunOrigin.TYPED_USER_WITNESSED
+
+
+def test_skill_attempt_refuses_malformed_current_sentinel_without_replacing_witness():
+    """Unreadable current authority cannot justify destructive supersession."""
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is not None
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
+    ps.get_legacy_sentinel_path().write_text("{broken", encoding="utf-8")
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+
+
+def test_skill_attempt_refuses_missing_current_sentinel_with_live_typed_run():
+    """A lost sentinel cannot authorize replacement of a bound typed witness."""
+    assert pcs.initialize_native_run_from_event(_native_fix_payload()) is not None
+    before = json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True)
+    ps.get_legacy_sentinel_path().unlink()
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert json.dumps(_ledger_or_empty()["native_origin"], sort_keys=True) == before
+
+
+def test_native_witness_refuses_when_required_ledger_lock_is_unavailable(monkeypatch):
+    """Witness replacement cannot use the ledger's generic unlocked fallback."""
+    def no_lock(*_args, **_kwargs):
+        raise OSError("lock unavailable")
+
+    monkeypatch.setattr(pcs.fcntl, "flock", no_lock)
+    assert pcs.record_native_origin_witness(_OWNER, _skill_payload()) is None
+    assert "native_origin" not in _ledger_or_empty()
 
 
 def test_subagent_stop_progression_seam_reads_the_sentinel(tmp_path):
@@ -1604,11 +1966,9 @@ def test_subagent_stop_progression_seam_reads_the_sentinel(tmp_path):
     )
 
 
-#: Surfaces that carry the autonomous-dev pipeline session hooks. Mirrors the
-#: surface set ``unified_session_tracker`` occupies — the minimal templates
-#: (default / granular-bash / permission-batching / strict-mode) register no
-#: pipeline session hooks at all, so adding this one there would advertise a
-#: binding those profiles do not have.
+#: Templates must not duplicate the plugin-owned native origin callbacks.
+#: The plugin's hooks.json is the one registration owner; install migration
+#: removes only matching legacy callbacks from populated consumer settings.
 _REGISTRATION_SURFACES = (
     "plugins/autonomous-dev/templates/settings.autonomous-dev.json",
     "plugins/autonomous-dev/config/global_settings_template.json",
@@ -1616,21 +1976,16 @@ _REGISTRATION_SURFACES = (
 
 
 def test_registration_surface_consistency_source_side_only():
-    """SOURCE-SIDE wiring consistency (Q1 PARTIAL) — not connectivity proof.
+    """SOURCE-SIDE single-owner check (Q1 PARTIAL) — not connectivity proof.
 
     This reads TEMPLATE STRINGS and the install manifest. It does NOT observe the
     effective installed registration in ``~/.claude/settings.json``, it does NOT
-    observe the hook firing on either event, and it does NOT observe the
-    ``command_name`` / ``command_source`` BYTES the installed plugin actually
-    delivers — whether the typed command arrives bare or plugin-namespaced is
-    unknown, and P-SPELLING-OBSERVED is the arm that must settle it. All three
-    remain UNMEASURED until the admitted native trial (P-TYPED-FULL /
-    P-TYPED-FIX / P-SKILL / P-SPELLING-OBSERVED).
+    observe the hook firing on either event. The separate native probe observed
+    the plugin-namespaced command spelling, but the full installed workflow and
+    A9 containment remain UNMEASURED.
 
-    Registration in a template plus acceptance by the recognizer is NOT
-    connectivity proof. What this DOES catch is the cheap, common failure: a hook
-    file that no surface registers and no manifest ships, which can never fire
-    anywhere.
+    Plugin registration plus manifest presence is NOT installed connectivity
+    proof. This also refuses duplicate legacy template registrations.
     """
     for relative in _REGISTRATION_SURFACES:
         settings = json.loads((_REPO_ROOT / relative).read_text(encoding="utf-8"))
@@ -1649,8 +2004,8 @@ def test_registration_surface_consistency_source_side_only():
                     or matcher_must_include in group.get("matcher", "")
                 )
             ]
-            assert commands, (
-                f"{relative}: native_run_origin.py is not registered on {event}"
+            assert not commands, (
+                f"{relative}: native_run_origin.py duplicates plugin-owned {event}"
                 + (
                     f" with a {matcher_must_include} matcher"
                     if matcher_must_include
@@ -1669,6 +2024,52 @@ def test_registration_surface_consistency_source_side_only():
         "plugins/autonomous-dev/hooks/native_run_origin.hook.json",
     ):
         assert required in files, f"{required} is absent from install_manifest.json"
+
+
+def test_plugin_native_origin_registration_is_executable_and_scoped():
+    """The plugin's default hook surface must carry both native events."""
+    plugin_hooks = json.loads((_HOOK_DIR / "hooks.json").read_text(encoding="utf-8"))[
+        "hooks"
+    ]
+    expected = {"UserPromptExpansion": "*", "PreToolUse": "Skill"}
+    for event, matcher in expected.items():
+        registrations = [
+            group for group in plugin_hooks[event]
+            if group.get("matcher") == matcher
+            and any(
+                "native_run_origin.py" in str(entry.get("args", []))
+                for entry in group.get("hooks", [])
+            )
+        ]
+        assert len(registrations) == 1
+        assert registrations[0]["matcher"] == matcher
+        commands = registrations[0]["hooks"]
+        assert len(commands) == 1
+        assert commands[0]["type"] == "command"
+        assert commands[0]["command"] == "python3"
+        assert commands[0]["args"] == [
+            "${CLAUDE_PLUGIN_ROOT}/hooks/native_run_origin.py"
+        ]
+
+
+def test_plugin_native_guard_registration_covers_every_tool():
+    """#1807: native installs must execute the existing guard, not just observers."""
+    declaration = json.loads((_HOOK_DIR / "hooks.json").read_text(encoding="utf-8"))
+    expected_path = "${CLAUDE_PLUGIN_ROOT}/hooks/unified_pre_tool.py"
+    guards = [
+        (group, entry)
+        for group in declaration["hooks"]["PreToolUse"]
+        for entry in group.get("hooks", [])
+        if expected_path in entry.get("args", [])
+    ]
+    assert guards, "The native plugin omits the authorizing PreToolUse guard"
+    assert all(group["matcher"] == "*" for group, _ in guards)
+    assert all(entry == {
+        "type": "command", "command": "python3",
+        "args": [expected_path], "timeout": 20,
+    } for _, entry in guards)
+    assert len(guards) == 1, "Duplicate guard callbacks consume the same dispatch"
+    assert (_HOOK_DIR / "unified_pre_tool.py").is_file()
 
 
 def test_hook_metadata_declares_both_registrations():
