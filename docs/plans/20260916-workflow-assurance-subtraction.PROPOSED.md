@@ -176,8 +176,18 @@ offline load path, two legitimate neighbors and 15 refusals after a one-entry
 shadow-package repair. Earlier false-permit evidence is retained. These are
 offline composition/transport results, not activation or native/F0 acceptance.
 The original-schema child join and independently observed same-run initialization
-receipt remain unfinished; protocol and canonical runtime-state mount changes
-require their separately requested trust-boundary decisions before native use.
+receipt remain unfinished. On 2026-10-03 the user approved the scoped disposable
+worker canonical runtime-state mount and tools-disabled INITIAL / same-session
+RESUME slice. This authorizes preparing and implementing the named boundary,
+not acceptance: freeze the changed loader/parent/service subjects, independently
+review them, verify exact phase-child identity and exits, protect parent control
+channels, and prove genuine initializer publication alongside model-tool authority
+write refusal and final namespace/cgroup cleanup before native qualification.
+Preserve all existing security, capture and release gates. No host-credential
+exposure, global settings change, new signer/store or R0/release promotion is
+authorized by this decision; the separate valid-new-MAC signing fixture remains
+unapproved. Earlier HOLD wording in diagnostic proposals is historical authority
+status, not a reason to repeat this approval request.
 The valid-new-MAC native case also remains open; nonce-only binding is not a
 complete substitute. A fresh disposable outside signing-fixture admission is
 proposed separately, without loosening actor permissions or granting proof credit.
