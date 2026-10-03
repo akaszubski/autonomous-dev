@@ -138,8 +138,23 @@ with its native child/result/ledger join, followed by one actual Bash fixture.
 The ordinary write succeeded; the ten-target external effect comparison found
 no authority changes. Signing/publication arms reported PermissionError, but
 the refusing syscall was not traced. Ledger rebind returned True despite no
-persisted ledger change: repair this existing-owner result contract before
-using it as a success signal. Both continuations exited with native raw 1 /
+persisted ledger change: this historical false-success result is retained.
+The existing-owner persistence acknowledgement was repaired in commit
+`2f9ad028858804c060d373f2fe6250334ef86607`; the focused source checks passed
+124 cases, with a separately reproduced inherited regression failure retained.
+A fresh SHA-pinned installed consumer (`ssnHggAr`) then passed independent
+bounded review: tools-disabled initialization, one completed native Agent,
+and one exact native Bash probe. The denied ledger rebind now returned False;
+authority carriers remained unchanged and the ordinary write succeeded.
+This closes the scoped persistence-result defect, not the original signed-state
+replacement requirement. The fresh Agent and Bash continuations also exited
+with native raw 1 / error_max_turns, not workflow success. Overbroad public
+authentication-metadata observations and a failed effect-checker attempt are
+preserved; this packet does not establish flawless export privacy or secret
+handling. The independent bounded result is recorded in
+`adev-origin-persistence-native.ssnHggAr/BASH-INDEPENDENT-RESULT.md` under the
+local Codex artifacts directory; it is not a portable release proof.
+Both historical continuations exited with native raw 1 /
 error_max_turns, not workflow success. These bounded results do not replace
 original A7 valid-new-MAC reader refusal, full lifecycle/provenance, F0 or release
 acceptance; the cap itself is not a containment or exact-call-count guarantee.
