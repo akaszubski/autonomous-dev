@@ -7,7 +7,7 @@ not acceptance evidence. Canonical scope remains the
 ## Current restart pointer — 2026-10-03
 
 Use the [single current program checkpoint](https://github.com/akaszubski/autonomous-dev/issues/1757#issuecomment-5961612391)
-before the historical entries below. Latest committed runtime source is `2bd8fa13`;
+before the historical entries below. Latest committed runtime source is `09f982a5`;
 the callback provenance diagnostics used `b2222173`, while earlier typed initialization used `dc89c92e`. Canonical
 plan commit is `08535ac9`. The working checkout is
 `/Users/akaszubski/.codex/worktrees/origin-registration-1807/autonomous-dev`.
@@ -17,6 +17,22 @@ and normal commit checks; no bypass was used. Source approval is not native
 qualification or release authorization.
 
 ### Latest source and offline capture progress
+
+The inactive #1818 receipt/runner/ordering candidate is committed and pushed at
+`09f982a5`, with independent source and doc/CIA approval. Root selected verification
+passed 111 cases in 12.69s; the normal commit documentation gate passed 14 with one
+inherited skip in 7.07s. It preserves the original failed-acknowledgement-readback
+refusal and transports the same signed returned snapshot without a second signer
+or receipt schema. Native publisher custody, reviewer progression and installed
+qualification remain open. It neither promotes the earlier rejected bootstrap
+nor earns release or maintenance-subtraction credit.
+
+Real credential-free Serena startup/tools-list under the unchanged stock sandbox
+profile now passed after precreating only its already-allowed disposable home.
+Independent review verified the server identity, actual editor schemas and unchanged
+frozen inputs; no editor calls occurred. Original startup failure is retained.
+Whole-process-group cleanup, global-home before/after effects, protected MCP edit
+effects and model-facing callback joins are not proved by this startup check.
 
 Settings preservation is committed and pushed at `10d5ad9a`: explicit trusted
 protected-path inputs use the existing generator/merger, preserve unrelated
