@@ -105,11 +105,17 @@ four refusal cases, the other carriers and installed inputs remained unchanged.
 The same subject's genuine
 owner dispatch and actual result/completion join also passed independent review
 ([proof and retained RED](https://github.com/akaszubski/autonomous-dev/issues/1807#issuecomment-5964938140)).
-These are not complete A2/A6/A9/F0 or release acceptance. Actual received
-task/child prefixes preceded completion records in the positive case; use that
-observation to freeze the next completion-loss diagnostic, not as an invented
-child PID or a guarantee of perfect wall-clock simultaneity. Completion-loss,
-remaining lifecycle, origin, containment and installation obligations stay open.
+The separately frozen completion-loss case and subsequent absent-identity
+refusal now also passed independent native review: the actual completion stayed
+uncredited, the heartbeat refused identity-less recovery, and the following
+dispatch could not reconstruct authority from the ledger. Exact fixture cleanup
+did not overwrite the retained uncredited join. The original observer timing-miss
+remains failed evidence, not retroactively accepted. These are not complete
+A2/A6/A9/F0 or release acceptance: corrupt identity during completion is still
+distinct from the accepted corrupt-dispatch case. Remaining lifecycle, origin,
+containment and installation obligations stay open. Actual received task/child
+prefixes are an operational trigger, not an invented child PID or a guarantee
+of perfect wall-clock simultaneity.
 
 The superseded 2026-09-30 native failure detail remains in the
 [base-branch plan at 57d0e1e4](https://github.com/akaszubski/autonomous-dev/blob/57d0e1e4/docs/plans/20260916-workflow-assurance-subtraction.PROPOSED.md);
