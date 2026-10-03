@@ -54,6 +54,33 @@ not substituted for original raw capture. Inventory verdict remains REQUEST_CHAN
 Evidence: `1801-candidate-checkpoint.md`, `1801-owner-final.txt` and
 `1801-baseline-focused.txt` in `adev-1807-obligation-map.GIxlDb5f`.
 
+### Applied capture/reducer source — independently approved, inactive
+
+The authoritative runner now contains the reviewed capture/observer/reducer
+portion only, excluding the rejected CLI publisher and all gate activation.
+Runner SHA-256: `c2e57b2e88737478bd76fb8089f3be2bfeab6ffaee4b05fb2eab8ca063f0ec7d`;
+affected test module: `df3be14e1ed98aa10addba1064ae7df2e25b5fd0aa73185e1df3cd86bd15a64f`.
+Applied-main verification passed 39 tests in 0.34s; independent source review
+approved the bounded transfer, with no new lint findings. Earlier open observer
+defects are resolved at this source, not evidence that reviewer progression runs.
+
+The raw-checkout/1 observation has bounded non-following regular-file reads and
+bounded Git inventory pipes; it does not invoke Git worktree converters or
+inherit ambient credentials. Ordinary pytest honors its reviewed configuration.
+Stock diagnostics retain inherited failures and controlled skips, reject forged
+pass reports, preserve raw-byte counts/digests before proxy redaction and verify
+cleanup. Configuration-bound per-node attestation is not independent global truth.
+Endpoint snapshots do not prove immutability throughout a run. Explicit frozen
+subjects must include untracked consumer inputs; legacy automatic source roots
+do not establish a generic consumer dependency closure.
+
+No settings, publisher, ordering, receipt authority or deployment is activated.
+Protected manifest/runtime custody, the installed native callback and all frozen
+transition negatives remain required. Net +643 source/test lines are provisional
+construction cost, not subtraction credit. Evidence stays under
+`adev-1818-offline-capture.0Q0xx74D`, including `clean-main-owned-tests.txt`,
+`main-compatible-capture.patch` and the changed `stock-bounded-final.txt`.
+
 ### Latest bounded native result — read, report and protocol verified
 
 Fresh installed `dc89c92e` session `9eb9b043-ed53-44e3-a0ae-885395ef8b8a`,
