@@ -3885,6 +3885,547 @@ def verify_batch_doc_master_completions(session_id: str) -> tuple[bool, list[int
         return (True, [], [])
 
 
+def _pytest_binding(session_id: str, scope: dict, provisioning: dict, state: dict) -> dict:
+    """Validate explicit trusted inputs; never resolve an actor path or environment."""
+    from pipeline_state import classify_current_run_authority
+    from test_runner import build_pytest_argv
+
+    manifest = provisioning["manifest"]
+    encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    if not isinstance(manifest, dict) or len(encoded) > 65536:
+        raise ValueError("bounded pytest manifest required")
+    for key in ("required_ids", "independent_cases", "subjects", "controlled_ids"):
+        values = manifest.get(key)
+        if (
+            not isinstance(values, list)
+            or not values
+            or len(values) > 1024
+            or any(not isinstance(v, str) or not v or len(v) > 512 for v in values)
+            or len(values) != len(set(values))
+        ):
+            raise ValueError("nonempty unique frozen pytest obligations required")
+    for key in ("ordinary_capture", "controlled_capture"):
+        capture_contract = manifest[key]
+        profile = capture_contract["effective_profile"]
+        sandbox, environment = profile["sandbox"], profile["environment"]
+        if (
+            set(profile) != {"environment", "sandbox", "runtime_environment", "max_output_bytes"}
+            or type(profile["max_output_bytes"]) is not int
+            or not 1024 <= profile["max_output_bytes"] <= 1024 * 1024
+            or (
+                key == "controlled_capture"
+                and environment.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") != "1"
+            )
+        ):
+            raise ValueError("complete canonical effective capture profile required")
+        for artifact in ("node", "python", "runtime", "profile"):
+            if (
+                not isinstance(sandbox[artifact], str)
+                or not Path(sandbox[artifact]).is_absolute()
+                or not isinstance(sandbox[artifact + "_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", sandbox[artifact + "_sha256"])
+            ):
+                raise ValueError("immutable explicit sandbox artifact pins required")
+        if not re.fullmatch(r"[0-9a-f]{64}", sandbox["runtime_closure_sha256"]) or profile[
+            "runtime_environment"
+        ] != {"CLAUDE_CODE_TMPDIR": environment["TMPDIR"]}:
+            raise ValueError("derived runtime environment/closure mismatch")
+        argv = build_pytest_argv(
+            sandbox["python"], provisioning["pre_edit_checkout"]["repo"],
+            tuple(manifest["controlled_ids" if key == "controlled_capture" else "required_ids"]),
+            controlled=key == "controlled_capture",
+        )
+        if capture_contract["argv"] != list(argv):
+            raise ValueError("frozen argv differs from canonical restricted capture")
+    ordinary = manifest["ordinary_capture"]["effective_profile"]["sandbox"]
+    controlled = manifest["controlled_capture"]["effective_profile"]["sandbox"]
+    if any(
+        ordinary[key] != controlled[key]
+        for key in (
+            "node",
+            "node_sha256",
+            "python",
+            "python_sha256",
+            "runtime",
+            "runtime_sha256",
+            "runtime_closure_sha256",
+        )
+    ):
+        raise ValueError("ordinary/control runtime pins differ")
+    for subject in manifest["subjects"]:
+        path = Path(subject)
+        if path.is_absolute() or ".." in path.parts or path.as_posix() != subject:
+            raise ValueError("frozen inputs must be canonical checkout-relative paths")
+    if any(
+        value.split("::", 1)[0] not in manifest["subjects"]
+        for key in ("required_ids", "controlled_ids")
+        for value in manifest[key]
+    ):
+        raise ValueError("test inventory must bind frozen subject bytes")
+    if hashlib.sha256(encoded).hexdigest() != provisioning.get("manifest_sha256"):
+        raise ValueError("pytest manifest digest mismatch")
+    verdict = classify_current_run_authority(
+        scope, session_id, receipt_lookup=lambda _owner: state.get("current_run_id")
+    )
+    issue = scope.get("issue_number")
+    if (
+        not verdict.typed_user_origin
+        or state.get("session_id") != session_id
+        or scope.get("session_id") != session_id
+        or not isinstance(issue, int)
+        or isinstance(issue, bool)
+        or state.get("issue_run_starts", {}).get(str(issue)) != scope.get("run_id")
+        or not re.fullmatch(r"[0-9a-f]{40,64}", scope.get("base_commit", ""))
+    ):
+        raise ValueError("current typed owner/run/issue/base required")
+    checkout = provisioning["pre_edit_checkout"]
+    if (
+        checkout.get("head") != scope["base_commit"]
+        or not Path(checkout["repo"]).is_absolute()
+        or checkout.get("observation_schema") != "raw-checkout/1"
+        or set(checkout.get("inputs", {})) != set(manifest["subjects"])
+        or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in checkout["inputs"].values())
+        or not re.fullmatch(r"[0-9a-f]{64}", checkout.get("diff_sha256", ""))
+    ):
+        raise ValueError("pre-edit base checkout required")
+    return {
+        "session_id": session_id,
+        "run_id": scope["run_id"],
+        "issue_number": issue,
+        "base_commit": scope["base_commit"],
+        "manifest_sha256": provisioning["manifest_sha256"],
+        "manifest": manifest,
+        "pre_edit_checkout": checkout,
+    }
+
+
+def _pytest_record(binding: dict, payload: dict) -> dict:
+    """Seal complete bounded payload through the existing owner-bound signer."""
+    from pipeline_state import sign_state
+
+    data = json.loads(json.dumps({"binding": binding, **payload}))
+    encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+    if len(encoded) > 4 * 1024 * 1024:
+        raise ValueError("pytest ledger slot exceeds bounded capture limit")
+    seal = sign_state(
+        {
+            "session_id": binding["session_id"],
+            "run_id": binding["run_id"],
+            "mode": "pytest-obligation",
+            "explicitly_invoked": True,
+            "issue_number": binding["issue_number"],
+            "base_commit": binding["base_commit"],
+            "subject": hashlib.sha256(encoded).hexdigest(),
+        },
+        binding["session_id"],
+    )
+    return {"schema": "pytest-obligation/1", "data": data, "seal": seal}
+
+
+def _pytest_open(record: dict, binding: dict) -> dict:
+    """Refuse malformed, unsigned, tampered, foreign or stale slots."""
+    from pipeline_state import verify_state_hmac
+
+    data, seal = record["data"], record["seal"]
+    digest = hashlib.sha256(
+        json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    if (
+        record.get("schema") != "pytest-obligation/1"
+        or data.get("binding") != binding
+        or seal.get("subject") != digest
+        or seal.get("session_id") != binding["session_id"]
+        or seal.get("run_id") != binding["run_id"]
+        or not seal.get("hmac")
+        or not verify_state_hmac(seal, binding["session_id"], strict=True)
+    ):
+        raise ValueError("pytest obligation signature/binding mismatch")
+    return data
+
+
+def _pytest_transition(
+    session_id: str, scope: dict, provisioning: dict, update: Callable[[dict, dict], dict]
+) -> Optional[dict]:
+    """Serialize validation and mutation, then require exact signed readback."""
+    expected = None
+
+    def mutate(state: dict) -> None:
+        nonlocal expected
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        current = state.get("pytest_obligation")
+        data = _pytest_open(current, binding) if current is not None else {}
+        expected = _pytest_record(binding, update(data, binding))
+        state["pytest_obligation"] = expected
+        state.pop("pytest_returned_snapshot", None)
+
+    try:
+        _locked_rmw(session_id, mutate, require_lock=True)
+        return (
+            expected
+            if expected is not None and _read_state(session_id).get("pytest_obligation") == expected
+            else None
+        )
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
+
+
+def bind_pytest_obligation(
+    session_id: str, *, scope: dict, provisioning: dict, checkout: dict
+) -> bool:
+    """Bind independent obligations before edits (OFFLINE seam; native wiring inactive).
+
+    Args:
+        session_id: Transport owner established by the trusted provisioner.
+        scope: Actual signed typed-run carrier, not actor CLI/env input.
+        provisioning: Independently frozen manifest/digest and pre-edit checkout.
+            This Python API does NOT authenticate its caller or protect files;
+            qualified outside-actor provisioning is a separate prerequisite.
+        checkout: Trusted observer's current checkout, equal to the frozen base.
+
+    Returns:
+        True only after one locked binding and exact persistence readback.
+
+    Raises:
+        None: malformed, late, changed or failed persistence returns False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from agent_ordering_gate import normalize_agent_identity
+        from pipeline_state import load_pipeline
+        from test_runner import observe_checkout
+
+        checkpoint = load_pipeline(binding["run_id"])
+        joins = _read_state(session_id).get("native_agent_joins", {})
+        if (
+            data
+            or checkout != binding["pre_edit_checkout"]
+            or checkpoint is None
+            or checkpoint.steps.get("implement", {}).get("status") != "pending"
+            or any(
+                isinstance(entry, dict)
+                and entry.get("run_id") == binding["run_id"]
+                and entry.get("issue_number") == binding["issue_number"]
+                and isinstance(entry.get("agent_type"), str)
+                and normalize_agent_identity(entry["agent_type"]) == "implementer"
+                for entry in joins.values()
+            )
+            or observe_checkout(Path(checkout["repo"]), tuple(binding["manifest"]["subjects"]))
+            != checkout
+        ):
+            raise ValueError("pytest obligation missing pre-edit checkpoint or already bound")
+        return {"status": "bound"}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def claim_pytest_observation(
+    session_id: str,
+    *,
+    scope: dict,
+    provisioning: dict,
+    phase: str,
+    tool_use_id: str,
+    base_acknowledgment: Optional[dict] = None,
+) -> bool:
+    """Claim one native callback correlation; pending never grants credit.
+
+    Args:
+        session_id: Trusted callback transport owner.
+        scope: Current signed run carrier.
+        provisioning: Same immutable trusted pre-edit contract.
+        phase: Base before edits, or candidate after acknowledged base.
+        tool_use_id: Exact native callback identity, not actor-selected metadata.
+        base_acknowledgment: Exact signed base-final snapshot successfully returned
+            after trusted supervisor readback; mandatory for candidate claim.
+
+    Returns:
+        True only for a new phase claim with matching current bindings.
+
+    Raises:
+        None: invalid, missing, duplicate and replayed claims return False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from agent_ordering_gate import normalize_agent_identity
+        from pipeline_state import load_pipeline
+        from test_runner import observe_checkout
+
+        if (
+            not isinstance(tool_use_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tool_use_id)
+            or (phase, data.get("status")) not in (("base", "bound"), ("candidate", "base-final"))
+            or tool_use_id == data.get("tool_use_id")
+        ):
+            raise ValueError("unexpected pytest phase or replayed callback")
+        if phase == "base":
+            checkpoint = load_pipeline(binding["run_id"])
+            joins = _read_state(session_id).get("native_agent_joins", {})
+            if (
+                checkpoint is None
+                or checkpoint.steps.get("implement", {}).get("status") != "pending"
+                or any(
+                    isinstance(entry, dict)
+                    and entry.get("run_id") == binding["run_id"]
+                    and entry.get("issue_number") == binding["issue_number"]
+                    and isinstance(entry.get("agent_type"), str)
+                    and normalize_agent_identity(entry["agent_type"]) == "implementer"
+                    for entry in joins.values()
+                )
+                or observe_checkout(
+                    Path(binding["pre_edit_checkout"]["repo"]),
+                    tuple(binding["manifest"]["subjects"]),
+                )
+                != binding["pre_edit_checkout"]
+            ):
+                raise ValueError("base observation requested after edits")
+        elif (
+            base_acknowledgment is None
+            or _read_state(session_id).get("pytest_obligation") != base_acknowledgment
+        ):
+            raise ValueError("candidate requires successfully returned base snapshot")
+        return {**data, "status": "pending", "phase": phase, "tool_use_id": tool_use_id}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def complete_pytest_observation(
+    session_id: str, *, scope: dict, provisioning: dict, tool_use_id: str, capture: dict
+) -> bool:
+    """Retain completed callback capture as pending, never as reviewer authority.
+
+    Args:
+        session_id: Trusted callback owner.
+        scope: Current signed run carrier.
+        provisioning: Same frozen trusted contract.
+        tool_use_id: Previously claimed exact callback identity.
+        capture: Actual outside-parent PytestRunCapture mapping (not model stdout).
+
+    Returns:
+        True for a matching complete configuration-bound measurement only.
+
+    Raises:
+        None: incomplete, nonqualifying, changed or replayed capture returns False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from test_runner import PytestRunCapture, _check_capture
+
+        measured = PytestRunCapture.from_mapping(capture)
+        _check_capture(measured, tuple(binding["manifest"]["required_ids"]))
+        if (
+            data.get("status") != "pending"
+            or data.get("tool_use_id") != tool_use_id
+            or measured.environment_sha256
+            != hashlib.sha256(
+                json.dumps(
+                    binding["manifest"]["ordinary_capture"]["effective_profile"], sort_keys=True
+                ).encode()
+            ).hexdigest()
+            or list(measured.argv) != binding["manifest"]["ordinary_capture"]["argv"]
+            or measured.checkout.get("repo") != binding["pre_edit_checkout"]["repo"]
+            or (data.get("phase") == "base" and measured.checkout != binding["pre_edit_checkout"])
+        ):
+            raise ValueError("pytest capture claim/profile/base mismatch")
+        return {**data, "status": "capture-pending", "capture": capture}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def acknowledge_pytest_observation(
+    session_id: str,
+    *,
+    scope: dict,
+    provisioning: dict,
+    tool_use_id: str,
+    callback_exit: int,
+    children_clean: bool,
+    independent_cases: Optional[dict] = None,
+    independent_observations: Optional[dict] = None,
+    controlled_capture: Optional[dict] = None,
+) -> Optional[dict]:
+    """Finalize ONLY from trusted supervisor's independently observed termination.
+
+    Args:
+        session_id: Trusted outer supervisor's native owner.
+        scope: Current signed run carrier.
+        provisioning: Same immutable contract; API does not authenticate caller.
+        tool_use_id: Exact completed callback claim.
+        callback_exit: Independently observed callback raw exit, exactly integer 0.
+        children_clean: Independently observed child termination and PG absence.
+        independent_cases: Actual frozen changed-behavior/opposite observations.
+        independent_observations: Actual controlled observations, not actor output.
+        controlled_capture: Actual outside-parent controlled capture mapping,
+            exact raw0/argv/effective profile/SKIPPED inventory. This API checks
+            consistency, not caller custody or independently observed provenance.
+
+    Returns:
+        Exact existing signed slot snapshot only after publication and readback,
+        otherwise None. Supervisor must carry that successfully returned snapshot
+        to the inactive reviewer seam; stored final alone never qualifies. Cancellation or
+        absent acknowledgment remains pending and nonqualifying. This is the
+        publication linearization point, after callback termination, not inside it.
+
+    Raises:
+        None: failed termination, replay, comparison or persistence returns None.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from test_runner import PytestRunCapture, _check_capture, build_pytest_dispatch_receipt
+
+        if (
+            type(callback_exit) is not int
+            or callback_exit != 0
+            or children_clean is not True
+            or data.get("status") != "capture-pending"
+            or data.get("tool_use_id") != tool_use_id
+        ):
+            raise ValueError("pytest callback termination unacknowledged or replayed")
+        if data["phase"] == "base":
+            return {"status": "base-final", "base": data["capture"], "tool_use_id": tool_use_id}
+        if set(independent_cases or {}) != set(binding["manifest"]["independent_cases"]):
+            raise ValueError("changed-behavior denominator mismatch")
+        control = PytestRunCapture.from_mapping(controlled_capture)
+        _check_capture(control, tuple(binding["manifest"]["controlled_ids"]))
+        expected_control = binding["manifest"]["controlled_capture"]
+        if (
+            control.raw_exit != 0
+            or any(value != "SKIPPED" for value in control.outcomes.values())
+            or list(control.argv) != expected_control["argv"]
+            or control.environment_sha256
+            != hashlib.sha256(
+                json.dumps(expected_control["effective_profile"], sort_keys=True).encode()
+            ).hexdigest()
+            or control.checkout != data["capture"]["checkout"]
+            or (
+                independent_observations is not None
+                and independent_observations != control.outcomes
+            )
+        ):
+            raise ValueError("controlled skip inventory missing or contradictory")
+        receipt = build_pytest_dispatch_receipt(
+            PytestRunCapture.from_mapping(data["base"]),
+            PytestRunCapture.from_mapping(data["capture"]),
+            tuple(binding["manifest"]["required_ids"]),
+            run_id=binding["run_id"],
+            independent_cases=independent_cases,
+            independent_observations=control.outcomes,
+        )
+        return {
+            "status": "final",
+            "receipt": receipt,
+            "controlled_capture": controlled_capture,
+            "tool_use_id": tool_use_id,
+        }
+
+    return _pytest_transition(session_id, scope, provisioning, update)
+
+
+def publish_returned_pytest_snapshot(
+    session_id: str, *, scope: dict, provisioning: dict, acknowledgment: Optional[dict]
+) -> bool:
+    """Transport an already returned snapshot through the existing ledger.
+
+    Args:
+        session_id: Trusted outside supervisor's owner.
+        scope: Current signed run carrier.
+        provisioning: Fixed independently provisioned contract.
+        acknowledgment: Actual non-None object returned after acknowledgment
+            readback, never a final-slot lookup. This API cannot authenticate
+            caller custody; native actor isolation remains unqualified.
+
+    Returns:
+        True after matching transport publication/readback. Failure does not
+        prove absence of transport when publication itself already succeeded.
+
+    Raises:
+        None: invalid, conflicting or unavailable transport returns False.
+    """
+    try:
+        if not isinstance(acknowledgment, dict):
+            return False
+        transported = json.loads(json.dumps(acknowledgment))
+
+        def mutate(state: dict) -> None:
+            binding = _pytest_binding(session_id, scope, provisioning, state)
+            if state.get("pytest_obligation") != transported:
+                raise ValueError("returned snapshot does not match current obligation")
+            if _pytest_open(transported, binding).get("status") not in ("base-final", "final"):
+                raise ValueError("returned snapshot is not acknowledged")
+            if state.get("pytest_returned_snapshot") is not None:
+                raise ValueError("returned snapshot transport already published")
+            state["pytest_returned_snapshot"] = transported
+
+        _locked_rmw(session_id, mutate, require_lock=True)
+        return get_returned_pytest_snapshot(
+            session_id, scope=scope, provisioning=provisioning
+        ) == transported
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return False
+
+
+def get_returned_pytest_snapshot(
+    session_id: str, *, scope: dict, provisioning: dict
+) -> Optional[dict]:
+    """Read transported original snapshot, never infer return from final alone.
+
+    Args:
+        session_id: Trusted fresh consumer owner.
+        scope: Actual current signed run carrier.
+        provisioning: Independently selected fixed contract.
+
+    Returns:
+        Defensive copy of the original signed base/final snapshot only when
+        transport and current obligation match. Publisher custody is an external
+        prerequisite, not established by this field or its existing signature.
+
+    Raises:
+        None: missing, stale, conflicting or invalid transport returns None.
+    """
+    try:
+        state = _read_state(session_id)
+        transported = state.get("pytest_returned_snapshot")
+        if not isinstance(transported, dict) or state.get("pytest_obligation") != transported:
+            return None
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        if _pytest_open(transported, binding).get("status") not in ("base-final", "final"):
+            return None
+        return json.loads(json.dumps(transported))
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
+
+
+def get_pytest_dispatch_receipt(
+    session_id: str, *, scope: dict, provisioning: dict, acknowledgment: Optional[dict] = None
+) -> Optional[dict]:
+    """Read only current signed final attestation, ignoring all legacy pass bits.
+
+    Args:
+        session_id: Trusted consumer transport owner.
+        scope: Actual current signed run carrier.
+        provisioning: Independently adopted immutable contract, never CLI/env.
+        acknowledgment: Exact signed final slot successfully returned to the
+            trusted supervisor AFTER readback. Not model stdout or an actor-held
+            file. This argument does not authenticate custody; native transport
+            remains unqualified. Stored final without acknowledgment is inert.
+
+    Returns:
+        Receipt only for supervisor-acknowledged final; otherwise None. Caller
+        must still re-evaluate through test_runner before reviewer dispatch.
+
+    Raises:
+        None: missing, pending, stale, tampered or unreadable records return None.
+    """
+    try:
+        state = _read_state(session_id)
+        if acknowledgment is None or state.get("pytest_obligation") != acknowledgment:
+            return None
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        data = _pytest_open(state["pytest_obligation"], binding)
+        return data.get("receipt") if data.get("status") == "final" else None
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
+
+
 def record_pytest_gate_passed(
     session_id: str,
     *,

@@ -52,6 +52,18 @@ from plugins.autonomous_dev.lib.test_runner import (
 )
 
 
+@pytest.mark.parametrize("controlled", [False, True])
+def test_issue_1818_canonical_pytest_argv_preserves_restricted_profile(controlled):
+    from plugins.autonomous_dev.lib.test_runner import build_pytest_argv
+
+    prefix = ("/pinned/python", "-I", "-m", "pytest")
+    control = ("--noconftest", "-c", os.devnull, "--rootdir", "/consumer",
+               "--confcutdir", "/consumer", "-p", "no:cacheprovider") if controlled else ()
+    assert build_pytest_argv("/pinned/python", "/consumer", ("test_case.py::test_case",),
+                             controlled=controlled) == prefix + control + (
+        "-vv", "test_case.py::test_case")
+
+
 def test_capture_requires_explicit_sandbox_pins_before_any_process(tmp_path, monkeypatch):
     """Offline capture cannot fall back to privileged or ambient execution."""
     def forbidden(*args, **kwargs):
@@ -92,6 +104,9 @@ def test_checkout_observer_disables_consumer_helpers_and_ambient_environment(tmp
 def test_capture_refuses_incomplete_parent_lifecycle(tmp_path, monkeypatch, fault):
     """Portable parent-side faults cannot produce configuration-bound capture."""
     from plugins.autonomous_dev.lib import test_runner as module
+
+    argv_builder = Mock(wraps=module.build_pytest_argv)
+    monkeypatch.setattr(module, "build_pytest_argv", argv_builder)
 
     sandbox = {"runtime_closure_sha256": "0" * 64}
     for name in ("node", "runtime", "python", "profile"):
@@ -149,6 +164,8 @@ def test_capture_refuses_incomplete_parent_lifecycle(tmp_path, monkeypatch, faul
         with pytest.raises(expected):
             capture()
     assert launch.call_args.kwargs["start_new_session"] is True
+    argv_builder.assert_called_once_with(
+        sandbox["python"], str(tmp_path.resolve()), ("test_case.py::test_case",), controlled=False)
     assert module.signal.SIGKILL in kills
     assert child.communicate.call_count == 2
     assert {signum: module.signal.getsignal(signum) for signum in handlers} == handlers

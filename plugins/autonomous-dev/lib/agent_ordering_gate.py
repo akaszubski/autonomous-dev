@@ -9,6 +9,7 @@ Issues: #625, #629, #632, #636, #669
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional, Set
 
 # Import canonical ordering from pipeline_intent_validator if available.
@@ -401,6 +402,9 @@ def check_ordering_with_session_fallback(
     issue_number: int = 0,
     validation_mode: str = "sequential",
     pipeline_mode: str = "full",
+    pytest_scope: Optional[dict] = None,
+    pytest_provisioning: Optional[dict] = None,
+    pytest_acknowledgment: Optional[dict] = None,
 ) -> GateResult:
     """Check ordering prerequisites with 'unknown' session fallback.
 
@@ -419,6 +423,12 @@ def check_ordering_with_session_fallback(
         issue_number: The issue number (0 for non-batch).
         validation_mode: "sequential" or "parallel".
         pipeline_mode: Pipeline mode — "full", "light", "fix", or "tdd-first".
+        pytest_scope: Explicit trusted carrier for the inactive #1818 offline
+            reviewer-only seam. Never derive from actor CLI or environment.
+        pytest_provisioning: Independently adopted frozen contract, supplied by
+            a qualified trusted caller. Python arguments do not establish custody.
+        pytest_acknowledgment: Existing signed final snapshot successfully returned
+            after supervisor publication readback; stored final alone is inert.
 
     Returns:
         GateResult indicating whether the agent may proceed.
@@ -504,6 +514,32 @@ def check_ordering_with_session_fallback(
         )
 
     completed = get_completed_agents(session_id, issue_number=issue_number)
+    # OFFLINE opt-in only. Existing native callers do not supply these arguments.
+    # Other specialists retain their distinct existing gates; no receipt credit
+    # is propagated to security/doc-master or the legacy completion store.
+    if normalize_agent_identity(target_agent) == "reviewer" and (
+        pytest_scope is not None or pytest_provisioning is not None
+    ):
+        try:
+            from pipeline_completion_state import get_pytest_dispatch_receipt
+            from test_runner import validate_pytest_dispatch_receipt
+
+            receipt = get_pytest_dispatch_receipt(
+                session_id,
+                scope=pytest_scope,
+                provisioning=pytest_provisioning,
+                acknowledgment=pytest_acknowledgment,
+            )
+            valid, reason = validate_pytest_dispatch_receipt(
+                receipt,
+                Path(pytest_provisioning["pre_edit_checkout"]["repo"]),
+                pytest_scope["run_id"],
+            )
+        except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError):
+            valid, reason = False, "pytest obligation unavailable or unmeasured"
+        if not valid:
+            return GateResult(passed=False, reason=reason, missing_agents=["pytest-gate"])
+        completed = completed | {"pytest-gate"}
     launched = get_launched_agents(session_id, issue_number=issue_number)
     plan_critic_skipped = get_plan_critic_skipped(session_id, issue_number=issue_number)
 
@@ -519,7 +555,7 @@ def check_ordering_with_session_fallback(
 
     # Issue #1285: Normalize pipeline mode
     normalized_mode = normalize_pipeline_mode(pipeline_mode)
-    
+
     return check_ordering_prerequisites(
         target_agent,
         completed,

@@ -13869,7 +13869,7 @@ Scales linearly with codebase size.
 - v1.0.0 (2026-01-03) - Initial release for comprehensive documentation validation (Issue #198)
 
 
-## 94. test_runner.py (396 lines, v1.0.0 - Issue #200)
+## 94. test_runner.py (Issue #200; inactive assurance additions #1818)
 
 **Purpose**: Autonomous test execution with structured results for debug-first enforcement.
 
@@ -13888,6 +13888,8 @@ Scales linearly with codebase size.
 - Parse pytest output for counts and duration
 
 ### API Classes
+
+**Inactive assurance seam (#1818)**: `build_pytest_argv(python, repo, selectors, *, controlled=False)` is the single pure argument builder for the capture and obligation paths. Ordinary execution uses isolated Python and verbose pytest; controlled execution additionally disables conftest discovery and cache, uses an empty configuration and pins the root/confcut directory. Building arguments does not execute a test or establish that its results are trustworthy; native activation and installed qualification remain pending.
 
 #### TestResult
 
@@ -15160,6 +15162,8 @@ result = check_ordering_prerequisites(
 
 ### Dataclasses
 
+**Inactive reviewer receipt integration (#1818)**: `check_ordering_with_session_fallback` accepts optional `pytest_scope`, `pytest_provisioning` and `pytest_acknowledgment` inputs. When supplied for reviewer dispatch, the candidate validates the bound receipt and comparison before crediting `pytest-gate` locally to that decision. It does not write legacy completion credit or authorize other specialists. Existing native callers do not supply these inputs; this is not an activated workflow gate or authenticated publisher boundary.
+
 - **`GateResult`** — `passed: bool`, `reason: str`, `missing_agents: list[str]`, `warning: Optional[str]` — `warning` is set in parallel mode when a prerequisite has been launched but not yet completed (Issue #669)
 
 ### Constants
@@ -15187,6 +15191,8 @@ result = check_ordering_prerequisites(
 ## 176+4. pipeline_completion_state.py (v1.19.0 - Issues #625, #629, #632, #686, #712, #786, #802, #837, #838, #878, #989, #1041, #1045, #1046, #1048, #1081, #1093, #1146, #1169, #1170, #1544, #1779, #1802, #1806, #1807)
 
 **Purpose**: Shared state for agent ordering enforcement. Manages a per-session JSON state file that tracks which pipeline agents have completed and which have been launched. Written by `unified_session_tracker.py` (SubagentStop for completions) and `unified_pre_tool.py` (PreToolUse for launches), read by `unified_pre_tool.py` to enforce ordering. All 8 public state-mutating functions (`record_agent_completion`, `record_agent_launch`, `record_prompt_baseline`, `set_validation_mode`, `record_doc_verdict`, `record_research_skipped`, `record_plan_critic_skipped`, `record_plan_critic_passed`) route through the internal `_locked_rmw()` read-modify-write helper, and `_write_state()` itself self-wraps through `_locked_rmw()` when not already inside one — so a caller reaching for the raw write path is serialized whether or not its author knew the convention (Issue #1544).
+
+**Inactive pytest obligation APIs (#1818)**: `bind_pytest_obligation`, `claim_pytest_observation`, `complete_pytest_observation` and `acknowledge_pytest_observation` bind the candidate observation to its run and validate the signed `pytest-obligation/1` result. `publish_returned_pytest_snapshot` stores a defensive copy of that same returned object; `get_returned_pytest_snapshot` reads it without falling back to the final slot, and `get_pytest_dispatch_receipt` checks the dispatch receipt. Publication checks current binding, signature, equality and final status; it does not authenticate who called Python. Transitions clear the transported snapshot. Failed original acknowledgement readback returns no authority even if the final write succeeded. A later transport-readback failure is uncertain, not proof that publication was rolled back. Native publisher custody, guard integration and installed qualification remain pending; legacy completion APIs are not retired.
 
 **State file path**: Two schemes are supported:
 - Legacy (default): `/tmp/pipeline_agent_completions_{sha256(session_id)[:8]}.json` — used when `run_id` is not provided; backward-compatible with all existing callers

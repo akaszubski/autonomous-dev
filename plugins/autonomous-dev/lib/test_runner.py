@@ -362,6 +362,29 @@ def _reported_nodes(stdout: str) -> dict[str, str]:
     return nodes
 
 
+def build_pytest_argv(
+    python: str, repo: str, selectors: tuple[str, ...], *, controlled: bool = False
+) -> tuple[str, ...]:
+    """Build the shared restricted pytest command without IO or execution.
+
+    Args:
+        python: Previously validated pinned Python executable path.
+        repo: Previously validated canonical absolute checkout path.
+        selectors: Frozen test node IDs in their adopted order.
+        controlled: Use the isolated controlled-observation configuration.
+
+    Returns:
+        Exact argv shared by capture and obligation consistency checks.
+
+    """
+    prefix = (python, "-I", "-m", "pytest")
+    control = (
+        "--noconftest", "-c", os.devnull, "--rootdir", repo,
+        "--confcutdir", repo, "-p", "no:cacheprovider",
+    ) if controlled else ()
+    return prefix + control + ("-vv", *selectors)
+
+
 def capture_pytest_run(
     repo: Path, selectors: tuple[str, ...], *, subjects: tuple[str, ...],
     timeout: int = 600, environment: Optional[dict[str, str]] = None,
@@ -429,13 +452,7 @@ def capture_pytest_run(
         raise ValueError("sandbox TMPDIR is not an explicitly allowed work path")
     if controlled:
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
-    argv = (
-        (sandbox["python"], "-I", "-m", "pytest", "--noconftest", "-c", os.devnull,
-         "--rootdir", str(repo.resolve()), "--confcutdir", str(repo.resolve()),
-         "-p", "no:cacheprovider", "-vv", *selectors)
-        if controlled else
-        (sandbox["python"], "-I", "-m", "pytest", "-vv", *selectors)
-    )
+    argv = build_pytest_argv(sandbox["python"], str(repo.resolve()), selectors, controlled=controlled)
     profile = {"environment": env, "sandbox": sandbox,
                "runtime_environment": {"CLAUDE_CODE_TMPDIR": temporary},
                "max_output_bytes": max_output_bytes}
