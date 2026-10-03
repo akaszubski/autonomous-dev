@@ -188,6 +188,18 @@ exposure, global settings change, new signer/store or R0/release promotion is
 authorized by this decision; the separate valid-new-MAC signing fixture remains
 unapproved. Earlier HOLD wording in diagnostic proposals is historical authority
 status, not a reason to repeat this approval request.
+On 2026-10-04, prerequisite case review found that fresh `--fix` initialization
+cannot legitimately dispatch doc-master before genuine implementer/pytest-gate
+completion. Use a separately named alignment-first prerequisite case: unchanged
+tools-disabled INITIAL, then same-session foreground `autonomous-dev:alignment-classifier`.
+Freeze its actual consumer PROJECT input, payload and expected read/native child
+joins before implementation. Preserve premature advanced-agent refusal and every
+original identity, authority-write, control-channel, containment and cleanup gate;
+do not fabricate stage completion. The failed doc-master run remains NONPASS,
+and its later lawful workflow/F0 requirements are unchanged. SDK init renders
+native `Agent` as `Task`; that display alias neither proves unavailability nor
+grants legacy calls native credit. This case correction grants no native attempt,
+valid-new-MAC, R0 or release acceptance.
 The valid-new-MAC native case also remains open; nonce-only binding is not a
 complete substitute. A fresh disposable outside signing-fixture admission is
 proposed separately, without loosening actor permissions or granting proof credit.
