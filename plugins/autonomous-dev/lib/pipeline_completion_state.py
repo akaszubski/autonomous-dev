@@ -1078,7 +1078,7 @@ def _atomic_write_state(path: Path, state: dict) -> None:
         raise
 
 
-def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> None:
+def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> bool:
     """Write the state file atomically, always under the RMW lock.
 
     Two behaviours, selected by whether the caller is already inside
@@ -1102,6 +1102,9 @@ def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) 
         run_id: Optional per-invocation run identifier passed to
             ``_state_file_path``. (#1041)
 
+    Returns:
+        True after atomic persistence succeeds; False on an OS write failure.
+
     Raises:
         ValueError: If ``run_id`` is non-empty and fails ``_RUN_ID_RE``. This
             is pre-existing behaviour — ``_state_file_path`` already raised
@@ -1116,14 +1119,14 @@ def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) 
             existing.clear()
             existing.update(state)
 
-        _locked_rmw(session_id, _replace_all, run_id=run_id)
-        return
+        return _locked_rmw(session_id, _replace_all, run_id=run_id)
 
     path = _state_file_path(session_id, run_id=run_id)
     try:
         _atomic_write_state(path, state)
     except OSError:
-        pass  # Non-blocking: state write failure is not fatal
+        return False  # Non-blocking, but callers must not mistake refusal for persistence.
+    return True
 
 
 def _new_state_skeleton(session_id: str) -> dict:
@@ -1714,7 +1717,9 @@ def record_run_start(
                 owners = state.setdefault("issue_run_starts", {})
                 owners[str(issue_number)] = run_id
 
-        _locked_rmw(session_id, _mutator, run_id=_run_id_for_path)
+        if _locked_rmw(session_id, _mutator, run_id=_run_id_for_path) is not True:
+            _report_run_start_failure(session_id, str(run_id), "atomic state persistence failed")
+            return False
         return True
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _report_run_start_failure(session_id, str(run_id), f"{type(exc).__name__}: {exc}")
@@ -5011,7 +5016,7 @@ def _locked_rmw(
     *,
     run_id: Optional[str] = None,
     require_lock: bool = False,
-) -> None:
+) -> bool:
     """Read-modify-write the per-session state under an external lockfile.
 
     The original ring-buffer mutators read state, mutated it in-process,
@@ -5054,6 +5059,10 @@ def _locked_rmw(
             witness replacement needs an atomic decision and write; other
             callers retain the historical unlocked fallback.
 
+    Returns:
+        True after atomic persistence succeeds; False on an OS write failure.
+        Existing lock fallback behavior is unchanged.
+
     Issue #1544 made this the ONLY path to the on-disk write: all state
     mutators route through here, and ``_write_state`` self-wraps in this
     function when called from outside it. The fail-open branches below are
@@ -5080,7 +5089,7 @@ def _locked_rmw(
     # anyway — cheaper than a second source of truth for the path.
     lock_path = Path(str(_state_file_path(session_id, run_id=run_id)) + ".lock")
 
-    def _rmw() -> None:
+    def _rmw() -> bool:
         """Read, mutate, write — with the raw-write guard held (#1544).
 
         The guard spans BOTH the mutate and the write. Holding it only across
@@ -5097,7 +5106,7 @@ def _locked_rmw(
         try:
             state = _read_state(session_id, run_id=run_id)
             mutator(state)
-            _write_state(session_id, state, run_id=run_id)
+            return _write_state(session_id, state, run_id=run_id)
         finally:
             _RMW_GUARD.depth -= 1
 
@@ -5113,8 +5122,7 @@ def _locked_rmw(
         # back to the unlocked path — never raise out of state code.
         # #1544: the write itself is atomic, so this fallback can lose a
         # concurrent update but can never expose a truncated file.
-        _rmw()
-        return
+        return _rmw()
 
     # #1544: the RMW is deliberately OUTSIDE the lockfile-open try/except so a
     # failure inside the mutator cannot fall through to the fallback branch and
@@ -5129,11 +5137,10 @@ def _locked_rmw(
             # the gate must keep functioning. Drop straight into the
             # unlocked R-M-W path. Safe since #1544: the write itself
             # is atomic, so a reader never sees a partial file.
-            _rmw()
-            return
+            return _rmw()
 
         try:
-            _rmw()
+            return _rmw()
         finally:
             # Release even on mutator exception so the lockfile does
             # not stay held — every other concurrent caller would
