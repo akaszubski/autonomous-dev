@@ -11,6 +11,41 @@ registration surfaces. They found concrete omissions in the existing scanners.
 The unresolved rows below stay in scope; neither UNKNOWN nor archived means retired.
 All acceptance rows below are UNMEASURED for the replacement release.
 
+2026-10-03 current source reconciliation at planning HEAD
+`d87c92e8c51611c810d054fa248b42e8ed77fe67`: the existing scanner owner
+`tests/unit/hooks/test_hook_reachability_ratchet.py`, SHA-256
+`a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`,
+was imported by exact path and ran `library_reachability(PROJECT_ROOT,
+use_cache=False)` with raw exit 0. The same 238-member corpus now reports
+**147 REACHED / 91 UNKNOWN**. Relative to the preceding 146/92 source snapshot,
+only `test_runner.py` changes UNKNOWN → REACHED: `agent_ordering_gate.py:525`
+imports `validate_pytest_dispatch_receipt` in the explicitly inactive, opt-in
+#1818 reviewer seam introduced by `09f982a5`. Native callers do not supply
+those optional inputs; this edge proves source connectivity, not command
+invocation, native execution or reviewer-dispatch admission.
+
+The retained original 97 UNKNOWN inspection population is not replaced or
+re-audited: 89 remain UNKNOWN, eight now have source REACHED witnesses, and
+none is absent from the current corpus. Two current UNKNOWN members were not
+in that original list: `project_md_updater.py` and `secret_patterns.py`.
+Exact difference sets, current member array and changed-member witnesses are
+retained in the existing readiness artifact
+`/Users/akaszubski/.codex/artifacts/adev-1818-readiness.eAn9a9at/CENSUS-CURRENT-ARRAY-RECONCILIATION.json`;
+the concise 89+8+2 reconciliation and existing WA-row missing-input map are in
+`CENSUS-EXACT-RECONCILIATION-ROWS.md` in that same directory. These are scoped
+evidence inputs to this census, not a second authoritative inventory.
+
+The existing source-correction and watched-firing counterfixture classes
+passed 112 cases with terminal raw exit 0 under normal pytest `--no-cov`;
+`CENSUS-COUNTERFIXTURE-RAW.txt` retains the initial running yield separately
+from terminal status. Neither this result nor source counts freeze the release
+denominator. All 20 WA family rows below remain candidate obligations with
+their unresolved caller/profile/disposition and native evidence requirements;
+#1803/#1804/#1805 instrument obligations and the populated-consumer omitted-row
+intervention remain explicit. UNKNOWN grants no retirement, and no native,
+installed-consumer, F0 or replacement-family promotion follows. The historical
+snapshots and original 97-member list below remain point-in-time evidence.
+
 2026-10-03 #1801 source correction: commit `2ae940933e9ebcc7a964f05e5c7dc67a5bcdd910`
 binds the existing scanner to SHA-256
 `a9e8ea67436b96dcc7ded4a1a76c20d7e2d64a6b06bd5e7ad9c79f7de12c5312`.
@@ -338,7 +373,7 @@ claims that the installed owner has already been chosen or qualified.
 | WA-O1 additional refusers | `P/hooks/enforce_file_organization.py`, `validate_claude_md_size.py`, `validate_paid_dependency.py` | Each real allow/refuse/fault route; include paid dependency emitter despite scanner omission | M0, #1757 |
 | WA-O2 unresolved source controls | `P/hooks/enforce_orchestrator.py`, `enforce_prunable_threshold.py`, `enforce_regression_test.py`, `enforce_tdd.py` | Resolve caller/consumer and retain/migrate/retire with outcome coverage; unknown is not silent exclusion | Census/M0, #1757 |
 | WA-O3 dynamic extensions | `P/hooks/unified_pre_tool.py::_run_extensions` and selected consumer extensions | Discover effective extension population; deny/permit, disabled/missing carrier and omitted-census-entry refusal | Census/M0, #1757 |
-| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; historical UNKNOWN cohorts remain below. At scanner source `2ae94093`/SHA `a9e8ea…`, the same 238 members yield 146 REACHED/92 UNKNOWN (not a frozen complete denominator) | `secret_patterns.py` is newly UNKNOWN: `security_scan.py` still imports it, but the old entry witness was a quoted JSON command in `scripts/dogfood-bootstrap.sh`, not shell execution. Resolve the actual registration-writer/caller route; preserve the security outcome under WA-L2b/LEGACY-04. UNKNOWN grants no retirement or deletion credit; source connectivity is not installed execution | Census/M0, #1757/#1801 |
+| WA-O4 remaining source/legacy candidates | Other members of the 34-hook source corpus and 22 CLI roots; historical UNKNOWN cohorts remain below. At planning HEAD `d87c92e8` with scanner SHA `a9e8ea…`, the same 238 members yield 147 REACHED/91 UNKNOWN (not a frozen complete denominator) | The inactive #1818 `test_runner.py` import is now source REACHED, not native caller admission. `secret_patterns.py` remains newly UNKNOWN relative to the original 97-member snapshot: `security_scan.py` still imports it, but the old entry witness was a quoted JSON command in `scripts/dogfood-bootstrap.sh`, not shell execution. Resolve the actual registration-writer/caller route; preserve the security outcome under WA-L2b/LEGACY-04. UNKNOWN grants no retirement or deletion credit; source connectivity is not installed execution | Census/M0, #1757/#1801 |
 | WA-L1 plugin lifecycle | Config/native/plugin manifests, `P/lib/settings_merger.py`, existing installers/updaters/resolvers | Source-free installed root, one version/registration owner; clean/populated install/update/repeat/interruption/rollback/uninstall preserves unrelated configuration | D0, #1755/#1758/#1759/#1521/#1522 |
 | WA-L2 delivery routes | `install.sh`, `P/scripts/install.py`, deploy scripts, `P/lib/sync_dispatcher/`, setup/sync commands | Every affected active transport/consumer migrated or explicitly dispositioned; no source fallback or stale extra copy | D0/M0, #1757/#1521/#1522 |
 | WA-L3 commit controls | Configured active `scripts/hooks/pre-commit` and its five archived-hook invocations | Prove applicable shell-branch behavior; each required outcome remains covered before relocating/retiring an archived owner | Census/M0, #1757 |
