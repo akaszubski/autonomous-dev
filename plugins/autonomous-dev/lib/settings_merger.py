@@ -512,7 +512,7 @@ class SettingsMerger:
     # This prevents sync from clobbering user-added permissions entries.
     _UNION_LIST_KEYS = {"allow", "deny", "ask"}
 
-    def _merge_dicts(self, base: Dict, updates: Dict) -> Dict:
+    def _merge_dicts(self, base: Dict, updates: Dict, _path: Tuple[str, ...] = ()) -> Dict:
         """Deep merge two dictionaries (updates override base).
 
         This performs a recursive deep merge where:
@@ -524,20 +524,49 @@ class SettingsMerger:
         Args:
             base: Base dictionary (user settings)
             updates: Updates dictionary (template settings)
+            _path: Internal schema location for stock filesystem policy handling.
 
         Returns:
             Merged dictionary
+
+        Raises:
+            ValueError: Conflicting stock filesystem allow policies or malformed containers/lists.
         """
-        merged = base.copy()
+        merged = copy.deepcopy(base)
 
         for key, value in updates.items():
-            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            if (_path == () and key == "sandbox") or (
+                _path == ("sandbox",) and key == "filesystem"
+            ):
+                if not isinstance(value, dict) or (
+                    key in merged and not isinstance(merged[key], dict)
+                ):
+                    raise ValueError("Stock sandbox policy container must be a dictionary")
+            if _path == ("sandbox", "filesystem") and key in (
+                "allowWrite", "allowRead", "denyWrite", "denyRead"
+            ):
+                if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                    raise ValueError("Stock filesystem policy must contain string lists")
+                if key in merged:
+                    existing = merged[key]
+                    if not isinstance(existing, list) or not all(isinstance(item, str) for item in existing):
+                        raise ValueError("Stock filesystem policy must contain string lists")
+                    if key in ("allowWrite", "allowRead") and existing != value:
+                        raise ValueError("Conflicting stock filesystem allow policy")
+                    if key in ("denyWrite", "denyRead"):
+                        merged[key] = list(dict.fromkeys(existing + value))
+                        continue
+            if isinstance(value, dict) and (
+                isinstance(merged.get(key), dict)
+                or (_path == () and key == "sandbox")
+                or (_path == ("sandbox",) and key == "filesystem")
+            ):
                 # Recursively merge nested dictionaries
                 # Special case: Don't deep merge "hooks" here (handled separately)
                 if key == "hooks":
                     # Skip hooks - they're merged separately with duplicate detection
                     continue
-                merged[key] = self._merge_dicts(merged[key], value)
+                merged[key] = self._merge_dicts(merged.get(key, {}), value, _path + (key,))
             elif (
                 key in self._UNION_LIST_KEYS
                 and isinstance(value, list)
@@ -553,7 +582,7 @@ class SettingsMerger:
                 # Override with update value (lists, scalars, new keys)
                 # But don't override "hooks" key here (handled separately)
                 if key != "hooks":
-                    merged[key] = value
+                    merged[key] = copy.deepcopy(value)
 
         return merged
 

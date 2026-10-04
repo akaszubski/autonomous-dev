@@ -29,6 +29,7 @@ Usage:
 # Issue #953: Hook safety — wrap main() with safe_main so hook crashes never
 # block Claude Code. The wrap is purely an outer safety net; success-path
 # return codes are preserved (int return → exit code, sys.exit → propagated).
+from contextlib import nullcontext, redirect_stdout
 import sys as _sys_953  # alias to avoid colliding with hook-local sys imports
 from pathlib import Path as _Path_953
 
@@ -38,12 +39,19 @@ for _candidate_lib_953 in (
     _hook_dir_953.parent.parent / "lib",             # ~/.claude/lib (installed)
     _Path_953.home() / ".claude" / "plugins" / "autonomous-dev" / "lib",  # marketplace
 ):
-    if _candidate_lib_953.exists() and str(_candidate_lib_953) not in _sys_953.path:
+    if _candidate_lib_953.is_dir():
+        # The first installed layout owns imports; ambient fallback cannot shadow it.
+        while str(_candidate_lib_953) in _sys_953.path:
+            _sys_953.path.remove(str(_candidate_lib_953))
         _sys_953.path.insert(0, str(_candidate_lib_953))
+        break
 
 try:
+    if not (_candidate_lib_953 / "hook_safety.py").is_file():
+        raise ImportError("Selected hook library is incomplete")
     from hook_safety import safe_main as _safe_main_953
 except ImportError:
+    _sys_953.stderr.write("[hook warning] Selected hook library is incomplete; safety wrapper unavailable.\n")
     # Fallback: no-op wrapper so hooks still load if hook_safety is missing.
     def _safe_main_953(_fn):
         _result = _fn()
@@ -412,8 +420,12 @@ def _resolve_agent_type_from_transcript(transcript_path: str) -> str:
         return ""
 
 
-def _compute_duration_ms() -> int:
+def _compute_duration_ms(session_id: Optional[str] = None) -> int:
     """Compute duration_ms by diffing against agent_tracker started_at.
+
+    Args:
+        session_id: Native payload owner. Read only its existing report; never
+            create a default report while measuring a native completion.
 
     Returns:
         Duration in milliseconds, or 0 if not available.
@@ -422,8 +434,19 @@ def _compute_duration_ms() -> int:
         return 0
 
     try:
-        tracker = AgentTracker()
-        session_data = tracker.get_current_session()
+        if session_id and session_id != "unknown":
+            safe_sid = hashlib.sha256(session_id.encode()).hexdigest()
+            session_file = Path.cwd() / "docs" / "sessions" / (
+                f"{datetime.now():%Y%m%d}-{safe_sid}-pipeline.json"
+            )
+            if not session_file.is_file():
+                return 0
+            session_data = json.loads(session_file.read_text())
+            if session_data.get("claude_session_id") != session_id:
+                return 0
+        else:
+            tracker = AgentTracker()
+            session_data = tracker.get_current_session()
         if session_data and "started_at" in session_data:
             started_at_str = session_data["started_at"]
             # Parse ISO format timestamp
@@ -613,17 +636,20 @@ def _determine_success(output: str) -> bool:
 class SessionTracker:
     """Basic session logging to docs/sessions/."""
 
-    def __init__(self):
+    def __init__(self, session_id: Optional[str] = None):
         """Initialize session tracker.
 
         When CLAUDE_SESSION_ID is set, session files include the session ID in
         their filename to prevent cross-session contamination (Issue #594).
+
+        Args:
+            session_id: Actual hook payload owner; defaults to legacy environment.
         """
         self.session_dir = Path("docs/sessions")
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         # Read CLAUDE_SESSION_ID for session isolation (Issue #594)
-        claude_session_id = os.environ.get("CLAUDE_SESSION_ID")
+        claude_session_id = session_id or os.environ.get("CLAUDE_SESSION_ID")
 
         # Find or create session file for today
         today = datetime.now().strftime("%Y%m%d")
@@ -633,14 +659,16 @@ class SessionTracker:
             if claude_session_id:
                 # Filter by session ID substring in filename
                 # Files created with this session ID include it in the name
-                safe_sid = claude_session_id.replace("/", "_").replace("\\", "_")
-                matching = [f for f in session_files if safe_sid in f.name]
+                safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                owner_digest = hashlib.sha256(claude_session_id.encode()).hexdigest()
+                matching = [f for f in session_files if (safe_sid in f.name or owner_digest in f.name)
+                            and f"**Claude Session ID**: {claude_session_id}\n" in f.read_text()]
                 if matching:
                     self.session_file = sorted(matching)[-1]
                 else:
                     # No match — create new session file for this session
                     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                    safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                    safe_sid = hashlib.sha256(claude_session_id.encode()).hexdigest()
                     self.session_file = self.session_dir / f"{timestamp}-{safe_sid}-session.md"
                     self.session_file.write_text(
                         f"# Session {timestamp}\n\n"
@@ -655,7 +683,7 @@ class SessionTracker:
             # Create new session file
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             if claude_session_id:
-                safe_sid = claude_session_id[:16].replace("/", "_").replace("\\", "_")
+                safe_sid = hashlib.sha256(claude_session_id.encode()).hexdigest()
                 filename = f"{timestamp}-{safe_sid}-session.md"
                 session_header = (
                     f"# Session {timestamp}\n\n"
@@ -689,13 +717,14 @@ class SessionTracker:
             f.write(entry)
 
 
-def track_basic_session(agent_name: str, message: str) -> bool:
+def track_basic_session(agent_name: str, message: str, session_id: Optional[str] = None) -> bool:
     """
     Track agent completion in basic session log.
 
     Args:
         agent_name: Name of agent
         message: Completion message
+        session_id: Actual hook payload owner, when provided.
 
     Returns:
         True if logged successfully, False otherwise
@@ -704,7 +733,7 @@ def track_basic_session(agent_name: str, message: str) -> bool:
         return False
 
     try:
-        tracker = SessionTracker()
+        tracker = SessionTracker(session_id=session_id)
         tracker.log(agent_name, message)
         return True
     except Exception:
@@ -748,7 +777,8 @@ def extract_tools_from_output(output: str) -> Optional[List[str]]:
     return tools if tools else None
 
 
-def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: str) -> bool:
+def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: str,
+                              session_id: Optional[str] = None) -> bool:
     """
     Track agent completion in structured pipeline.
 
@@ -756,6 +786,7 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
         agent_name: Name of agent
         agent_output: Agent output text
         agent_status: "success" or "error"
+        session_id: Actual hook payload owner, when provided.
 
     Returns:
         True if tracked successfully, False otherwise
@@ -764,7 +795,19 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
         return False
 
     try:
-        tracker = AgentTracker()
+        from agent_ordering_gate import normalize_agent_identity
+        agent_name = normalize_agent_identity(agent_name)
+        if session_id and session_id != "unknown":
+            # Use the existing explicit-path API rather than environmental
+            # attribution or the most recent unrelated consumer session.
+            safe_sid = hashlib.sha256(session_id.encode()).hexdigest()
+            session_file = Path.cwd() / "docs" / "sessions" / (
+                f"{datetime.now():%Y%m%d}-{safe_sid}-pipeline.json"
+            )
+            tracker = AgentTracker(session_file=str(session_file))
+            tracker.session_data["claude_session_id"] = session_id
+        else:
+            tracker = AgentTracker()
 
         # Read feature_ref from environment (batch mode)
         feature_ref = os.environ.get("PIPELINE_FEATURE_REF", "")
@@ -779,7 +822,8 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
                 summary = f"[{feature_ref}] {summary}"
 
             # Auto-track agent first (idempotent)
-            tracker.auto_track_from_environment(message=summary)
+            if not session_id or session_id == "unknown":
+                tracker.auto_track_from_environment(message=summary)
 
             # Complete the agent
             tracker.complete_agent(agent_name, summary, tools)
@@ -790,7 +834,8 @@ def track_pipeline_completion(agent_name: str, agent_output: str, agent_status: 
                 error_msg = f"[{feature_ref}] {error_msg}"
 
             # Auto-track even for failures
-            tracker.auto_track_from_environment(message=error_msg)
+            if not session_id or session_id == "unknown":
+                tracker.auto_track_from_environment(message=error_msg)
 
             # Fail the agent
             tracker.fail_agent(agent_name, error_msg)
@@ -1115,6 +1160,7 @@ def _write_jsonl_entry(
     agent_transcript_path: str,
     session_id: str,
     success: bool,
+    agent_id: str = "",
 ) -> bool:
     """Write a structured JSONL entry for the SubagentStop event.
 
@@ -1125,6 +1171,7 @@ def _write_jsonl_entry(
         agent_transcript_path: Validated transcript path or empty string.
         session_id: Session identifier.
         success: Whether the agent completed successfully.
+        agent_id: Actual child ID supplied by the native hook, never inferred.
 
     Returns:
         True if written successfully, False otherwise.
@@ -1146,6 +1193,8 @@ def _write_jsonl_entry(
             "session_id": session_id,
             "success": success,
         }
+        if isinstance(agent_id, str) and agent_id.strip():
+            entry["agent_id"] = agent_id
 
         # Include feature_ref from environment when in batch mode
         feature_ref = os.environ.get("PIPELINE_FEATURE_REF", "")
@@ -1153,7 +1202,11 @@ def _write_jsonl_entry(
             entry["feature_ref"] = feature_ref
 
         # Include plugin version for diagnostics (Issue #630)
-        entry["plugin_version"] = get_plugin_version() if HAS_VERSION_READER else "unknown"
+        # Installed hook identity owns this measurement. Consumer CWD and its
+        # git HEAD are not evidence of the plugin that executed this hook.
+        entry["plugin_version"] = get_plugin_version(
+            plugin_root=Path(__file__).resolve().parent.parent
+        ) if HAS_VERSION_READER else "unknown"
 
         with open(log_file, "a") as f:
             f.write(json.dumps(entry, separators=(",", ":")) + "\n")
@@ -1303,11 +1356,11 @@ def main() -> int:
             # canonical PostToolUse path (session_activity_logger:337). Symmetric
             # resolution is required so the SubagentStop popper looks up the same
             # cache key the writer used and can recover the generation token.
-            session_id = (
-                os.environ.get("CLAUDE_SESSION_ID")
-                or hook_input.get("session_id")
-                or "unknown"
-            )
+            session_id = hook_input.get("session_id") or "unknown"
+            env_owner = os.environ.get("CLAUDE_SESSION_ID")
+            if env_owner and env_owner != session_id:
+                sys.stderr.write("[native-agent-join] stop session identity mismatch\n")
+                return 0
             agent_transcript_path_raw = hook_input.get("agent_transcript_path", "")
         else:
             # Backward compatibility: fall back to environment variables
@@ -1355,7 +1408,12 @@ def main() -> int:
         # evaluated before any mutation, and fails toward today's behaviour.
         is_phantom = _is_phantom_subagent_stop(agent_transcript_path_raw)
 
-        if is_phantom:
+        if "--native" in sys.argv[1:]:
+            # Native foreground Agent lifecycle belongs to exact PostToolUse
+            # joins. Never spend a legacy Task's FIFO generation here.
+            cached_invocation = None
+            cache_hit = False
+        elif is_phantom:
             # Do exactly two fewer things: no cache pop, no sentinel clear.
             # Everything downstream is deliberately unchanged.
             cached_invocation = None
@@ -1466,7 +1524,7 @@ def main() -> int:
             except (TypeError, ValueError):
                 duration_ms = 0
         if duration_ms == 0:
-            duration_ms = _compute_duration_ms()
+            duration_ms = _compute_duration_ms(session_id if '--native' in sys.argv else None)
 
         # Issue #1396: heartbeat-drop. Claude Code emits SubagentStop for
         # internal/tool-level firings that carry NO usable identity: empty
@@ -1511,16 +1569,22 @@ def main() -> int:
 
         # Determine success
         success = _determine_success(agent_output)
+        native_join_active = False
+        try:
+            from pipeline_completion_state import native_agent_join_active
+            native_join_active = native_agent_join_active(session_id)
+        except (ImportError, ValueError, OSError) as exc:
+            sys.stderr.write(f"[native-agent-join] stop unavailable: {exc}\n")
 
         # Create summary message
         summary = agent_output[:100].replace("\n", " ") if agent_output else "Completed"
 
-        # Dispatch tracking (all are non-blocking)
-        # Basic session logging
-        track_basic_session(agent_name, summary)
-
-        # Structured pipeline tracking
-        track_pipeline_completion(agent_name, agent_output, agent_status)
+        # Native callback stdout is a single JSON protocol envelope. Preserve
+        # existing report progress/errors on stderr; legacy CLI keeps stdout.
+        report_output = redirect_stdout(sys.stderr) if "--native" in sys.argv[1:] else nullcontext()
+        with report_output:
+            track_basic_session(agent_name, summary, session_id=session_id)
+            track_pipeline_completion(agent_name, agent_output, agent_status, session_id=session_id)
 
         # JSONL activity logging for CI agent visibility
         _write_jsonl_entry(
@@ -1530,11 +1594,20 @@ def main() -> int:
             agent_transcript_path=agent_transcript_path,
             session_id=session_id,
             success=success,
+            agent_id=(hook_input or {}).get("agent_id", ""),
         )
 
         # Pipeline ordering state — record agent completion (Issues #625, #629, #632)
         try:
-            from pipeline_completion_state import record_agent_completion
+            from pipeline_completion_state import record_agent_completion as _record_agent_completion
+            # The plugin-native registration passes --native. That route never
+            # grants completion from SubagentStop, even if both run carriers
+            # are missing: a lost ledger must not restore legacy FIFO credit.
+            # Legacy settings keep their prior behavior until #1809 migration.
+            native_registered = "--native" in sys.argv[1:]
+            def record_agent_completion(*args, **kwargs):
+                if not (native_registered or native_join_active):
+                    return _record_agent_completion(*args, **kwargs)
             
             # Issue #1436: unattributable SubagentStop firings carry no usable
             # identity (None / empty / whitespace-only / "unknown") even after the
@@ -1645,15 +1718,16 @@ def main() -> int:
             except Exception:
                 pass  # Non-blocking: warning is informational only
 
-        # Sentinel heartbeat check (Issue #989): after recording completion,
-        # verify the <repo>/.claude/local/implement_pipeline_state.json sentinel
-        # (was /tmp/implement_pipeline_state.json pre-#1206) still exists
-        # with the correct session_id. If clear_stale_state() deleted it (e.g.,
-        # because a subprocess ran with a different CLAUDE_SESSION_ID), recreate
-        # a minimal sentinel so downstream steps can still record completions.
+        # A SubagentStop is not proof that /implement is running. Only a
+        # session with an existing run-start receipt may invoke the sentinel
+        # recovery path; otherwise an ordinary Explore agent would create a
+        # bare recovered sentinel and falsely block later work (#1807).
         try:
-            from pipeline_completion_state import ensure_sentinel_heartbeat
-            ensure_sentinel_heartbeat(session_id)
+            from pipeline_completion_state import (
+                ensure_sentinel_heartbeat, get_run_start_receipt,
+            )
+            if get_run_start_receipt(session_id) is not None:
+                ensure_sentinel_heartbeat(session_id)
         except Exception:
             pass  # Non-blocking: heartbeat is a recovery guard, never a gate
 
@@ -1671,13 +1745,20 @@ def main() -> int:
             pass  # Non-blocking: progression evidence is additive, never a gate
 
         # Plan-critic stage advance (Staged Plan-Exit Pipeline)
+        system_message = ""
         if agent_name == "plan-critic":
             suggestion = _advance_plan_mode_stage()
             if suggestion is not None:
-                try:
-                    print(json.dumps({"systemMessage": suggestion}))
-                except Exception:
-                    pass  # Non-blocking: message output is advisory only
+                system_message = suggestion
+        if "--native" in sys.argv[1:]:
+            from hook_telemetry import format_native_trace
+            marker = format_native_trace(
+                "SubagentStop", session_id=(hook_input or {}).get("session_id"),
+                agent_id=(hook_input or {}).get("agent_id"),
+            )
+            system_message = f"{system_message}\n{marker}" if system_message else marker
+        if system_message:
+            print(json.dumps({"systemMessage": system_message}))
 
         # PROJECT.md progress updates (only for doc-master)
         if should_trigger_progress_update(agent_name) and check_pipeline_complete():

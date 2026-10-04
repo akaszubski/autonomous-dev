@@ -66,54 +66,37 @@ def run_hook(tool_name: str, tool_input: dict, cwd: Path) -> str:
     env["CLAUDE_PROJECT_DIR"] = str(cwd)
     p = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(payload),
                        capture_output=True, text=True, timeout=90, cwd=str(cwd), env=env)
-    decision = "allow"
-    for line in p.stdout.splitlines():
-        line = line.strip()
-        if not line.startswith("{"):
-            continue
-        try:
-            d = json.loads(line)
-        except Exception:
-            continue
-        hso = d.get("hookSpecificOutput", {})
-        decision = hso.get("permissionDecision") or d.get("decision") or decision
+    assert p.returncode == 0, f"Hook raw exit {p.returncode}: {p.stderr}"
+    try:
+        envelope = json.loads(p.stdout)
+    except json.JSONDecodeError as error:
+        raise AssertionError(f"Hook stdout is not one JSON envelope: {p.stderr}") from error
+    assert isinstance(envelope, dict), f"Hook envelope must be an object: {p.stderr}"
+    output = envelope.get("hookSpecificOutput")
+    assert isinstance(output, dict), f"Missing hookSpecificOutput: {p.stderr}"
+    assert output.get("hookEventName") == "PreToolUse", f"Unexpected event: {p.stderr}"
+    decision = output.get("permissionDecision")
+    assert decision in {"allow", "deny", "ask"}, f"Missing explicit decision: {p.stderr}"
     return decision
 
 
-def _make_adev_project(root: Path) -> Path:
-    """Make ``root`` look like an autonomous-dev project.
-
-    REQUIRED, and discovered the hard way: the MCP branch of the hook is
-    short-circuited by a PROJECT GUARD that emits "Non-autonomous-dev project
-    - enforcement skipped" and allows everything. A bare tmp_path therefore
-    reproduces nothing -- a first draft of this file allowed BOTH the reads and
-    the writers, so its negative controls failed while its defect assertions
-    "passed", which is the worst possible combination: a test that cannot
-    observe the behaviour it names.
-
-    ``repo_detector.is_autonomous_dev_repo`` requires BOTH the marketplace
-    manifest AND a ``.git`` directory -- it documents "Missing .git directory:
-    Returns False". A second draft created only the manifest and still
-    reproduced nothing, so both are needed.
-    """
+def _make_consumer_project(root: Path) -> Path:
+    """Create a foreign Git consumer, without a source-repository marker."""
     (root / ".claude").mkdir(parents=True, exist_ok=True)
     (root / "src").mkdir(exist_ok=True)
     subprocess.run(["git", "init", "-q", "."], cwd=str(root),
-                   capture_output=True, check=False)
-    marker = root / "plugins" / "autonomous-dev" / ".claude-plugin"
-    marker.mkdir(parents=True, exist_ok=True)
-    # The detector requires the manifest to CONTAIN the string
-    # "autonomous-dev" -- an empty {} passes the exists() check and then
-    # fails the content check, which is how three earlier drafts of this
-    # fixture silently reproduced nothing.
-    (marker / "marketplace.json").write_text('{"name": "autonomous-dev"}')
+                   capture_output=True, check=True)
+    actual_root = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], cwd=str(root), text=True
+    ).strip()
+    assert Path(actual_root).resolve() == root.resolve(), "Consumer Git root must match fixture"
     return root
 
 
 @pytest.fixture
 def plan_exited(tmp_path):
-    """An autonomous-dev project sitting at the plan_exited stage."""
-    _make_adev_project(tmp_path)
+    """A foreign consumer sitting at the plan_exited stage."""
+    _make_consumer_project(tmp_path)
     (tmp_path / ".claude" / "plan_mode_exit.json").write_text(json.dumps({
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "session_id": "plan-exit-polarity",
@@ -123,6 +106,24 @@ def plan_exited(tmp_path):
 
 
 BLOCKED = {"deny", "block", "ask"}
+
+
+@pytest.mark.parametrize("stdout,exit_code", [
+    ("", 0),
+    ("{malformed", 0),
+    ('{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}', 7),
+    ('{"hookSpecificOutput":{"hookEventName":"PreToolUse"}}', 0),
+    ('{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n{}', 0),
+])
+def test_hook_oracle_refuses_invalid_actual_process(stdout, exit_code, tmp_path, monkeypatch):
+    """A crashed or malformed actual child cannot become a synthetic allow."""
+    script = tmp_path / "invalid_hook.py"
+    script.write_text("import sys\nsys.stdout.write(" + repr(stdout)
+                      + ")\nsys.stderr.write('oracle diagnostic')\nsys.exit("
+                      + str(exit_code) + ")\n")
+    monkeypatch.setitem(run_hook.__globals__, "HOOK", script)
+    with pytest.raises(AssertionError, match="oracle diagnostic"):
+        run_hook("mcp__serena__find_symbol", {"name_path_pattern": "main"}, tmp_path)
 
 READ_ONLY_MCP = [
     "mcp__searxng__search",
@@ -186,8 +187,31 @@ class TestGateIsStageScoped:
     would pass for the wrong reason."""
 
     def test_writer_allowed_when_no_marker_present(self, tmp_path):
-        _make_adev_project(tmp_path)   # adev project, but NO plan_exited marker
+        _make_consumer_project(tmp_path)  # Consumer, but no plan_exited marker.
         assert run_hook("mcp__serena__replace_content",
                         {"relative_path": "src/a.py", "needle": "a",
                          "repl": "b", "mode": "literal"},
                         tmp_path) not in BLOCKED
+
+    def test_consumer_writer_allowed_after_required_review(self, plan_exited):
+        marker = plan_exited / ".claude" / "plan_mode_exit.json"
+        state = json.loads(marker.read_text())
+        state["stage"] = "critique_done"
+        marker.write_text(json.dumps(state))
+        assert run_hook("mcp__serena__replace_content",
+                        {"relative_path": "src/a.py", "needle": "a",
+                         "repl": "b", "mode": "literal"}, plan_exited) == "allow"
+
+    def test_consumer_existing_bypass_is_opt_out(self, plan_exited):
+        (plan_exited / ".claude" / ".bypass").touch()
+        assert run_hook("mcp__serena__replace_content",
+                        {"relative_path": "src/a.py", "needle": "a",
+                         "repl": "b", "mode": "literal"}, plan_exited) == "allow"
+
+    def test_source_identity_does_not_skip_pending_review(self, plan_exited):
+        marker = plan_exited / "plugins" / "autonomous-dev" / ".claude-plugin"
+        marker.mkdir(parents=True)
+        (marker / "marketplace.json").write_text('{"name": "autonomous-dev"}')
+        assert run_hook("mcp__serena__replace_content",
+                        {"relative_path": "src/a.py", "needle": "a",
+                         "repl": "b", "mode": "literal"}, plan_exited) in BLOCKED

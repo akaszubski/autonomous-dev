@@ -9,7 +9,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -308,30 +307,29 @@ class TestCorruptedFile:
 
 
 class TestSentinelHeartbeat:
-    """Regression tests for Issue #989 — ensure_sentinel_heartbeat recovery.
+    """#989 heartbeat observations under #1807's fail-closed run authority.
 
     Validates that ensure_sentinel_heartbeat:
-    - returns True when the sentinel is healthy (exists, session_id matches).
-    - returns False AND recreates the file when the sentinel is missing.
-    - returns False AND recreates the file when the sentinel has a mismatched session_id.
-    - returns False AND recreates the file when the sentinel is corrupt JSON.
+    - returns True when a run-bearing sentinel exists and its owner matches.
+    - returns False without inventing a run when the sentinel is missing.
+    - returns False without clobbering a foreign session sentinel.
+    - returns False without replacing corrupt JSON.
     - never raises on any input.
     """
 
     def test_sentinel_healthy_returns_true(self, tmp_path):
         """Sentinel exists with correct session_id → returns True without recreation."""
         sentinel = tmp_path / "sentinel.json"
-        sentinel.write_text('{"session_id": "S1", "step": "STEP3"}')
+        sentinel.write_text('{"session_id": "S1", "run_id": "run-1", "mode": "full", "step": "STEP3"}')
         result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
         assert result is True
 
-    def test_sentinel_recreated_when_missing_between_steps(self, tmp_path):
-        """Regression for Issue #989: simulate clear_stale_state deleting the sentinel.
+    def test_sentinel_missing_between_steps_remains_missing(self, tmp_path):
+        """A lost signed run cannot be reconstructed from an agent heartbeat.
 
         1. Create a sentinel for session 'S1'.
         2. Delete it (simulating what clear_stale_state does on session_id mismatch).
-        3. Call ensure_sentinel_heartbeat → must return False AND recreate the file
-           with session_id='S1' and recovered=True.
+        3. Observe the loss without fabricating an identity-less carrier.
         """
         sentinel = tmp_path / "implement_pipeline_state.json"
         # Write a real sentinel
@@ -342,22 +340,11 @@ class TestSentinelHeartbeat:
         sentinel.unlink()
         assert not sentinel.exists()
 
-        # Heartbeat should detect absence and recreate
+        # Heartbeat reports absence but cannot recover the signed run.
         result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
 
         assert result is False, "Must return False when sentinel was missing"
-        assert sentinel.exists(), "Sentinel must be recreated after heartbeat"
-
-        recovered_data = json.loads(sentinel.read_text())
-        assert recovered_data.get("session_id") == "S1", (
-            f"Recreated sentinel must have session_id='S1', got: {recovered_data!r}"
-        )
-        assert recovered_data.get("recovered") is True, (
-            f"Recreated sentinel must have recovered=True, got: {recovered_data!r}"
-        )
-        assert "recovered_at" in recovered_data, (
-            "Recreated sentinel must include recovered_at ISO timestamp"
-        )
+        assert not sentinel.exists(), "Heartbeat must not invent run authority"
 
     def test_sentinel_preserved_when_owned_by_different_real_session(self, tmp_path):
         """Issue #1481: sentinel with a valid non-synthetic owner MUST NOT be
@@ -383,8 +370,8 @@ class TestSentinelHeartbeat:
             "clobbered by heartbeat (Issue #1481)"
         )
 
-    def test_sentinel_recreated_when_corrupt(self, tmp_path):
-        """Corrupt sentinel (invalid JSON) → recreate."""
+    def test_sentinel_corrupt_remains_unchanged(self, tmp_path):
+        """Corrupt sentinel (invalid JSON) is evidence, not repair input."""
         sentinel = tmp_path / "sentinel.json"
         sentinel.write_text("{{not valid json}}")
 
@@ -392,25 +379,23 @@ class TestSentinelHeartbeat:
 
         assert result is False
         assert sentinel.exists()
-        data = json.loads(sentinel.read_text())
-        assert data.get("session_id") == "S1"
-        assert data.get("recovered") is True
+        assert sentinel.read_text() == "{{not valid json}}"
 
     def test_sentinel_never_raises(self, tmp_path):
         """ensure_sentinel_heartbeat must not raise on any input."""
-        # Nonexistent directory — write will fail gracefully
+        # Nonexistent directory — observation still fails gracefully.
         bad_path = "/nonexistent_dir_998877/sentinel.json"
         try:
             result = ensure_sentinel_heartbeat("S1", state_path=bad_path)
         except Exception as exc:
             pytest.fail(f"ensure_sentinel_heartbeat raised unexpectedly: {exc}")
-        # Result is False (recreation attempted but failed — graceful)
+        # Result is False with no reconstruction attempt.
         assert isinstance(result, bool)
 
     def test_sentinel_healthy_not_overwritten(self, tmp_path):
         """A healthy sentinel must not be overwritten (content preserved)."""
         sentinel = tmp_path / "sentinel.json"
-        original_content = '{"session_id": "S1", "issue_number": 42, "step": "STEP5"}'
+        original_content = '{"session_id": "S1", "run_id": "run-1", "mode": "full", "issue_number": 42, "step": "STEP5"}'
         sentinel.write_text(original_content)
 
         result = ensure_sentinel_heartbeat("S1", state_path=str(sentinel))
@@ -484,15 +469,8 @@ class TestIssue1481SyntheticSessionIdGuard:
             f"synthetic id {synthetic_id!r} (Issue #1481)"
         )
 
-    def test_synthetic_existing_owner_may_be_replaced_by_real_id(self, tmp_path):
-        """A sentinel poisoned by an earlier synthetic write CAN be recovered
-        by a subsequent call with a real session id.
-
-        This is the deliberate escape hatch: if the file previously got
-        stamped with ``stop-4`` (older code path or a race), a later
-        heartbeat carrying a real id should heal the sentinel, not
-        preserve the synthetic value forever.
-        """
+    def test_synthetic_existing_owner_is_not_promoted_by_heartbeat(self, tmp_path):
+        """A prior synthetic record cannot become trusted through a heartbeat."""
         sentinel = tmp_path / "sentinel.json"
         sentinel.write_text('{"session_id": "stop-4", "recovered": true}')
 
@@ -501,11 +479,20 @@ class TestIssue1481SyntheticSessionIdGuard:
         )
 
         assert result is False
-        data = json.loads(sentinel.read_text())
-        assert data.get("session_id") == "REAL_SESSION_xyz789", (
-            "real id must be able to overwrite a synthetic-owner sentinel"
-        )
-        assert data.get("recovered") is True
+        assert json.loads(sentinel.read_text()) == {
+            "session_id": "stop-4", "recovered": True,
+        }
+
+    def test_same_owner_legacy_bare_recovery_is_not_healthy(self, tmp_path):
+        """A legacy #989 artifact cannot regain authority by matching the caller."""
+        sentinel = tmp_path / "sentinel.json"
+        original = '{"session_id": "REAL_SESSION_xyz789", "recovered": true}'
+        sentinel.write_text(original)
+
+        assert ensure_sentinel_heartbeat(
+            "REAL_SESSION_xyz789", state_path=str(sentinel)
+        ) is False
+        assert sentinel.read_text() == original
 
     def test_non_string_session_id_refused(self, tmp_path):
         """Non-string session_ids (None, int, etc.) MUST be refused."""

@@ -1,11 +1,12 @@
 """Tests for stale pipeline session detection (Issue #592).
 
-Validates that _is_stale_session() correctly detects and removes pipeline state
-files from previous sessions, preventing stale state from blocking Bash writes
-in new sessions.
+Validates that _is_stale_session() detects foreign state without granting it
+authority: run-bearing records are preserved as refusal evidence, while legacy
+non-run breadcrumbs are removed to avoid stale workflow contamination.
 """
 
 import json
+from io import StringIO
 import os
 import sys
 from datetime import datetime
@@ -13,6 +14,69 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+
+def test_foreign_run_staleness_preserves_bytes_but_returns_true(tmp_path, monkeypatch):
+    """Preserving a run does not make its foreign owner current."""
+    state_path = tmp_path / "foreign-run.json"
+    state = _make_valid_state("session-A")
+    _write_state_file(state_path, state)
+    original = state_path.read_bytes()
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+    monkeypatch.setattr(unified_pre_tool, "_session_id", "session-B")
+    assert unified_pre_tool._is_stale_session(state, state_path) is True
+    assert state_path.exists(), "Run-bearing foreign state must not be destroyed"
+    assert state_path.read_bytes() == original
+
+
+def test_legacy_nonrun_foreign_staleness_still_cleans_up(tmp_path, monkeypatch):
+    """The prior cleanup remains limited to a non-run legacy breadcrumb."""
+    state_path = tmp_path / "legacy.json"
+    state = {"session_id": "session-A", "mode": "fix"}
+    _write_state_file(state_path, state)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+    monkeypatch.setattr(unified_pre_tool, "_session_id", "session-B")
+    assert unified_pre_tool._is_stale_session(state, state_path) is True
+    assert not state_path.exists()
+
+
+@pytest.mark.parametrize("run_id", ["", None])
+def test_malformed_foreign_run_identity_is_preserved(tmp_path, monkeypatch, run_id):
+    """A declared invalid run identity remains refusal evidence, not absence."""
+    path = tmp_path / "malformed-run.json"
+    state = {"session_id": "session-A", "run_id": run_id}
+    _write_state_file(path, state)
+    original = path.read_bytes()
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+    monkeypatch.setattr(unified_pre_tool, "_session_id", "session-B")
+    assert unified_pre_tool._is_stale_session(state, path) is True
+    assert path.exists()
+    assert path.read_bytes() == original
+
+
+def test_native_agent_foreign_run_denial_preserves_carrier(tmp_path, monkeypatch, capsys):
+    """The real main route must not turn foreign-run evidence into absence."""
+    state_path = tmp_path / "foreign-agent-run.json"
+    state = _make_valid_state("session-A")
+    _write_state_file(state_path, state)
+    original = state_path.read_bytes()
+    monkeypatch.setenv("PIPELINE_STATE_FILE", str(state_path))
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "session-B")
+    monkeypatch.setattr(unified_pre_tool, "_session_id", "session-B")
+    payload = {"hook_event_name": "PreToolUse", "session_id": "session-B",
+               "tool_name": "Agent", "tool_use_id": "toolu_foreign_owner_diagnostic",
+               "cwd": str(tmp_path), "tool_input": {
+                   "subagent_type": "autonomous-dev:alignment-classifier",
+                   "run_in_background": False,
+                   "description": "Classify foreign owner diagnostic",
+                   "prompt": "Classify the externally supervised diagnostic against supplied intent. " * 25}}
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(payload)))
+    with pytest.raises(SystemExit):
+        unified_pre_tool.main()
+    output = json.loads(capsys.readouterr().out)
+    assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert state_path.exists(), "Native guard erased a run-bearing foreign carrier"
+    assert state_path.read_bytes() == original
 
 # Add lib to path for pipeline_state imports
 LIB_DIR = str(
@@ -117,7 +181,7 @@ class TestIsStaleSession:
     """Unit tests for _is_stale_session()."""
 
     def test_stale_session_different_id_returns_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Stored 'session-A', current 'session-B' -> True, file removed."""
+        """Stored 'session-A', current 'session-B' -> True, run evidence kept."""
         state_path = tmp_path / "state.json"
         state = _make_valid_state("session-A")
         _write_state_file(state_path, state)
@@ -127,7 +191,7 @@ class TestIsStaleSession:
         result = unified_pre_tool._is_stale_session(state, state_path)
 
         assert result is True
-        assert not state_path.exists()
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
     def test_same_session_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Stored 'session-A', current 'session-A' -> False, file kept."""
@@ -205,8 +269,8 @@ class TestIsStaleSession:
 
         assert result is False
 
-    def test_stale_detection_removes_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify file is actually deleted when stale."""
+    def test_stale_detection_preserves_run_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Foreign run evidence is retained while the reader reports stale."""
         state_path = tmp_path / "state.json"
         state = _make_valid_state("old-session")
         _write_state_file(state_path, state)
@@ -216,12 +280,12 @@ class TestIsStaleSession:
 
         unified_pre_tool._is_stale_session(state, state_path)
 
-        assert not state_path.exists()
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
     def test_file_removal_failure_still_returns_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """OSError on unlink -> still returns True (stale detected)."""
         state_path = tmp_path / "state.json"
-        state = _make_valid_state("old-session")
+        state = {"session_id": "old-session", "mode": "fix"}
         _write_state_file(state_path, state)
 
         monkeypatch.setenv("CLAUDE_SESSION_ID", "new-session")
@@ -235,6 +299,7 @@ class TestIsStaleSession:
         result = unified_pre_tool._is_stale_session(state, state_path)
 
         assert result is True
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
     def test_no_env_var_falls_back_to_session_id_attr(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """When CLAUDE_SESSION_ID env var is absent, uses _session_id module attr."""
@@ -248,7 +313,7 @@ class TestIsStaleSession:
         result = unified_pre_tool._is_stale_session(state, state_path)
 
         assert result is True
-        assert not state_path.exists()
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
 
 class TestPipelineActiveWithStaleness:
@@ -269,7 +334,7 @@ class TestPipelineActiveWithStaleness:
         result = unified_pre_tool._is_pipeline_active()
 
         assert result is False
-        assert not state_path.exists()
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
     def test_pipeline_active_returns_true_on_same_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """_is_pipeline_active() returns True when session_id matches and TTL valid."""
@@ -444,7 +509,7 @@ class TestExplicitImplementWithStaleness:
         result = unified_pre_tool._is_explicit_implement_active()
 
         assert result is False
-        assert not state_path.exists()
+        assert state_path.read_bytes() == json.dumps(state).encode()
 
     def test_explicit_implement_returns_true_on_same_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """_is_explicit_implement_active() returns True when session matches."""

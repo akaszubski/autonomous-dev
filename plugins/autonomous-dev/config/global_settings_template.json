@@ -32,16 +32,6 @@
           }
         ],
         "matcher": "Write|Edit|MultiEdit|NotebookEdit"
-      },
-      {
-        "hooks": [
-          {
-            "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "*"
       }
     ],
     "PreCompact": [
@@ -57,16 +47,6 @@
       }
     ],
     "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "Task|Agent"
-      },
       {
         "hooks": [
           {
@@ -126,16 +106,6 @@
           }
         ],
         "matcher": "*"
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/native_run_origin.py",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "Stop": [
@@ -160,18 +130,7 @@
         "matcher": "*"
       }
     ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "command": "python3 ~/.claude/hooks/unified_session_tracker.py",
-            "timeout": 5,
-            "type": "command"
-          }
-        ],
-        "matcher": "*"
-      }
-    ],
+    "SubagentStop": [],
     "TaskCompleted": [
       {
         "hooks": [
@@ -194,18 +153,6 @@
           }
         ],
         "matcher": "*"
-      }
-    ],
-    "UserPromptExpansion": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/hooks/native_run_origin.py",
-            "timeout": 5
-          }
-        ]
       }
     ]
   },

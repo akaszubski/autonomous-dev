@@ -157,7 +157,7 @@ class TestSessionTrackerIsolation:
 
         tracker = ust.SessionTracker()
 
-        assert "abc12345" in tracker.session_file.name, (
+        assert ust.hashlib.sha256(b"abc12345").hexdigest() in tracker.session_file.name, (
             f"Session file name should include session ID, got: {tracker.session_file.name}"
         )
 
@@ -170,8 +170,8 @@ class TestSessionTrackerIsolation:
         # Create two files: one for session A (older), one for session B (newer)
         file_a = session_dir / f"{today}-060000-abc12345-session.md"
         file_b = session_dir / f"{today}-070000-xyz99999-session.md"
-        file_a.write_text("# Session A\n")
-        file_b.write_text("# Session B\n")
+        file_a.write_text("# Session A\n**Claude Session ID**: abc12345\n")
+        file_b.write_text("# Session B\n**Claude Session ID**: xyz99999\n")
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("CLAUDE_SESSION_ID", "abc12345")

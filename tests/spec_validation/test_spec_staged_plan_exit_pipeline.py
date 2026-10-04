@@ -43,7 +43,6 @@ HOOKS_DIR = PROJECT_ROOT / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(HOOKS_DIR))
 
 import plan_mode_exit_detector  # noqa: E402
-import unified_pre_tool  # noqa: E402
 from plan_mode_exit_detector import main as detector_main, MARKER_PATH  # noqa: E402
 from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
@@ -59,13 +58,11 @@ def _force_in_adev_project(monkeypatch):
 
     The scope guard added by #938 short-circuits the gate in foreign
     projects (tmp_path is foreign). Patch the detectors so spec
-    acceptance tests keep exercising the in-project pipeline.
+    acceptance tests keep exercising the detector's in-project pipeline.
+    The unified consumer gate is default ON and needs no identity patch.
     """
     monkeypatch.setattr(
         plan_mode_exit_detector, "_is_adev_project_fn", lambda: True
-    )
-    monkeypatch.setattr(
-        unified_pre_tool, "_is_adev_project_fn", lambda: True
     )
     for var in (
         "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",

@@ -8,6 +8,10 @@ user_facing: false
 
 # RESUME MODE
 
+## Native Agent Completion Protocol (Issue #1807)
+
+Every resumed specialist Agent call MUST explicitly use `run_in_background: false`. After each successful foreground return, verify the current-run completion receipt for the exact `tool_use_id`, agent type, and resumed run from native PostToolUse before the next dispatch or commit. Native PreToolUse refuses a second dispatch while that receipt is pending or failed. A failed result has no receipt: block this run and recover in a fresh run. The coordinator MUST NOT write completion credit; agent output and SubagentStop telemetry do not substitute for the receipt. Doc-master's verdict is recorded separately from completion credit.
+
 ## Implementation
 
 Invoke the implementer agent to resume the interrupted batch from the last checkpoint.

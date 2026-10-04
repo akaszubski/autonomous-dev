@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -33,6 +36,7 @@ CHANGED_COMMANDS = [
     "autoresearch.md",
     "create-issue.md",
     "implement-batch.md",
+    "implement-fix.md",
     "implement.md",
     "improve.md",
     "plan-to-issues.md",
@@ -123,6 +127,30 @@ def test_spec_issue894_4_consumer_repo_layout_finds_claude_lib(tmp_path, monkeyp
         "/nonexistent/.claude/lib",
     )
     assert result == ".claude/lib"
+
+
+@pytest.mark.parametrize(
+    "filename,anchor",
+    [
+        ("implement.md", 'ISSUE_NUMBERS=$(python3 -c "'),
+        ("implement-fix.md", 'ISSUE_NUMBER=$(python3 -c "'),
+    ],
+)
+def test_installed_consumer_issue_parser_imports_its_own_library(tmp_path, filename, anchor):
+    """Execute the command's actual snippet with no source checkout in the consumer."""
+    installed_lib = tmp_path / ".claude" / "lib"
+    shutil.copytree(REPO_ROOT / "plugins" / "autonomous-dev" / "lib", installed_lib)
+    source = (COMMANDS_DIR / filename).read_text()
+    snippet = source.split(anchor, 1)[1].split('" "ARGUMENTS")', 1)[0]
+    code = snippet + "\nimport pipeline_completion_state; print(pipeline_completion_state.__file__)"
+    proc = subprocess.run(
+        [sys.executable, "-c", code, "--fix #1807"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=10,
+    )
+    assert proc.returncode == 0, proc.stderr
+    number, imported_from = proc.stdout.strip().splitlines()
+    assert number == "1807"
+    assert Path(imported_from).resolve().is_relative_to(installed_lib.resolve())
 
 
 def test_spec_issue894_5_dev_repo_layout_finds_plugins_lib(tmp_path, monkeypatch):

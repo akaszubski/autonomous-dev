@@ -15,7 +15,7 @@ from typing import Optional
 _cached_version: Optional[str] = None
 
 
-def get_plugin_version() -> str:
+def get_plugin_version(*, plugin_root: Optional[Path] = None) -> str:
     """Return the plugin version string with optional git SHA.
 
     Format: ``"X.Y.Z (abc1234)"`` when git is available,
@@ -25,7 +25,20 @@ def get_plugin_version() -> str:
 
     Returns:
         Human-readable version string.
+
+    Args:
+        plugin_root: Executing installed plugin root. When supplied, read only
+            its manifest and omit consumer git SHA and global cache.
     """
+    # An explicit executing-plugin root never falls back to consumer CWD and
+    # never stamps that consumer's git revision. Legacy callers retain caching.
+    if plugin_root is not None:
+        for manifest in (plugin_root / ".claude-plugin" / "plugin.json",
+                         plugin_root / "plugin.json"):
+            if manifest.is_file():
+                return _read_version(manifest) or "unknown"
+        return "unknown"
+
     global _cached_version
     if _cached_version is not None:
         return _cached_version
@@ -66,19 +79,22 @@ def _find_plugin_json() -> Optional[Path]:
     return None
 
 
-def _read_version() -> Optional[str]:
+def _read_version(path: Optional[Path] = None) -> Optional[str]:
     """Parse the ``version`` field from plugin.json.
 
     Returns:
         Semver string (e.g. ``"3.50.0"``) or None on any error.
+
+    Args:
+        path: Explicit manifest, bypassing ambient discovery when provided.
     """
-    path = _find_plugin_json()
+    path = path if path is not None else _find_plugin_json()
     if path is None:
         return None
 
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        version = data.get("version")
+        version = data.get("version") if isinstance(data, dict) else None
         if isinstance(version, str) and version.strip():
             return version.strip()
         return None

@@ -38,6 +38,8 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
 import tempfile
 import threading
@@ -489,6 +491,7 @@ def run_credit_refusal(
     session_id: str,
     *,
     sentinel_path: Optional[str] = None,
+    native_dispatch: bool = False,
 ) -> Optional[str]:
     """Why completions must NOT be credited to the CURRENT run, or ``None``.
 
@@ -513,6 +516,11 @@ def run_credit_refusal(
         sentinel_path: Sentinel to inspect. Defaults to ``PIPELINE_STATE_FILE``
             when set, else :func:`get_legacy_sentinel_path` — the same
             resolution :func:`sentinel_integrity` uses.
+        native_dispatch: Opt into physical carrier qualification before native
+            Agent admission. Present corrupt, unreadable or stale ledgers,
+            dangling sentinels and partial native claims refuse rather than
+            masquerading as ordinary absence. Valid no-run legacy ledgers
+            remain permitted; the default preserves legacy completion callers.
 
     Returns:
         A refusal message naming the seam and the required next action, or
@@ -525,10 +533,43 @@ def run_credit_refusal(
             get_legacy_sentinel_path()
         )
 
+    native_claim = False
+    native_sentinel_present = False
+    if native_dispatch:
+        # Native dispatch cannot confuse the reader's {} error fallback with
+        # ordinary absence. Keep this stricter carrier qualification opt-in so
+        # legacy session-scoped completion callers retain their contract.
+        try:
+            Path(sentinel_path).lstat()
+            native_sentinel_present = True
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            return f"NATIVE SENTINEL UNAVAILABLE: {exc}; start a fresh /implement run"
+        ledger_path = _state_file_path(session_id)
+        try:
+            ledger_path.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            return f"NATIVE LEDGER UNAVAILABLE: {exc}; start a fresh /implement run"
+        else:
+            try:
+                if time.time() - ledger_path.stat().st_mtime > 7200:
+                    return "NATIVE LEDGER STALE: start a fresh /implement run"
+                ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+                if not isinstance(ledger, dict):
+                    raise ValueError("ledger is not an object")
+                native_claim = any(key in ledger for key in (
+                    "current_run_id", "native_origin", "native_agent_joins",
+                ))
+            except (OSError, ValueError) as exc:
+                return f"NATIVE LEDGER UNAVAILABLE: {exc}; start a fresh /implement run"
+
     sentinel: Optional[dict] = None
     try:
         target = Path(sentinel_path)
-        if target.exists():
+        if target.exists() or native_sentinel_present:
             raw = target.read_text(encoding="utf-8")
             parsed = json.loads(raw)
             sentinel = parsed if isinstance(parsed, dict) else {}
@@ -606,6 +647,8 @@ def run_credit_refusal(
     # CONTROL case #1807 defect 3 must leave ungated. A retained ledger run id
     # with no sentinel to authorize it is A4's ledger-only forgery.
     receipt = get_run_start_receipt(session_id)
+    if not receipt and native_claim:
+        return "PARTIAL NATIVE RUN CLAIM: no authorizing sentinel; start a fresh /implement run"
     if not receipt:
         return None  # No current-run claim to corroborate (pre-#1045 path).
     return (
@@ -1035,7 +1078,7 @@ def _atomic_write_state(path: Path, state: dict) -> None:
         raise
 
 
-def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> None:
+def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) -> bool:
     """Write the state file atomically, always under the RMW lock.
 
     Two behaviours, selected by whether the caller is already inside
@@ -1059,6 +1102,9 @@ def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) 
         run_id: Optional per-invocation run identifier passed to
             ``_state_file_path``. (#1041)
 
+    Returns:
+        True after atomic persistence succeeds; False on an OS write failure.
+
     Raises:
         ValueError: If ``run_id`` is non-empty and fails ``_RUN_ID_RE``. This
             is pre-existing behaviour — ``_state_file_path`` already raised
@@ -1073,14 +1119,14 @@ def _write_state(session_id: str, state: dict, *, run_id: Optional[str] = None) 
             existing.clear()
             existing.update(state)
 
-        _locked_rmw(session_id, _replace_all, run_id=run_id)
-        return
+        return _locked_rmw(session_id, _replace_all, run_id=run_id)
 
     path = _state_file_path(session_id, run_id=run_id)
     try:
         _atomic_write_state(path, state)
     except OSError:
-        pass  # Non-blocking: state write failure is not fatal
+        return False  # Non-blocking, but callers must not mistake refusal for persistence.
+    return True
 
 
 def _new_state_skeleton(session_id: str) -> dict:
@@ -1200,6 +1246,15 @@ def record_agent_completion(
         entry = success  # type: ignore[assignment]  # plain bool, legacy shape
 
     def _mutator(state: dict) -> None:
+        # Native specialist credit belongs exclusively to the exact
+        # PreToolUse/ PostToolUse Agent join. The legacy public writer must
+        # not mint a current-run stamp, even when called directly. Keep the
+        # separate virtual pytest gate on its existing path.
+        if agent_type != "pytest-gate" and (
+            _native_agent_join_active(state)
+            or _signed_native_agent_scope(session_id) is not None
+        ):
+            return
         _ensure_state_inplace(state, session_id)
         completions = state.setdefault("completions", {})
 
@@ -1223,6 +1278,272 @@ def record_agent_completion(
         _record_completion_run_ids(state, _time_scope_keys, agent_type)
 
     _locked_rmw(session_id, _mutator, run_id=run_id)
+
+
+def _native_agent_join_active(state: dict) -> bool:
+    """Only a live, witnessed run uses exact native Agent completion credit."""
+    return bool(state.get("current_run_id") and isinstance(state.get("native_origin"), dict))
+
+
+def native_agent_join_active(session_id: str) -> bool:
+    """Tell hook callers whether FIFO completion credit must be suppressed."""
+    if _native_agent_join_active(_read_state(session_id)):
+        return True
+    # A lost/unreadable ledger must not turn a signed native run into legacy
+    # FIFO credit. The sentinel is only a fail-closed signal here, never a source
+    # of issue scope or completion authority.
+    try:
+        from pipeline_state import verify_state_hmac
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
+        return bool(
+            isinstance(sentinel, dict)
+            and sentinel.get("session_id") == session_id
+            and sentinel.get("explicitly_invoked") is True
+            and verify_state_hmac(sentinel, session_id, strict=True)
+        )
+    except (ImportError, OSError, ValueError, TypeError):
+        return False
+
+
+def _signed_native_agent_scope(session_id: str) -> Optional[dict]:
+    """Read the signed run carrier; unsigned/stale/foreign scope has no authority."""
+    try:
+        from pipeline_state import verify_state_hmac
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
+        if (not isinstance(sentinel, dict)
+                or sentinel.get("session_id") != session_id
+                or sentinel.get("explicitly_invoked") is not True
+                or not verify_state_hmac(sentinel, session_id, strict=True)):
+            return None
+        issue = sentinel.get("issue_number", "")
+        if issue != "" and (not isinstance(issue, int) or isinstance(issue, bool)):
+            return None
+        return {"run_id": sentinel.get("run_id"), "issue_number": issue}
+    except (ImportError, OSError, ValueError, TypeError):
+        return None
+
+
+def get_native_agent_run_id(session_id: str, tool_use_id: str) -> Optional[str]:
+    """Return the verified run for an exact native Agent join, or no attribution.
+
+    Args:
+        session_id: Native callback owner, not a model-supplied parent identity.
+        tool_use_id: Exact foreground dispatch/result identity.
+
+    Returns:
+        Current typed-user run identifier only when the signed scope, ledger
+        owner and raw join bindings agree; otherwise ``None``. No ledger content
+        is written, although the existing state reader refreshes ledger mtime.
+    """
+    if not all(isinstance(value, str) and value.strip() for value in (session_id, tool_use_id)):
+        return None
+    try:
+        from pipeline_state import classify_current_run_authority
+        scope = _signed_native_agent_scope(session_id)
+        state = _read_state(session_id)
+        if (scope is None or not _native_agent_join_active(state)
+                or state.get("session_id") != session_id
+                or scope["run_id"] != state.get("current_run_id")):
+            return None
+        sentinel = json.loads(Path(os.environ.get("PIPELINE_STATE_FILE") or get_legacy_sentinel_path()).read_text())
+        if (not isinstance(sentinel, dict)
+                or sentinel.get("session_id") != session_id
+                or sentinel.get("run_id") != scope["run_id"]
+                or sentinel.get("issue_number", "") != scope["issue_number"]
+                or not classify_current_run_authority(sentinel, session_id).typed_user_origin):
+            return None
+        joins = state.get("native_agent_joins", {})
+        entry = joins.get(tool_use_id) if isinstance(joins, dict) else None
+        if (not isinstance(entry, dict) or entry.get("tool_use_id") != tool_use_id
+                or entry.get("run_id") != scope["run_id"]
+                or entry.get("issue_number") != scope["issue_number"]
+                or entry.get("status") not in ("reserved", "completed", "failed")
+                or not isinstance(entry.get("agent_type"), str) or not entry["agent_type"].strip()):
+            return None
+        return scope["run_id"]
+    except (ImportError, OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def register_native_agent_dispatch(
+    session_id: str, tool_use_id: str, agent_type: str, run_in_background: Any,
+    *, prepare: Optional[Callable[[], None]] = None,
+) -> str:
+    """Reserve an exact foreground Agent call in the active signed run.
+
+    Args:
+        session_id: Native callback owner, bound to the signed run.
+        tool_use_id: Exact Agent tool-call identity; existing joins are not reused.
+        agent_type: Specialist type receiving completion credit.
+        run_in_background: Must be the explicit boolean ``False``.
+        prepare: Optional trusted native callback, invoked only after this
+            reservation is persisted and read back. It must publish the
+            protected-edit sentinel atomically LAST and raise on failure.
+            Native Agent preparation uses ``tool_use_id`` as its generation
+            and does not append legacy FIFO cache entries.
+
+    Returns:
+        ``registered`` only after reservation and preparation succeed. A
+        preparation/readback failure aborts only this invocation's reservation.
+        Failed abort persistence returns an explicit cleanup-failed result and
+        leaves the run non-reusable; it never reports a clean dispatch lane.
+        The caller must independently resolve permission before invoking this
+        function and must refuse every non-registered native admission result.
+    """
+    result = "inactive"
+    signed_scope = _signed_native_agent_scope(session_id)
+    try:
+        ledger_native = _native_agent_join_active(_read_state(session_id))
+    except Exception:
+        return "write_failed"
+    if not ledger_native and signed_scope is None:
+        return "inactive"
+    if not all(isinstance(v, str) and v.strip() for v in (session_id, tool_use_id, agent_type)):
+        return "invalid"
+    if run_in_background is not False:
+        return "not_foreground"
+
+    def _mutator(state: dict) -> None:
+        nonlocal result
+        if not _native_agent_join_active(state):
+            return
+        if signed_scope is None or signed_scope["run_id"] != state["current_run_id"]:
+            result = "unbound_scope"
+            return
+        joins = state.setdefault("native_agent_joins", {})
+        if not isinstance(joins, dict) or tool_use_id in joins:
+            result = "duplicate"
+            return
+        run_id = state["current_run_id"]
+        # Completion is stored by agent type. Until the preceding foreground
+        # call completes, another dispatch could reuse that type-level credit.
+        # Failed calls require a fresh run, rather than silently advancing.
+        if any(
+            isinstance(entry, dict) and entry.get("run_id") == run_id
+            and entry.get("status") in ("reserved", "failed")
+            for entry in joins.values()
+        ):
+            result = "in_flight"
+            return
+        issue = signed_scope["issue_number"]
+        owned_issues = [str(k) for k, v in state.get("issue_run_starts", {}).items()
+                        if v == run_id]
+        if issue == "" and owned_issues:
+            result = "issue_mismatch"
+            return
+        if issue != "" and (str(issue) not in owned_issues or len(owned_issues) != 1):
+            result = "issue_mismatch"
+            return
+        joins[tool_use_id] = {
+            "run_id": run_id,
+            "issue_number": issue,
+            "tool_use_id": tool_use_id,
+            "agent_type": agent_type,
+            "status": "reserved",
+        }
+        # A repeat dispatch of the same specialist must not inherit its prior
+        # type-level completion while this new foreground invocation is live.
+        scopes = {"0", "unscoped"}
+        if issue != "":
+            scopes.add(str(issue))
+        for key in scopes:
+            completions = state.get("completions", {}).get(key, {})
+            if isinstance(completions, dict) and agent_type in completions:
+                completions[agent_type] = False
+        result = "registered"
+
+    def _abort_reservation() -> str:
+        """Remove only this attempted join; failed cleanup requires a fresh run."""
+        if signed_scope is None or result != "registered":
+            return "write_failed"
+        run_id = signed_scope["run_id"]
+
+        def _abort(state: dict) -> None:
+            joins = state.get("native_agent_joins", {})
+            if not isinstance(joins, dict):
+                return
+            entry = joins.get(tool_use_id)
+            if (
+                isinstance(entry, dict) and entry.get("run_id") == run_id
+                and entry.get("tool_use_id") == tool_use_id
+                and entry.get("status") == "reserved"
+            ):
+                del joins[tool_use_id]
+
+        try:
+            _locked_rmw(session_id, _abort)
+        except Exception:
+            # Do not claim a clean lane when persistence is unavailable. The
+            # caller refuses; the remaining reservation blocks reuse until a
+            # new typed native run supersedes this conflicted attempt.
+            return "cleanup_failed_fresh_native_run_required"
+        return "write_failed"
+
+    try:
+        _locked_rmw(session_id, _mutator)
+        if result == "registered":
+            persisted = _read_state(session_id).get("native_agent_joins", {}).get(tool_use_id)
+            if not isinstance(persisted, dict) or persisted.get("status") != "reserved":
+                return _abort_reservation()
+            if prepare is not None:
+                prepare()
+    except Exception:
+        return _abort_reservation()
+    return result
+
+
+def join_native_agent_result(
+    session_id: str, tool_use_id: str, agent_id: str, status: str, has_error: bool
+) -> str:
+    """Atomically credit one completed foreground Agent response to its reservation."""
+    result = "inactive"
+    if not isinstance(tool_use_id, str) or not tool_use_id.strip():
+        return "invalid"
+    signed_scope = _signed_native_agent_scope(session_id)
+
+    def _mutator(state: dict) -> None:
+        nonlocal result
+        if not _native_agent_join_active(state):
+            return
+        pending = state.get("native_agent_joins", {}).get(tool_use_id)
+        if not isinstance(pending, dict) or pending.get("status") != "reserved":
+            result = "unjoined"
+        elif pending.get("run_id") != state.get("current_run_id"):
+            result = "rebound"
+        elif signed_scope is None or signed_scope != {
+            "run_id": pending["run_id"], "issue_number": pending["issue_number"]
+        }:
+            result = "unbound_scope"
+        elif not isinstance(agent_id, str) or not agent_id.strip():
+            pending["status"] = "failed"
+            result = "invalid"
+        elif status != "completed" or has_error is not False:
+            pending["status"] = "failed"
+            result = "failed"
+        elif any(
+            isinstance(entry, dict) and entry.get("run_id") == pending["run_id"]
+            and entry.get("status") == "completed" and entry.get("agent_id") == agent_id
+            for entry in state.get("native_agent_joins", {}).values()
+        ):
+            result = "duplicate"
+        else:
+            agent_type = pending["agent_type"]
+            scope_keys = {"0", "unscoped"}
+            if pending["issue_number"] != "":
+                scope_keys.add(str(pending["issue_number"]))
+            for key in scope_keys:
+                state.setdefault("completions", {}).setdefault(key, {})[agent_type] = True
+            _record_completion_times(state, scope_keys, agent_type)
+            _record_completion_run_ids(state, scope_keys, agent_type)
+            pending["status"] = "completed"
+            pending["agent_id"] = agent_id
+            result = "completed"
+
+    try:
+        _locked_rmw(session_id, _mutator)
+    except Exception:
+        return "write_failed"
+    return result
 
 
 def _record_completion_times(
@@ -1396,7 +1717,9 @@ def record_run_start(
                 owners = state.setdefault("issue_run_starts", {})
                 owners[str(issue_number)] = run_id
 
-        _locked_rmw(session_id, _mutator, run_id=_run_id_for_path)
+        if _locked_rmw(session_id, _mutator, run_id=_run_id_for_path) is not True:
+            _report_run_start_failure(session_id, str(run_id), "atomic state persistence failed")
+            return False
         return True
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _report_run_start_failure(session_id, str(run_id), f"{type(exc).__name__}: {exc}")
@@ -1547,10 +1870,13 @@ _NATIVE_ORIGIN_MIN_MAC_VERSION = 3
 
 #: Commands and skills that may initiate an /implement run: ``implement`` itself
 #: plus its family spellings (``implement-fix``, ``implement-batch``, ...). An
-#: optional leading slash is tolerated because the two native payloads spell the
-#: name differently. This is a NAME allowlist on a native payload field, NOT a
+#: optional leading slash is tolerated because native payloads spell the name
+#: differently. The plugin-native route supplies autonomous-dev:implement;
+#: other namespaces are never accepted. This is a NAME allowlist, NOT a
 #: parse of a shell command string (INV-1 forbids the latter as containment).
-_IMPLEMENT_FAMILY_RE = re.compile(r"^/?implement(?:-[a-z0-9][a-z0-9-]*)?$")
+_IMPLEMENT_FAMILY_RE = re.compile(
+    r"^(?:/?implement|autonomous-dev:implement)(?:-[a-z0-9][a-z0-9-]*)?$"
+)
 
 
 @dataclass(frozen=True)
@@ -1945,28 +2271,89 @@ def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]
         # that existing reaper, not to add a teardown seam here. Named, not
         # silently accepted: this is a resource leak, never an authority hole
         # (every witness is bound to its run's receipt and cannot outlive it).
-        witness_id = f"nw-{generate_run_id()}"
-        claim = {
-            "args": payload.get("command_args") if event == "UserPromptExpansion" else "",
-            "command": payload.get("command_name") if event == "UserPromptExpansion" else "",
-            "event": event,
-            "seq": 0,
-            "skill": (payload.get("tool_input") or {}).get("skill")
-            if event == "PreToolUse"
-            else "",
-            "witness_id": witness_id,
-            "witnessed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        claim = {key: ("" if value is None else value) for key, value in claim.items()}
-        if not isinstance(claim["args"], str):
-            claim["args"] = ""
-        record = sign_state(
-            _native_origin_record(owner, witness_id, NATIVE_ORIGIN_WITNESS_MODE, claim),
-            owner,
-        )
+        outcome: Dict[str, Optional[str]] = {"witness_id": None}
 
         def _mutator(state: dict) -> None:
             _ensure_state_inplace(state, owner)
+            if event == "PreToolUse":
+                # This event is an ATTEMPT, including Skills another hook denies.
+                # Decide against the same ledger snapshot that we may replace;
+                # otherwise a concurrent typed initiation can be overwritten.
+                try:
+                    try:
+                        from .pipeline_state import verify_state_hmac
+                    except ImportError:
+                        from pipeline_state import verify_state_hmac
+                    pending = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
+                    if isinstance(pending, dict) and pending.get("progression") == []:
+                        witness = pending.get("witness")
+                        typed, _reason = _verified_native_record(
+                            witness, owner, NATIVE_ORIGIN_WITNESS_MODE,
+                            verify_state_hmac,
+                        )
+                        if (
+                            typed is not None
+                            and typed.get("event") == "UserPromptExpansion"
+                            and typed.get("witness_id") == witness.get("run_id")
+                            and typed.get("seq") == 0
+                        ):
+                            # Typed initialization writes witness, receipt,
+                            # sentinel, then progression. Preserve its pending
+                            # witness before those later carriers exist.
+                            outcome["witness_id"] = witness["run_id"]
+                            return
+                    sentinel_path = get_legacy_sentinel_path()
+                    current = (
+                        json.loads(sentinel_path.read_text(encoding="utf-8"))
+                        if sentinel_path.exists() else None
+                    )
+                    if current is None and state.get(_NATIVE_ORIGIN_LEDGER_KEY) is not None:
+                        raise ValueError("current sentinel is missing for a live run")
+                    if current is not None:
+                        if not isinstance(current, dict):
+                            raise ValueError("current sentinel is not an object")
+                        if current.get("session_id") != owner:
+                            raise ValueError("current sentinel belongs to another owner")
+                        if not isinstance(current.get("hmac"), str) or not verify_state_hmac(
+                            current, owner, strict=True
+                        ):
+                            raise ValueError("current sentinel signature is invalid")
+                        if state.get("current_run_id") == current.get("run_id"):
+                            bindings = {
+                                key: current.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS
+                            }
+                            existing = check_native_origin(
+                                owner, bindings, _ledger_state=state
+                            )
+                            if existing.valid and existing.event == "UserPromptExpansion":
+                                witness = state[_NATIVE_ORIGIN_LEDGER_KEY]["witness"]
+                                outcome["witness_id"] = witness["run_id"]
+                                return
+                except (OSError, ValueError, TypeError, AttributeError, ImportError) as exc:
+                    _native_origin_note(
+                        f"Skill witness refused: current origin cannot be verified: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    return
+
+            witness_id = f"nw-{generate_run_id()}"
+            claim = {
+                "args": payload.get("command_args") if event == "UserPromptExpansion" else "",
+                "command": payload.get("command_name") if event == "UserPromptExpansion" else "",
+                "event": event,
+                "seq": 0,
+                "skill": (payload.get("tool_input") or {}).get("skill")
+                if event == "PreToolUse" else "",
+                "witness_id": witness_id,
+                "witnessed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            claim = {key: ("" if value is None else value) for key, value in claim.items()}
+            if not isinstance(claim["args"], str):
+                claim["args"] = ""
+            record = sign_state(
+                _native_origin_record(owner, witness_id, NATIVE_ORIGIN_WITNESS_MODE, claim),
+                owner,
+            )
             # A fresh initiation SUPERSEDES any earlier chain: a witness is
             # per-run, and carrying a previous run's progression forward is
             # exactly the cross-run inheritance #1045/#1807 refuse.
@@ -1974,11 +2361,163 @@ def record_native_origin_witness(session_id: str, payload: Any) -> Optional[str]
                 "witness": record,
                 "progression": [],
             }
+            outcome["witness_id"] = witness_id
 
-        _locked_rmw(owner, _mutator)
-        return witness_id
+        _locked_rmw(owner, _mutator, require_lock=True)
+        return outcome["witness_id"]
     except Exception as exc:  # noqa: BLE001 - never raise out of state code
         _native_origin_note(f"no witness minted: {type(exc).__name__}: {exc}")
+        return None
+
+
+def extract_native_issue_number(args: str) -> Optional[int]:
+    """Extract an issue only from an explicit reference or sole numeric subject.
+
+    ``#N`` outranks incidental counts; ``issue N`` is next. A bare number is
+    accepted only when it is the sole non-flag argument, so prose such as
+    ``fix 2 tests`` cannot bind a run to issue 2.
+    """
+    if not isinstance(args, str):
+        return None
+    hash_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b", args)
+    if hash_refs:
+        return int(hash_refs[0]) if len(set(hash_refs)) == 1 else None
+    issue_refs = re.findall(r"\bissue\s+#?([1-9][0-9]*)\b", args, re.IGNORECASE)
+    if issue_refs:
+        return int(issue_refs[0]) if len(set(issue_refs)) == 1 else None
+    try:
+        bare = [token for token in shlex.split(args) if token not in ("--fix", "--full", "--tdd-first")]
+    except ValueError:
+        return None
+    return int(bare[0]) if len(bare) == 1 and re.fullmatch(r"[1-9][0-9]*", bare[0]) else None
+
+
+def initialize_native_run_from_event(payload: Any) -> Optional[dict]:
+    """Initialize a run from a typed native command expansion.
+
+    The native hook owns this call. A Skill tool event cannot initialize a run.
+    All authority carriers use the existing signer, ledger, and sentinel path.
+    """
+    try:
+        if not isinstance(payload, dict):
+            return None
+        owner = payload.get("session_id")
+        event, reason = _native_origin_event(payload, owner)
+        if event != "UserPromptExpansion":
+            _native_origin_note(f"run initialization refused: {reason or 'not typed'}")
+            return None
+        # Claude Code 2.1.236 identifies a typed command supplied by a native
+        # plugin as "plugin"; "projectSettings" is the project-command form.
+        # Neither value alone proves the actor: the native event and protected
+        # hook carrier still supply that boundary (#1807).
+        if payload.get("command_source") not in ("user", "custom", "plugin", "projectSettings"):
+            return None
+        args = payload.get("command_args", "")
+        prompt = payload.get("prompt")
+        if not isinstance(args, str) or not isinstance(prompt, str) or not prompt.strip():
+            return None
+        # Native command_args includes the remaining multiline user intent.
+        # Only the invocation line has shell-style argument grammar; parsing
+        # prose as shell syntax rejects ordinary apostrophes and lets body
+        # references change the command's issue or mode. Keep the complete
+        # intent in subject, but derive invocation authority from its header.
+        header = args.splitlines()[0] if args.splitlines() else ""
+        tokens = shlex.split(header)
+        flags = {token for token in tokens if token.startswith("-")}
+        if flags - {"--fix", "--full", "--tdd-first"} or len(flags) > 1:
+            return None
+        if not any(not token.startswith("-") for token in tokens):
+            return None
+        subject = args.strip()
+        issue_refs = re.findall(r"(?<![\w])#([1-9][0-9]*)\b|\bissue\s+#?([1-9][0-9]*)\b", header, re.IGNORECASE)
+        if len({left or right for left, right in issue_refs}) > 1:
+            return None
+        issue_number = extract_native_issue_number(header)
+        if issue_number is None:
+            issue_number = ""
+        mode = "fix" if "--fix" in flags else "tdd-first" if "--tdd-first" in flags else "full"
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path.cwd(),
+            capture_output=True, text=True, check=True, timeout=2,
+        ).stdout.strip()
+        if not re.fullmatch(r"[0-9a-f]{40}", base):
+            return None
+        sign_state, _verify, generate_run_id = _native_origin_signers()
+        if sign_state is None or generate_run_id is None:
+            return None
+        def _publish_native_run() -> Optional[dict]:
+            # The witness must be minted before the receipt and binding. Validation
+            # above runs first, so rejected requests create no carriers.
+            if record_native_origin_witness(owner, payload) is None:
+                return None
+            if not record_run_start(
+                owner, run_id,
+                issue_number=issue_number if isinstance(issue_number, int) else None,
+            ):
+                return None
+            state = {
+                "session_start": datetime.now(timezone.utc).isoformat(),
+                "mode": mode,
+                "run_id": run_id,
+                "explicitly_invoked": True,
+                "session_id": owner,
+                "issue_number": issue_number,
+                "subject": subject,
+                "base_commit": base,
+            }
+            state = sign_state(state, owner)
+            bindings = {key: state.get(key, "") for key in NATIVE_ORIGIN_BINDING_KEYS}
+            if not append_native_origin_progression(owner, bindings, event="run-bound"):
+                return None
+            # Publish the authorizing sentinel last: a refused progression must
+            # never leave a new signed state consumable as model-bootstrap.
+            atomic_write_json(get_legacy_sentinel_path(), state)
+            return state
+
+        try:
+            from . import pipeline_state as pipeline
+        except ImportError:
+            import pipeline_state as pipeline
+        sentinel = get_legacy_sentinel_path().resolve()
+        # Existing run-lock mechanism, scoped ONLY to native initialization.
+        # Canonicalize aliases so every owner at this repository takes one mutex.
+        # This is not a lock held for the lifetime of the workflow.
+        init_key = "native-init-" + hashlib.sha256(str(sentinel).encode()).hexdigest()[:24]
+        init_fd = pipeline.acquire_run_lock(init_key)
+        if init_fd is None:
+            raise OSError("native initialization is already in progress")
+        try:
+            owner = owner.strip()
+            if sentinel.exists():
+                prior = json.loads(sentinel.read_text())
+                prior_owner = prior.get("session_id") if isinstance(prior, dict) else None
+                if isinstance(prior_owner, str) and prior_owner != owner:
+                    verdict = pipeline.classify_current_run_authority(
+                        prior, prior_owner, receipt_lookup=get_run_start_receipt,
+                    )
+                    if verdict.authorized:
+                        raise ValueError("another owner has an authorized current run")
+            # Same-owner typed invocation intentionally supersedes its earlier run.
+            # Checkpoint failure must precede ANY new witness or authority carrier.
+            run_id = generate_run_id()
+            checkpoint = pipeline.create_pipeline(run_id, subject, mode=mode)
+            pipeline.save_pipeline(checkpoint)
+            restored = pipeline.load_pipeline(run_id)
+            if (
+                restored is None
+                or restored.run_id != run_id
+                or restored.mode != mode
+                or restored.feature != subject
+                or restored.steps != checkpoint.steps
+                or set(restored.steps) != {step.value for step in pipeline.STEP_SEQUENCE}
+                or any(step.get("status") != "pending" for step in restored.steps.values())
+            ):
+                raise ValueError("native checkpoint reload does not match initialization")
+            return _publish_native_run()
+        finally:
+            pipeline.release_run_lock(init_fd)
+    except Exception as exc:  # noqa: BLE001 - native hook must never block
+        _native_origin_note(f"run initialization refused: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -2264,11 +2803,15 @@ def _verified_native_record(
     return claim, ""
 
 
-def check_native_origin(session_id: str, bindings: Any) -> NativeOriginCheck:
+def check_native_origin(
+    session_id: str, bindings: Any, *, _ledger_state: Optional[dict] = None
+) -> NativeOriginCheck:
     """Report what the ledger says about the native origin of a run.
 
     Reads the witness chain for *session_id* and verifies it against the run
-    *bindings* the caller presents. Returns FACTS; the mapping from native event
+    *bindings* the caller presents. The private ``_ledger_state`` argument lets
+    the witness writer verify the snapshot already held under its session lock.
+    Returns FACTS; the mapping from native event
     to origin class belongs to ``pipeline_state.classify_current_run_authority``,
     which is the single consumer and the single vocabulary.
 
@@ -2308,7 +2851,7 @@ def check_native_origin(session_id: str, bindings: Any) -> NativeOriginCheck:
                 instrument_ok=False,
             )
 
-        state = _read_state(owner)
+        state = _ledger_state if _ledger_state is not None else _read_state(owner)
         origin = state.get(_NATIVE_ORIGIN_LEDGER_KEY)
         if origin is None:
             return NativeOriginCheck(
@@ -2735,8 +3278,12 @@ def get_completed_agents(
             scoped state file is used instead of the legacy sha256 path. (#1041)
 
     Returns:
-        Set of agent type strings that completed successfully.
+        Canonical owned-role strings that completed successfully. Raw receipt
+        identity and run stamps are validated before aliases are applied;
+        foreign plugin identities are never stripped.
     """
+    from agent_ordering_gate import normalize_agent_identity
+
     result: set[str] = set()
     state = _read_state(session_id, run_id=run_id)
     if state:
@@ -2759,7 +3306,13 @@ def get_completed_agents(
     # Run-id-scoped state files are per-invocation; the 'unknown' bootstrap
     # path only applies to the legacy session-id-hashed scheme. (#1041)
     if run_id:
-        return result
+        return {normalize_agent_identity(agent) for agent in result}
+
+    # A native run is owned by its signed session and run receipt. The legacy
+    # 'unknown' merge would import another session's completion into that owner.
+    # Keep the permissive fallback only for non-native legacy sessions.
+    if _native_agent_join_active(state) or _signed_native_agent_scope(session_id) is not None:
+        return {normalize_agent_identity(agent) for agent in result}
 
     # Merge completions from the 'unknown' session. The coordinator may have
     # recorded some agent completions before CLAUDE_SESSION_ID was available,
@@ -2777,12 +3330,12 @@ def get_completed_agents(
                 mtime = path.stat().st_mtime
                 if time.time() - mtime > STALE_UNKNOWN_TTL_SECONDS:
                     # Stale 'unknown' state — do NOT merge.
-                    return result
+                    return {normalize_agent_identity(agent) for agent in result}
             else:
-                return result
+                return {normalize_agent_identity(agent) for agent in result}
         except OSError:
             # Fail-safe: if stat fails we can't verify freshness, skip merge.
-            return result
+            return {normalize_agent_identity(agent) for agent in result}
 
         fallback_state = _read_state("unknown")
         if fallback_state:
@@ -2813,7 +3366,7 @@ def get_completed_agents(
                     )
                     result |= fallback_result
 
-    return result
+    return {normalize_agent_identity(agent) for agent in result}
 def get_planner_completion_count(session_id: str, since_timestamp: float) -> int:
     """Count planner completions after a given epoch timestamp.
     
@@ -2940,12 +3493,36 @@ def get_launched_agents(
         issue_number: The issue number (0 for non-batch).
 
     Returns:
-        Set of agent type strings that have been launched.
+        Canonical owned-role strings that have been launched; raw ledger
+        identities remain unchanged and foreign namespaces remain distinct.
 
     Issues: #686, #738
     """
+    from agent_ordering_gate import normalize_agent_identity
+
     result = set()
     state = _read_state(session_id)
+    signed_scope = _signed_native_agent_scope(session_id)
+    if _native_agent_join_active(state) or signed_scope is not None:
+        # Native launch credit is exact admission, not a pre-permission observer
+        # boolean. Filter raw binding first, then expose canonical policy roles.
+        if (signed_scope is None or state.get("session_id") != session_id
+                or signed_scope["run_id"] != state.get("current_run_id")):
+            return set()
+        joins = state.get("native_agent_joins", {})
+        if not isinstance(joins, dict):
+            return set()
+        return {
+            normalize_agent_identity(entry["agent_type"])
+            for tool_id, entry in joins.items()
+            if isinstance(entry, dict) and entry.get("tool_use_id") == tool_id
+            and entry.get("run_id") == signed_scope["run_id"]
+            and entry.get("issue_number") == signed_scope["issue_number"]
+            and str(entry.get("issue_number")) == str(issue_number)
+            and entry.get("status") in ("reserved", "completed")
+            and isinstance(entry.get("agent_type"), str) and entry["agent_type"].strip()
+            and get_native_agent_run_id(session_id, tool_id) == signed_scope["run_id"]
+        }
     if state:
         launches = state.get("launches", {})
         issue_key = str(issue_number)
@@ -2963,7 +3540,7 @@ def get_launched_agents(
             fallback_result = {k for k, v in issue_launches.items() if v}
             result |= fallback_result
 
-    return result
+    return {normalize_agent_identity(agent) for agent in result}
 
 
 def record_prompt_baseline(
@@ -3311,6 +3888,547 @@ def verify_batch_doc_master_completions(session_id: str) -> tuple[bool, list[int
     except Exception:
         # Fail-open: any error returns pass
         return (True, [], [])
+
+
+def _pytest_binding(session_id: str, scope: dict, provisioning: dict, state: dict) -> dict:
+    """Validate explicit trusted inputs; never resolve an actor path or environment."""
+    from pipeline_state import classify_current_run_authority
+    from test_runner import build_pytest_argv
+
+    manifest = provisioning["manifest"]
+    encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    if not isinstance(manifest, dict) or len(encoded) > 65536:
+        raise ValueError("bounded pytest manifest required")
+    for key in ("required_ids", "independent_cases", "subjects", "controlled_ids"):
+        values = manifest.get(key)
+        if (
+            not isinstance(values, list)
+            or not values
+            or len(values) > 1024
+            or any(not isinstance(v, str) or not v or len(v) > 512 for v in values)
+            or len(values) != len(set(values))
+        ):
+            raise ValueError("nonempty unique frozen pytest obligations required")
+    for key in ("ordinary_capture", "controlled_capture"):
+        capture_contract = manifest[key]
+        profile = capture_contract["effective_profile"]
+        sandbox, environment = profile["sandbox"], profile["environment"]
+        if (
+            set(profile) != {"environment", "sandbox", "runtime_environment", "max_output_bytes"}
+            or type(profile["max_output_bytes"]) is not int
+            or not 1024 <= profile["max_output_bytes"] <= 1024 * 1024
+            or (
+                key == "controlled_capture"
+                and environment.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") != "1"
+            )
+        ):
+            raise ValueError("complete canonical effective capture profile required")
+        for artifact in ("node", "python", "runtime", "profile"):
+            if (
+                not isinstance(sandbox[artifact], str)
+                or not Path(sandbox[artifact]).is_absolute()
+                or not isinstance(sandbox[artifact + "_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", sandbox[artifact + "_sha256"])
+            ):
+                raise ValueError("immutable explicit sandbox artifact pins required")
+        if not re.fullmatch(r"[0-9a-f]{64}", sandbox["runtime_closure_sha256"]) or profile[
+            "runtime_environment"
+        ] != {"CLAUDE_CODE_TMPDIR": environment["TMPDIR"]}:
+            raise ValueError("derived runtime environment/closure mismatch")
+        argv = build_pytest_argv(
+            sandbox["python"], provisioning["pre_edit_checkout"]["repo"],
+            tuple(manifest["controlled_ids" if key == "controlled_capture" else "required_ids"]),
+            controlled=key == "controlled_capture",
+        )
+        if capture_contract["argv"] != list(argv):
+            raise ValueError("frozen argv differs from canonical restricted capture")
+    ordinary = manifest["ordinary_capture"]["effective_profile"]["sandbox"]
+    controlled = manifest["controlled_capture"]["effective_profile"]["sandbox"]
+    if any(
+        ordinary[key] != controlled[key]
+        for key in (
+            "node",
+            "node_sha256",
+            "python",
+            "python_sha256",
+            "runtime",
+            "runtime_sha256",
+            "runtime_closure_sha256",
+        )
+    ):
+        raise ValueError("ordinary/control runtime pins differ")
+    for subject in manifest["subjects"]:
+        path = Path(subject)
+        if path.is_absolute() or ".." in path.parts or path.as_posix() != subject:
+            raise ValueError("frozen inputs must be canonical checkout-relative paths")
+    if any(
+        value.split("::", 1)[0] not in manifest["subjects"]
+        for key in ("required_ids", "controlled_ids")
+        for value in manifest[key]
+    ):
+        raise ValueError("test inventory must bind frozen subject bytes")
+    if hashlib.sha256(encoded).hexdigest() != provisioning.get("manifest_sha256"):
+        raise ValueError("pytest manifest digest mismatch")
+    verdict = classify_current_run_authority(
+        scope, session_id, receipt_lookup=lambda _owner: state.get("current_run_id")
+    )
+    issue = scope.get("issue_number")
+    if (
+        not verdict.typed_user_origin
+        or state.get("session_id") != session_id
+        or scope.get("session_id") != session_id
+        or not isinstance(issue, int)
+        or isinstance(issue, bool)
+        or state.get("issue_run_starts", {}).get(str(issue)) != scope.get("run_id")
+        or not re.fullmatch(r"[0-9a-f]{40,64}", scope.get("base_commit", ""))
+    ):
+        raise ValueError("current typed owner/run/issue/base required")
+    checkout = provisioning["pre_edit_checkout"]
+    if (
+        checkout.get("head") != scope["base_commit"]
+        or not Path(checkout["repo"]).is_absolute()
+        or checkout.get("observation_schema") != "raw-checkout/1"
+        or set(checkout.get("inputs", {})) != set(manifest["subjects"])
+        or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in checkout["inputs"].values())
+        or not re.fullmatch(r"[0-9a-f]{64}", checkout.get("diff_sha256", ""))
+    ):
+        raise ValueError("pre-edit base checkout required")
+    return {
+        "session_id": session_id,
+        "run_id": scope["run_id"],
+        "issue_number": issue,
+        "base_commit": scope["base_commit"],
+        "manifest_sha256": provisioning["manifest_sha256"],
+        "manifest": manifest,
+        "pre_edit_checkout": checkout,
+    }
+
+
+def _pytest_record(binding: dict, payload: dict) -> dict:
+    """Seal complete bounded payload through the existing owner-bound signer."""
+    from pipeline_state import sign_state
+
+    data = json.loads(json.dumps({"binding": binding, **payload}))
+    encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+    if len(encoded) > 4 * 1024 * 1024:
+        raise ValueError("pytest ledger slot exceeds bounded capture limit")
+    seal = sign_state(
+        {
+            "session_id": binding["session_id"],
+            "run_id": binding["run_id"],
+            "mode": "pytest-obligation",
+            "explicitly_invoked": True,
+            "issue_number": binding["issue_number"],
+            "base_commit": binding["base_commit"],
+            "subject": hashlib.sha256(encoded).hexdigest(),
+        },
+        binding["session_id"],
+    )
+    return {"schema": "pytest-obligation/1", "data": data, "seal": seal}
+
+
+def _pytest_open(record: dict, binding: dict) -> dict:
+    """Refuse malformed, unsigned, tampered, foreign or stale slots."""
+    from pipeline_state import verify_state_hmac
+
+    data, seal = record["data"], record["seal"]
+    digest = hashlib.sha256(
+        json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    if (
+        record.get("schema") != "pytest-obligation/1"
+        or data.get("binding") != binding
+        or seal.get("subject") != digest
+        or seal.get("session_id") != binding["session_id"]
+        or seal.get("run_id") != binding["run_id"]
+        or not seal.get("hmac")
+        or not verify_state_hmac(seal, binding["session_id"], strict=True)
+    ):
+        raise ValueError("pytest obligation signature/binding mismatch")
+    return data
+
+
+def _pytest_transition(
+    session_id: str, scope: dict, provisioning: dict, update: Callable[[dict, dict], dict]
+) -> Optional[dict]:
+    """Serialize validation and mutation, then require exact signed readback."""
+    expected = None
+
+    def mutate(state: dict) -> None:
+        nonlocal expected
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        current = state.get("pytest_obligation")
+        data = _pytest_open(current, binding) if current is not None else {}
+        expected = _pytest_record(binding, update(data, binding))
+        state["pytest_obligation"] = expected
+        state.pop("pytest_returned_snapshot", None)
+
+    try:
+        _locked_rmw(session_id, mutate, require_lock=True)
+        return (
+            expected
+            if expected is not None and _read_state(session_id).get("pytest_obligation") == expected
+            else None
+        )
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
+
+
+def bind_pytest_obligation(
+    session_id: str, *, scope: dict, provisioning: dict, checkout: dict
+) -> bool:
+    """Bind independent obligations before edits (OFFLINE seam; native wiring inactive).
+
+    Args:
+        session_id: Transport owner established by the trusted provisioner.
+        scope: Actual signed typed-run carrier, not actor CLI/env input.
+        provisioning: Independently frozen manifest/digest and pre-edit checkout.
+            This Python API does NOT authenticate its caller or protect files;
+            qualified outside-actor provisioning is a separate prerequisite.
+        checkout: Trusted observer's current checkout, equal to the frozen base.
+
+    Returns:
+        True only after one locked binding and exact persistence readback.
+
+    Raises:
+        None: malformed, late, changed or failed persistence returns False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from agent_ordering_gate import normalize_agent_identity
+        from pipeline_state import load_pipeline
+        from test_runner import observe_checkout
+
+        checkpoint = load_pipeline(binding["run_id"])
+        joins = _read_state(session_id).get("native_agent_joins", {})
+        if (
+            data
+            or checkout != binding["pre_edit_checkout"]
+            or checkpoint is None
+            or checkpoint.steps.get("implement", {}).get("status") != "pending"
+            or any(
+                isinstance(entry, dict)
+                and entry.get("run_id") == binding["run_id"]
+                and entry.get("issue_number") == binding["issue_number"]
+                and isinstance(entry.get("agent_type"), str)
+                and normalize_agent_identity(entry["agent_type"]) == "implementer"
+                for entry in joins.values()
+            )
+            or observe_checkout(Path(checkout["repo"]), tuple(binding["manifest"]["subjects"]))
+            != checkout
+        ):
+            raise ValueError("pytest obligation missing pre-edit checkpoint or already bound")
+        return {"status": "bound"}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def claim_pytest_observation(
+    session_id: str,
+    *,
+    scope: dict,
+    provisioning: dict,
+    phase: str,
+    tool_use_id: str,
+    base_acknowledgment: Optional[dict] = None,
+) -> bool:
+    """Claim one native callback correlation; pending never grants credit.
+
+    Args:
+        session_id: Trusted callback transport owner.
+        scope: Current signed run carrier.
+        provisioning: Same immutable trusted pre-edit contract.
+        phase: Base before edits, or candidate after acknowledged base.
+        tool_use_id: Exact native callback identity, not actor-selected metadata.
+        base_acknowledgment: Exact signed base-final snapshot successfully returned
+            after trusted supervisor readback; mandatory for candidate claim.
+
+    Returns:
+        True only for a new phase claim with matching current bindings.
+
+    Raises:
+        None: invalid, missing, duplicate and replayed claims return False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from agent_ordering_gate import normalize_agent_identity
+        from pipeline_state import load_pipeline
+        from test_runner import observe_checkout
+
+        if (
+            not isinstance(tool_use_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tool_use_id)
+            or (phase, data.get("status")) not in (("base", "bound"), ("candidate", "base-final"))
+            or tool_use_id == data.get("tool_use_id")
+        ):
+            raise ValueError("unexpected pytest phase or replayed callback")
+        if phase == "base":
+            checkpoint = load_pipeline(binding["run_id"])
+            joins = _read_state(session_id).get("native_agent_joins", {})
+            if (
+                checkpoint is None
+                or checkpoint.steps.get("implement", {}).get("status") != "pending"
+                or any(
+                    isinstance(entry, dict)
+                    and entry.get("run_id") == binding["run_id"]
+                    and entry.get("issue_number") == binding["issue_number"]
+                    and isinstance(entry.get("agent_type"), str)
+                    and normalize_agent_identity(entry["agent_type"]) == "implementer"
+                    for entry in joins.values()
+                )
+                or observe_checkout(
+                    Path(binding["pre_edit_checkout"]["repo"]),
+                    tuple(binding["manifest"]["subjects"]),
+                )
+                != binding["pre_edit_checkout"]
+            ):
+                raise ValueError("base observation requested after edits")
+        elif (
+            base_acknowledgment is None
+            or _read_state(session_id).get("pytest_obligation") != base_acknowledgment
+        ):
+            raise ValueError("candidate requires successfully returned base snapshot")
+        return {**data, "status": "pending", "phase": phase, "tool_use_id": tool_use_id}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def complete_pytest_observation(
+    session_id: str, *, scope: dict, provisioning: dict, tool_use_id: str, capture: dict
+) -> bool:
+    """Retain completed callback capture as pending, never as reviewer authority.
+
+    Args:
+        session_id: Trusted callback owner.
+        scope: Current signed run carrier.
+        provisioning: Same frozen trusted contract.
+        tool_use_id: Previously claimed exact callback identity.
+        capture: Actual outside-parent PytestRunCapture mapping (not model stdout).
+
+    Returns:
+        True for a matching complete configuration-bound measurement only.
+
+    Raises:
+        None: incomplete, nonqualifying, changed or replayed capture returns False.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from test_runner import PytestRunCapture, _check_capture
+
+        measured = PytestRunCapture.from_mapping(capture)
+        _check_capture(measured, tuple(binding["manifest"]["required_ids"]))
+        if (
+            data.get("status") != "pending"
+            or data.get("tool_use_id") != tool_use_id
+            or measured.environment_sha256
+            != hashlib.sha256(
+                json.dumps(
+                    binding["manifest"]["ordinary_capture"]["effective_profile"], sort_keys=True
+                ).encode()
+            ).hexdigest()
+            or list(measured.argv) != binding["manifest"]["ordinary_capture"]["argv"]
+            or measured.checkout.get("repo") != binding["pre_edit_checkout"]["repo"]
+            or (data.get("phase") == "base" and measured.checkout != binding["pre_edit_checkout"])
+        ):
+            raise ValueError("pytest capture claim/profile/base mismatch")
+        return {**data, "status": "capture-pending", "capture": capture}
+
+    return _pytest_transition(session_id, scope, provisioning, update) is not None
+
+
+def acknowledge_pytest_observation(
+    session_id: str,
+    *,
+    scope: dict,
+    provisioning: dict,
+    tool_use_id: str,
+    callback_exit: int,
+    children_clean: bool,
+    independent_cases: Optional[dict] = None,
+    independent_observations: Optional[dict] = None,
+    controlled_capture: Optional[dict] = None,
+) -> Optional[dict]:
+    """Finalize ONLY from trusted supervisor's independently observed termination.
+
+    Args:
+        session_id: Trusted outer supervisor's native owner.
+        scope: Current signed run carrier.
+        provisioning: Same immutable contract; API does not authenticate caller.
+        tool_use_id: Exact completed callback claim.
+        callback_exit: Independently observed callback raw exit, exactly integer 0.
+        children_clean: Independently observed child termination and PG absence.
+        independent_cases: Actual frozen changed-behavior/opposite observations.
+        independent_observations: Actual controlled observations, not actor output.
+        controlled_capture: Actual outside-parent controlled capture mapping,
+            exact raw0/argv/effective profile/SKIPPED inventory. This API checks
+            consistency, not caller custody or independently observed provenance.
+
+    Returns:
+        Exact existing signed slot snapshot only after publication and readback,
+        otherwise None. Supervisor must carry that successfully returned snapshot
+        to the inactive reviewer seam; stored final alone never qualifies. Cancellation or
+        absent acknowledgment remains pending and nonqualifying. This is the
+        publication linearization point, after callback termination, not inside it.
+
+    Raises:
+        None: failed termination, replay, comparison or persistence returns None.
+    """
+
+    def update(data: dict, binding: dict) -> dict:
+        from test_runner import PytestRunCapture, _check_capture, build_pytest_dispatch_receipt
+
+        if (
+            type(callback_exit) is not int
+            or callback_exit != 0
+            or children_clean is not True
+            or data.get("status") != "capture-pending"
+            or data.get("tool_use_id") != tool_use_id
+        ):
+            raise ValueError("pytest callback termination unacknowledged or replayed")
+        if data["phase"] == "base":
+            return {"status": "base-final", "base": data["capture"], "tool_use_id": tool_use_id}
+        if set(independent_cases or {}) != set(binding["manifest"]["independent_cases"]):
+            raise ValueError("changed-behavior denominator mismatch")
+        control = PytestRunCapture.from_mapping(controlled_capture)
+        _check_capture(control, tuple(binding["manifest"]["controlled_ids"]))
+        expected_control = binding["manifest"]["controlled_capture"]
+        if (
+            control.raw_exit != 0
+            or any(value != "SKIPPED" for value in control.outcomes.values())
+            or list(control.argv) != expected_control["argv"]
+            or control.environment_sha256
+            != hashlib.sha256(
+                json.dumps(expected_control["effective_profile"], sort_keys=True).encode()
+            ).hexdigest()
+            or control.checkout != data["capture"]["checkout"]
+            or (
+                independent_observations is not None
+                and independent_observations != control.outcomes
+            )
+        ):
+            raise ValueError("controlled skip inventory missing or contradictory")
+        receipt = build_pytest_dispatch_receipt(
+            PytestRunCapture.from_mapping(data["base"]),
+            PytestRunCapture.from_mapping(data["capture"]),
+            tuple(binding["manifest"]["required_ids"]),
+            run_id=binding["run_id"],
+            independent_cases=independent_cases,
+            independent_observations=control.outcomes,
+        )
+        return {
+            "status": "final",
+            "receipt": receipt,
+            "controlled_capture": controlled_capture,
+            "tool_use_id": tool_use_id,
+        }
+
+    return _pytest_transition(session_id, scope, provisioning, update)
+
+
+def publish_returned_pytest_snapshot(
+    session_id: str, *, scope: dict, provisioning: dict, acknowledgment: Optional[dict]
+) -> bool:
+    """Transport an already returned snapshot through the existing ledger.
+
+    Args:
+        session_id: Trusted outside supervisor's owner.
+        scope: Current signed run carrier.
+        provisioning: Fixed independently provisioned contract.
+        acknowledgment: Actual non-None object returned after acknowledgment
+            readback, never a final-slot lookup. This API cannot authenticate
+            caller custody; native actor isolation remains unqualified.
+
+    Returns:
+        True after matching transport publication/readback. Failure does not
+        prove absence of transport when publication itself already succeeded.
+
+    Raises:
+        None: invalid, conflicting or unavailable transport returns False.
+    """
+    try:
+        if not isinstance(acknowledgment, dict):
+            return False
+        transported = json.loads(json.dumps(acknowledgment))
+
+        def mutate(state: dict) -> None:
+            binding = _pytest_binding(session_id, scope, provisioning, state)
+            if state.get("pytest_obligation") != transported:
+                raise ValueError("returned snapshot does not match current obligation")
+            if _pytest_open(transported, binding).get("status") not in ("base-final", "final"):
+                raise ValueError("returned snapshot is not acknowledged")
+            if state.get("pytest_returned_snapshot") is not None:
+                raise ValueError("returned snapshot transport already published")
+            state["pytest_returned_snapshot"] = transported
+
+        _locked_rmw(session_id, mutate, require_lock=True)
+        return get_returned_pytest_snapshot(
+            session_id, scope=scope, provisioning=provisioning
+        ) == transported
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return False
+
+
+def get_returned_pytest_snapshot(
+    session_id: str, *, scope: dict, provisioning: dict
+) -> Optional[dict]:
+    """Read transported original snapshot, never infer return from final alone.
+
+    Args:
+        session_id: Trusted fresh consumer owner.
+        scope: Actual current signed run carrier.
+        provisioning: Independently selected fixed contract.
+
+    Returns:
+        Defensive copy of the original signed base/final snapshot only when
+        transport and current obligation match. Publisher custody is an external
+        prerequisite, not established by this field or its existing signature.
+
+    Raises:
+        None: missing, stale, conflicting or invalid transport returns None.
+    """
+    try:
+        state = _read_state(session_id)
+        transported = state.get("pytest_returned_snapshot")
+        if not isinstance(transported, dict) or state.get("pytest_obligation") != transported:
+            return None
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        if _pytest_open(transported, binding).get("status") not in ("base-final", "final"):
+            return None
+        return json.loads(json.dumps(transported))
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
+
+
+def get_pytest_dispatch_receipt(
+    session_id: str, *, scope: dict, provisioning: dict, acknowledgment: Optional[dict] = None
+) -> Optional[dict]:
+    """Read only current signed final attestation, ignoring all legacy pass bits.
+
+    Args:
+        session_id: Trusted consumer transport owner.
+        scope: Actual current signed run carrier.
+        provisioning: Independently adopted immutable contract, never CLI/env.
+        acknowledgment: Exact signed final slot successfully returned to the
+            trusted supervisor AFTER readback. Not model stdout or an actor-held
+            file. This argument does not authenticate custody; native transport
+            remains unqualified. Stored final without acknowledgment is inert.
+
+    Returns:
+        Receipt only for supervisor-acknowledged final; otherwise None. Caller
+        must still re-evaluate through test_runner before reviewer dispatch.
+
+    Raises:
+        None: missing, pending, stale, tampered or unreadable records return None.
+    """
+    try:
+        state = _read_state(session_id)
+        if acknowledgment is None or state.get("pytest_obligation") != acknowledgment:
+            return None
+        binding = _pytest_binding(session_id, scope, provisioning, state)
+        data = _pytest_open(state["pytest_obligation"], binding)
+        return data.get("receipt") if data.get("status") == "final" else None
+    except (ImportError, OSError, KeyError, TypeError, ValueError, AttributeError, RuntimeError):
+        return None
 
 
 def record_pytest_gate_passed(
@@ -3897,7 +5015,8 @@ def _locked_rmw(
     mutator: Callable[[dict], None],
     *,
     run_id: Optional[str] = None,
-) -> None:
+    require_lock: bool = False,
+) -> bool:
     """Read-modify-write the per-session state under an external lockfile.
 
     The original ring-buffer mutators read state, mutated it in-process,
@@ -3936,6 +5055,13 @@ def _locked_rmw(
             the lockfile key matches the state file's per-run key for
             scope parity. Must match ``_RUN_ID_RE`` (``[a-zA-Z0-9_-]{1,64}``);
             ValueError is raised otherwise.
+        require_lock: Refuse on lock open/acquisition failure. Native-origin
+            witness replacement needs an atomic decision and write; other
+            callers retain the historical unlocked fallback.
+
+    Returns:
+        True after atomic persistence succeeds; False on an OS write failure.
+        Existing lock fallback behavior is unchanged.
 
     Issue #1544 made this the ONLY path to the on-disk write: all state
     mutators route through here, and ``_write_state`` self-wraps in this
@@ -3963,7 +5089,7 @@ def _locked_rmw(
     # anyway — cheaper than a second source of truth for the path.
     lock_path = Path(str(_state_file_path(session_id, run_id=run_id)) + ".lock")
 
-    def _rmw() -> None:
+    def _rmw() -> bool:
         """Read, mutate, write — with the raw-write guard held (#1544).
 
         The guard spans BOTH the mutate and the write. Holding it only across
@@ -3980,7 +5106,7 @@ def _locked_rmw(
         try:
             state = _read_state(session_id, run_id=run_id)
             mutator(state)
-            _write_state(session_id, state, run_id=run_id)
+            return _write_state(session_id, state, run_id=run_id)
         finally:
             _RMW_GUARD.depth -= 1
 
@@ -3990,12 +5116,13 @@ def _locked_rmw(
         # process that's already blocked on it.
         lock_fh = open(lock_path, "a+")
     except OSError:
+        if require_lock:
+            raise OSError("required state lockfile could not be opened")
         # Lockfile couldn't be opened (permissions, full /tmp). Fall
         # back to the unlocked path — never raise out of state code.
         # #1544: the write itself is atomic, so this fallback can lose a
         # concurrent update but can never expose a truncated file.
-        _rmw()
-        return
+        return _rmw()
 
     # #1544: the RMW is deliberately OUTSIDE the lockfile-open try/except so a
     # failure inside the mutator cannot fall through to the fallback branch and
@@ -4004,15 +5131,16 @@ def _locked_rmw(
         try:
             fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX)
         except OSError:
+            if require_lock:
+                raise OSError("required state lock could not be acquired")
             # Fail-open: a flock failure is rare (typically NFS) and
             # the gate must keep functioning. Drop straight into the
             # unlocked R-M-W path. Safe since #1544: the write itself
             # is atomic, so a reader never sees a partial file.
-            _rmw()
-            return
+            return _rmw()
 
         try:
-            _rmw()
+            return _rmw()
         finally:
             # Release even on mutator exception so the lockfile does
             # not stay held — every other concurrent caller would
@@ -4256,7 +5384,7 @@ def ensure_sentinel_heartbeat(
     session_id: str,
     state_path: Optional[str] = None,
 ) -> bool:
-    """Verify the pipeline sentinel file is intact; recreate it if missing or mismatched.
+    """Observe the pipeline sentinel without inventing missing run authority.
 
     Called after each SubagentStop agent completion to guard against
     ``clear_stale_state`` (in hook_recovery.py) deleting the sentinel when a
@@ -4272,17 +5400,18 @@ def ensure_sentinel_heartbeat(
       that differs from the argument, preserve the existing sentinel and
       return ``False`` — the heartbeat MUST NOT clobber a real owner
       (Issue #1481).
-    - If ``state_path`` exists, is parseable JSON, and its ``session_id``
-      field matches ``session_id`` → sentinel is healthy, return ``True``.
+    - If ``state_path`` exists, is parseable run-bearing JSON, and its
+      ``session_id`` field matches ``session_id`` → return ``True``. An old
+      identity-less ``recovered`` record is not a healthy run.
     - If ``state_path`` exists and CARRIES A RUN (``run_id``/``mode``/
       ``explicitly_invoked``) but its owner is absent or synthetic, preserve it,
       emit ``[SENTINEL-HEARTBEAT-RUN-PRESERVED]`` and return ``False`` — an
       absent owner is not licence to discard a run (Issue #1807).
     - Otherwise (missing, corrupt, or an identity-less record whose owner is
-      synthetic) → emit a structured log line to stderr, recreate a minimal
-      sentinel, and return ``False``.
+      synthetic) → emit a structured diagnostic and return ``False`` without
+      writing. A bare recovery record cannot reconstruct a signed run (#1807).
 
-    The function NEVER raises.  All failure modes degrade gracefully.
+    The function NEVER raises. Missing authority stays missing.
 
     Args:
         session_id: The expected owner's session id (e.g. from
@@ -4292,9 +5421,8 @@ def ensure_sentinel_heartbeat(
             ``<repo>/.claude/local/implement_pipeline_state.json`` (Issue #1206).
 
     Returns:
-        ``True`` when the sentinel was already healthy.
-        ``False`` when the sentinel was absent, mismatched, or the caller
-        supplied a synthetic id (in which case NO write occurred).
+        ``True`` when the sentinel was already healthy. ``False`` otherwise;
+        this observation never writes the sentinel.
 
     Issues: #989, #1206, #1481
     """
@@ -4329,7 +5457,7 @@ def ensure_sentinel_heartbeat(
 
             if isinstance(data, dict):
                 existing = data.get("session_id")
-                if existing == session_id:
+                if existing == session_id and _state_carries_run_identity(data):
                     return True  # Sentinel healthy.
                 # Issue #1807 guard #3 — the run survives repair. A state that
                 # CARRIES A RUN (run_id or mode) is gating state, and an absent
@@ -4384,36 +5512,22 @@ def ensure_sentinel_heartbeat(
                         pass
                     return False
     except Exception:
-        # Defensive: any unexpected error falls through to recreation.
+        # Defensive: any unexpected read error remains untrusted.
         pass
 
-    # Sentinel is missing, corrupt, or the existing owner was synthetic
-    # (safe to overwrite in that case — synthetic ids are always
-    # replaceable by a real id).
+    # A missing/corrupt sentinel or synthetic prior owner is not a source of
+    # run identity. Earlier #989 recovery wrote only session_id/recovered_at,
+    # which could turn an ordinary Agent stop into a false active pipeline.
     try:
         import sys as _sys_hb
 
         _sys_hb.stderr.write(
-            f"[SENTINEL-HEARTBEAT-MISSING] state_path={state_path}"
-            f" recovering_for_session={session_id}\n"
+            f"[SENTINEL-HEARTBEAT-UNTRUSTED] state_path={state_path}"
+            f" present={sentinel.exists()} caller_session={session_id}"
+            " refusing identity-less recovery\n"
         )
         _sys_hb.stderr.flush()
     except Exception:
-        pass
-
-    try:
-        recovered_sentinel = {
-            "session_id": session_id,
-            "recovered": True,
-            "recovered_at": datetime.now(timezone.utc).isoformat(),
-        }
-        # The repair path must not be able to corrupt the file it repairs:
-        # write_text() truncates at open time, so a kill mid-write leaves the
-        # 0-byte sentinel that sent us here. atomic_write_json chmods 0o600
-        # before the rename, so the separate os.chmod is redundant.
-        atomic_write_json(sentinel, recovered_sentinel, indent=2)
-    except Exception:
-        # NEVER raise — sentinel recreation is best-effort.
         pass
 
     return False

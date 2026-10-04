@@ -12,11 +12,249 @@ import io
 import json
 import os
 import sys
+import subprocess
+import uuid
 from pathlib import Path
 from typing import Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_real_callback_stdout_protocol_and_report_persistence(tmp_path, native):
+    """Run the entire callback with real installed runtime APIs, no tracker mocks."""
+    repo = Path(__file__).resolve().parents[3]
+    installed = tmp_path / "installed"
+    installed.mkdir()
+    # #1638: archive is default-denied against the real checkout. Keep the
+    # same local object snapshot in a disposable Git root, not a guard waiver.
+    snapshot = tmp_path / "snapshot.git"
+    expected_head = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
+    subprocess.run(["git", "clone", "--bare", "--shared", "--local", str(repo), str(snapshot)],
+                   cwd=tmp_path, check=True, capture_output=True)
+    actual_head = subprocess.check_output(["git", "-C", str(snapshot), "rev-parse", "HEAD"], text=True).strip()
+    assert actual_head == expected_head
+    archive = subprocess.run(["git", "-C", str(snapshot), "archive", expected_head,
+        "plugins/autonomous-dev"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["tar", "-xf", "-", "-C", str(installed)],
+                   input=archive.stdout, check=True, capture_output=True)
+    plugin = installed / "plugins" / "autonomous-dev"
+    # Explicit candidate injection before execution; child has no source path.
+    hook = plugin / "hooks" / "unified_session_tracker.py"
+    hook.write_bytes((repo / "plugins" / "autonomous-dev" / "hooks" / hook.name).read_bytes())
+    assert hook.read_bytes() == (repo / "plugins" / "autonomous-dev" / "hooks" / hook.name).read_bytes()
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run(["git", "init", "-q", str(consumer)], check=True)
+    (consumer / "PROJECT.md").write_text("# Disposable callback consumer\n")
+    owner = str(uuid.uuid4())
+    child = "actual-child-" + uuid.uuid4().hex
+    payload = {"session_id": owner, "agent_id": child,
+               "agent_type": "autonomous-dev:alignment-classifier",
+               "last_assistant_message": "Read tool classified the supplied diagnostic successfully."}
+    env = dict(os.environ)
+    for name in ("PYTHONPATH", "CLAUDE_SESSION_ID", "CLAUDE_CONFIG_DIR",
+                 "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+                 "PIPELINE_STATE_FILE", "PIPELINE_RUN_ID", "PIPELINE_ISSUE_NUMBER"):
+        env.pop(name, None)
+    env.update(PYTHONDONTWRITEBYTECODE="1", TRACK_SESSIONS="true", TRACK_PIPELINE="true")
+    result = subprocess.run([sys.executable, str(hook)] + (["--native"] if native else []),
+        input=json.dumps(payload), text=True, capture_output=True, cwd=consumer, env=env, timeout=30)
+    assert result.returncode == 0
+    reports = list((consumer / "docs" / "sessions").glob("*-pipeline.json"))
+    if native:
+        assert len(reports) == 1
+    report = next(data for data in (json.loads(file.read_text()) for file in reports)
+                  if data.get("claude_session_id") == owner)
+    assert report["claude_session_id"] == owner
+    assert any(row["agent"] == "alignment-classifier" and row["status"] == "completed"
+               for row in report["agents"])
+    assert any(owner in file.read_text() for file in (consumer / "docs" / "sessions").glob("*.md"))
+    if native:
+        envelope = json.loads(result.stdout)  # ENTIRE stdout must be one JSON envelope.
+        trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+        assert trace == {"hook_event_name": "SubagentStop", "session_id": owner, "agent_id": child}
+        assert "Completed:" in result.stderr and "Session:" in result.stderr
+        assert "Completed:" not in result.stdout
+    else:
+        assert "Completed:" in result.stdout and "Session:" in result.stdout
+
+
+def test_native_stop_retains_actual_identity_and_measured_version(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.setattr(ust, "_find_log_dir", lambda: tmp_path)
+    monkeypatch.setattr(ust, "_get_session_date", lambda sid: "2026-10-03")
+    assert ust._write_jsonl_entry(
+        subagent_type="autonomous-dev:alignment-classifier", duration_ms=0,
+        result_word_count=3, agent_transcript_path="/tmp/child.jsonl",
+        session_id="native-owner", success=True, agent_id="actual-child",
+    )
+    entry = json.loads((tmp_path / "2026-10-03.jsonl").read_text())
+    assert entry["agent_id"] == "actual-child"
+    assert "tool_use_id" not in entry
+    assert "run_id" not in entry
+    assert "(" not in entry["plugin_version"]
+
+
+def test_session_tracker_uses_payload_owner(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    tracker = ust.SessionTracker(session_id="native-payload-owner")
+    assert "native-payload-owner" in tracker.session_file.read_text()
+    assert ust.SessionTracker(session_id="native-payload-owner").session_file == tracker.session_file
+
+
+@pytest.mark.parametrize("installed_version", ["3.8.0", None])
+def test_stop_version_does_not_use_consumer_identity(tmp_path, monkeypatch, installed_version):
+    import unified_session_tracker as ust
+    installed = tmp_path / "installed"
+    hook = installed / "hooks" / "unified_session_tracker.py"
+    hook.parent.mkdir(parents=True)
+    manifest = installed / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir()
+    if installed_version:
+        manifest.write_text(json.dumps({"version": installed_version}))
+    consumer_manifest = tmp_path / "plugins" / "autonomous-dev" / "plugin.json"
+    consumer_manifest.parent.mkdir(parents=True)
+    consumer_manifest.write_text(json.dumps({"version": "consumer-decoy"}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "__file__", str(hook))
+    monkeypatch.setattr(ust, "_find_log_dir", lambda: tmp_path / "logs")
+    monkeypatch.setattr(ust, "_get_session_date", lambda sid: "2026-10-03")
+    assert ust._write_jsonl_entry(subagent_type="reviewer", duration_ms=0,
+        result_word_count=1, agent_transcript_path="", session_id="owner", success=True)
+    entry = json.loads((tmp_path / "logs" / "2026-10-03.jsonl").read_text())
+    assert entry["plugin_version"] == (installed_version or "unknown")
+
+
+def test_pipeline_docs_use_explicit_payload_owner(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    tracker = MagicMock()
+    tracker.session_data = {}
+    factory = MagicMock(return_value=tracker)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "TRACK_PIPELINE", True)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    monkeypatch.setattr(ust, "AgentTracker", factory, raising=False)
+    assert ust.track_pipeline_completion("reviewer", "Done", "success", session_id="payload-owner")
+    session_file = Path(factory.call_args.kwargs["session_file"])
+    assert session_file.parent == tmp_path / "docs" / "sessions"
+    assert len(session_file.name) < 100
+    assert tracker.session_data["claude_session_id"] == "payload-owner"
+
+
+@pytest.mark.parametrize("status", ["success", "error"])
+def test_native_pipeline_report_real_persistence_without_test_mode(tmp_path, monkeypatch, status):
+    import unified_session_tracker as ust
+    from agent_tracker import AgentTracker
+    import security_utils
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    # Model the fresh consumer process's detected project root, not its test-mode
+    # temp-directory exemption; all persistence and validation APIs remain real.
+    monkeypatch.setattr(security_utils, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setenv("CLAUDE_AGENT_NAME", "foreign-coordinator")
+    monkeypatch.setattr(ust, "TRACK_PIPELINE", True)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    monkeypatch.setattr(ust, "AgentTracker", AgentTracker)
+    assert ust.track_pipeline_completion("autonomous-dev:alignment-classifier", "Intent examined", status,
+                                         session_id="native-report-owner")
+    reports = list((tmp_path / "docs" / "sessions").glob("*-pipeline.json"))
+    assert len(reports) == 1
+    report = json.loads(reports[0].read_text())
+    assert report["claude_session_id"] == "native-report-owner"
+    assert [entry["agent"] for entry in report["agents"]] == ["alignment-classifier"]
+    assert report["agents"][0]["status"] == ("completed" if status == "success" else "failed")
+
+
+def test_native_duration_does_not_create_unowned_report(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ust, "HAS_AGENT_TRACKER", True)
+    assert ust._compute_duration_ms("native-report-owner") == 0
+    assert not (tmp_path / "docs" / "sessions").exists()
+
+
+def test_installed_report_api_has_no_source_fallback(tmp_path):
+    import shutil
+    import subprocess
+    installed = tmp_path / "installed"
+    source = Path(ust.__file__).resolve().parent.parent
+    shutil.copytree(source / "lib", installed / "lib", ignore=shutil.ignore_patterns("__pycache__"))
+    (installed / "hooks").mkdir()
+    shutil.copy2(source / "hooks" / "unified_session_tracker.py", installed / "hooks")
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / ".git").mkdir()
+    script = """
+import sys,json
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import unified_session_tracker as hook
+assert hook._compute_duration_ms('installed-owner') == 0
+assert hook.track_pipeline_completion('autonomous-dev:alignment-classifier', 'Intent examined', 'success', session_id='installed-owner')
+reports=list(Path('docs/sessions').glob('*pipeline.json'))
+assert len(reports)==1
+report=json.loads(reports[0].read_text())
+assert report['claude_session_id']=='installed-owner'
+assert report['agents'][0]['agent']=='alignment-classifier'
+assert report['agents'][0]['status']=='completed'
+import agent_tracker
+assert Path(agent_tracker.__file__).is_relative_to(Path(sys.argv[1]).parent)
+"""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("PYTHONPATH", "PYTEST_CURRENT_TEST", "CLAUDE_SESSION_ID", "CLAUDE_AGENT_NAME")}
+    result = subprocess.run([sys.executable, "-I", "-c", script, str(installed / "hooks")],
+                            cwd=consumer, env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("method", ["start_agent", "complete_agent", "fail_agent"])
+def test_real_tracker_unknown_role_never_uses_pytest_exemption(tmp_path, monkeypatch, method):
+    import security_utils
+    from agent_tracker import AgentTracker
+    monkeypatch.setattr(security_utils, "PROJECT_ROOT", tmp_path)
+    tracker = AgentTracker(session_file=str(tmp_path / "report.json"))
+    previous = tracker.session_file.read_bytes()
+    with pytest.raises(ValueError, match="known owned pipeline role"):
+        getattr(tracker, method)("unregistered-role", "Intent examined")
+    assert tracker.session_file.read_bytes() == previous
+
+
+def test_basic_docs_do_not_merge_owners_with_same_prefix(tmp_path, monkeypatch):
+    import unified_session_tracker as ust
+    monkeypatch.chdir(tmp_path)
+    first = ust.SessionTracker(session_id="0123456789abcdef-owner-a")
+    second = ust.SessionTracker(session_id="0123456789abcdef-owner-b")
+    assert first.session_file != second.session_file
+    assert "owner-a" in first.session_file.read_text()
+    assert "owner-b" in second.session_file.read_text()
+    assert ust.SessionTracker(session_id="0123456789abcdef-owner-a").session_file == first.session_file
+
+
+def test_native_stop_trace_preserves_existing_suggestion(monkeypatch, capsys):
+    import unified_session_tracker as ust
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.setattr(sys, "argv", ["unified_session_tracker.py", "--native"])
+    monkeypatch.setattr(ust, "track_basic_session", lambda *a, **k: True)
+    monkeypatch.setattr(ust, "track_pipeline_completion", lambda *a, **k: True)
+    monkeypatch.setattr(ust, "_write_jsonl_entry", lambda **k: True)
+    monkeypatch.setattr(ust, "_advance_plan_mode_stage", lambda: "Existing plan suggestion")
+    payload = {"agent_type": "plan-critic", "session_id": "native-stop-owner",
+               "agent_id": "actual-child", "last_assistant_message": "Done"}
+    with patch("sys.stdin", io.StringIO(json.dumps(payload))):
+        assert ust.main() == 0
+    envelope = json.loads(capsys.readouterr().out)
+    suggestion, marker = envelope["systemMessage"].split("\n", 1)
+    assert suggestion == "Existing plan suggestion"
+    trace = json.loads(marker.split(" ", 1)[1])
+    assert trace == {"hook_event_name": "SubagentStop", "session_id": "native-stop-owner",
+                     "agent_id": "actual-child"}
+    assert "hookSpecificOutput" not in envelope
 
 
 @pytest.fixture(autouse=True)

@@ -28,6 +28,7 @@ Related: Issue #200 - Debug-first enforcement and self-test requirements
 """
 
 import json
+import hashlib
 import os
 import sys
 from dataclasses import dataclass
@@ -47,7 +48,127 @@ from plugins.autonomous_dev.lib.test_runner import (
     run_tests,
     run_single_test,
     verify_all_tests_pass,
+    capture_pytest_run,
 )
+
+
+@pytest.mark.parametrize("controlled", [False, True])
+def test_issue_1818_canonical_pytest_argv_preserves_restricted_profile(controlled):
+    from plugins.autonomous_dev.lib.test_runner import build_pytest_argv
+
+    prefix = ("/pinned/python", "-I", "-m", "pytest")
+    control = ("--noconftest", "-c", os.devnull, "--rootdir", "/consumer",
+               "--confcutdir", "/consumer", "-p", "no:cacheprovider") if controlled else ()
+    assert build_pytest_argv("/pinned/python", "/consumer", ("test_case.py::test_case",),
+                             controlled=controlled) == prefix + control + (
+        "-vv", "test_case.py::test_case")
+
+
+def test_capture_requires_explicit_sandbox_pins_before_any_process(tmp_path, monkeypatch):
+    """Offline capture cannot fall back to privileged or ambient execution."""
+    def forbidden(*args, **kwargs):
+        pytest.fail("missing sandbox pins must not launch a process")
+
+    monkeypatch.setattr("subprocess.run", forbidden)
+    with pytest.raises(ValueError, match="sandbox"):
+        capture_pytest_run(
+            tmp_path, ("test_case.py::test_case",), subjects=("test_case.py",),
+            sandbox={}, environment={},
+        )
+
+
+def test_checkout_observer_disables_consumer_helpers_and_ambient_environment(tmp_path, monkeypatch):
+    """RED observes argv only; it never executes the frozen marker helper."""
+    from plugins.autonomous_dev.lib import test_runner as module
+
+    original = module.subprocess.Popen
+    def empty_inventory(argv, **kwargs):
+        return original([sys.executable, "-I", "-S", "-c", "pass"], **kwargs)
+    launch = Mock(side_effect=empty_inventory)
+    monkeypatch.setattr(module.subprocess, "Popen", launch)
+    module.observe_checkout(tmp_path, ())
+    for invocation in launch.call_args_list:
+        assert "core.fsmonitor=false" in invocation.args[0]
+        assert invocation.kwargs["env"]["GIT_CONFIG_GLOBAL"] == os.devnull
+        assert invocation.kwargs["env"]["GIT_CONFIG_NOSYSTEM"] == "1"
+        assert invocation.kwargs["env"]["GIT_ATTR_NOSYSTEM"] == "1"
+        assert "HOME" not in invocation.kwargs["env"]
+        assert "diff" not in invocation.args[0]
+        assert "ls-files" in invocation.args[0] or "rev-parse" in invocation.args[0]
+
+
+@pytest.mark.parametrize("fault", [
+    "signal", "overflow", "timeout", "malformed", "alive", "outer-timeout", "interrupt",
+    "usage-error",
+])
+def test_capture_refuses_incomplete_parent_lifecycle(tmp_path, monkeypatch, fault):
+    """Portable parent-side faults cannot produce configuration-bound capture."""
+    from plugins.autonomous_dev.lib import test_runner as module
+
+    argv_builder = Mock(wraps=module.build_pytest_argv)
+    monkeypatch.setattr(module, "build_pytest_argv", argv_builder)
+
+    sandbox = {"runtime_closure_sha256": "0" * 64}
+    for name in ("node", "runtime", "python", "profile"):
+        target = tmp_path / name
+        target.write_bytes(
+            json.dumps({"filesystem": {"allowWrite": [str(tmp_path)]}}).encode()
+            if name == "profile" else b"pinned offline fixture"
+        )
+        sandbox[name] = str(target)
+        sandbox[name + "_sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
+    wire = {"terminal": {"code": 0, "signal": None}, "overflow": False,
+            "timedOut": False, "stdout": "test_case.py::test_case PASSED\n", "stderr": ""}
+    if fault == "signal":
+        wire["terminal"] = {"code": None, "signal": "SIGTERM"}
+    elif fault == "overflow":
+        wire["overflow"] = True
+    elif fault == "timeout":
+        wire["timedOut"] = True
+    elif fault == "usage-error":
+        wire["terminal"]["code"] = 4
+    child = Mock(pid=999999, returncode=0)
+    child.communicate.return_value = (
+        b"incomplete" if fault == "malformed" else json.dumps(wire).encode(), b"",
+    )
+    if fault in {"outer-timeout", "interrupt"}:
+        child.communicate.side_effect = [
+            TimeoutExpired("node", 1) if fault == "outer-timeout" else KeyboardInterrupt(),
+            (b"", b""),
+        ]
+    launch = Mock(return_value=child)
+    monkeypatch.setattr(module.subprocess, "Popen", launch)
+    monkeypatch.setattr(module, "observe_checkout", lambda *args, **kwargs: {"inputs": {}})
+    kills = []
+    def kill_group(pid, signum):
+        kills.append(signum)
+        if fault != "alive" or signum:
+            raise ProcessLookupError
+    monkeypatch.setattr(module.os, "killpg", kill_group)
+    handlers = {signum: module.signal.getsignal(signum)
+                for signum in (module.signal.SIGINT, module.signal.SIGTERM)}
+    def capture():
+        return capture_pytest_run(tmp_path, ("test_case.py::test_case",),
+                                 subjects=("test_case.py",), sandbox=sandbox,
+                                 environment={"TMPDIR": str(tmp_path)})
+    if fault == "usage-error":
+        result = capture()
+        assert result.raw_exit == 4
+        with pytest.raises(ValueError, match="raw exit/output"):
+            module.build_pytest_dispatch_receipt(
+                result, result, ("test_case.py::test_case",), run_id="offline-non-authority",
+                independent_cases={"counterfactual": "PASSED"},
+            )
+    else:
+        expected = KeyboardInterrupt if fault == "interrupt" else ValueError
+        with pytest.raises(expected):
+            capture()
+    assert launch.call_args.kwargs["start_new_session"] is True
+    argv_builder.assert_called_once_with(
+        sandbox["python"], str(tmp_path.resolve()), ("test_case.py::test_case",), controlled=False)
+    assert module.signal.SIGKILL in kills
+    assert child.communicate.call_count == 2
+    assert {signum: module.signal.getsignal(signum) for signum in handlers} == handlers
 
 
 class TestTestResultDataClass:

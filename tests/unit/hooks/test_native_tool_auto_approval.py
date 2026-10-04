@@ -516,11 +516,9 @@ class TestNativeToolMainBypass:
     def test_mcp_tool_still_runs_validators(self):
         """Non-native (MCP) tools must still route through validator layers.
 
-        _is_adev_project must return True so the project guard (Issue #662)
-        does not short-circuit before validators are invoked.
+        Source identity must not short-circuit the existing MCP validators.
         """
-        with patch.object(hook, "_is_adev_project", return_value=True), \
-             patch.object(hook, "validate_sandbox_layer", return_value=("allow", "ok")) as mock_sandbox, \
+        with patch.object(hook, "validate_sandbox_layer", return_value=("allow", "ok")) as mock_sandbox, \
              patch.object(hook, "validate_mcp_security", return_value=("allow", "ok")) as mock_mcp, \
              patch.object(hook, "validate_agent_authorization", return_value=("allow", "ok")) as mock_auth, \
              patch.object(hook, "validate_batch_permission", return_value=("allow", "ok")) as mock_batch:

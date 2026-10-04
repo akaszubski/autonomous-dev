@@ -580,6 +580,61 @@ def test_fail_open_lock_race_never_credits_an_unstamped_record(
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.parametrize(
+    "fault", ["staging", "fsync", "replace", "lock-and-replace", "flock-and-replace"]
+)
+def test_regression_issue_1807_run_start_reports_atomic_failure(
+    sid, monkeypatch, tmp_path, capsys, fault
+) -> None:
+    """Actual atomic failures cannot report success or change prior bytes (#1807)."""
+    path = tmp_path / "ledger.json"
+    monkeypatch.setattr(P, "_state_file_path", lambda *args, **kwargs: path)
+    assert record_run_start(sid, "previous", issue_number=1807) is True
+    previous = path.read_bytes()
+    if fault == "staging":
+        def denied_staging(*args, **kwargs):
+            raise PermissionError("controlled staging denial")
+        monkeypatch.setattr(P.tempfile, "mkstemp", denied_staging)
+    elif fault == "fsync":
+        def denied_fsync(*args, **kwargs):
+            raise OSError("controlled fsync denial")
+        monkeypatch.setattr(P.os, "fsync", denied_fsync)
+    else:
+        def denied_replace(*args, **kwargs):
+            raise OSError("controlled replacement denial")
+        monkeypatch.setattr(P.os, "replace", denied_replace)
+        if fault == "lock-and-replace":
+            real_open = open
+            def denied_lock(name, *args, **kwargs):
+                if str(name) == str(path) + ".lock":
+                    raise PermissionError("controlled lock denial")
+                return real_open(name, *args, **kwargs)
+            monkeypatch.setattr(P, "open", denied_lock, raising=False)
+        elif fault == "flock-and-replace":
+            real_flock = P.fcntl.flock
+            def denied_flock(fd, operation):
+                if operation == fcntl.LOCK_EX:
+                    raise OSError("controlled flock denial")
+                return real_flock(fd, operation)
+            monkeypatch.setattr(P.fcntl, "flock", denied_flock)
+    capsys.readouterr()
+    assert record_run_start(sid, "replacement", issue_number=1807) is False
+    assert "failed to record run start" in capsys.readouterr().err
+    assert path.read_bytes() == previous
+    assert list(tmp_path.glob("ledger.json.*.tmp")) == []
+
+
+def test_regression_issue_1807_run_start_persisted_positive(sid, monkeypatch, tmp_path):
+    """Successful writes, issue rebind, and same-run repetition stay usable (#1807)."""
+    path = tmp_path / "ledger.json"
+    monkeypatch.setattr(P, "_state_file_path", lambda *args, **kwargs: path)
+    for run in ("previous", "replacement", "replacement"):
+        assert record_run_start(sid, run, issue_number=1807) is True
+        state = json.loads(path.read_text())
+        assert state["current_run_id"] == run
+        assert state["issue_run_starts"]["1807"] == run
+
+
 def test_record_run_start_failure_degrades_to_permissive(sid, monkeypatch, capsys) -> None:
     """``record_run_start`` never raises; it reports False and degrades to (a1).
 

@@ -7,6 +7,7 @@ to confirm Claude Code is never blocked by hook infrastructure failures.
 from __future__ import annotations
 
 import json
+import ast
 import subprocess
 import sys
 import textwrap
@@ -17,6 +18,54 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_PATH = REPO_ROOT / "plugins" / "autonomous-dev" / "lib"
 HOOK_DIR = REPO_ROOT / "plugins" / "autonomous-dev" / "hooks"
+
+
+@pytest.mark.parametrize("hook", ["native_run_origin.py", "session_activity_logger.py", "unified_session_tracker.py"])
+@pytest.mark.parametrize("case", ["sibling", "already_deeper", "legacy_fallback", "missing_selected"])
+def test_native_bootstrap_pins_first_library_root(tmp_path, hook, case):
+    """Execute actual hook bootstrap nodes, not a duplicate path algorithm."""
+    installed = tmp_path / "installed"
+    hook_path = installed / "hooks" / hook
+    hook_path.parent.mkdir(parents=True)
+    selected = installed / "lib"
+    if case == "legacy_fallback":
+        selected = tmp_path / "lib"
+    selected.mkdir()
+    foreign = tmp_path / "home/.claude/plugins/autonomous-dev/lib"
+    foreign.mkdir(parents=True)
+    module = "def safe_main(function): return function()\n"
+    (foreign / "hook_safety.py").write_text(module)
+    if case != "missing_selected":
+        (selected / "hook_safety.py").write_text(module)
+    nodes = []
+    for node in ast.parse((HOOK_DIR / hook).read_text()).body:
+        if isinstance(node, ast.Import) and any(n.name == "sys" for n in node.names):
+            nodes.append(node)
+        elif isinstance(node, ast.ImportFrom) and node.module == "pathlib":
+            nodes.append(node)
+        elif isinstance(node, ast.Assign) and any(isinstance(n, ast.Name) and n.id == "_hook_dir_953" for n in node.targets):
+            nodes.append(node)
+        elif isinstance(node, ast.For) and isinstance(node.target, ast.Name) and node.target.id == "_candidate_lib_953":
+            nodes.append(node)
+        elif isinstance(node, ast.Try) and "from hook_safety import" in ast.unparse(node):
+            nodes.append(node)
+            break
+    code = "import sys,json; __file__=" + repr(str(hook_path)) + "\n"
+    if case == "already_deeper":
+        code += "sys.path[:0]=" + repr([str(foreign), str(selected)]) + "\n"
+    code += ast.unparse(ast.Module(body=nodes, type_ignores=[]))
+    code += "\nm=sys.modules.get('hook_safety');print(json.dumps({'origin':getattr(m,'__file__',None),'path_head':sys.path[0]}))"
+    result = subprocess.run([sys.executable, "-B", "-I", "-c", code],
+                            env={"HOME": str(tmp_path / "home"), "PATH": "/usr/bin:/bin"},
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    actual = json.loads(result.stdout)
+    if case == "missing_selected":
+        assert actual["origin"] is None
+        assert "Selected hook library is incomplete" in result.stderr
+    else:
+        assert Path(actual["origin"]).resolve() == (selected / "hook_safety.py").resolve()
+        assert Path(actual["path_head"]).resolve() == selected.resolve()
 
 
 def _run_python(script: str, *, timeout: float = 10.0, env: dict = None) -> subprocess.CompletedProcess:

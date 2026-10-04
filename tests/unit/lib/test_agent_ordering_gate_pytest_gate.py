@@ -20,7 +20,21 @@ from agent_ordering_gate import (
     MODE_DEPENDENT_PAIRS,
     STEP_ORDER,
     check_ordering_prerequisites,
+    check_ordering_with_session_fallback,
 )
+
+
+def test_issue_1818_offline_reviewer_requires_explicit_verified_acknowledgment(monkeypatch):
+    """Legacy skip/marker cannot satisfy the inactive trusted receipt seam."""
+    monkeypatch.setenv("SKIP_PYTEST_GATE", "1")
+    result = check_ordering_with_session_fallback(
+        "reviewer",
+        "offline-no-obligation",
+        pipeline_mode="fix",
+        pytest_scope={},
+        pytest_provisioning={},
+    )
+    assert not result.passed
 
 
 class TestPytestGateOrdering:

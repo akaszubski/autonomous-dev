@@ -13,6 +13,7 @@ Agent: implementer
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -26,12 +27,123 @@ sys.path.insert(0, str(REPO_ROOT / "plugins" / "autonomous-dev" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "plugins" / "autonomous-dev" / "lib"))
 
 from sync_settings_hooks import (
+    audit_global_plugin,
     _count_lifecycle_events,
     _get_canonical_deny_list,
     _replace_hooks,
     sync_global,
     sync_repo,
 )
+
+
+def test_global_plugin_audit_finds_stale_subagentstop_without_writing(temp_dir):
+    settings = temp_dir / "settings.json"
+    _write_json(settings, {"hooks": {"SubagentStop": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": "python3 ~/.claude/hooks/unified_session_tracker.py"}
+    ]}]}})
+    before = settings.read_bytes()
+    result = audit_global_plugin(settings)
+    assert result["success"] is False
+    assert result["conflicts"] == [{
+        "event": "SubagentStop", "basename": "unified_session_tracker.py",
+        "global_source": str(settings),
+        "plugin_source": str(REPO_ROOT / "plugins" / "autonomous-dev" / "hooks" / "hooks.json"),
+        "global_matcher": "*", "plugin_matcher": "*",
+    }]
+    assert settings.read_bytes() == before
+
+
+def test_global_plugin_audit_accepts_nonoverlap_and_missing_settings(temp_dir):
+    settings = temp_dir / "settings.json"
+    assert audit_global_plugin(settings)["success"] is True
+    _write_json(settings, {"permissions": {"deny": []}})
+    assert audit_global_plugin(settings)["success"] is True
+    _write_json(settings, {"hooks": {"Stop": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": "python3 ~/.claude/hooks/unified_session_tracker.py"}
+    ]}]}})
+    assert audit_global_plugin(settings)["success"] is True
+
+
+@pytest.mark.parametrize("payload", ["{", "[]", '{"hooks": []}',
+                                      '{"hooks": {"SubagentStop": [{}]}}'])
+def test_global_plugin_audit_fails_closed_on_malformed_settings(temp_dir, payload):
+    settings = temp_dir / "settings.json"
+    settings.write_text(payload, encoding="utf-8")
+    before = settings.read_bytes()
+    result = audit_global_plugin(settings)
+    assert result["success"] is False
+    assert result["conflicts"] == []
+    assert settings.read_bytes() == before
+
+
+def test_global_plugin_audit_recognizes_args_form(monkeypatch, temp_dir):
+    plugin_root = temp_dir / "plugin"
+    plugin_hooks = plugin_root / "hooks" / "hooks.json"
+    _write_json(plugin_hooks, {"hooks": {"PostToolUse": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": "python3",
+         "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/example.py"]}
+    ]}]}})
+    settings = temp_dir / "settings.json"
+    _write_json(settings, {"hooks": {"PostToolUse": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": "python3 ~/.claude/hooks/example.py"}
+    ]}]}})
+    monkeypatch.setattr("sync_settings_hooks._find_plugin_root", lambda: plugin_root)
+    result = audit_global_plugin(settings)
+    assert result["success"] is False
+    assert result["conflicts"][0]["basename"] == "example.py"
+
+
+def test_global_plugin_audit_does_not_flag_disjoint_literal_matchers(monkeypatch, temp_dir):
+    plugin_root = temp_dir / "plugin"
+    _write_json(plugin_root / "hooks" / "hooks.json", {"hooks": {"PreToolUse": [{
+        "matcher": "Task|Agent", "hooks": [{"type": "command", "command": "python3",
+        "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/example.py"]}],
+    }]}})
+    settings = temp_dir / "settings.json"
+    _write_json(settings, {"hooks": {"PreToolUse": [{
+        "matcher": "Bash", "hooks": [{"type": "command",
+        "command": "python3 ~/.claude/hooks/example.py"}],
+    }]}})
+    monkeypatch.setattr("sync_settings_hooks._find_plugin_root", lambda: plugin_root)
+    assert audit_global_plugin(settings)["success"] is True
+
+
+@pytest.mark.parametrize("command", [
+    "echo ~/.claude/hooks/unified_session_tracker.py",
+    "python3 -c 'print(\"~/.claude/hooks/unified_session_tracker.py\")'",
+])
+def test_global_plugin_audit_does_not_treat_mentions_as_callbacks(temp_dir, command):
+    settings = temp_dir / "settings.json"
+    _write_json(settings, {"hooks": {"SubagentStop": [{
+        "matcher": "*", "hooks": [{"type": "command", "command": command}],
+    }]}})
+    result = audit_global_plugin(settings)
+    assert result["success"] is True
+    assert result["conflicts"] == []
+    assert "activation and wrappers unverified" in result["scope"]
+
+
+def test_global_plugin_audit_cli_is_read_only_and_exits_nonzero(temp_dir):
+    settings = temp_dir / "settings.json"
+    _write_json(settings, {"hooks": {"SubagentStop": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": "python3 ~/.claude/hooks/unified_session_tracker.py"}
+    ]}]}})
+    before = settings.read_bytes()
+    script = REPO_ROOT / "plugins" / "autonomous-dev" / "scripts" / "sync_settings_hooks.py"
+    run = subprocess.run([sys.executable, str(script), "--audit-global-plugin",
+                          "--global-settings", str(settings)], capture_output=True, text=True)
+    assert run.returncode == 1
+    assert json.loads(run.stdout)["success"] is False
+    assert settings.read_bytes() == before
+
+
+def test_global_plugin_audit_fails_closed_on_malformed_plugin(monkeypatch, temp_dir):
+    plugin_root = temp_dir / "plugin"
+    plugin_hooks = plugin_root / "hooks" / "hooks.json"
+    _write_json(plugin_hooks, {"description": "missing hooks"})
+    monkeypatch.setattr("sync_settings_hooks._find_plugin_root", lambda: plugin_root)
+    result = audit_global_plugin(temp_dir / "missing-settings.json")
+    assert result["success"] is False
 
 
 # --- Fixtures ---
@@ -238,7 +350,8 @@ class TestReplaceHooks:
         assert settings_path.exists()
         data = json.loads(settings_path.read_text())
         assert "hooks" in data
-        assert len(data["hooks"]) == 8
+        # PostToolUse logger and SubagentStop tracker moved to plugin hooks.
+        assert len(data["hooks"]) == 6
 
     def test_replaces_hooks_preserving_user_config(self, temp_dir, global_template):
         """Existing settings with user config -> preserved after replace."""
@@ -272,22 +385,14 @@ class TestReplaceHooks:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
 
-        # User permission entries preserved (untouched) -- but NOTE:
-        # `allow`/`ask` are left alone; `deny` is deliberately NOT a "user
-        # customization" surface. Since commit 320d4ce0 (#814) and
-        # reinforced by the Issue #1409 Write->Edit deny-pattern migration,
-        # `_replace_hooks` wholesale-syncs `permissions.deny` from the
-        # canonical `settings_generator.DEFAULT_DENY_LIST` on every deploy
-        # specifically so stale/invalid/missing security patterns cannot
-        # persist -- a purely custom entry like "Bash(custom:danger)" that
-        # isn't part of the canonical list does not survive a sync.
-        # Retargeted 2026-08-23; see docstring of sync_settings_hooks.py.
+        # Canonical deny rules are added while valid consumer denials survive.
         assert "CustomTool" in data["permissions"]["allow"]
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
+        assert data["permissions"]["deny"] == list(dict.fromkeys(
+            _get_canonical_deny_list() + existing["permissions"]["deny"]
+        ))
 
-        # Template hooks replaced entirely
-        assert len(data["hooks"]) == 8
+        # Plugin-owned callbacks are migrated; unrelated consumer hook survives.
+        assert len(data["hooks"]) == 6
 
     def test_dry_run_no_write(self, temp_dir, global_template):
         """Dry-run computes but does not write."""
@@ -330,7 +435,7 @@ class TestGlobalMode:
         assert settings_path.exists()
         data = json.loads(settings_path.read_text())
         assert "hooks" in data
-        assert len(data["hooks"]) == 8
+        assert len(data["hooks"]) == 6
 
     def test_global_mode_preserves_user_config(self, temp_dir, global_template):
         """Existing settings with user config -> preserved after sync."""
@@ -364,14 +469,12 @@ class TestGlobalMode:
         assert "enabledPlugins" in data
         assert "my-plugin" in data["enabledPlugins"]
         assert "CustomTool" in data["permissions"]["allow"]
-        # `deny` is synced wholesale from the canonical DEFAULT_DENY_LIST on
-        # every sync (Issue #814/#1409) -- a purely custom entry does not
-        # survive. Retargeted 2026-08-23; see TestReplaceHooks equivalent.
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(custom:danger)" not in data["permissions"]["deny"]
+        assert data["permissions"]["deny"] == list(dict.fromkeys(
+            _get_canonical_deny_list() + existing["permissions"]["deny"]
+        ))
 
-        # Template hooks replaced
-        assert len(data["hooks"]) == 8
+        # Native plugin owns the migrated callbacks.
+        assert len(data["hooks"]) == 6
 
 
 class TestRepoMode:
@@ -390,10 +493,10 @@ class TestRepoMode:
         assert result["success"] is True
         data = json.loads(settings_path.read_text())
         assert "PreToolUse" in data["hooks"]
-        assert "PostToolUse" in data["hooks"]
+        assert "PostToolUse" not in data["hooks"]  # migrated to hooks.json
         assert "UserPromptSubmit" in data["hooks"]
         assert "Stop" in data["hooks"]
-        assert len(data["hooks"]) == 4
+        assert len(data["hooks"]) == 3
 
 
 class TestIdempotency:
@@ -451,7 +554,7 @@ class TestMigration:
     """Tests for hook replacement of old hooks."""
 
     def test_old_hooks_replaced(self, temp_dir, global_template):
-        """Old/deprecated hooks are replaced entirely by template hooks."""
+        """Unknown legacy-looking callbacks are preserved, not silently deleted."""
         template_path = temp_dir / "template.json"
         _write_json(template_path, global_template)
 
@@ -484,13 +587,10 @@ class TestMigration:
         assert result["success"] is True
 
         data = json.loads(settings_path.read_text())
-        # Verify old hooks are gone (replaced by template)
-        for event_hooks in data["hooks"].values():
-            for matcher_config in event_hooks:
-                for hook in matcher_config.get("hooks", []):
-                    cmd = hook.get("command", "")
-                    assert "pre_tool_use.py" not in cmd
-                    assert "enforce_implementation_workflow.py" not in cmd
+        commands = [hook.get("command", "") for entries in data["hooks"].values()
+                    for entry in entries for hook in entry.get("hooks", [])]
+        assert "python3 ~/.claude/hooks/pre_tool_use.py" in commands
+        assert "python3 ~/.claude/hooks/enforce_implementation_workflow.py" in commands
 
 
 class TestErrorHandling:
@@ -547,13 +647,10 @@ class TestPermissions:
         assert result["success"] is True
         data = json.loads(settings_path.read_text())
 
-        # User permission entries preserved (untouched - replace only touches
-        # hooks) EXCEPT `deny`, which is deliberately re-synced wholesale
-        # from the canonical DEFAULT_DENY_LIST on every deploy (Issue
-        # #814/#1409) so a purely custom entry does not survive.
-        # Retargeted 2026-08-23; see TestReplaceHooks for full rationale.
+        # Valid consumer permissions survive alongside canonical deny rules.
         assert "CustomUserTool" in data["permissions"]["allow"]
         assert "MyMCPTool" in data["permissions"]["allow"]
-        assert data["permissions"]["deny"] == _get_canonical_deny_list()
-        assert "Bash(my-custom-deny)" not in data["permissions"]["deny"]
+        assert data["permissions"]["deny"] == list(dict.fromkeys(
+            _get_canonical_deny_list() + existing["permissions"]["deny"]
+        ))
         assert "Bash(git push:*)" in data["permissions"]["ask"]

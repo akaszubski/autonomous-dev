@@ -28,13 +28,11 @@ from security_utils import (
     audit_log
 )
 from validation import validate_message
+from agent_ordering_gate import is_known_pipeline_agent
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
     from .tracker import AgentTracker
-
-# Import models for EXPECTED_AGENTS
-from .models import EXPECTED_AGENTS
 
 
 class StateManager:
@@ -190,13 +188,11 @@ class StateManager:
         # Validate message (length + control characters)
         message = validate_message(message, purpose="agent start")
 
-        # Additional membership check for EXPECTED_AGENTS (business logic, not security)
-        is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
-        if not is_test_mode and agent_name not in EXPECTED_AGENTS:
+        # Business membership uses the existing canonical role owner.
+        if not is_known_pipeline_agent(agent_name):
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
-                f"Agent not recognized in EXPECTED_AGENTS list.\n"
-                f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
+                "Agent is not a known owned pipeline role."
             )
 
         entry = {
@@ -249,12 +245,10 @@ class StateManager:
             github_issue = validate_github_issue(github_issue, purpose="agent completion")
 
         # Additional membership check for EXPECTED_AGENTS (business logic, not security)
-        is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
-        if not is_test_mode and agent_name not in EXPECTED_AGENTS:
+        if not is_known_pipeline_agent(agent_name):
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
-                f"Agent not recognized in EXPECTED_AGENTS list.\n"
-                f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
+                "Agent is not a known owned pipeline role."
             )
 
         # Find the agent's entry (may have multiple starts if restarted)
@@ -335,12 +329,10 @@ class StateManager:
         message = validate_input_length(message, 10000, "message", purpose="agent failure")
 
         # Additional membership check for EXPECTED_AGENTS (business logic, not security)
-        is_test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
-        if not is_test_mode and agent_name not in EXPECTED_AGENTS:
+        if not is_known_pipeline_agent(agent_name):
             raise ValueError(
                 f"Unknown agent: '{agent_name}'\n"
-                f"Agent not recognized in EXPECTED_AGENTS list.\n"
-                f"Valid agents: {', '.join(EXPECTED_AGENTS)}"
+                "Agent is not a known owned pipeline role."
             )
 
         # Find the agent's entry

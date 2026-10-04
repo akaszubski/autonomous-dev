@@ -31,6 +31,289 @@ sys.path.insert(
 import session_activity_logger as sal
 
 
+@pytest.mark.parametrize("level", ["false", "debug"])
+@pytest.mark.parametrize("tool", ["mcp__actual__write", "Agent"])
+def test_failure_callback_whole_subprocess_is_bounded(tmp_path, level, tool):
+    import subprocess
+    carriers = [tmp_path / "dispatch.json", tmp_path / "completion.json"]
+    for carrier in carriers:
+        carrier.write_bytes(b'{"existing_authority":"unchanged"}\n')
+    before = [carrier.read_bytes() for carrier in carriers]
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "failure-owner",
+               "tool_use_id": "toolu_failure", "tool_name": tool, "is_interrupt": False,
+               "error": "LITERAL_SECRET_FAILURE", "tool_input": {"secret": "RUNTIME_SECRET_FAILURE"}}
+    script = '''import sys,json
+from pathlib import Path
+sys.path.insert(0,sys.argv[1]);import session_activity_logger as s
+s._find_log_dir=lambda:Path(sys.argv[2])
+def forbidden(*a,**k): raise AssertionError("authority must not be touched")
+import agent_dispatch_sentinel as a;a.refresh=forbidden
+import pipeline_completion_state as p;p.join_native_agent_result=forbidden
+a._path=lambda *args,**kwargs:Path(sys.argv[2])/"dispatch.json"
+p._state_file_path=lambda *args,**kwargs:Path(sys.argv[2])/"completion.json"
+s.main()
+'''
+    result = subprocess.run([sys.executable, "-B", "-c", script,
+                             str(Path(sal.__file__).parent), str(tmp_path)],
+                            input=json.dumps(payload), text=True, capture_output=True,
+                            env={**os.environ, "ACTIVITY_LOGGING": level,
+                                 "CLAUDE_SESSION_ID": "foreign-ambient-owner"}, timeout=10)
+    assert result.returncode == 0
+    envelope = json.loads(result.stdout)
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace == {"hook_event_name": "PostToolUseFailure", "session_id": "failure-owner",
+                     "tool_use_id": "toolu_failure"}
+    rows = [json.loads(x) for x in next(tmp_path.glob("*.jsonl")).read_text().splitlines()]
+    assert len(rows) == 1 and rows[0]["success"] is False
+    assert rows[0]["tool"] == tool and rows[0]["is_interrupt"] is False
+    exported = result.stdout + result.stderr + json.dumps(rows)
+    assert "LITERAL_SECRET_FAILURE" not in exported and "RUNTIME_SECRET_FAILURE" not in exported
+    assert "run_id" not in rows[0] and "input_summary" not in rows[0]
+    assert [carrier.read_bytes() for carrier in carriers] == before
+
+
+@pytest.mark.parametrize("field,value", [("session_id", None), ("tool_use_id", "x" * 129),
+    ("tool_name", "bad\nname"), ("is_interrupt", "false")])
+def test_failure_callback_invalid_identity_is_inert(tmp_path, capsys, field, value):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Agent", "is_interrupt": False}
+    payload[field] = value
+    with patch("sys.stdin", StringIO(json.dumps(payload))), patch.object(sal, "_find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit) as exc:
+            sal.main()
+    assert exc.value.code == 0 and capsys.readouterr().out == ""
+    assert not list(tmp_path.glob("*.jsonl"))
+
+
+def test_failure_observer_mode_refuses_before_failure_logging(tmp_path, capsys):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Bash"}
+    with patch("sys.argv", ["logger", "--test-observer"]), patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch.object(sal, "_find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit) as exc:
+            sal.main()
+    assert exc.value.code == 2 and capsys.readouterr().out == ""
+    assert not list(tmp_path.glob("*.jsonl"))
+
+
+def test_failure_logger_fault_never_exports_exception_source(tmp_path, capsys, monkeypatch):
+    payload = {"hook_event_name": "PostToolUseFailure", "session_id": "actual-owner",
+               "tool_use_id": "actual-tool", "tool_name": "Agent"}
+    def fault():
+        raise RuntimeError("LITERAL_SECRET_FAILURE_FAULT")
+    monkeypatch.setattr(sal, "_find_log_dir", fault)
+    with patch("sys.stdin", StringIO(json.dumps(payload))):
+        with pytest.raises(SystemExit):
+            sal.main()
+    exported = capsys.readouterr()
+    assert "LITERAL_SECRET_FAILURE_FAULT" not in exported.out + exported.err
+
+
+def _observer_payload():
+    return {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+            "session_id": "native-owner", "tool_use_id": "toolu_actual",
+            "cwd": "/work/consumer", "tool_input": {
+                "command": ": autonomous-dev-test-observer", "description": "Request observation"}}
+
+
+def test_observer_recognition_is_only_correlation():
+    assert sal.recognize_test_observer_request(_observer_payload()) == {
+        "session_id": "native-owner", "tool_use_id": "toolu_actual", "cwd": "/work/consumer"}
+
+
+@pytest.mark.parametrize("command", ["echo : autonomous-dev-test-observer",
+    ": autonomous-dev-test-observer | cat", "env X=1 : autonomous-dev-test-observer",
+    ": autonomous-dev-test-observer > receipt", ": autonomous-dev-test-observer candidate",
+    ": autonomous-dev-test-observer\n", " : autonomous-dev-test-observer"])
+def test_observer_rejects_command_lookalikes(command):
+    payload = _observer_payload()
+    payload["tool_input"]["command"] = command
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("field,value", [("session_id", ""), ("tool_use_id", None),
+    ("cwd", "relative"), ("cwd", "/work\nspoof"), ("hook_event_name", "PreToolUse"),
+    ("tool_name", "Skill")])
+def test_observer_rejects_invalid_native_correlation(field, value):
+    payload = _observer_payload()
+    payload[field] = value
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("field", ["phase", "path", "run_id", "manifest", "timeout"])
+def test_observer_rejects_actor_selectors(field):
+    payload = _observer_payload()
+    payload["tool_input"][field] = "actor-controlled"
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+def test_observer_negative_detects_always_recognize_mutant(monkeypatch):
+    monkeypatch.setattr(sal, "recognize_test_observer_request", lambda payload: {"session_id": "forged"})
+    with pytest.raises(AssertionError):
+        test_observer_rejects_command_lookalikes("echo : autonomous-dev-test-observer")
+
+
+@pytest.mark.parametrize("value", [None, 5, "bad\nmetadata", "x" * 1001])
+def test_observer_rejects_invalid_description(value):
+    payload = _observer_payload()
+    payload["tool_input"]["description"] = value
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+def test_observer_rejects_top_level_phase():
+    payload = _observer_payload()
+    payload["phase"] = "candidate"
+    assert sal.recognize_test_observer_request(payload) is None
+
+
+@pytest.mark.parametrize("raw,args", [("", []), ("{bad", []),
+    ("[]", []), ("true", []), ("null", []),
+    (json.dumps(_observer_payload()), ["candidate"])])
+def test_explicit_observer_invalid_input_is_nonpass(monkeypatch, raw, args, capsys):
+    monkeypatch.setattr(sys, "argv", ["logger", "--test-observer", *args])
+    monkeypatch.setattr(sys, "stdin", StringIO(raw))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 2
+    assert not capsys.readouterr().out
+
+
+def test_inert_observer_does_not_import_store_or_execute(monkeypatch):
+    import builtins
+    import subprocess
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name in {"pipeline_completion_state", "pipeline_state", "test_runner", "subprocess"}:
+            pytest.fail(f"Inert recognition imported execution/store owner: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: pytest.fail("Inert recognition executed child"))
+    monkeypatch.setattr(sys, "argv", ["logger", "--test-observer"])
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(_observer_payload())))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: pytest.fail("Inert recognition published logs"))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 0
+
+
+def test_ordinary_logger_still_logs_fixed_literal(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["session_activity_logger.py"])
+    monkeypatch.setenv("ACTIVITY_LOGGING", "true")
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(_observer_payload())))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: tmp_path)
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == 0
+    assert list(tmp_path.glob("*.jsonl"))
+
+
+@pytest.mark.parametrize("valid,expected", [(True, 0), (False, 2)])
+def test_explicit_observer_mode_precedes_logging_optout(monkeypatch, valid, expected):
+    payload = _observer_payload()
+    if not valid:
+        payload["tool_input"]["command"] += " candidate"
+    monkeypatch.setenv("ACTIVITY_LOGGING", "false")
+    monkeypatch.setattr(sys, "argv", ["session_activity_logger.py", "--test-observer"])
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(payload)))
+    monkeypatch.setattr(sal, "_find_log_dir", lambda: pytest.fail("Inert observer must not log/publish"))
+    with pytest.raises(SystemExit) as result:
+        sal.main()
+    assert result.value.code == expected
+
+
+@pytest.mark.parametrize("tool", ["Read", "Edit", "Write", "Bash", "Skill", "mcp__actual__tool"])
+def test_issue_1807_post_builtin_trace_without_agent_credit(tmp_path, monkeypatch, capsys, tool):
+    import pipeline_completion_state as pcs
+    def forbidden(*args, **kwargs):
+        pytest.fail("Builtin callback must not use Agent completion/reservation APIs")
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", forbidden)
+    monkeypatch.setattr(pcs, "join_native_agent_result", forbidden)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": tool,
+               "session_id": "actual-owner", "tool_use_id": "actual-builtin-call", "tool_input": {}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    envelope = json.loads(capsys.readouterr().out)
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace["tool_use_id"] == payload["tool_use_id"]
+    assert trace["session_id"] == payload["session_id"]
+    assert "run_id" not in trace
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert entry["tool"] == tool
+
+
+@pytest.mark.parametrize("tool_id", [None, "", "x" * 129, "bad\nID", {}])
+def test_issue_1807_post_invalid_id_does_not_fabricate_trace(tmp_path, capsys, tool_id):
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Skill",
+               "session_id": "actual-owner", "tool_use_id": tool_id, "tool_input": {}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    assert capsys.readouterr().out == ""
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert "tool_use_id" not in entry
+
+
+@pytest.mark.parametrize("verified_run", [None, "verified-current-run"])
+def test_post_tooluse_preserves_native_raw_ids(tmp_path, monkeypatch, verified_run, capsys):
+    import pipeline_completion_state as pcs
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", lambda sid, tid: verified_run)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Agent",
+               "session_id": "native-owner", "tool_use_id": "actual-tool",
+               "tool_input": {}, "tool_response": {"agentId": "actual-child",
+                                                        "status": "completed"}}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    entry = json.loads(next(tmp_path.glob("*.jsonl")).read_text().splitlines()[0])
+    assert entry["tool"] == "Agent"
+    assert entry["tool_use_id"] == "actual-tool"
+    assert entry["agent_id"] == "actual-child"
+    if verified_run:
+        assert entry["run_id"] == verified_run
+    else:
+        assert "run_id" not in entry
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["continue"] is True
+    trace = json.loads(envelope["systemMessage"].split(" ", 1)[1])
+    assert trace["hook_event_name"] == "PostToolUse"
+    assert trace["tool_use_id"] == "actual-tool"
+    assert trace["agent_id"] == "actual-child"
+    assert trace.get("run_id") == verified_run
+
+
+@pytest.mark.parametrize("literal", [False, True])
+def test_native_telemetry_exception_does_not_emit_raw_secret(tmp_path, monkeypatch, caplog, literal):
+    import pipeline_completion_state as pcs
+    secret_marker = "INJECTED_SECRET_MARKER"
+    def fail(*args):
+        if literal:
+            raise RuntimeError("INJECTED_SECRET_MARKER")
+        raise RuntimeError(secret_marker)
+    monkeypatch.setattr(pcs, "get_native_agent_run_id", fail)
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Agent",
+               "session_id": "owner", "tool_use_id": "actual-tool"}
+    with patch.dict(os.environ, {"ACTIVITY_LOGGING": "true"}), \
+         patch("sys.stdin", StringIO(json.dumps(payload))), \
+         patch("session_activity_logger._find_log_dir", return_value=tmp_path):
+        with pytest.raises(SystemExit):
+            sal.main()
+    assert "INJECTED_SECRET_MARKER" not in caplog.text
+    assert "native correlation failure" in caplog.text
+    assert "fail" in caplog.text
+    assert caplog.records[-1].exc_info[2] is None
+
 class TestSummarizeInput:
     """Test input summarization for different tool types."""
 
@@ -270,7 +553,7 @@ class TestMainPostToolUse:
         assert len(log_files) == 1
         entry = json.loads(log_files[0].read_text().splitlines()[0])
         assert entry["tool"] == "Read"
-        assert entry["session_id"] == "test123"
+        assert entry["session_id"] == "unknown"
         assert "timestamp" in entry
 
     def test_debug_mode(self, tmp_path):
@@ -490,7 +773,7 @@ class TestPostToolUseHookField:
                         sal.main()
 
         entry = json.loads(list(log_dir.glob("*.jsonl"))[0].read_text().splitlines()[0])
-        assert entry["session_id"] == "from-env"
+        assert entry["session_id"] == "from-hook-input"
 
 
 class TestSessionDatePinning:
@@ -770,6 +1053,7 @@ class TestAgentEventPriority:
         log_dir = tmp_path / ".claude" / "logs" / "activity"
         hook_input = json.dumps({
             "tool_name": "Agent",
+            "session_id": "priority-agent",
             "tool_input": {"description": "research", "subagent_type": "researcher", "prompt": "find patterns"},
             "tool_output": {"output": "found patterns"},
         })
@@ -985,8 +1269,8 @@ class TestSessionActivityLoggerPreToolUseCaching:
         assert popped["description"] == "fix bug"
         assert before <= popped["start_time"] <= after
 
-    def test_pretool_agent_caches_subagent_type(self, tmp_path, monkeypatch):
-        """PreToolUse for tool_name=Agent (newer Claude Code) also caches."""
+    def test_pretool_agent_observer_does_not_create_fifo_credit(self, tmp_path, monkeypatch):
+        """Native reservation belongs to the final guard, never this observer."""
         import subagent_invocation_cache as sic
         monkeypatch.setattr(
             sic,
@@ -1007,8 +1291,7 @@ class TestSessionActivityLoggerPreToolUseCaching:
                     sal.main()
 
         popped = sic.pop_invocation("pre-agent-1")
-        assert popped is not None
-        assert popped["subagent_type"] == "reviewer"
+        assert popped is None
 
     def test_pretool_non_agent_tool_does_not_cache(self, tmp_path, monkeypatch):
         """PreToolUse for non-Task/Agent tools (e.g. Read) does NOT cache."""

@@ -9,6 +9,10 @@ allowed-tools: [Agent, Read, Write, Edit, Bash, Grep, Glob, mcp__searxng__search
 
 # FIX MODE
 
+## Native Agent Completion Protocol (Issue #1807)
+
+Every specialist Agent call MUST explicitly use `run_in_background: false`. After each successful foreground return, verify the current-run completion receipt for the exact `tool_use_id`, agent type, and run from native PostToolUse before the next dispatch or commit. Native PreToolUse refuses a second dispatch while that receipt is pending or failed. A failed result has no receipt: block this run and recover in a fresh run. The coordinator MUST NOT write completion credit; agent output and SubagentStop telemetry do not substitute for the receipt. Doc-master's verdict is recorded separately from completion credit. Historical parallel validator instructions yield to this serial native gate.
+
 > The key words "MUST", "MUST NOT", "SHOULD", and "MAY" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 
 Minimal pipeline (5 steps, 4 agents minimum) for test-fixing tasks.
@@ -86,98 +90,87 @@ Read `.claude/PROJECT.md`. If missing: BLOCK ("Run `/setup` or `/align --retrofi
 
 #### Pipeline State Initialization (Before Alignment Verdict)
 
-Initialize the fix-mode pipeline state file BEFORE running the alignment gate protocol below, so that `record_alignment_verdict` (Issue #1467) writes `alignment_passed` and `alignment_verdict` into an existing state file. This also ensures hook enforcement (prompt integrity, pipeline ordering) is active during fix mode.
-
-**Issue #1807 — this block binds the OWNER and the RUN before any specialist is dispatched, and FAILS CLOSED when it cannot.** The pre-#1807 version wrote `{mode, explicitly_invoked, start_time}`: no owner, no run id, unsigned. Three consequences, all measured: `ensure_sentinel_heartbeat` treated the absent owner as recoverable and replaced the whole run-bearing state with `{session_id, recovered, recovered_at}`; the MAC (which did not cover `session_id` either) bound nobody; and with no `run_id` there was no run-start receipt to corroborate, so `verify_state_hmac` degraded to the shared `unknown` secret. Full-mode STEP 0 already did all three things this block now does — the missing owner was a fix-mode-only divergence, so this restores parity rather than adding a mechanism.
+Resolve `ISSUE_NUMBER` with the canonical native parser before F1; this is the
+same issue scope used by the typed UserPromptExpansion hook. A non-issue number
+in the fix description must not become the run issue.
 
 ```bash
-# Issue #1807: run identity for fix mode. RUN_ID is the SAME variable name
-# implement.md STEP 0 exports — one spelling per concept. It is deliberately NOT
-# PIPELINE_STATE_FILE or a CLAUDE_* name: assigning a protected variable inline
-# is refused by the #557/#606 spoofing guard, and that guard is not to be widened.
-RUN_ID="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
-export RUN_ID
-python3 -c "
-import sys, os, time
+ISSUE_NUMBER=$(python3 -c "
+import os, sys
 for _p in ('.claude/lib', 'plugins/autonomous-dev/lib', os.path.expanduser('~/.claude/lib')):
     if os.path.isdir(_p):
         sys.path.insert(0, _p)
         break
-# ATOMIC (Issue #1384). open(path,'w') truncates at OPEN time, so a kill
-# between the open and the json.dump left a 0-BYTE sentinel with the prior
-# content already gone; ensure_sentinel_heartbeat() then failed json.loads and
-# recreated it as a bare {session_id, recovered, recovered_at}, which
-# _is_pipeline_active() classifies NOT-active by design.
-#
-# PRECONDITION, load-bearing and deliberate: atomic_write_json requires the
-# PARENT DIRECTORY to exist and raises OSError from mkstemp if it does not.
-# There is NO 'mkdir -p' here and NO 'export PIPELINE_STATE_FILE' anywhere in
-# this file (implement-batch.md deliberately has neither either, and every one
-# of its blocks resolves the same default independently). Fix mode relies
-# instead on get_legacy_sentinel_path() creating <repo>/.claude/local/ as a
-# side effect of resolving the CANONICAL path, which is passed here as an
-# EXPLICIT function argument. Do NOT add 'export PIPELINE_STATE_FILE'.
-from pathlib import Path
-from pipeline_state import atomic_write_json, get_legacy_sentinel_path, sign_state
-from pipeline_completion_state import is_synthetic_session_id, record_run_start
-sentinel = Path(os.environ.get('PIPELINE_STATE_FILE', str(get_legacy_sentinel_path())))
-# NEW-RUN ORIGINATION takes its owner from a NATIVE CARRIER ONLY (Issue #1807):
-# the session id the harness delivered in this process's environment. It
-# deliberately does NOT call resolve_session_id() here, whose chain falls back to
-# the EXISTING sentinel's session_id and then to the activity log. Those fallbacks
-# are mid-run RECOVERY conveniences for a run that already exists; as an
-# origination source they would let a stale-but-real-shaped owner from a PREVIOUS
-# run be rebound to a NEW run — every binding looking right while the owner is not
-# the current session. Rejecting only synthetic spellings does not catch that,
-# because the stale id is genuinely shaped.
-sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
-if is_synthetic_session_id(sid):
-    print('BLOCKED (STEP F1, Issue #1807): no native session id is present in this process (CLAUDE_SESSION_ID / CLAUDE_CODE_SESSION_ID absent, blank or synthetic), so this run has no owner to bind and NOTHING was written. REQUIRED NEXT ACTION: re-run /implement --fix from a session where the CLI supplies the session id. Do NOT read the owner from the existing sentinel, do NOT supply one from memory, and do NOT hand-write the sentinel.', file=sys.stderr)
-    sys.exit(1)
-# Run-start receipt, BEFORE any specialist dispatch (Issue #1045 + #1807). The
-# signed sentinel alone is mintable by this very caller; the receipt is the
-# second carrier classify_current_run_authority() requires.
-if not record_run_start(sid, '$RUN_ID'):
-    print('[RUN-START-FAILED run_id=$RUN_ID] fix mode cannot proceed without a run-start receipt (Issue #1807).', file=sys.stderr)
-    sys.exit(1)
-# Issue #1807 (all-six binding): issue_number and subject are signed too, so the
-# sentinel is tamper-evident across every required binding. Read from the
-# environment with '' defaults — never crash if the coordinator did not export
-# them, and never interpolate untrusted text into this source (a description with
-# a quote cannot break the literal). issue_number is recovered from here at F3.
-state = {'mode': 'fix', 'explicitly_invoked': True, 'start_time': int(time.time()), 'session_start': '$(date +%Y-%m-%dT%H:%M:%S)', 'run_id': '$RUN_ID', 'session_id': sid, 'issue_number': os.environ.get('ISSUE_NUMBER', ''), 'subject': os.environ.get('FEATURE_DESCRIPTION', '')}
-state = sign_state(state, sid)
-atomic_write_json(sentinel, state)
-# Issue #1807 (A7/A9): CONSUME the native-origin witness, if the runtime recorded
-# one when this command was typed. This is the only place the witness (minted
-# before any run id existed) is bound to this run. It is a SILENT no-op when there
-# is no witness, which is the model-owned bootstrap path below — additive, never a
-# gate, and it cannot CREATE origin: only a native hook writes a witness.
-try:
-    from pipeline_completion_state import NATIVE_ORIGIN_BINDING_KEYS, append_native_origin_progression
-    append_native_origin_progression(sid, {k: state.get(k, '') for k in NATIVE_ORIGIN_BINDING_KEYS}, event='run-bound')
-except ImportError:
-    pass
-print('Pipeline state initialized for fix mode: run=' + state['run_id'] + ' owner=' + sid)
-"
+from pipeline_completion_state import extract_native_issue_number
+number = extract_native_issue_number(sys.argv[1])
+print(number if number is not None else '')
+" "ARGUMENTS") || exit 1
+export ISSUE_NUMBER
 ```
 
-**ORIGIN CLASSIFICATION of this block (Issue #1807 A7/A9)**: this is MODEL-OWNED bootstrap. `classify_current_run_authority` reports `RunOrigin.MODEL_BOOTSTRAP` for a run initialized only from here, and that stays a fully AUTHORIZED run — the origin level is strictly additive. It is classified as bootstrap because the principal the controls constrain is the one writing the carriers. Only `hooks/native_run_origin.py`, invoked by the runtime on a TYPED `/implement --fix`, can produce `RunOrigin.TYPED_USER_WITNESSED`. Do NOT write a witness from here, and do not treat a green origin verdict as provenance: the OS boundary that would make it unforgeable is not yet in place (A9 OPEN, UNMEASURED).
+The native UserPromptExpansion hook owns run creation and authentication. This
+model-side block only reads public correlation fields; it does not verify a MAC,
+read signing keys, mint a receipt, or authorize a dispatch. Native PreToolUse
+must independently authenticate the runtime owner before Agent use. This remains
+HOLD until installed guard registration and native qualification are proven.
+Missing or inconsistent native state stops the command; never bootstrap it here.
 
-This ensures prompt integrity enforcement (Layer 5) can detect an active pipeline and apply baseline shrinkage checks in addition to the minimum word count gate.
+```bash
+# NATIVE F1 ADOPTION START
+NATIVE_ADOPTION="$(python3 -c "
+import json, os, re, subprocess, sys
+from pathlib import Path
+try:
+    root = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip()).resolve()
+    path = root / '.claude' / 'local' / 'implement_pipeline_state.json'
+    override = os.environ.get('PIPELINE_STATE_FILE')
+    if override and Path(override).resolve() != path:
+        raise ValueError('PIPELINE_STATE_FILE differs from the native hook sentinel')
+    state = json.loads(path.read_text())
+    if not isinstance(state, dict):
+        raise ValueError('sentinel is not an object')
+    if state.get('mode') != 'fix':
+        raise ValueError('mode mismatch')
+    issue_raw = os.environ.get('ISSUE_NUMBER', '')
+    if issue_raw and (not issue_raw.isdecimal() or int(issue_raw) < 1):
+        raise ValueError('invalid issue number')
+    issue = int(issue_raw) if issue_raw else ''
+    if state.get('issue_number', '') != issue:
+        raise ValueError('issue mismatch')
+    if not isinstance(state.get('subject'), str) or not state['subject'].strip():
+        raise ValueError('subject missing')
+    base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+    if state.get('base_commit') != base:
+        raise ValueError('base commit mismatch')
+    owner = state.get('session_id')
+    if not isinstance(owner, str) or not owner.strip() or owner.startswith(('unknown', 'stop-', 'test-')):
+        raise ValueError('native owner unavailable')
+    sid = (os.environ.get('CLAUDE_SESSION_ID') or os.environ.get('CLAUDE_CODE_SESSION_ID') or '').strip()
+    if sid and sid != owner:
+        raise ValueError('owner mismatch')
+    run_id = state.get('run_id')
+    if not isinstance(run_id, str) or not re.fullmatch('[0-9a-f]{16}', run_id):
+        raise ValueError('run identity malformed')
+    print(run_id)
+except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as exc:
+    print('BLOCKED (STEP F1, Issue #1807): native run correlation failed: ' + str(exc) + '. Re-run the typed command after repairing the native initializer; do not write state here.', file=sys.stderr)
+    sys.exit(1)
+")" || exit 1
+# NATIVE F1 ADOPTION END
+RUN_ID="$NATIVE_ADOPTION"
+export RUN_ID
+```
 
-**FORBIDDEN (Issue #1807)**:
-- ❌ Writing this sentinel without `session_id` and `run_id` — an ownerless, runless state is what the SubagentStop heartbeat used to overwrite, and it authorizes nothing afterwards.
-- ❌ Proceeding when `resolve_session_id()` returns a synthetic id (`unknown`, `stop-N`, `test-*`). Fail closed and say so; never fill the owner in from the model's memory or from the chat transcript.
-- ❌ Repairing a sentinel that lost its identity by hand-writing the missing fields and re-signing. A valid HMAC after a coordinator rewrite proves a signing-capable API was used, not that the identity is authentic — the only valid outcome is a fresh run.
+Correlation success is not authorization or A9 proof. Full/fix native qualification
+is required separately; light, batch and resume qualification remains open.
 
-Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. Initialize the fix-mode pipeline state BEFORE the verdict step so record_alignment_verdict writes alignment_passed and alignment_verdict into it.
+Run the STEP 2 alignment gate protocol from implement.md (Stage 0 → alignment-classifier dispatch → record_alignment_verdict → verdict routing) using the fix description as the feature text. The native initializer must already have established the bound fix-mode state adopted above before the verdict step; if that state or its native authority is missing, BLOCK and diagnose the initializer. The coordinator must not initialize, reconstruct or sign state to make the verdict write succeed.
 
 This is the same alignment gate as the full pipeline STEP 1.
 
 #### Prompt Baseline Reset (Defensive — Issue #1088 F3)
 
-Before initializing pipeline state, clear any stale `prompt_baselines.json` from a prior session. /fix mode by design dispatches shorter, focused prompts; stale baselines from prior runs frequently exceed the 20% shrinkage threshold against fresh fix-mode prompts and produce false-positive integrity blocks.
+Before specialist dispatch, clear any stale `prompt_baselines.json` from a prior session. /fix mode by design dispatches shorter, focused prompts; stale baselines from prior runs frequently exceed the 20% shrinkage threshold against fresh fix-mode prompts and produce false-positive integrity blocks. This baseline reset does not initialize or authorize the native run.
 
 ```python
 import sys, os
@@ -547,7 +540,7 @@ The library function `validate_prompt_word_count(agent_type, prompt)` from `plug
 - Omitting file paths, test results, or diff context from the reviewer prompt
 - Invoking security-auditor with only the skeleton prompt template without the actual verbatim implementer output pasted in
 
-Invoke agents in PARALLEL. When security-auditor is REQUIRED, invoke all three simultaneously. When security-auditor is SKIP, invoke two (reviewer + doc-master):
+Invoke agents serially in foreground, verifying each exact native receipt before the next. When security-auditor is REQUIRED, invoke all three; when SKIP, invoke reviewer and doc-master:
 
 1. **Reviewer** (Sonnet): Review the fix for correctness, edge cases, and regressions.
 

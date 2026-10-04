@@ -20,7 +20,6 @@ import pytest
 HOOKS_DIR = Path(__file__).resolve().parents[3] / "plugins" / "autonomous-dev" / "hooks"
 sys.path.insert(0, str(HOOKS_DIR))
 
-import unified_pre_tool  # noqa: E402
 from unified_pre_tool import (  # noqa: E402
     _PLAN_EXIT_MARKER_PATH,
     _PLAN_EXIT_STALE_MINUTES,
@@ -34,18 +33,8 @@ from unified_pre_tool import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _force_in_adev_project(monkeypatch):
-    """Issue #938: existing tests assume in-project context.
-
-    The scope guard added in #938 short-circuits the gate when cwd is not
-    an autonomous-dev repo (tmp_path is not). Patch the detector wrapper
-    to True so legacy enforcement tests keep exercising in-project
-    behavior. Scope/escape variants are covered separately in the
-    TestScopeCheckIntegration class below.
-    """
-    monkeypatch.setattr(
-        unified_pre_tool, "_is_adev_project_fn", lambda: True
-    )
+def _clear_plan_review_environment(monkeypatch):
+    """Keep explicit escape settings out of default-ON consumer cases."""
     for var in (
         "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
         "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
@@ -1027,10 +1016,7 @@ class TestScopeCheckIntegration:
         """
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        # Simulate a foreign project — no longer a bypass condition.
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
+        # Actual foreign temporary cwd is no longer a bypass condition.
         for var in (
             "AUTONOMOUS_DEV_SKIP_PLAN_REVIEW",
             "AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT",
@@ -1055,9 +1041,6 @@ class TestScopeCheckIntegration:
         """AC-4: Foreign project + SKIP env var → escape hatch still works."""
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
         monkeypatch.setenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", "1")
 
         assert _check_plan_exit_native("Write", {"file_path": "x.py"}) is None
@@ -1069,9 +1052,6 @@ class TestScopeCheckIntegration:
         """AC-5: Foreign project + .claude/SKIP_PLAN_REVIEW → escape hatch still works."""
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
         (tmp_path / ".claude" / "SKIP_PLAN_REVIEW").write_text("")
         monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
 
@@ -1089,9 +1069,6 @@ class TestScopeCheckIntegration:
         """
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
         monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
         monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
 
@@ -1111,9 +1088,6 @@ class TestScopeCheckIntegration:
         """AC-6 + AC-7: MCP gate mirrors native gate — deprecation notice + enforcement."""
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
         monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
         monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
 
@@ -1152,9 +1126,6 @@ class TestScopeCheckIntegration:
         """Foreign project + GLOBAL_ENFORCEMENT=1 + marker → gate fires (deny)."""
         _write_marker(tmp_path, stage="plan_exited")
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(
-            unified_pre_tool, "_is_adev_project_fn", lambda: False
-        )
         monkeypatch.setenv("AUTONOMOUS_DEV_GLOBAL_ENFORCEMENT", "1")
         monkeypatch.delenv("AUTONOMOUS_DEV_SKIP_PLAN_REVIEW", raising=False)
 

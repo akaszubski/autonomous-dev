@@ -45,13 +45,13 @@ from typing import Dict, List, Any, Optional
 # Import security utilities
 try:
     from autonomous_dev.lib.security_utils import validate_path, audit_log
-    from autonomous_dev.lib.settings_merger import UNIFIED_HOOK_REPLACEMENTS
+    from autonomous_dev.lib.settings_merger import UNIFIED_HOOK_REPLACEMENTS, SettingsMerger
 except ImportError:
     # Fallback for direct script execution
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
     from security_utils import validate_path, audit_log
-    from settings_merger import UNIFIED_HOOK_REPLACEMENTS
+    from settings_merger import UNIFIED_HOOK_REPLACEMENTS, SettingsMerger
 
 
 # =============================================================================
@@ -732,14 +732,28 @@ class SettingsGenerator:
         # Return default deny list (from module constant)
         return list(DEFAULT_DENY_LIST)
 
-    def generate_settings(self, merge_with: Optional[Dict] = None) -> Dict:
+    def generate_settings(
+        self, merge_with: Optional[Dict] = None, *,
+        protected_write_paths: Optional[List[str]] = None,
+        protected_read_paths: Optional[List[str]] = None,
+        preserve_only: bool = False,
+    ) -> Dict:
         """Generate settings dictionary with all patterns and metadata.
 
         Args:
             merge_with: Optional existing settings to merge with
+            protected_write_paths: Trusted absolute protected paths/patterns for Edit rules.
+            protected_read_paths: Trusted absolute protected paths/patterns for Read rules.
+                These explicit provisioner inputs are not authenticated by this API.
+                No existing installation caller supplies them; activation remains separate.
+            preserve_only: Add only explicit protected denies to the supplied profile,
+                without default permissions or generated metadata. Requires an object.
 
         Returns:
             Settings dictionary ready for JSON serialization
+
+        Raises:
+            ValueError: Protected paths are malformed or stock allow policies conflict.
 
         Structure:
             {
@@ -754,8 +768,41 @@ class SettingsGenerator:
             }
         """
         # Build patterns
-        allow_patterns = self.build_command_patterns()
-        deny_patterns = self.build_deny_list()
+        if preserve_only:
+            if not isinstance(merge_with, dict):
+                raise ValueError("Preserve-only generation requires an existing settings object")
+            permissions = merge_with.get("permissions", {})
+            if not isinstance(permissions, dict) or (
+                "deny" in permissions and (
+                    not isinstance(permissions["deny"], list)
+                    or not all(isinstance(rule, str) for rule in permissions["deny"])
+                )
+            ):
+                raise ValueError("Existing permissions must be an object with a string deny list")
+        allow_patterns = [] if preserve_only else self.build_command_patterns()
+        deny_patterns = [] if preserve_only else self.build_deny_list()
+        # Retain lexical and canonical spellings: pinned native versions cannot
+        # be assumed to resolve symlink-directory rules. This performs no mkdir
+        # or carrier/key read and does not prove native alias containment.
+        for tool, paths in (("Edit", protected_write_paths), ("Read", protected_read_paths)):
+            if paths is None:
+                continue
+            if not isinstance(paths, (list, tuple)):
+                raise ValueError("Protected paths must be a sequence of absolute strings")
+            for path in paths:
+                if (not isinstance(path, str) or not path.startswith("/")
+                        or path == "/" or ".." in path.split("/")
+                        or any(char in path for char in "\x00\n\r()\\")
+                        or len(path) > 4096):
+                    raise ValueError("Protected path must be an unambiguous absolute path")
+                for spelling in (path, str(Path(path).resolve(strict=False))):
+                    rule = f"{tool}(/{spelling})"
+                    if rule not in deny_patterns:
+                        deny_patterns.append(rule)
+
+        if preserve_only:
+            additions = {"permissions": {"deny": deny_patterns}} if deny_patterns else {}
+            return SettingsMerger(str(self.plugin_dir))._merge_dicts(merge_with, additions)
 
         # Issue #1409: no Write(<path>) companions are emitted. Claude Code
         # "checks file permissions against Edit(path) and Read(path) rules
@@ -790,36 +837,9 @@ class SettingsGenerator:
 
         # Merge with existing settings if provided
         if merge_with:
-            # Preserve user hooks
-            if "hooks" in merge_with:
-                settings["hooks"] = merge_with["hooks"]
-
-            # Preserve user custom patterns (add to allow list)
-            if "permissions" in merge_with and "allow" in merge_with["permissions"]:
-                user_patterns = merge_with["permissions"]["allow"]
-                # Filter out generated patterns, keep only user's custom ones
-                custom_patterns = [
-                    p for p in user_patterns
-                    if p not in SAFE_COMMAND_PATTERNS
-                ]
-                # Add custom patterns to allow list
-                settings["permissions"]["allow"].extend(custom_patterns)
-
-                # Deduplicate
-                settings["permissions"]["allow"] = list(set(settings["permissions"]["allow"]))
-
-            # Preserve user deny patterns (union with defaults)
-            if "permissions" in merge_with and "deny" in merge_with["permissions"]:
-                user_denies = merge_with["permissions"]["deny"]
-                settings["permissions"]["deny"].extend(user_denies)
-
-                # Deduplicate
-                settings["permissions"]["deny"] = list(set(settings["permissions"]["deny"]))
-
-            # Preserve any other custom keys
-            for key, value in merge_with.items():
-                if key not in settings and key not in ["permissions"]:
-                    settings[key] = value
+            # One merge owner preserves nested permissions and arbitrary consumer
+            # fields. No generated hooks are supplied, so existing hooks stay intact.
+            settings = SettingsMerger(str(self.plugin_dir))._merge_dicts(merge_with, settings)
 
         return settings
 
@@ -880,19 +900,24 @@ class SettingsGenerator:
                     existing_content = output_path.read_text()
                     existing_settings = json.loads(existing_content)
                 except json.JSONDecodeError:
-                    # Corrupted JSON - backup and continue with fresh settings
+                    # Defer recovery backup until a replacement validates.
                     corrupted_backup = True
-                    backup_path = output_path.parent / f"{output_path.name}.corrupted"
-                    output_path.rename(backup_path)
 
-                    audit_log(
-                        "settings_generation",
-                        "corrupted_settings_backed_up",
-                        {
-                            "output_path": str(output_path),
-                            "backup_path": str(backup_path),
-                        },
-                    )
+            # Validate the complete candidate before moving any live settings.
+            settings = self.generate_settings(merge_with=existing_settings)
+
+            if corrupted_backup:
+                backup_path = output_path.parent / f"{output_path.name}.corrupted"
+                output_path.rename(backup_path)
+
+                audit_log(
+                    "settings_generation",
+                    "corrupted_settings_backed_up",
+                    {
+                        "output_path": str(output_path),
+                        "backup_path": str(backup_path),
+                    },
+                )
 
             # Step 3: Backup existing file if requested
             if backup and output_path.exists() and not corrupted_backup:
@@ -907,9 +932,6 @@ class SettingsGenerator:
                         "backup_path": str(backup_path),
                     },
                 )
-
-            # Step 4: Generate settings
-            settings = self.generate_settings(merge_with=existing_settings)
 
             # Step 5: Create parent directory if needed
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1121,6 +1143,41 @@ class SettingsGenerator:
                     {"error": str(e)}
                 )
 
+        # Plugin-owned native callbacks are registered by hooks/hooks.json.
+        # Remove only their exact legacy global commands before the general
+        # merge; otherwise an upgrade resurrects duplicate settings hooks.
+        from copy import deepcopy
+        template = deepcopy(template)
+        user_settings = deepcopy(user_settings)
+        for settings in (template, user_settings):
+            hooks = settings.get("hooks", {})
+            if not isinstance(hooks, dict):
+                continue
+            for event, entries in list(hooks.items()):
+                if not isinstance(entries, list):
+                    continue
+                kept = []
+                for entry in entries:
+                    if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                        kept.append(entry)
+                        continue
+                    matcher = entry.get("matcher", "")
+                    survivors = []
+                    for hook in entry["hooks"]:
+                        cmd = hook.get("command", "") if isinstance(hook, dict) else ""
+                        owned = (
+                            (event == "UserPromptExpansion" and cmd == "python3 ~/.claude/hooks/native_run_origin.py")
+                            or (event == "PreToolUse" and matcher == "Skill" and cmd == "python3 ~/.claude/hooks/native_run_origin.py")
+                            or (event == "PreToolUse" and matcher == "Task|Agent" and cmd == "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py")
+                            or (event == "PostToolUse" and cmd == "ACTIVITY_LOGGING=true python3 ~/.claude/hooks/session_activity_logger.py")
+                            or (event == "SubagentStop" and cmd == "python3 ~/.claude/hooks/unified_session_tracker.py")
+                        )
+                        if not owned:
+                            survivors.append(hook)
+                    if survivors:
+                        kept.append({**entry, "hooks": survivors})
+                hooks[event] = kept
+
         # Step 5: Merge settings
         merged = self._deep_merge_settings(template, user_settings, fix_wildcards)
 
@@ -1282,6 +1339,9 @@ class SettingsGenerator:
                     if isinstance(hook, dict):
                         if "hooks" in hook:
                             # Nested format - filter and merge inner hooks
+                            if not existing_hooks:
+                                existing_hooks.append(json.loads(json.dumps(hook)))
+                                continue
                             for inner_hook in hook.get("hooks", []):
                                 if isinstance(inner_hook, dict):
                                     cmd = inner_hook.get("command", "")
