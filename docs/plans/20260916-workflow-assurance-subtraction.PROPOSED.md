@@ -200,6 +200,18 @@ and its later lawful workflow/F0 requirements are unchanged. SDK init renders
 native `Agent` as `Task`; that display alias neither proves unavailability nor
 grants legacy calls native credit. This case correction grants no native attempt,
 valid-new-MAC, R0 or release acceptance.
+The 2026-10-04 reporter-only successor is not eligible for a native retry:
+it repairs lost diagnostics, not the missing dispatch. Independently reviewed
+offline work may correct the prerequisite protocol using the existing CLI's
+additive `--append-system-prompt` for each phase, retaining the exact typed
+INITIAL input, enabled command expansion, genuine initializer witness and all
+security/ordering gates. Freeze these as a changed argv/context profile, never
+relabel the existing prepared package; use the existing loader and verifier,
+not a new runner. INITIAL performs initialization only and RESUME performs the
+separate first-alignment task; neither supplies implementation-stage or F0
+credit. Source-supported additive semantics are not observed execution: actual
+native witness, child/read/receipt joins, independent exits and negative cases
+still determine acceptance, with changed-profile review before a reservation.
 The valid-new-MAC native case also remains open; nonce-only binding is not a
 complete substitute. A fresh disposable outside signing-fixture admission is
 proposed separately, without loosening actor permissions or granting proof credit.
