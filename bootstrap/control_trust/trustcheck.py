@@ -83,6 +83,8 @@ def parse_oracle(text):
             return None, ("ORACLE_MALFORMED", f"not an oracle field: {line[:60]!r}")
         if key == "selected":
             rec["selected"].append(value)
+        elif key in rec:
+            return None, ("ORACLE_MALFORMED", f"duplicate oracle field: {key}")
         else:
             rec[key] = value
     if rec.get("schema") != ORACLE_SCHEMA:
@@ -93,9 +95,18 @@ def parse_oracle(text):
     return rec, None
 
 
+def unique_receipt_fields(pairs):
+    fields = {}
+    for key, value in pairs:
+        if key in fields:
+            raise ValueError(f"duplicate receipt field: {key}")
+        fields[key] = value
+    return fields
+
+
 def parse_receipt(text):
     try:
-        doc = json.loads(text)
+        doc = json.loads(text, object_pairs_hook=unique_receipt_fields)
     except ValueError as exc:
         return None, ("CANDIDATE_MALFORMED", f"the receipt is not JSON: {exc}")
     if not isinstance(doc, dict) or doc.get("schema") != RECEIPT_SCHEMA:

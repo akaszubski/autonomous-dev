@@ -53,7 +53,8 @@ def _file(side, content):
         if content is None:
             target.unlink()
         else:
-            target.write_text(content, encoding="utf-8")
+            text = content(target.read_text("utf-8")) if callable(content) else content
+            target.write_text(text, encoding="utf-8")
         return orc, cand, nonce, dig
 
     return build
@@ -110,12 +111,8 @@ def _envelope(top=None, obs=None, drop=None):
     def build(tmp_path):
         orc, cand, nonce, dig, rec = _good(tmp_path)
         payload = {k: v for k, v in rec.items() if k != drop}
-        doc = json.loads(H.render_receipt(payload, top, obs))
-        for key, value in (top or {}).items():
-            if value is None:
-                doc.pop(key, None)
-        text = json.dumps(doc, sort_keys=True, indent=2) + "\n"
-        assert text != H.render_receipt(rec), "the mutation changed nothing"
+        text = H.render_receipt(payload, top, obs)
+        assert text != cand.read_text("utf-8"), "the mutation changed nothing"
         cand.write_text(text, encoding="utf-8")
         return orc, cand, nonce, dig
 
@@ -175,11 +172,13 @@ ARMS = [
     ("ORACLE_EMPTY", _file("oracle", ""), "ORACLE_EMPTY", None),
     ("CANDIDATE_EMPTY", _file("candidate", ""), "CANDIDATE_EMPTY", None),
     ("ORACLE_MALFORMED", _file("oracle", "not a record at all\n"), "ORACLE_MALFORMED", None),
+    ("conflicting-oracle-exit", _file("oracle", lambda text: "run_exit=99\n" + text), "ORACLE_MALFORMED", None),
     # The candidate side is the CANONICAL RECEIPT, so malformed means bad JSON
     # or JSON that is not a receipt object. Both rows are direct evidence that
     # the frozen comparator really consumes a receipt rather than a flat record.
     ("malformed-not-json", _file("candidate", BAD_RECEIPT), "CANDIDATE_MALFORMED", None),
     ("malformed-json-not-object", _file("candidate", "[1, 2, 3]\n"), "CANDIDATE_MALFORMED", None),
+    ("conflicting-candidate-exit", _file("candidate", lambda text: text.replace('"run_exit": 0', '"run_exit": 99, "run_exit": 0', 1)), "CANDIDATE_MALFORMED", None),
     # MT-4: the check that stops "we agreed about nothing" counting as agreement.
     ("EMPTY_SELECTION", _empty_selection, "EMPTY_SELECTION", H.ANCHOR_MT4_NONEMPTY),
     # MT-5: without the digest, a current nonce over a stale measurement looks fresh.

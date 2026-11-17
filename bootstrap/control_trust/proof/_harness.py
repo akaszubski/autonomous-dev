@@ -333,7 +333,8 @@ def render_receipt(rec: dict, top_extra=None, obs_extra=None) -> str:
         "dependency_digests": expected_dependency_digests(),
     }
     envelope.update(top_extra or {})
-    return json.dumps(envelope, sort_keys=True, indent=2) + "\n"
+    # A None envelope override removes a binding. Observation values retain null.
+    return json.dumps({key: value for key, value in envelope.items() if value is not None}, sort_keys=True, indent=2) + "\n"
 
 
 def parse_receipt(text: str) -> dict:
