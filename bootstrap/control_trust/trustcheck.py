@@ -52,9 +52,9 @@ def refuse(reason_id: str, detail: object) -> int:
     return 1
 
 
-def read_text(path: Path) -> str:
+def read_text(path: Path, *, errors: str = "strict") -> str:
     try:
-        return path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8", errors=errors)
     except (OSError, UnicodeDecodeError):
         return ""
 
@@ -319,7 +319,9 @@ def bucket(path: str) -> str:
 
 
 def count_lines(path: Path) -> int:
-    lines = read_text(path).splitlines()
+    # Budget source may declare a legacy encoding. Preserve undecodable bytes
+    # for the count without relaxing the UTF-8 contract for evidence and scope.
+    lines = read_text(path, errors="surrogateescape").splitlines()
     return sum(1 for ln in lines if ln.strip() and not ln.lstrip().startswith("#"))
 
 
@@ -327,7 +329,7 @@ def appends(path: Path) -> bool:
     # An append writer is how a bootstrap harness quietly acquires state, and
     # state is what turns a check into something gameable. Both shapes: a shell
     # redirect and a Python append mode.
-    text = read_text(path)
+    text = read_text(path, errors="surrogateescape")
     return APPEND_SHELL in text or bool(APPEND_PY.search(text))
 
 
@@ -451,7 +453,7 @@ def cmd_budget(args) -> int:
     for rel in (path for path in scoped if covered(path, globs)):
         kind = bucket(rel)
         measured[kind] = measured.get(kind, 0) + count_lines(repo / rel)
-        if kind == "runtime" and CLI_MARK in read_text(repo / rel):
+        if kind == "runtime" and CLI_MARK in read_text(repo / rel, errors="surrogateescape"):
             surfaces.append(rel)
     measured["cli_surfaces"] = len(surfaces)
     for kind, key, reason_id in (

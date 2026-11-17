@@ -137,10 +137,9 @@ IGNORING = {**BASE_SCOPE, "changed_paths": [f"{CT}/**", "scripts/**", ".gitignor
 STACKED = {**BASE_SCOPE, "base_branch": "plan"}
 
 FORTY_LINES = "".join(f"helper_{i} = {i}\n" for i in range(40))
-SIXTY_LINES = "".join(f"p_{i} = {i}\n" for i in range(60))
 SH_APPENDER = "#!/bin/sh\necho hi >> ./led\n"
 PY_APPENDER = 'def w(p):\n    with open(p, "a") as fh:\n        fh.write("x")\n'
-PROOF_BIG = {f"{CT}/proof/test_big.py": SIXTY_LINES}
+PROOF_BIG = {f"{CT}/proof/test_big.py": "".join(f"p_{i} = {i}\n" for i in range(60))}
 SECOND_CLI = (
     "import argparse\n\n\ndef main():\n" "    return argparse.ArgumentParser(prog='second')\n"
 )
@@ -171,7 +170,7 @@ def _apply(repo, changes, label):
             path.unlink()
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
+            path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
     H.git_commit_all(repo, label)
 
 
@@ -311,6 +310,7 @@ BUDGET_ARMS = [
     # runtime F0 must carry; hiding it by location is the cheapest way to look
     # small. It is covered by a declared glob, so this isolates the LINE budget.
     ("MB-2", BASE_SCOPE, {"scripts/f0_helper.py": FORTY_LINES}, "RUNTIME_LINES_OVER_BUDGET"),
+    ("MB-2-latin1", BASE_SCOPE, {"scripts/f0_helper.py": b"# coding: latin-1\nlabel = 'caf\xe9'\n" + b"value = 1\n" * 39}, "RUNTIME_LINES_OVER_BUDGET"),
     ("MB-2-js", BASE_SCOPE, {"scripts/f0_helper.js": "void 0;\n" * 40}, "RUNTIME_LINES_OVER_BUDGET"),
     ("MB-2-ts", BASE_SCOPE, {"scripts/f0_helper.ts": "void 0;\n" * 40}, "RUNTIME_LINES_OVER_BUDGET"),
     # MB-5: zero changed files passes every per-file budget trivially. An empty
