@@ -409,10 +409,14 @@ def cmd_budget(args) -> int:
         return refuse("GIT_EFFECTS_UNSUPPORTED", effects.stdout.split()[:4])
     if effects.returncode != 1:
         return refuse("GIT_UNAVAILABLE", f"git config: {effects.stderr.strip()[:80]}")
-    staged = git(repo, "ls-files", "--stage", "-z")
+    staged = git(repo, "ls-files", "-v", "--stage", "-z")
     if staged.returncode != 0:
         return refuse("GIT_UNAVAILABLE", f"git ls-files: {staged.stderr.strip()[:80]}")
-    links = [e for e in staged.stdout.split("\0") if e.startswith("160000 ")]
+    # Git can suppress worktree changes behind skip-worktree or assume-unchanged.
+    entries = staged.stdout.split("\0")
+    if any(e[:1].lower() == "s" or e[:1].islower() for e in entries):
+        return refuse("INDEX_VISIBILITY_UNSUPPORTED", "skip-worktree or assume-unchanged entry")
+    links = [e for e in entries if e[2:].startswith("160000 ")]
     if links:
         return refuse("SUBMODULE_UNSUPPORTED", f"gitlink entries: {links[:2]}")
     top = git(repo, "rev-parse", "--show-toplevel")
