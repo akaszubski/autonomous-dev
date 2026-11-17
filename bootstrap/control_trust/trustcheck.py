@@ -303,7 +303,7 @@ def covered(path: str, globs) -> bool:
 
 
 def _is_runtime(path: str) -> bool:
-    return path.endswith((".py", ".sh", ".js"))
+    return path.endswith((".py", ".sh", ".js", ".ts"))
 
 
 def bucket(path: str) -> str:

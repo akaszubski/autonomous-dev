@@ -103,7 +103,7 @@ ANCHOR_MT2_NONCE = "    check_nonce,\n"
 ANCHOR_MT3_IDS = "    check_selected_ids,\n"
 ANCHOR_MT4_NONEMPTY = "    check_non_empty,\n"
 ANCHOR_MT5_DIGEST = "    check_subject_digest,\n"
-ANCHOR_MB3_CLASSIFIER = '    return path.endswith((".py", ".sh", ".js"))'
+ANCHOR_MB3_CLASSIFIER = '    return path.endswith((".py", ".sh", ".js", ".ts"))'
 
 # The four subjects and their hand-declared truth, in ONE table.
 #
