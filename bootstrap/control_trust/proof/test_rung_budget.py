@@ -311,6 +311,7 @@ BUDGET_ARMS = [
     # runtime F0 must carry; hiding it by location is the cheapest way to look
     # small. It is covered by a declared glob, so this isolates the LINE budget.
     ("MB-2", BASE_SCOPE, {"scripts/f0_helper.py": FORTY_LINES}, "RUNTIME_LINES_OVER_BUDGET"),
+    ("MB-2-js", BASE_SCOPE, {"scripts/f0_helper.js": "void 0;\n" * 40}, "RUNTIME_LINES_OVER_BUDGET"),
     # MB-5: zero changed files passes every per-file budget trivially. An empty
     # changeset must be refused, not scored as perfect.
     ("MB-5", BASE_SCOPE, {}, "EMPTY_CHANGESET"),
