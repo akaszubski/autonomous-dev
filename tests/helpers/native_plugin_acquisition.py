@@ -55,10 +55,12 @@ def run(argv, expected=0):
     sequence += 1
     out = ROOT / 'private' / f'{sequence}.stdout'
     err = ROOT / 'private' / f'{sequence}.stderr'
+    assert not list(FOREIGN.iterdir())
     with out.open('xb') as stdout, err.open('xb') as stderr:
-        proc = subprocess.run(list(map(str, argv)), cwd=ROOT, env=ENV,
+        proc = subprocess.run(list(map(str, argv)), cwd=FOREIGN, env=ENV,
                               stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, timeout=40)
     assert out.stat().st_size <= 131072 and err.stat().st_size <= 131072
+    assert not list(FOREIGN.iterdir())
     assert proc.returncode == expected, (sequence, proc.returncode)
     return out
 
@@ -74,8 +76,9 @@ for instrument in ('oracle.sh', 'trustcheck.py'):
 status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
 assert all(int(status[key].strip(), 16) == 0 for key in ('CapEff', 'CapPrm', 'CapAmb', 'CapBnd'))
 assert set(os.listdir('/sys/class/net')) == {'lo'}
-for name in ('home', 'config', 'private', 'seed', 'empty-template', 'subjects'):
+for name in ('home', 'config', 'private', 'seed', 'empty-template', 'subjects', 'foreign'):
     (ROOT / name).mkdir(mode=0o700)
+FOREIGN = ROOT / 'foreign'
 ENV = {'PATH': '/usr/bin:/bin', 'HOME': str(ROOT / 'home'),
        'CLAUDE_CONFIG_DIR': str(ROOT / 'config'), 'XDG_CONFIG_HOME': str(ROOT / 'home'),
        'GIT_CONFIG_GLOBAL': str(ROOT / 'home/.gitconfig'), 'GIT_CONFIG_NOSYSTEM': '1',
@@ -143,8 +146,9 @@ for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse
     common = ['--target', target, '--workroot', work, '--nonce', nonce,
               '--python', PYTHON, '--pycache-prefix', work / 'unused-cache']
     oracle = run(['/bin/sh', ROOT / 'instruments/oracle.sh', *common])
-    candidate = run([PYTHON, '-I', '-S', '-B', leaf, *common,
-                     '--child-timeout', '20', '--case', 'installed-r0', '--case-manifest', manifest], exit_code)
+    candidate_argv = [PYTHON, '-I', '-S', '-B', leaf, *common,
+                      '--child-timeout', '20', '--case', 'installed-r0', '--case-manifest', manifest]
+    candidate = run(candidate_argv, exit_code)
     receipt = json.loads(candidate.read_text())
     obs = receipt['observation']
     assert receipt['decision'] == decision and obs['run_exit'] == exit_code
@@ -156,6 +160,8 @@ for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse
         '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
         '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)])
     assert comparison.read_text().startswith('OK')
+    if name == 'permit':
+        permit_argv, permit_common, permit_pins = candidate_argv.copy(), common.copy(), pins.copy()
     results.append({'case': name, 'raw_exit': exit_code, 'decision': decision,
                     'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle)})
 before = leaf.stat()
@@ -163,7 +169,9 @@ held = leaf.with_name(leaf.name + '.held')
 os.link(leaf, held, follow_symlinks=False)
 leaf.unlink()
 try:
-    run([PYTHON, '-I', '-S', '-B', leaf], 2)
+    broken_argv = permit_argv.copy()
+    broken_argv[broken_argv.index('--nonce') + 1] = os.urandom(16).hex()
+    run(broken_argv, 2)
     assert not leaf.exists() and digest(held) == EXPECTED['leaf']
 finally:
     current = held.stat()
@@ -178,6 +186,23 @@ assert after.st_ino == before.st_ino and after.st_dev == before.st_dev and after
 assert digest(leaf) == EXPECTED['leaf']
 assert digest(installed / '.claude-plugin/plugin.json') == EXPECTED['manifest']
 verify_installed_cache()
+nonce = os.urandom(16).hex()
+permit_argv[permit_argv.index('--nonce') + 1] = nonce
+permit_common[permit_common.index('--nonce') + 1] = nonce
+oracle = run(['/bin/sh', ROOT / 'instruments/oracle.sh', *permit_common])
+candidate = run(permit_argv)
+restored = json.loads(candidate.read_text())
+assert restored['decision'] == 'PASS' and restored['observation']['run_exit'] == 0
+assert restored['observation']['cleanup_complete']
+assert restored['observation']['selected'] == ['test_subject.py::test_value']
+comparison = run([PYTHON, '-I', '-S', '-B', ROOT / 'instruments/trustcheck.py', 'compare',
+    '--oracle', oracle, '--candidate', candidate, '--nonce', nonce,
+    '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
+    '--expect-subject-digest', permit_pins['subject'],
+    '--expect-dependency-digests', json.dumps(permit_pins)])
+assert comparison.read_text().startswith('OK')
+results.append({'case': 'permit-restored', 'raw_exit': 0, 'decision': 'PASS',
+                'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle)})
 print(json.dumps({'status': 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY', 'cases': results,
                   'installed_root': str(installed), 'metadata_sha256': digest(metadata),
                   'installed_leaf_sha256': digest(leaf), 'restored_leaf_inode': after.st_ino,
