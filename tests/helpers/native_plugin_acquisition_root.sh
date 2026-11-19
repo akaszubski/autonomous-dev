@@ -67,6 +67,34 @@ pave_policy_sha=${pave_policy_sum%% *}
 mkdir -m 0755 "$pave_dropdir"
 install -o 0 -g 0 -m 0444 "$pave_op/zzzz-pave-d0.conf" "$pave_dropfile"
 systemctl daemon-reload
+pave_pre_gate=$(/usr/bin/python3 -I -S -B - "$pave_unit" <<'GATE_ARGV'
+import json,sys
+program = """
+import resource,subprocess,sys,tempfile
+resource.setrlimit(resource.RLIMIT_FSIZE, (131072, 131072))
+flags = {
+    "NoNewPrivileges": "yes", "ProtectSystem": "strict", "ProtectHome": "yes",
+    "PrivateTmp": "yes", "PrivateDevices": "yes", "PrivateNetwork": "yes",
+    "ProtectControlGroups": "yes", "ProtectKernelTunables": "yes",
+    "ProtectKernelModules": "yes",
+}
+properties = ",".join(["Id", "ImportCredential", "LoadCredential", *flags])
+with tempfile.TemporaryFile(dir="/tmp") as output:
+    subprocess.run(["/usr/bin/systemctl", "show", "--all", sys.argv[1],
+                    "--property=" + properties], stdout=output, stderr=subprocess.DEVNULL,
+                   env={"PATH": "/usr/bin:/bin"}, timeout=5, check=True)
+    output.seek(0)
+    raw = output.read(8193)
+assert len(raw) <= 8192
+meta = dict(line.split("=", 1) for line in raw.decode().splitlines() if "=" in line)
+assert meta.get("Id") == sys.argv[1]
+assert all(meta.get(key) == value for key, value in flags.items())
+assert meta.get("ImportCredential") == "" and meta.get("LoadCredential") == ""
+"""
+# JSON double quoting is C-escaped systemd argv syntax, not shell execution.
+print("/usr/bin/python3 -I -S -B -c " + json.dumps(program) + " " + sys.argv[1])
+GATE_ARGV
+)
 pave_status=0
 systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p Type=exec -p Slice=system.slice -p User=root -p Group=root \
@@ -81,6 +109,7 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments" \
   -p WorkingDirectory=/work -p UMask=0077 -p RuntimeMaxSec=240s -p TimeoutStopSec=3s \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
+  -p "ExecStartPre=$pave_pre_gate" \
   -p "ExecStopPost=/usr/bin/systemctl show $pave_unit --all --property=Id,InvocationID,ControlGroup,Result,ExecMainCode,ExecMainStatus,NoNewPrivileges,ProtectSystem,ProtectHome,PrivateTmp,PrivateDevices,PrivateNetwork,ProtectControlGroups,ProtectKernelTunables,ProtectKernelModules,ImportCredential,LoadCredential" \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/setpriv --reuid=999 --regid=990 \
   --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
