@@ -55,6 +55,7 @@ PrivateNetwork=yes
 ProtectControlGroups=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
+EnvironmentFile=
 ImportCredential=
 LoadCredential=
 LoadCredentialEncrypted=
@@ -70,7 +71,7 @@ systemctl daemon-reload
 pave_pre_gate=$(/usr/bin/python3 -I -S -B - "$pave_unit" <<'GATE_ARGV'
 import json,sys
 program = """
-import resource,subprocess,sys,tempfile
+import json,re,resource,subprocess,sys,tempfile
 resource.setrlimit(resource.RLIMIT_FSIZE, (131072, 131072))
 flags = {
     "NoNewPrivileges": "yes", "ProtectSystem": "strict", "ProtectHome": "yes",
@@ -78,10 +79,10 @@ flags = {
     "ProtectControlGroups": "yes", "ProtectKernelTunables": "yes",
     "ProtectKernelModules": "yes",
 }
-properties = ",".join(["Id", "ImportCredential", "LoadCredential", *flags])
+properties = ["Id", "InvocationID", "ControlGroup", "Result", "ExecMainCode", "ExecMainStatus", *flags]
 with tempfile.TemporaryFile(dir="/tmp") as output:
     subprocess.run(["/usr/bin/systemctl", "show", "--all", sys.argv[1],
-                    "--property=" + properties], stdout=output, stderr=subprocess.DEVNULL,
+                    "--property=" + ",".join(properties)], stdout=output, stderr=subprocess.DEVNULL,
                    env={"PATH": "/usr/bin:/bin"}, timeout=5, check=True)
     output.seek(0)
     raw = output.read(8193)
@@ -89,7 +90,41 @@ assert len(raw) <= 8192
 meta = dict(line.split("=", 1) for line in raw.decode().splitlines() if "=" in line)
 assert meta.get("Id") == sys.argv[1]
 assert all(meta.get(key) == value for key, value in flags.items())
-assert meta.get("ImportCredential") == "" and meta.get("LoadCredential") == ""
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        assert key not in result
+        result[key] = value
+    return result
+
+def query(arguments, maximum):
+    with tempfile.TemporaryFile(dir="/tmp") as output, tempfile.TemporaryFile(dir="/tmp") as errors:
+        subprocess.run(["/usr/bin/busctl", "--system", "--json=short", *arguments],
+                       stdin=subprocess.DEVNULL, stdout=output, stderr=errors, timeout=2,
+                       env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}, check=True)
+        output.seek(0)
+        errors.seek(0)
+        raw = output.read(maximum + 1)
+        assert not errors.read(1) and len(raw) <= maximum
+    return json.loads(raw, object_pairs_hook=pairs)
+
+obj = query(["call", "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
+             "org.freedesktop.systemd1.Manager", "GetUnit", "s", sys.argv[1]], 4096)
+assert type(obj) is dict and set(obj) == {"type", "data"} and obj["type"] == "o"
+assert type(obj["data"]) is list and len(obj["data"]) == 1 and type(obj["data"][0]) is str
+assert re.fullmatch(r"/org/freedesktop/systemd1/unit/[A-Za-z0-9_]+", obj["data"][0])
+for key, signature in (("EnvironmentFiles", "a(sb)"), ("LoadCredential", "a(ss)"),
+                       ("LoadCredentialEncrypted", "a(ss)"), ("SetCredential", "a(say)"),
+                       ("SetCredentialEncrypted", "a(say)"), ("ImportCredential", "as")):
+    value = query(["get-property", "org.freedesktop.systemd1", obj["data"][0],
+                   "org.freedesktop.systemd1.Service", key], 16384)
+    assert value == {"type": signature, "data": []}
+assert sys.argv[2] in ("pre", "post")
+if sys.argv[2] == "post":
+    for key in properties:
+        print(key + "=" + meta[key])
+    print("TypedCredentialsEmpty=yes")
 """
 # JSON double quoting is C-escaped systemd argv syntax, not shell execution.
 print("/usr/bin/python3 -I -S -B -c " + json.dumps(program) + " " + sys.argv[1])
@@ -109,8 +144,8 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments" \
   -p WorkingDirectory=/work -p UMask=0077 -p RuntimeMaxSec=240s -p TimeoutStopSec=3s \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
-  -p "ExecStartPre=$pave_pre_gate" \
-  -p "ExecStopPost=/usr/bin/systemctl show $pave_unit --all --property=Id,InvocationID,ControlGroup,Result,ExecMainCode,ExecMainStatus,NoNewPrivileges,ProtectSystem,ProtectHome,PrivateTmp,PrivateDevices,PrivateNetwork,ProtectControlGroups,ProtectKernelTunables,ProtectKernelModules,ImportCredential,LoadCredential" \
+  -p "ExecStartPre=$pave_pre_gate pre" \
+  -p "ExecStopPost=$pave_pre_gate post" \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/setpriv --reuid=999 --regid=990 \
   --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/python3 -I -S -B \
@@ -130,7 +165,7 @@ flags = {
     'ProtectKernelModules': 'yes',
 }
 keys = {'Id', 'InvocationID', 'ControlGroup', 'Result', 'ExecMainCode', 'ExecMainStatus',
-        'ImportCredential', 'LoadCredential', *flags}
+        'TypedCredentialsEmpty', *flags}
 meta = dict(line.split('=', 1) for line in lines if line.partition('=')[0] in keys)
 assert meta.get('Id') == unit and re.fullmatch('[0-9a-f]{32}',meta.get('InvocationID',''))
 assert meta.get('ControlGroup') == '/system.slice/'+unit
@@ -152,7 +187,7 @@ policy.unlink()
 dropdir.rmdir()
 subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True)
 assert all(meta.get(key) == value for key, value in flags.items())
-assert meta.get('ImportCredential') == '' and meta.get('LoadCredential') == ''
+assert meta.get('TypedCredentialsEmpty') == 'yes'
 assert raw_exit == 0 and meta.get('Result') == 'success' and meta.get('ExecMainStatus') == '0'
 report=json.loads(next(line for line in lines if line.startswith('{')))
 assert report['status'] == 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY'
