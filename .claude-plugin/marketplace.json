@@ -1,0 +1,12 @@
+{
+  "name": "adev-d0-native-consumer",
+  "owner": {
+    "name": "D0 disposable qualification"
+  },
+  "plugins": [
+    {
+      "name": "autonomous-dev",
+      "source": "./plugins/autonomous-dev"
+    }
+  ]
+}

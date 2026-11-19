@@ -1,37 +1,10 @@
 {
   "name": "autonomous-dev",
-  "version": "3.8.0",
-  "description": "PROJECT.md-first autonomous development with hybrid auto-fix documentation. 8-agent pipeline, auto-orchestration, docs auto-update on commit (true vibe coding). Knowledge base system with 90% faster repeat research. Strict mode enforces SDLC best practices automatically. Works for ANY Python/JavaScript/TypeScript/Go project.",
+  "version": "3.8.0-r0.1",
+  "description": "First bounded R0 executable delivery family; no hook or workflow activation.",
   "author": {
-    "name": "Andrew Kaszubski",
-    "url": "https://github.com/akaszubski"
+    "name": "Andrew Kaszubski"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/akaszubski/autonomous-dev"
-  },
-  "license": "MIT",
-  "components": {
-    "agents": "./agents",
-    "skills": "./skills",
-    "commands": "./commands",
-    "templates": "./templates",
-    "hooks": "./hooks"
-  },
-  "requirements": {
-    "claude_code_version": ">=2.0.0",
-    "python": ">=3.11"
-  },
-  "tags": [
-    "agents",
-    "skills",
-    "hooks",
-    "testing",
-    "documentation",
-    "security",
-    "python",
-    "generic",
-    "autonomous"
-  ],
-  "readme": "./README.md"
+  "repository": "https://github.com/akaszubski/autonomous-dev",
+  "license": "MIT"
 }
