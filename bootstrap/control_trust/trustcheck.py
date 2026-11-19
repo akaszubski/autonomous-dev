@@ -422,14 +422,15 @@ def cmd_budget(args) -> int:
         return refuse(*err)
     if not changed:
         return refuse("EMPTY_CHANGESET", f"nothing changed since {args.base[:12]}")
-    # Each structural refusal shares one ordered selection/reporting route.
+    # Construct lazy selectors: protected/unallowed paths refuse before any
+    # later selector inspects file contents. Each generator has its own p.
     for reason, paths in (
-        ("INV4_VIOLATION", [p for p in changed if covered(p, INV4_GLOBS)]),
-        ("OMITTED_SPLIT", [p for p in changed if not covered(p, globs)]),
-        ("ABSENT_REMOVAL", [p for p in scope["removals"] if (repo / p).exists()]),
-        ("APPEND_WRITER_ADDED", [p for p in changed if bucket(p) == "runtime" and appends(repo / p)]),
+        ("INV4_VIOLATION", (p for p in changed if covered(p, INV4_GLOBS))),
+        ("OMITTED_SPLIT", (p for p in changed if not covered(p, globs))),
+        ("ABSENT_REMOVAL", (p for p in scope["removals"] if (repo / p).exists())),
+        ("APPEND_WRITER_ADDED", (p for p in changed if bucket(p) == "runtime" and appends(repo / p))),
     ):
-        if paths:
+        if paths := list(paths):
             return refuse(reason, paths)
     measured, surfaces, modules = {}, [], []
     scoped, err = listing(repo, ("ls-files",), UNTRACKED)

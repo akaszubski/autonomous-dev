@@ -393,26 +393,20 @@ def test_budget_arm(tmp_path, label, scope, changes, expect):
         total = sum(_counted(p) for p in (repo / CT).glob("*.py")) + _counted(repo / CT / "oracle.sh")
         assert total == (400 if label == "module-boundary" else 399)
     H.expect(_budget(repo, base, scope_path), expect)
-    if label != "MB-2":
+    # The content-read spy must stay unreachable for protected/unallowed paths.
+    # The classifier mutant must still permit MB-2. Both use the existing
+    # independently runnable copy route and check a named outcome, not just rc.
+    if label in ("INV-4", "MB-8"):
+        subs = [('    text = read_text(path, errors="surrogateescape")', '    raise AssertionError')]
+        reason = expect
+    elif label == "MB-2":
+        subs = [(H.ANCHOR_MB3_CLASSIFIER, '    return path.startswith("bootstrap/")')]
+        reason = None
+    else:
         return
-    # MB-3, the PERMITTING half, attached to the row whose refusal it explains.
-    # CONSOLIDATION: the standalone MB-3 test rebuilt this same fixture, seeded
-    # the same scripts/f0_helper.py at the same size under the same scope and
-    # asserted the same RUNTIME_LINES_OVER_BUDGET refusal the MB-2 row already
-    # asserts. Only that duplicate fixture and refusal are gone: MB-3 keeps its
-    # exact anchor (substitute() refuses zero or multiple matches, so the
-    # mutation cannot be inert) and its own mutant exit. Both halves are required
-    # -- a mutant that permits alone would be satisfied by an instrument that
-    # permits everything, which the two -control rows above rule out.
-    mutant = H.mutant_of(
-        H.TRUSTCHECK,
-        tmp_path / "mb3",
-        [(H.ANCHOR_MB3_CLASSIFIER, '    return path.startswith("bootstrap/")')],
-        H.TC_WHAT,
-    )
-    permitted = _budget(repo, base, scope_path, script=mutant)
-    # Still refusing means the MB-2 row is not attributable to the classifier.
-    assert permitted.returncode == 0, f"narrowing did not hide it: {permitted.stdout}"
+    mutant = H.mutant_of(H.TRUSTCHECK, tmp_path / "guard", subs, H.TC_WHAT)
+    H.expect(_budget(repo, base, scope_path, script=mutant), reason)
+
 
 
 @pytest.mark.parametrize(
