@@ -167,6 +167,18 @@ def decide(case: dict, observation: dict) -> tuple[str, str]:
         return "ERROR", observation.get("capture_stop") or "CLEANUP_UNPROVEN"
     if not observation.get("context_resolved"):
         return "UNMEASURED", "UNRESOLVED_CONTEXT"
+    runner = case.get("runner", {})
+    profile_fields = {"cwd", "python_version", "pytest_version", "command_file_sha256"}
+    if set(runner) - profile_fields:
+        return "UNMEASURED", "UNSUPPORTED_PROFILE_REQUIREMENT"
+    versions = ("python_version", "pytest_version") if observation["pytest_version"] is not None else ("python_version",)
+    if any(not runner.get(key) for key in versions):
+        return "UNMEASURED", "MISSING_PROFILE_PIN"
+    for key in set(runner) - {"cwd"}:
+        if observation.get(key) is None:
+            return "UNMEASURED", "UNOBSERVED_PROFILE_REQUIREMENT"
+        if runner[key] != observation[key]:
+            return "FAIL", "PROFILE_MISMATCH"
     expected = case.get("expected", {})
     selected = observation["selected"]
     if not selected or len(set(selected)) != len(selected):
@@ -178,9 +190,14 @@ def decide(case: dict, observation: dict) -> tuple[str, str]:
             return "UNMEASURED", "MISSING_EXPECTATION"
         if expected[key] != actual:
             return "FAIL", key.upper() + "_MISMATCH"
-    supported = {"selected_ids", "selected_count", "collect_exit", "run_exit", "results"}
-    if any(value for key, value in expected.items() if key not in supported):
-        return "UNMEASURED", "UNOBSERVED_REQUIREMENT"
+    if "results" in expected:
+        if "results" not in observation:
+            return "UNMEASURED", "RESULTS_UNOBSERVED"
+        if expected["results"] != observation["results"]:
+            return "FAIL", "RESULTS_MISMATCH"
+    supported = {"selected_ids", "selected_count", "collect_exit", "run_exit", "results", "forbidden_effects"}
+    if set(expected) - supported or ("forbidden_effects" in expected and expected["forbidden_effects"] != []):
+        return "UNMEASURED", "UNSUPPORTED_REQUIREMENT"
     native = case.get("native", {})
     if native:
         records = observation.get("native_records", [])
@@ -226,6 +243,7 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
                    "selected_count": 0, "collect_exit": None, "run_exit": None,
                    "cleanup_complete": True, "cleanup_scope": "owned_process_group",
                    "context_resolved": resolved, "capture_stop": "", "processes": []}
+    observation["command_file_sha256"] = before["command_file"][0] if args.command_file else None
     commands = [pytest_argv(args, True), pytest_argv(args, False)]
     stdin = b""
     if args.command_file:
@@ -257,7 +275,7 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
         raise ValueError("PROFILE_UNMEASURED")
     observation.update(python_version=versions[0], pytest_version=versions[1] if len(versions) == 2 else None)
     for key, actual in zip(("python_version", "pytest_version"), versions):
-        if case.get("runner", {}).get(key, actual) != actual:
+        if key in runner and runner[key] is not None and runner[key] != actual:
             raise ValueError("PROFILE_MISMATCH")
     for index, argv in enumerate(commands):
         result = capture(argv, root, args.child_timeout, stdin)
@@ -286,8 +304,6 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
                 "fault_outcome": row.get("fault", {}).get("outcome"),
                 "injection_landed": row.get("fault", {}).get("injection_landed"),
             } for row in rows]
-            if case["expected"].get("results") != observation["results"]:
-                observation["capture_stop"] = "POB_RESULTS_UNVERIFIED"
         observation["selected_count"] = len(observation["selected"])
         if result["stop"] or not result["cleanup"]:
             break

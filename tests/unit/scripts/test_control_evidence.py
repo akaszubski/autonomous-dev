@@ -105,6 +105,11 @@ def test_supported_accepted_caller_uses_actual_product_identity(tmp_path):
     ("native-key", "UNMEASURED"), ("cwd", "ERROR"),
     ("profile", "ERROR"), ("typed-exit", "ERROR"),
     ("unresolved-cwd", "UNMEASURED"),
+    ("required-results", "UNMEASURED"), ("missing-versions", "UNMEASURED"),
+    ("missing-pytest-version", "UNMEASURED"),
+    ("missing-python-version", "UNMEASURED"),
+    ("unsupported-outcome", "UNMEASURED"), ("unsupported-profile", "UNMEASURED"),
+    ("empty-forbidden-effects", "PASS"),
 ])
 def test_case_boundaries_are_not_candidate_selected(tmp_path, fault, decision):
     def change(case, target, root):
@@ -121,15 +126,29 @@ def test_case_boundaries_are_not_candidate_selected(tmp_path, fault, decision):
             case["runner"]["cwd"] = str(root.parent / "foreign")
         elif fault == "unresolved-cwd":
             case["runner"]["cwd"] = "descriptive context"
+        elif fault == "required-results":
+            case["expected"]["results"] = [{"guard": "required", "verdict": "PROVEN"}]
+        elif fault == "missing-versions":
+            del case["runner"]["python_version"], case["runner"]["pytest_version"]
+        elif fault == "missing-pytest-version":
+            del case["runner"]["pytest_version"]
+        elif fault == "missing-python-version":
+            del case["runner"]["python_version"]
+        elif fault == "unsupported-outcome":
+            case["expected"]["unobserved_failures"] = 0
+        elif fault == "unsupported-profile":
+            case["runner"]["unobserved_plugins"] = []
+        elif fault == "empty-forbidden-effects":
+            case["expected"]["forbidden_effects"] = []
         else:
             case["runner"]["python_version"] = "foreign"
         return []
     proc, receipt, _, _ = measure(tmp_path, "s_pass", change=change, oracle=False)
     assert receipt["decision"] == decision
-    assert proc.returncode != 0
+    assert (proc.returncode == 0) == (decision == "PASS")
 
 
-@pytest.mark.parametrize("fault", ["timeout", "truncation", "normal"])
+@pytest.mark.parametrize("fault", ["timeout", "truncation", "normal", "results-mismatch"])
 def test_real_owned_command_capture_and_descendant_cleanup(tmp_path, fault):
     pidfile = tmp_path / "descendant.pid"
     rows = [{"guard": "public-fixture", "verdict": "PROVEN",
@@ -147,6 +166,8 @@ def test_real_owned_command_capture_and_descendant_cleanup(tmp_path, fault):
             target.write_text("import json\nprint(json.dumps(" + repr({"results": rows}) + "))\n")
         case["expected"] = {"selected_ids": ["public-fixture"], "selected_count": 1,
                             "collect_exit": 0, "run_exit": 0, "results": projection}
+        if fault == "results-mismatch":
+            case["expected"]["results"] = [{**projection[0], "positive_ok": False}]
         case["runner"].pop("pytest_version")
         command = {"argv": [str(H.PYTHON), "-I", "-S", "-B", str(target)],
                    "cwd": str(root), "env": {"PATH": "/usr/bin:/bin", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
@@ -159,8 +180,8 @@ def test_real_owned_command_capture_and_descendant_cleanup(tmp_path, fault):
     assert time.monotonic() - started < 8
     obs = receipt["observation"]
     assert obs["cleanup_complete"] is True
-    assert receipt["decision"] == ("PASS" if fault == "normal" else "ERROR")
-    assert obs["capture_stop"] == {"normal": "", "timeout": "TIMEOUT", "truncation": "TRUNCATED"}[fault]
+    assert receipt["decision"] == {"normal": "PASS", "results-mismatch": "FAIL"}.get(fault, "ERROR")
+    assert obs["capture_stop"] == {"timeout": "TIMEOUT", "truncation": "TRUNCATED"}.get(fault, "")
     assert len(cand.read_bytes()) < 131072
     if fault == "timeout":
         assert pidfile.exists(), "the descendant case never reached its launch"
