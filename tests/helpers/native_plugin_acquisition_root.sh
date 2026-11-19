@@ -41,6 +41,32 @@ pave_unit="adev-d0-acquire-$pave_id.service"
 pave_load_status=0
 pave_load=$(systemctl show --value --property=LoadState "$pave_unit" 2>"$pave_op/unit-before.stderr") || pave_load_status=$?
 test "$pave_load" = not-found
+pave_dropdir="/run/systemd/system/$pave_unit.d"
+pave_dropfile="$pave_dropdir/zzzz-pave-d0.conf"
+test ! -e "$pave_dropdir" && test ! -L "$pave_dropdir"
+cat >"$pave_op/zzzz-pave-d0.conf" <<'POLICY'
+[Service]
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ImportCredential=
+LoadCredential=
+LoadCredentialEncrypted=
+SetCredential=
+SetCredentialEncrypted=
+POLICY
+chmod 0444 "$pave_op/zzzz-pave-d0.conf"
+pave_policy_sum=$(sha256sum "$pave_op/zzzz-pave-d0.conf")
+pave_policy_sha=${pave_policy_sum%% *}
+mkdir -m 0755 "$pave_dropdir"
+install -o 0 -g 0 -m 0444 "$pave_op/zzzz-pave-d0.conf" "$pave_dropfile"
+systemctl daemon-reload
 pave_status=0
 systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p Type=exec -p Slice=system.slice -p User=root -p Group=root \
@@ -55,22 +81,49 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments" \
   -p WorkingDirectory=/work -p UMask=0077 -p RuntimeMaxSec=240s -p TimeoutStopSec=3s \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
-  -p "ExecStopPost=/usr/bin/systemctl show $pave_unit --property=Id,InvocationID,ControlGroup,Result,ExecMainCode,ExecMainStatus" \
+  -p "ExecStopPost=/usr/bin/systemctl show $pave_unit --all --property=Id,InvocationID,ControlGroup,Result,ExecMainCode,ExecMainStatus,NoNewPrivileges,ProtectSystem,ProtectHome,PrivateTmp,PrivateDevices,PrivateNetwork,ProtectControlGroups,ProtectKernelTunables,ProtectKernelModules,ImportCredential,LoadCredential" \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/setpriv --reuid=999 --regid=990 \
   --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/python3 -I -S -B \
   /work/operator.py /work/case.PUBLIC.json \
   >"$pave_op/outer.stdout" 2>"$pave_op/outer.stderr" || pave_status=$?
-/usr/bin/python3 -I -S -B - "$pave_op" "$pave_unit" "$pave_status" <<'AUDIT'
-import hashlib,json,pathlib,re,sys
+/usr/bin/python3 -I -S -B - "$pave_op" "$pave_unit" "$pave_status" "$pave_policy_sha" <<'AUDIT'
+import hashlib,json,pathlib,re,stat,subprocess,sys
 op=pathlib.Path(sys.argv[1]);unit=sys.argv[2];raw_exit=int(sys.argv[3])
 cgroup=pathlib.Path('/sys/fs/cgroup/system.slice')/unit
 empty=not cgroup.exists() or not (cgroup/'cgroup.procs').read_text().strip()
 assert empty, 'owned service cgroup is not empty; preserve and recover through manager'
 stdout=(op/'outer.stdout').read_text();lines=stdout.splitlines()
-meta=dict(line.split('=',1) for line in lines if line.startswith(('Id=','InvocationID=','ControlGroup=','Result=','ExecMainCode=','ExecMainStatus=')))
+flags = {
+    'NoNewPrivileges': 'yes', 'ProtectSystem': 'strict', 'ProtectHome': 'yes',
+    'PrivateTmp': 'yes', 'PrivateDevices': 'yes', 'PrivateNetwork': 'yes',
+    'ProtectControlGroups': 'yes', 'ProtectKernelTunables': 'yes',
+    'ProtectKernelModules': 'yes',
+}
+keys = {'Id', 'InvocationID', 'ControlGroup', 'Result', 'ExecMainCode', 'ExecMainStatus',
+        'ImportCredential', 'LoadCredential', *flags}
+meta = dict(line.split('=', 1) for line in lines if line.partition('=')[0] in keys)
 assert meta.get('Id') == unit and re.fullmatch('[0-9a-f]{32}',meta.get('InvocationID',''))
 assert meta.get('ControlGroup') == '/system.slice/'+unit
+query = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
+                        '--property=Id,ActiveState,LoadState'], capture_output=True, text=True)
+current = dict(line.split('=', 1) for line in query.stdout.splitlines() if '=' in line)
+assert current.get('Id') == unit and current.get('ActiveState') == 'inactive'
+assert query.returncode == 0 or (query.returncode == 1 and current.get('LoadState') == 'not-found')
+dropdir = pathlib.Path('/run/systemd/system') / (unit + '.d')
+policy = dropdir / 'zzzz-pave-d0.conf'
+assert not dropdir.is_symlink() and dropdir.is_dir()
+assert list(dropdir.iterdir()) == [policy]
+for owned in (op / 'zzzz-pave-d0.conf', policy):
+    info = owned.lstat()
+    assert stat.S_ISREG(info.st_mode) and (info.st_uid, info.st_gid, info.st_nlink) == (0, 0, 1)
+    assert stat.S_IMODE(info.st_mode) == 0o444
+    assert hashlib.sha256(owned.read_bytes()).hexdigest() == sys.argv[4]
+policy.unlink()
+dropdir.rmdir()
+subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True)
+assert all(meta.get(key) == value for key, value in flags.items())
+assert meta.get('ImportCredential') == '' and meta.get('LoadCredential') == ''
 assert raw_exit == 0 and meta.get('Result') == 'success' and meta.get('ExecMainStatus') == '0'
 report=json.loads(next(line for line in lines if line.startswith('{')))
 assert report['status'] == 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY'
@@ -84,7 +137,7 @@ assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.i
 assert hashlib.sha256(leaf.read_bytes()).hexdigest() == case['pins']['leaf']
 assert hashlib.sha256((installed/'.claude-plugin/plugin.json').read_bytes()).hexdigest() == case['pins']['manifest']
 assert leaf.stat().st_ino == report['restored_leaf_inode'] and leaf.stat().st_nlink == 1
-result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED'}
+result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED','effective_hardening':{key:meta[key] for key in flags},'credentials_absent':True,'owned_policy_removed':True,'policy_sha256':sys.argv[4]}
 (op/'OUTSIDE-RESULT.PUBLIC.json').write_text(json.dumps(result,sort_keys=True)+'\n')
 print(json.dumps(result,sort_keys=True))
 AUDIT
