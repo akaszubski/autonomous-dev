@@ -1,0 +1,31 @@
+{
+  "case": "D0-R0-ACQUIRE-1",
+  "root": "/work",
+  "tools": {
+    "cli": {
+      "path": "/opt/adev-probe/claude-2.1.236",
+      "sha256": "c38d37deaf1643083326c48a6acc0afb09dada126e6bda77ef1a4410ae60ca12"
+    },
+    "python": {
+      "path": "/usr/bin/python3",
+      "sha256": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960"
+    },
+    "git": {
+      "path": "/usr/bin/git",
+      "sha256": "aa6540695d076182256dd6e96c8b302e4d56381e3000bbfd5c71bbdfe94a4942"
+    }
+  },
+  "versions": {
+    "python": "3.12.3",
+    "pytest": "7.4.4"
+  },
+  "pins": {
+    "archive": "1660ff991cebff108931cb145f24f46651de31ae7bacc770c61d79b3e4d4ffc1",
+    "leaf": "2e57635e754d710fa9b59bada574155c435a788885fe2cd986d2973649070dcf",
+    "manifest": "89e2ee8d3458d71b9085510436fda4da88f587b98067ba2d5ad727a757699771",
+    "oracle.sh": "24128c14771cb3b0e7f0d6dccaf790a08b3a5e969a510df7c0caa21b36cd730f",
+    "trustcheck.py": "38cde3438250ea0c2967ec4f641992ad3e3d69be2598de533adb6010025e5828"
+  },
+  "plugin_id": "autonomous-dev@adev-d0-native-consumer",
+  "url": "https://pave-d0.invalid/marketplace.git"
+}
