@@ -20,12 +20,12 @@ install -d -o 0 -g 0 -m 0700 "$pave_op/inputs"
 install -d -o 0 -g 0 -m 0555 "$pave_op/inputs/instruments"
 for pave_file in operator.py case.PUBLIC.json payload.tar SHA256SUMS; do
   test -f "$pave_upload/$pave_file" && test ! -L "$pave_upload/$pave_file"
-  test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 501:1
+  test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 0:1
   install -o 0 -g 0 -m 0444 "$pave_upload/$pave_file" "$pave_op/inputs/$pave_file"
 done
 for pave_file in oracle.sh trustcheck.py; do
   test -f "$pave_upload/$pave_file" && test ! -L "$pave_upload/$pave_file"
-  test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 501:1
+  test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 0:1
   install -o 0 -g 0 -m 0444 "$pave_upload/$pave_file" "$pave_op/inputs/instruments/$pave_file"
 done
 pave_sum=$(sha256sum "$pave_op/inputs/SHA256SUMS")
