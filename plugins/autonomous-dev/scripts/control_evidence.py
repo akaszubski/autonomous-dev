@@ -87,13 +87,20 @@ def file_fact(path: Path, collect: bool = False) -> tuple:
 def capture(argv: list, cwd: Path, timeout: float, stdin: bytes = b"") -> dict:
     """Drain bounded streams and reap the child and its owned POSIX group."""
     started = time.time_ns()
-    proc = subprocess.Popen(argv, cwd=cwd, env=ENV, stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            close_fds=True, start_new_session=True)
+    proc = None
     buffers = {"stdout": bytearray(), "stderr": bytearray()}
+    errors = []
     stop = ""
+    operation = "launch"
+    reaped, closed, absent, wait_timeout = False, True, False, False
     deadline = time.monotonic() + timeout
+    def note(phase: str, error: OSError) -> None:
+        errors.append({"operation": phase, "errno": error.errno})
     try:
+        proc = subprocess.Popen(argv, cwd=cwd, env=ENV, stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                close_fds=True, start_new_session=True)
+        operation = "drain"
         with selectors.DefaultSelector() as selector:
             for stream, label in ((proc.stdout, "stdout"), (proc.stderr, "stderr")):
                 os.set_blocking(stream.fileno(), False)
@@ -124,32 +131,59 @@ def capture(argv: list, cwd: Path, timeout: float, stdin: bytes = b"") -> dict:
                     else:
                         buffers[key.data].extend(block)
             if not stop:
+                operation = "wait"
                 try:
                     proc.wait(timeout=max(0.001, deadline - time.monotonic()))
                 except subprocess.TimeoutExpired:
                     stop = "TIMEOUT"
+    except OSError as error:
+        note(operation, error)
     finally:
         # No process-global handler or namespace privilege; this group was
         # created for this one invocation. Escaped sessions are not contained.
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        proc.wait(timeout=2)
-        for stream in (proc.stdin, proc.stdout, proc.stderr):
-            stream.close()
-    clean = False
-    until = time.monotonic() + 2
-    while time.monotonic() < until:
-        try:
-            os.killpg(proc.pid, 0)
-        except ProcessLookupError:
-            clean = True
-            break
-        time.sleep(0.01)
-    return {"exit": proc.returncode, "stdout": bytes(buffers["stdout"]),
-            "stderr": bytes(buffers["stderr"]), "stop": stop,
-            "cleanup": clean, "started_ns": started, "ended_ns": time.time_ns()}
+        if proc is not None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError as error:
+                note("signal", error)
+            # These steps are independent: a denied signal/probe never skips
+            # bounded wait or closing any other owned stream.
+            try:
+                proc.wait(timeout=2)
+                reaped = True
+            except subprocess.TimeoutExpired:
+                wait_timeout = True
+            except OSError as error:
+                note("wait", error)
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                try:
+                    stream.close()
+                except OSError as error:
+                    closed = False
+                    note("close", error)
+            until = time.monotonic() + 2
+            while time.monotonic() < until:
+                try:
+                    os.killpg(proc.pid, 0)
+                except ProcessLookupError:
+                    absent = True
+                    break
+                except OSError as error:
+                    note("probe", error)
+                    break
+                time.sleep(0.01)
+    if errors:
+        stop = "OS_ERROR"
+    elif wait_timeout and not stop:
+        stop = "WAIT_TIMEOUT"
+    return {"exit": proc.returncode if proc is not None else None,
+            "stdout": bytes(buffers["stdout"]), "stderr": bytes(buffers["stderr"]),
+            "stop": stop, "cleanup": reaped and closed and absent,
+            "reaped": reaped, "pipes_closed": closed, "group_absent": absent,
+            "wait_timeout": wait_timeout, "os_errors": errors,
+            "started_ns": started, "ended_ns": time.time_ns()}
 
 
 def node_ids(output: str) -> list:
@@ -165,6 +199,8 @@ def decide(case: dict, observation: dict) -> tuple[str, str]:
     """Compare case-owned expectations; never mint native identity or authority."""
     if observation.get("capture_stop") or not observation.get("cleanup_complete"):
         return "ERROR", observation.get("capture_stop") or "CLEANUP_UNPROVEN"
+    if not observation.get("identities_rechecked"):
+        return "ERROR", "IDENTITY_UNVERIFIED"
     if not observation.get("context_resolved"):
         return "UNMEASURED", "UNRESOLVED_CONTEXT"
     runner = case.get("runner", {})
@@ -222,7 +258,25 @@ def pytest_argv(args: argparse.Namespace, collect: bool) -> list:
     return [*argv, *(["--collect-only"] if collect else []), "-q", args.target]
 
 
-def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
+def record_process(observation: dict, argv: list, stdin: bytes, result: dict) -> None:
+    """Retain only acquired process facts, including closed OS-error metadata."""
+    observation["processes"].append({
+        "argv": argv, "stdin_sha256": digest(stdin), "exit": result["exit"],
+        "stdout_sha256": digest(result["stdout"]), "stderr_sha256": digest(result["stderr"]),
+        "stdout_bytes": len(result["stdout"]), "stderr_bytes": len(result["stderr"]),
+        "started_ns": result["started_ns"], "ended_ns": result["ended_ns"],
+        "reaped": result["reaped"], "pipes_closed": result["pipes_closed"],
+        "group_absent": result["group_absent"], "wait_timeout": result["wait_timeout"]})
+    observation["os_errors"].extend(result["os_errors"])
+    observation["capture_stop"] = result["stop"]
+
+
+def observe(args: argparse.Namespace, case: dict, receipt: dict) -> None:
+    # Publish verified facts into the same receipt as acquired. An exception
+    # must not discard completed captures through a failed tuple assignment.
+    observation = receipt["observation"]
+    observation.update(phase="input", identities={}, identities_rechecked=False,
+                       processes=[], cleanup_complete=False)
     root, target = Path(args.workroot), Path(args.target)
     if not target.is_absolute() or (not args.command_file and not target.resolve().is_relative_to(root.resolve())):
         raise ValueError("SUBJECT_OUTSIDE_CWD")
@@ -230,19 +284,23 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
              "python": Path(args.python).resolve(), "subject": target}
     if args.command_file:
         files["command_file"] = Path(args.command_file)
-    before = {key: file_fact(path) for key, path in files.items()}
+    before = {}
+    for key, path in files.items():
+        before[key] = file_fact(path)
+        receipt["dependency_digests"][key] = before[key][0]
+        observation["identities"][key] = before[key][1]
     cwd = identity(root)[:5]
     runner = case.get("runner", {})
     expected_cwd = runner.get("cwd")
     resolved = isinstance(expected_cwd, str) and Path(expected_cwd).is_absolute()
     if resolved and expected_cwd != str(root):
         raise ValueError("CWD_MISMATCH")
-    observation = {"stage": "executing", "python": args.python, "target": args.target,
+    observation.update({"stage": "executing", "python": args.python, "target": args.target,
                    "subject_digest": before["subject"][0], "nonce": args.nonce,
                    "cwd": str(root), "cwd_identity": cwd, "selected": [],
                    "selected_count": 0, "collect_exit": None, "run_exit": None,
-                   "cleanup_complete": True, "cleanup_scope": "owned_process_group",
-                   "context_resolved": resolved, "capture_stop": "", "processes": []}
+                   "cleanup_scope": "owned_process_group", "context_resolved": resolved,
+                   "capture_stop": ""})
     observation["command_file_sha256"] = before["command_file"][0] if args.command_file else None
     commands = [pytest_argv(args, True), pytest_argv(args, False)]
     stdin = b""
@@ -268,8 +326,13 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
     probe = "import platform;print(platform.python_version())"
     if not args.command_file:
         probe += ";import pytest;print(pytest.__version__)"
-    version = capture([args.python, "-B", "-X", f"pycache_prefix={args.pycache_prefix}", "-I", "-c", probe],
-                      root, args.child_timeout)
+    observation["phase"] = "profile"
+    version_argv = [args.python, "-B", "-X", f"pycache_prefix={args.pycache_prefix}", "-I", "-c", probe]
+    version = capture(version_argv, root, args.child_timeout)
+    record_process(observation, version_argv, b"", version)
+    observation["cleanup_complete"] = version["cleanup"]
+    if version["stop"] or not version["cleanup"]:
+        return
     versions = version["stdout"].decode("utf-8").splitlines()
     if version["exit"] or version["stop"] or not version["cleanup"] or len(versions) != (1 if args.command_file else 2):
         raise ValueError("PROFILE_UNMEASURED")
@@ -278,15 +341,14 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
         if key in runner and runner[key] is not None and runner[key] != actual:
             raise ValueError("PROFILE_MISMATCH")
     for index, argv in enumerate(commands):
+        all_clean = observation["cleanup_complete"]
+        observation.update(phase="command", cleanup_complete=False)
         result = capture(argv, root, args.child_timeout, stdin)
-        observation["processes"].append({
-            "argv": argv, "stdin_sha256": digest(stdin), "exit": result["exit"],
-            "stdout_sha256": digest(result["stdout"]), "stderr_sha256": digest(result["stderr"]),
-            "stdout_bytes": len(result["stdout"]), "stderr_bytes": len(result["stderr"]),
-            "started_ns": result["started_ns"], "ended_ns": result["ended_ns"]})
-        observation["cleanup_complete"] &= result["cleanup"]
-        observation["capture_stop"] = result["stop"]
+        record_process(observation, argv, stdin, result)
+        observation["cleanup_complete"] = all_clean and result["cleanup"]
         observation["collect_exit" if index == 0 else "run_exit"] = result["exit"]
+        if args.command_file:
+            observation["run_exit"] = result["exit"]
         if index == 0:
             observation["selected"] = node_ids(result["stdout"].decode("utf-8"))
         if args.command_file and not result["stop"]:
@@ -296,7 +358,6 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
             body, _ = json.JSONDecoder(object_pairs_hook=unique).raw_decode(text[text.index("{"):])
             rows = body["results"]
             observation["selected"] = sorted(row["guard"] for row in rows)
-            observation["run_exit"] = result["exit"]
             observation["results"] = [{
                 "guard": row["guard"], "verdict": row["verdict"],
                 "positive_ok": row.get("positive", {}).get("ok"),
@@ -306,13 +367,13 @@ def observe(args: argparse.Namespace, case: dict) -> tuple[dict, dict]:
             } for row in rows]
         observation["selected_count"] = len(observation["selected"])
         if result["stop"] or not result["cleanup"]:
-            break
+            return
+    observation["phase"] = "identity_recheck"
     if identity(root)[:5] != cwd or any(file_fact(path) != before[key] for key, path in files.items()):
         raise ValueError("IDENTITY_CHANGED")
-    observation["identities"] = {key: fact[1] for key, fact in before.items()}
+    observation.update(identities_rechecked=True, phase="complete")
     observation["profile"] = {"env": ENV, "timeout_s": args.child_timeout,
                               "output_limit": OUTPUT_LIMIT, "pycache_prefix": args.pycache_prefix}
-    return observation, {key: fact[0] for key, fact in before.items()}
 
 
 def main(argv: list | None = None) -> int:
@@ -323,7 +384,8 @@ def main(argv: list | None = None) -> int:
     parser.add_argument("--command-file")
     args = parser.parse_args(argv)
     receipt = {"schema": SCHEMA, "case": args.case,
-               "observation": {"stage": "executing", "nonce": args.nonce, "target": args.target},
+               "observation": {"stage": "executing", "nonce": args.nonce, "target": args.target,
+                               "phase": "input", "os_errors": [], "cleanup_complete": False},
                "decision": "ERROR", "tool_version": VERSION, "dependency_digests": {}}
     try:
         if not 0 < args.child_timeout <= 300 or not args.nonce:
@@ -347,11 +409,14 @@ def main(argv: list | None = None) -> int:
         if "selected_ids" in expected and (not isinstance(expected["selected_ids"], list)
                 or not all(isinstance(v, str) for v in expected["selected_ids"])):
             raise ValueError("SELECTION_TYPE")
-        receipt["observation"], receipt["dependency_digests"] = observe(args, cases[0])
+        observe(args, cases[0], receipt)
         if receipt["dependency_digests"]["case_manifest"] != manifest_fact[0]:
             raise ValueError("MANIFEST_CHANGED")
         receipt["decision"], reason = decide(cases[0], receipt["observation"])
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        if isinstance(error, OSError):
+            receipt["observation"]["os_errors"].append({
+                "operation": receipt["observation"]["phase"], "errno": error.errno})
         reason = str(error) if isinstance(error, ValueError) and re.fullmatch("[A-Z_]+", str(error)) else type(error).__name__
         receipt["decision"] = "ERROR"
     receipt["observation"]["reason"] = reason

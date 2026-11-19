@@ -1,9 +1,12 @@
 """Real R0 entrypoint through the accepted, independent F0 boundary."""
 
 import hashlib
+import importlib.util
 import json
 import os
+import signal
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -318,3 +321,57 @@ def test_landed_ambient_and_source_faults_do_not_change_effective_profile(tmp_pa
     assert isolated["observation"]["profile"] == baseline["observation"]["profile"]
     assert isolated["observation"]["selected"] == H.selected_of("s_pass")
     assert all(not marker.exists() for marker in markers.values())
+
+
+@pytest.mark.parametrize("denied", ["signal", "probe"])
+def test_injected_os_denial_retains_partial_facts_and_closes_pipes(tmp_path, monkeypatch, capsys, denied):
+    spec = importlib.util.spec_from_file_location("r0_os_denial", LEAF)
+    leaf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(leaf)
+    # The fault wraps real maintained APIs, not a fabricated mock surface.
+    assert hasattr(os, "killpg") and hasattr(subprocess.Popen, "wait")
+    real_popen, real_killpg = subprocess.Popen, os.killpg
+    target = tmp_path / "public_child.py"
+    target.write_text("import time\nprint('started',flush=True)\ntime.sleep(60)\n")
+    owned = []
+    def spawn(argv, **kwargs):
+        proc = real_popen(argv, **kwargs)
+        if str(target) in argv:
+            owned.append(proc)
+        return proc
+    def deny(pid, sig):
+        if owned and pid == owned[-1].pid and sig == (signal.SIGKILL if denied == "signal" else 0):
+            raise PermissionError(1, "public deterministic denial")
+        return real_killpg(pid, sig)
+    monkeypatch.setattr(leaf.subprocess, "Popen", spawn)
+    monkeypatch.setattr(leaf.os, "killpg", deny)
+    command = {"argv": [str(H.PYTHON), "-I", "-S", "-B", str(target)],
+               "cwd": str(tmp_path), "env": {"PATH": "/usr/bin:/bin", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
+               "stdin": "", "stdin_sha256": hashlib.sha256(b"").hexdigest()}
+    command_file = H.write_json(tmp_path / "command.json", command)
+    manifest = H.write_json(tmp_path / "case.json", {"cases": [{"id": "os-denial",
+        "runner": {"cwd": str(tmp_path), "python_version": "3.11.14",
+                   "command_file_sha256": H.digest(command_file)},
+        "expected": {"collect_exit": 0, "run_exit": 0, "selected_count": 1, "selected_ids": ["public"]}}]})
+    try:
+        code = leaf.main(["--target", str(target), "--workroot", str(tmp_path),
+            "--python", str(H.PYTHON), "--case", "os-denial", "--case-manifest", str(manifest),
+            "--nonce", H.new_nonce(), "--pycache-prefix", str(tmp_path / "cache"),
+            "--child-timeout", "0.5", "--command-file", str(command_file)])
+        receipt = json.loads(capsys.readouterr().out)
+        obs = receipt["observation"]
+        assert code == 2 and receipt["decision"] == "ERROR"
+        assert owned and obs["cleanup_complete"] is False
+        assert {"operation": denied, "errno": 1} in obs["os_errors"]
+        assert receipt["dependency_digests"]["subject"] == H.digest(target)
+        assert obs["processes"][-1]["stdout_bytes"] >= len("started\n")
+        assert all(stream.closed for stream in (owned[-1].stdin, owned[-1].stdout, owned[-1].stderr))
+        assert obs["processes"][-1]["exit"] == (None if denied == "signal" else -signal.SIGKILL)
+    finally:
+        # Outside custody retains the actual Popen object; no payload-picked PID.
+        for proc in owned:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait(timeout=2)
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                stream.close()
