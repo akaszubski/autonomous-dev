@@ -56,7 +56,7 @@ name: control-runner-trust
 
 on:
   push:
-    branches: [plan/control-tool-v12, feat/control-tool-f0, master]
+    branches: [plan/control-tool-v12, feat/control-tool-f0, master, r0/control-evidence-1860]
   pull_request:
     branches: [plan/control-tool-v12, feat/control-tool-f0, master]
 
@@ -65,6 +65,11 @@ permissions:
 
 jobs:
   trust:
+    if: >-
+      (github.event_name == 'push' &&
+       (github.ref == 'refs/heads/plan/control-tool-v12' || github.ref == 'refs/heads/feat/control-tool-f0')) ||
+      (github.event_name == 'pull_request' &&
+       (github.head_ref == 'plan/control-tool-v12' || github.head_ref == 'feat/control-tool-f0'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # WHERE a binding is spelled is load-bearing, and not interchangeable with
@@ -85,6 +90,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.14"
@@ -103,3 +109,43 @@ jobs:
           F0_BASETEMP: ${{ runner.temp }}/f0-basetemp-${{ github.run_id }}
           F0_PYCACHE: ${{ runner.temp }}/f0-pycache-${{ github.run_id }}
         run: env -i PATH=/usr/bin:/bin PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "$F0_PYTHON" -B -X pycache_prefix="$F0_PYCACHE" -I -m pytest -p no:cacheprovider -c /dev/null --rootdir="$PWD/bootstrap/control_trust/proof" --basetemp="$F0_BASETEMP" --noconftest -q bootstrap/control_trust/proof
+
+  r0:
+    if: >-
+      (github.event_name == 'push' &&
+       (github.ref == 'refs/heads/r0/control-evidence-1860' || github.ref == 'refs/heads/master')) ||
+      (github.event_name == 'pull_request' &&
+       (github.head_ref == 'r0/control-evidence-1860' || github.head_ref == 'master'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      R0_PYTHON: /opt/hostedtoolcache/Python/3.11.14/x64/bin/python
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.14"
+      - run: python -m pip install pytest==8.4.2 PyYAML==6.0.2
+      - name: admit-accepted-f0-inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code --no-ext-diff --no-textconv a890fa201a8b6134946e0c9a852a06bbf258451e -- bootstrap/control_trust
+          test -z "$(git ls-files --others --exclude-standard -- bootstrap/control_trust)"
+          archive_sha=$(git archive --format=tar a890fa201a8b6134946e0c9a852a06bbf258451e -- bootstrap/control_trust .github/workflows/control-runner-trust.yml | sha256sum)
+          test "${archive_sha%% *}" = f8420c2ca28ac04b24183077a0e21e4b44fc422d656ccfd571db44c74ec9f5af
+      - run: |
+          umask 077
+          mkdir -p "$R0_BASETEMP" "$R0_PYCACHE"
+        env:
+          R0_BASETEMP: ${{ runner.temp }}/r0-basetemp-${{ github.run_id }}-${{ github.run_attempt }}
+          R0_PYCACHE: ${{ runner.temp }}/r0-pycache-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: r0-evidence-qualification
+        env:
+          R0_BASETEMP: ${{ runner.temp }}/r0-basetemp-${{ github.run_id }}-${{ github.run_attempt }}
+          R0_PYCACHE: ${{ runner.temp }}/r0-pycache-${{ github.run_id }}-${{ github.run_attempt }}
+        run: env -i PATH=/usr/bin:/bin PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "$R0_PYTHON" -B -X pycache_prefix="$R0_PYCACHE" -I -m pytest -p no:cacheprovider -c /dev/null --rootdir="$PWD/tests/unit/scripts" --basetemp="$R0_BASETEMP" --noconftest -q tests/unit/scripts/test_control_evidence.py
