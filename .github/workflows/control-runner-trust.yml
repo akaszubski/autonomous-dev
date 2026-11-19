@@ -1,8 +1,9 @@
-# The bootstrap trust verdict, and nothing else.
+# Independent bootstrap maintenance and R0 evidence qualification.
 #
-# This workflow contains ONLY the frozen F0 trust suite. It is deliberately not
-# part of the general CI workflow, whose ambient red would make this verdict
-# unreadable. It has no dependency on another workflow's result, no model
+# The trust job measures its current F0 maintenance checkout; the r0 job admits
+# the accepted bootstrap inputs and measures the product's R0 corpus. Neither
+# is the general CI workflow, whose ambient red would make this verdict
+# unreadable. There is no dependency on another workflow's result, no model
 # reviewer, no third-party helper action, no artifact upload and no cache: each
 # of those is either a route from an unrelated failure into this green, or a way
 # to smuggle state between runs.
@@ -115,7 +116,7 @@ jobs:
       (github.event_name == 'push' &&
        (github.ref == 'refs/heads/r0/control-evidence-1860' || github.ref == 'refs/heads/master')) ||
       (github.event_name == 'pull_request' &&
-       (github.head_ref == 'r0/control-evidence-1860' || github.head_ref == 'master'))
+       github.head_ref != 'plan/control-tool-v12' && github.head_ref != 'feat/control-tool-f0')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -135,7 +136,8 @@ jobs:
         run: |
           set -euo pipefail
           git diff --exit-code --no-ext-diff --no-textconv a890fa201a8b6134946e0c9a852a06bbf258451e -- bootstrap/control_trust
-          test -z "$(git ls-files --others --exclude-standard -- bootstrap/control_trust)"
+          untracked=$(git ls-files --others --exclude-standard -- bootstrap/control_trust)
+          test -z "$untracked"
           archive_sha=$(git archive --format=tar a890fa201a8b6134946e0c9a852a06bbf258451e -- bootstrap/control_trust .github/workflows/control-runner-trust.yml | sha256sum)
           test "${archive_sha%% *}" = f8420c2ca28ac04b24183077a0e21e4b44fc422d656ccfd571db44c74ec9f5af
       - run: |
