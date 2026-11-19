@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import resource
+import socket
 import stat
 import subprocess
 import sys
@@ -75,7 +76,7 @@ for instrument in ('oracle.sh', 'trustcheck.py'):
     assert digest(ROOT / 'instruments' / instrument) == EXPECTED[instrument]
 status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
 assert all(int(status[key].strip(), 16) == 0 for key in ('CapEff', 'CapPrm', 'CapAmb', 'CapBnd'))
-assert set(os.listdir('/sys/class/net')) == {'lo'}
+assert {name for _, name in socket.if_nameindex()} == {'lo'}
 for name in ('home', 'config', 'private', 'seed', 'empty-template', 'subjects', 'foreign'):
     (ROOT / name).mkdir(mode=0o700)
 FOREIGN = ROOT / 'foreign'
