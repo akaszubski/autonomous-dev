@@ -91,7 +91,6 @@ EXPR_CTX = re.compile(r"\$\{\{\s*([A-Za-z_][A-Za-z0-9_-]*)")
 # style parses to the same mapping the real workflow's block style parses to, and
 # the checker reads the parsed document, never the bytes.
 TEMP_PATH = "${{ runner.temp }}/f0-%s-${{ github.run_id }}"
-TEMP_ENV = f'{{F0_BASETEMP: "{TEMP_PATH % "basetemp"}", F0_PYCACHE: "{TEMP_PATH % "pycache"}"}}'
 
 # Setup is permitted but BOUNDED BY SHAPE, not by an open allowance: pinned
 # dependency installation and fresh private root allocation, nothing else. A
@@ -117,16 +116,21 @@ SETUP_SHAPES = (
 PIPELINE_TOKENS = ("|", "&&", ";", "tee")
 
 CT = "bootstrap/control_trust"
+# Reuse the maintained declaration, not a second roster in this fixture. The
+# measured-file equality and fixed cardinalities are tested against mutations.
+INVENTORY = json.loads(H.RUNG_SCOPE.read_text("utf-8"))["declared_inventory"]
 BASE_SCOPE = {
     "limits": {"runtime_lines": 10, "proof_lines": 20, "cli_surfaces": 1},
     "changed_paths": [f"{CT}/**", "scripts/**"],
     "removals": [],
+    "declared_inventory": INVENTORY,
 }
 RAISED_LIMITS = {"runtime_lines": REVIEWED_RUNTIME_LINES + 1, "cli_surfaces": REVIEWED_CLI_SURFACES}
 RAISED_LIMITS["proof_lines"] = REVIEWED_PROOF_LINES + 1
 RAISED = {**BASE_SCOPE, "limits": RAISED_LIMITS}
 NARROW = {**BASE_SCOPE, "changed_paths": [f"{CT}/**"]}
-PROMISED = {**BASE_SCOPE, "removals": [f"{CT}/oracle.sh"]}
+PROMISED = {**BASE_SCOPE, "removals": [f"{CT}/oracle.sh"], "declared_inventory":
+            {**BASE_SCOPE["declared_inventory"], "runtime_modules": [f"{CT}/trustcheck.py"]}}
 WITH_DOCS = {**BASE_SCOPE, "changed_paths": [f"{CT}/**", "scripts/**", "docs/**"]}
 # The scope for the ignored-untracked control: its .gitignore is itself a
 # committed change, so it must sit under a declared glob or the row would refuse
@@ -301,7 +305,28 @@ def test_untracked_non_ignored_files_are_inventoried(tmp_path, label, scope, rel
 # identical arms are rows, not functions; the rationale for each is above it.
 # ===========================================================================
 
+# A second module already exists in the baseline; the boundary pair carries
+# 399 and400 actual counted lines, never a line-budget overflow as a substitute.
+BOUNDARY_SCOPE = {**BASE_SCOPE, "limits": {**BASE_SCOPE["limits"], "runtime_lines": 400}}
+BOUNDARY = {f"{CT}/trustcheck.py": H.BASELINE_CLI + "value = 1\n" * 395}
+INVENTORY_FAULTS = [
+    ("missing", {}, "SCOPE_MALFORMED"),
+    ("runtime-type", {"runtime_modules": None}, "SCOPE_MALFORMED"),
+    ("runtime-omitted", {"runtime_modules": []}, "INVENTORY_MISMATCH"),
+    ("duplicate", {"runtime_modules": INVENTORY["runtime_modules"] * 2}, "SCOPE_MALFORMED"),
+    ("schema", {"public_schemas": ["other"]}, "SCHEMA_INVENTORY_MISMATCH"),
+    ("schema-extra", {"public_schemas": ["control-tool-receipt-1", "other"]}, "SCHEMA_INVENTORY_MISMATCH"),
+    ("store-type", {"persistent_stores": "state"}, "SCOPE_MALFORMED"),
+    ("store-over", {"persistent_stores": ["one", "two"]}, "PERSISTENT_STORES_OVER_BUDGET"),
+]
 BUDGET_ARMS = [
+    ("inventory-absent", {k: v for k, v in BASE_SCOPE.items() if k != "declared_inventory"}, {f"{CT}/note.txt": "n\n"}, "SCOPE_MALFORMED"),
+    ("module-boundary-control", BOUNDARY_SCOPE, BOUNDARY, None),
+    ("module-boundary", BOUNDARY_SCOPE, {**BOUNDARY, f"{CT}/third.py": "value = 1\n"}, "RUNTIME_MODULES_OVER_BUDGET"),
+    ("limits-missing", {**BASE_SCOPE, "limits": {}}, {f"{CT}/note.txt": "n\n"}, "SCOPE_MALFORMED"),
+    ("limits-bool", {**BASE_SCOPE, "limits": {**BASE_SCOPE["limits"], "runtime_lines": True}}, {f"{CT}/note.txt": "n\n"}, "SCOPE_MALFORMED"),
+    *[(f"inventory-{label}", {**BASE_SCOPE, "declared_inventory": {**INVENTORY, **delta} if delta else {}},
+       {f"{CT}/note.txt": "n\n"}, reason) for label, delta, reason in INVENTORY_FAULTS],
     # MB-1: raise the operative limits AND make the change that needs them in
     # one edit -- growth absorbed with every intra-scope assertion still green.
     # Only the externally injected REVIEWED ceiling can see it.
@@ -342,7 +367,7 @@ BUDGET_ARMS = [
     # Opposite controls, DIFFERENT in shape from the arms they control: the same
     # edit under a declared glob, and a promise actually kept. Without them the
     # refusals above could all mean "the instrument refuses every changeset".
-    ("MB-8-control", WITH_DOCS, {"docs/stray.py": "Y = 2\n"}, None),
+    ("MB-8-control", WITH_DOCS, {"docs/stray.txt": "Y = 2\n"}, None),
     ("MB-9-control", PROMISED, {f"{CT}/oracle.sh": None}, None),
 ]
 
@@ -364,6 +389,9 @@ def test_budget_arm(tmp_path, label, scope, changes, expect):
     assert bool(changed) == (expect != "EMPTY_CHANGESET"), f"{label}: changed={changed!r}"
     still_present = [p for p in scope["removals"] if (repo / p).exists()]
     assert bool(still_present) == (expect == "ABSENT_REMOVAL"), f"{label}: {still_present!r}"
+    if label.startswith("module-boundary"):
+        total = sum(_counted(p) for p in (repo / CT).glob("*.py")) + _counted(repo / CT / "oracle.sh")
+        assert total == (400 if label == "module-boundary" else 399)
     H.expect(_budget(repo, base, scope_path), expect)
     if label != "MB-2":
         return
@@ -680,32 +708,10 @@ def test_workflow_checker_negative_control():
 # refuses everything is indistinguishable from one that works. This fixture
 # carries the supported bounded setup plus the single verdict-bearing step, and
 # must come back with ZERO violations.
-GOOD_WORKFLOW = f"""on:
-  push:
-    branches: [plan/control-tool-v12, feat/control-tool-f0, master]
-  pull_request:
-    branches: [plan/control-tool-v12, feat/control-tool-f0, master]
-jobs:
-  trust:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      F0_PYTHON: /opt/hostedtoolcache/Python/3.11.14/x64/bin/python
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.11.14
-      - run: python -m pip install pytest==8.4.2 PyYAML==6.0.2
-      - run: mkdir -p "$F0_BASETEMP" "$F0_PYCACHE"
-        env: {TEMP_ENV}
-      - name: {VERDICT_STEP_NAME}
-        env: {TEMP_ENV}
-        run: {LOCAL_COMMAND}
-"""
+# The maintained workflow is the single positive specimen, also used for the
+# real-file assertion. Every negative below mutates a fresh parsed copy, and
+# the fixed checker predicates and explicit expected refusals remain outside it.
+GOOD_WORKFLOW = H.require(H.WORKFLOW, "control-runner-trust.yml").read_text("utf-8")
 
 
 def test_workflow_checker_positive_control():

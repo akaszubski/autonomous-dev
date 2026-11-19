@@ -35,14 +35,10 @@ INTEGER_FIELDS = ("collect_exit", "run_exit", "selected_count")
 # deliberately NOT here: it is owned by check_subject_digest, which runs after
 # the node-id comparison so that a frozen prior record is attributed to the
 # selection it replayed rather than to the subject bytes it also carried.
-COMPARED_FACTS = (
-    ("python", "PYTHON_MISMATCH"),
-    ("python_version", "PYTHON_MISMATCH"),
-    ("target", "TARGET_MISMATCH"),
-    ("collect_exit", "COLLECT_EXIT_MISMATCH"),
-    ("run_exit", "RUN_EXIT_MISMATCH"),
-    ("selected_count", "SELECTED_MISMATCH"),
-)
+COMPARED_FACTS = [(field, f"{field.upper()}_MISMATCH") for field in
+                  "python target collect_exit run_exit selected_count".split()]
+COMPARED_FACTS.insert(1, ("python_version", "PYTHON_MISMATCH"))
+COMPARED_FACTS[-1] = ("selected_count", "SELECTED_MISMATCH")
 
 
 def refuse(reason_id: str, detail: object) -> int:
@@ -119,14 +115,6 @@ def parse_receipt(text):
     return doc, None
 
 
-def flatten(doc: dict) -> dict:
-    # Unknown keys INSIDE observation are legitimate R0 metadata and must travel
-    # unchanged; only the envelope's own key set is closed. NOTHING is coerced
-    # here: list() over a null `selected` raises before any check can name the
-    # defect, and a traceback is not a REASON_ID.
-    return dict(doc["observation"])
-
-
 def paired(ctx, field):
     left, right = ctx.oracle.get(field), ctx.candidate.get(field)
     # An ABSENT field is owned by check_required_fields alone. Comparing here as
@@ -138,15 +126,10 @@ def paired(ctx, field):
 
 
 def check_required_fields(ctx):
-    missing = [key for key in ENVELOPE_FIELDS if key not in ctx.envelope]
-    if missing:
-        return "MISSING_FIELD", f"the receipt envelope lacks {missing}"
-    for label, rec in (("oracle record", ctx.oracle), ("receipt observation", ctx.candidate)):
-        # A key PRESENT with a null value is not supplied evidence: it reaches
-        # every later check as "nothing to compare" and would fail open, so an
-        # absent key and a null value are ONE named defect rather than two
-        # routes, one of which is named and one of which is a traceback.
-        absent = [key for key in RECORD_FIELDS if rec.get(key) is None]
+    for label, rec, fields in (("receipt envelope", ctx.envelope, ENVELOPE_FIELDS),
+                               ("oracle record", ctx.oracle, RECORD_FIELDS),
+                               ("receipt observation", ctx.candidate, RECORD_FIELDS)):
+        absent = [key for key in fields if key not in rec or (fields is RECORD_FIELDS and rec[key] is None)]
         if absent:
             return "MISSING_FIELD", f"the {label} lacks {absent}"
     return None
@@ -155,12 +138,12 @@ def check_required_fields(ctx):
 def check_bindings(ctx):
     # Truth is supplied by the CALLER from independently resolved bytes on EVERY
     # comparison. A receipt that vouches for its own provenance proves nothing.
-    supplied = {"case": ctx.args.expect_case, "tool_version": ctx.args.expect_tool_version}
+    supplied = {"case": ctx.args.expect_case, "tool_version": ctx.args.expect_tool_version,
+                "dependency_digest": ctx.args.expect_dependency_digests}
     for key, expected in supplied.items():
-        if ctx.envelope.get(key) != expected:
-            return f"{key.upper()}_MISMATCH", f"receipt {key} is {ctx.envelope.get(key)!r}"
-    if ctx.envelope.get("dependency_digests") != ctx.args.expect_dependency_digests:
-        return "DEPENDENCY_DIGEST_MISMATCH", "the receipt's digests are not the resolved ones"
+        actual = ctx.envelope.get("dependency_digests" if key == "dependency_digest" else key)
+        if actual != expected:
+            return f"{key.upper()}_MISMATCH", f"receipt {key} is {actual!r}"
     return None
 
 
@@ -233,13 +216,14 @@ def cmd_compare(args) -> int:
     # A FIXED order, one load-and-parse route per side: an absent, empty or
     # malformed oracle is named as the ORACLE_* defect it is and is never
     # attributed to the receipt, and the candidate side likewise.
-    oracle, err = load_side(args.oracle, "ORACLE", parse_oracle)
-    if err:
-        return refuse(*err)
-    doc, err = load_side(args.candidate, "CANDIDATE", parse_receipt)
-    if err:
-        return refuse(*err)
-    ctx = SimpleNamespace(oracle=oracle, candidate=flatten(doc), envelope=doc, args=args)
+    loaded = []
+    for path, prefix, parse in ((args.oracle, "ORACLE", parse_oracle), (args.candidate, "CANDIDATE", parse_receipt)):
+        record, err = load_side(path, prefix, parse)
+        if err:
+            return refuse(*err)
+        loaded.append(record)
+    oracle, doc = loaded
+    ctx = SimpleNamespace(oracle=oracle, candidate=dict(doc["observation"]), envelope=doc, args=args)
     for check in CHECKS:
         found = check(ctx)
         if found:
@@ -318,13 +302,6 @@ def bucket(path: str) -> str:
     return "runtime" if _is_runtime(path) else "other"
 
 
-def count_lines(path: Path) -> int:
-    # Budget source may declare a legacy encoding. Preserve undecodable bytes
-    # for the count without relaxing the UTF-8 contract for evidence and scope.
-    lines = read_text(path, errors="surrogateescape").splitlines()
-    return sum(1 for ln in lines if ln.strip() and not ln.lstrip().startswith("#"))
-
-
 def appends(path: Path) -> bool:
     # An append writer is how a bootstrap harness quietly acquires state, and
     # state is what turns a check into something gameable. Both shapes: a shell
@@ -359,9 +336,19 @@ def load_scope(path_text):
         doc = json.loads(read_text(path))
     except ValueError as exc:
         return None, ("SCOPE_MALFORMED", f"{path} is not readable JSON: {exc}")
-    for key, kind in (("limits", dict), ("changed_paths", list), ("removals", list)):
+    for key, kind in (("limits", dict), ("changed_paths", list), ("removals", list), ("declared_inventory", dict)):
         if not isinstance(doc, dict) or not isinstance(doc.get(key), kind):
             return None, ("SCOPE_MALFORMED", f"{path} lacks a usable {key!r}")
+    inventory = doc["declared_inventory"]
+    for key in ("runtime_modules", "public_schemas", "private_bootstrap_framings", "cli_surfaces", "persistent_stores", "registrations"):
+        entries = inventory.get(key)
+        if (not isinstance(entries, list)
+                or any(not isinstance(v, str) or not v for v in entries)
+                or len(set(entries)) != len(entries)):
+            return None, ("SCOPE_MALFORMED", f"invalid inventory {key}")
+    if (inventory["public_schemas"] != [RECEIPT_SCHEMA]
+            or inventory["private_bootstrap_framings"] != [ORACLE_SCHEMA]):
+        return None, ("SCHEMA_INVENTORY_MISMATCH", "declared formats differ from the implemented formats")
     return doc, None
 
 
@@ -369,13 +356,8 @@ def reviewed_limits(text: str) -> dict:
     # Injected from OUTSIDE the rung. Raising a ceiling and making the change
     # that needs it in one edit satisfies every intra-scope invariant, so the
     # only witness that can see it is one the rung does not own.
-    limits = {}
-    for item in text.split(","):
-        key, sep, value = item.partition("=")
-        if not sep:
-            raise ValueError(f"{item!r} is not key=value")
-        limits[key.strip()] = int(value)
-    return limits
+    pairs = (item.split("=") for item in text.split(","))
+    return {key.strip(): int(value) for key, value in pairs}
 
 
 def check_base(repo, base, scope):
@@ -427,6 +409,8 @@ def cmd_budget(args) -> int:
         return refuse(*err)
     limits, globs = scope["limits"], scope["changed_paths"]
     rev = args.reviewed
+    if set(limits) != set(rev) or any(type(v) is not int or v < 0 for v in limits.values()):
+        return refuse("SCOPE_MALFORMED", "limits must be complete nonnegative integers")
     above = [f"{k}={limits[k]}" for k in rev if k in limits and limits[k] > rev[k]]
     if above:
         return refuse("LIMIT_ABOVE_REVIEWED", f"the rung raises its own ceiling: {above}")
@@ -438,35 +422,40 @@ def cmd_budget(args) -> int:
         return refuse(*err)
     if not changed:
         return refuse("EMPTY_CHANGESET", f"nothing changed since {args.base[:12]}")
-    touched = [path for path in changed if covered(path, INV4_GLOBS)]
-    if touched:
-        return refuse("INV4_VIOLATION", f"the rung edits protected infrastructure: {touched[:4]}")
-    stray = [path for path in changed if not covered(path, globs)]
-    if stray:
-        return refuse("OMITTED_SPLIT", f"changed outside every declared glob: {stray[:4]}")
-    still = [path for path in scope["removals"] if (repo / path).exists()]
-    if still:
-        return refuse("ABSENT_REMOVAL", f"promised removals still present: {still}")
-    writers = [path for path in changed if bucket(path) == "runtime" and appends(repo / path)]
-    if writers:
-        return refuse("APPEND_WRITER_ADDED", f"an append writer was added: {writers}")
-    measured, surfaces = {}, []
+    # Each structural refusal shares one ordered selection/reporting route.
+    for reason, paths in (
+        ("INV4_VIOLATION", [p for p in changed if covered(p, INV4_GLOBS)]),
+        ("OMITTED_SPLIT", [p for p in changed if not covered(p, globs)]),
+        ("ABSENT_REMOVAL", [p for p in scope["removals"] if (repo / p).exists()]),
+        ("APPEND_WRITER_ADDED", [p for p in changed if bucket(p) == "runtime" and appends(repo / p)]),
+    ):
+        if paths:
+            return refuse(reason, paths)
+    measured, surfaces, modules = {}, [], []
     scoped, err = listing(repo, ("ls-files",), UNTRACKED)
     if err:
         return refuse(*err)
     for rel in (path for path in scoped if covered(path, globs)):
         kind = bucket(rel)
-        measured[kind] = measured.get(kind, 0) + count_lines(repo / rel)
-        if kind == "runtime" and CLI_MARK in read_text(repo / rel, errors="surrogateescape"):
-            surfaces.append(rel)
+        # Read each scoped source once for both accounting and CLI discovery.
+        text = read_text(repo / rel, errors="surrogateescape")
+        lines = sum(bool(line.strip()) and not line.lstrip().startswith("#") for line in text.splitlines())
+        measured[kind] = measured.get(kind, 0) + lines
+        if kind == "runtime":
+            modules.append(rel)
+            if CLI_MARK in text:
+                surfaces.append(rel)
     measured["cli_surfaces"] = len(surfaces)
-    for kind, key, reason_id in (
-        ("runtime", "runtime_lines", "RUNTIME_LINES_OVER_BUDGET"),
-        ("proof", "proof_lines", "PROOF_LINES_OVER_BUDGET"),
-        ("cli_surfaces", "cli_surfaces", "CLI_SURFACES_OVER_BUDGET"),
-    ):
-        if measured.get(kind, 0) > limits.get(key, 0):
-            return refuse(reason_id, f"{key}={measured.get(kind, 0)} over {limits.get(key, 0)}")
+    for key in ("runtime_lines", "proof_lines", "cli_surfaces"):
+        actual = measured.get(key.removesuffix("_lines"), 0)
+        if actual > limits[key]:
+            return refuse(f"{key.upper()}_OVER_BUDGET", f"{key}={actual} over {limits[key]}")
+    declared = scope["declared_inventory"]
+    for key, actual, maximum in (("runtime_modules", modules, 2), ("cli_surfaces", surfaces, 1), ("persistent_stores", declared["persistent_stores"], 1)):
+        if len(actual) > maximum or len(declared[key]) > maximum:
+            return refuse(f"{key.upper()}_OVER_BUDGET", f"{key} exceeds {maximum}")
+        if set(actual) != set(declared[key]):
+            return refuse("INVENTORY_MISMATCH", f"{key} differs from measured files")
     # Every category is reported, including the two that carry no budget.
     kinds = ("runtime", "proof", "config", "doc", "other")
     inventory = " ".join(f"{k}_lines={measured.get(k, 0)}" for k in kinds)
