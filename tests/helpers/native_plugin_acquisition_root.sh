@@ -46,6 +46,11 @@ pave_dropfile="$pave_dropdir/zzzz-pave-d0.conf"
 test ! -e "$pave_dropdir" && test ! -L "$pave_dropdir"
 cat >"$pave_op/zzzz-pave-d0.conf" <<'POLICY'
 [Service]
+User=999
+Group=990
+SupplementaryGroups=
+CapabilityBoundingSet=
+AmbientCapabilities=
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -132,8 +137,8 @@ GATE_ARGV
 )
 pave_status=0
 systemd-run --unit="$pave_unit" --wait --pipe --collect \
-  -p Type=exec -p Slice=system.slice -p User=root -p Group=root \
-  -p CapabilityBoundingSet='CAP_SETUID CAP_SETGID CAP_SETPCAP' -p AmbientCapabilities= \
+  -p Type=exec -p Slice=system.slice -p User=999 -p Group=990 -p SupplementaryGroups= \
+  -p CapabilityBoundingSet= -p AmbientCapabilities= \
   -p NoNewPrivileges=yes -p ProtectSystem=strict -p ProtectHome=yes \
   -p PrivateTmp=yes -p PrivateDevices=yes -p PrivateNetwork=yes \
   -p ProtectControlGroups=yes -p ProtectKernelTunables=yes -p ProtectKernelModules=yes \
@@ -146,8 +151,6 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
   -p "ExecStartPre=$pave_pre_gate pre" \
   -p "ExecStopPost=$pave_pre_gate post" \
-  /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/setpriv --reuid=999 --regid=990 \
-  --clear-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/python3 -I -S -B \
   /work/operator.py /work/case.PUBLIC.json \
   >"$pave_op/outer.stdout" 2>"$pave_op/outer.stderr" || pave_status=$?

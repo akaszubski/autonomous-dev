@@ -67,6 +67,7 @@ def run(argv, expected=0):
 
 sequence = 0
 assert os.getuid() == 999 and os.getgid() == 990
+assert set(os.getgroups()) <= {990}
 assert not ROOT.is_symlink() and ROOT.is_dir()
 assert digest(ROOT / 'payload.tar') == EXPECTED['archive']
 for tool in CASE['tools'].values():
@@ -75,6 +76,7 @@ for instrument in ('oracle.sh', 'trustcheck.py'):
     assert digest(ROOT / 'instruments' / instrument) == EXPECTED[instrument]
 status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
 assert all(int(status[key].strip(), 16) == 0 for key in ('CapEff', 'CapPrm', 'CapAmb', 'CapBnd'))
+assert status['NoNewPrivs'].strip() == '1'
 assert {line.split(':', 1)[0].strip()
         for line in Path('/proc/self/net/dev').read_text().splitlines()[2:]} == {'lo'}
 for name in ('home', 'config', 'private', 'seed', 'empty-template', 'subjects', 'foreign'):
