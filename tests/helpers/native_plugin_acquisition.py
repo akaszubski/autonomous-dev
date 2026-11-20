@@ -20,10 +20,16 @@ try:
 finally:
     os.close(case_fd)
 CASE = json.loads(case_raw)
+if CASE['case'] == 'D0-R0-FAILED-UPDATE-1':
+    assert set(CASE) == {'case', 'acquisition_fixture_sha256', 'foreign_fixture_sha256', 'failure_manifest_sha256'}
+    acquisition = Path('/work/acquire-case.json').read_bytes()
+    assert len(acquisition) <= 8192 and hashlib.sha256(acquisition).hexdigest() == CASE.pop('acquisition_fixture_sha256')
+    CASE = dict(json.loads(acquisition), **CASE)
 UPDATE = CASE['case'] == 'D0-R0-UPDATE-1'
 UNINSTALL = CASE['case'] == 'D0-R0-UNINSTALL-1'
-assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
-assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign'} if UPDATE else {'foreign_fixture_sha256', 'operator_sha256'} if UNINSTALL else set())
+FAILED = CASE['case'] == 'D0-R0-FAILED-UPDATE-1'
+assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-FAILED-UPDATE-1')
+assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign'} if UPDATE else {'foreign_fixture_sha256', 'operator_sha256'} if UNINSTALL else {'foreign_fixture_sha256', 'failure_manifest_sha256'} if FAILED else set())
 assert set(CASE['tools']) == {'cli', 'python', 'git'}
 assert all(set(tool) == {'path', 'sha256'} for tool in CASE['tools'].values())
 assert set(CASE['versions']) == {'python', 'pytest'}
@@ -53,7 +59,7 @@ def write_json(path, value):
 
 
 def run(argv, expected=0, cwd=None):
-    global sequence
+    global sequence, last_exit
     sequence += 1
     out = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stdout'
     err = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stderr'
@@ -68,8 +74,17 @@ def run(argv, expected=0, cwd=None):
         native_calls.append({'argv': list(map(str, argv)), 'cwd': str(cwd or FOREIGN),
                              'raw_exit': proc.returncode, 'stdout': str(out.relative_to(ROOT)),
                              'stderr': str(err.relative_to(ROOT))})
-    assert proc.returncode == expected, (sequence, proc.returncode)
+    last_exit = proc.returncode
+    assert expected is None or proc.returncode == expected, (sequence, proc.returncode)
     return out
+
+
+def compare_receipt(candidate, oracle, nonce, pins):
+    comparison = run([PYTHON, '-I', '-S', '-B', ROOT / 'instruments/trustcheck.py', 'compare',
+        '--oracle', oracle, '--candidate', candidate, '--nonce', nonce,
+        '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
+        '--expect-subject-digest', pins['subject'], '--expect-dependency-digests', json.dumps(pins)])
+    assert comparison.read_text().startswith('OK')
 
 
 sequence = 0
@@ -119,7 +134,7 @@ def snapshot(paths, strict=False):
 
 
 FOREIGN_SETTINGS = CASE.get('foreign')
-if UNINSTALL:
+if UNINSTALL or FAILED:
     fixture = ROOT / 'foreign-case.json'
     assert digest(fixture) == CASE['foreign_fixture_sha256'] and fixture.stat().st_size <= 8192
     FOREIGN_SETTINGS = json.loads(fixture.read_text())['foreign']
@@ -263,7 +278,7 @@ if UPDATE:
             assert path.read_bytes() == payload[name][0]
             assert bool(path.stat().st_mode & 0o111) == bool(payload[name][1] & 0o111)
             assert not (path.stat().st_mode & 0o022)
-if UNINSTALL:
+if UNINSTALL or FAILED:
     foreign_paths = populate_consumer()
     foreign_before = snapshot(foreign_paths)
     user_before = (ROOT / 'config/settings.json').read_text()
@@ -276,7 +291,7 @@ if UNINSTALL:
         return matches[0] if matches else None
 
     selected = select_native(json.loads(before_inventory.read_text()))
-    assert selected and selected['enabled'] is True and selected['version'] == '3.8.0-r0.2'
+    assert selected and selected['enabled'] is True and selected['version'] == ('3.8.0-r0.1' if FAILED else '3.8.0-r0.2')
     assert selected['installPath'] == str(installed)
     leaf = Path(selected['installPath']) / 'scripts/control_evidence.py'
     write_json(ROOT / 'private' / (OUTPUT_PREFIX + 'preservation.json'), {
@@ -313,11 +328,7 @@ for name, truth, decision, exit_code in cases:
     assert obs['cleanup_complete'] and obs['selected'] == ['test_subject.py::test_value']
     pins = {'case_manifest': digest(manifest), 'verifier': digest(leaf),
             'python': digest(PYTHON.resolve()), 'subject': digest(target)}
-    comparison = run([PYTHON, '-I', '-S', '-B', ROOT / 'instruments/trustcheck.py', 'compare',
-        '--oracle', oracle, '--candidate', candidate, '--nonce', nonce,
-        '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
-        '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)])
-    assert comparison.read_text().startswith('OK')
+    compare_receipt(candidate, oracle, nonce, pins)
     if name == 'permit':
         permit_argv, permit_common, permit_pins = candidate_argv.copy(), common.copy(), pins.copy()
     results.append({'case': name, 'raw_exit': exit_code, 'decision': decision,
@@ -328,21 +339,6 @@ if UNINSTALL:
     run([CLI, 'plugin', 'uninstall', PLUGIN_ID, '--scope', 'user'], cwd=POPULATED)
     after_inventory = run([CLI, 'plugin', 'list', '--json'], cwd=POPULATED)
     assert select_native(json.loads(after_inventory.read_text())) is None
-    user_after = json.loads((ROOT / 'config/settings.json').read_text())
-    assert PLUGIN_ID not in user_after.get('enabledPlugins', {})
-    user_before_json = json.loads(user_before)
-    assert user_before_json['enabledPlugins'].pop(PLUGIN_ID) is True
-    for settings in (user_before_json, user_after):
-        if not settings.get('enabledPlugins'):
-            settings.pop('enabledPlugins', None)
-    assert user_before_json == user_after
-    after = snapshot(foreign_paths)
-    for name in foreign_before:
-        expected, actual = foreign_before[name].copy(), after[name].copy()
-        if name == 'config/settings.json':
-            expected.pop('sha256')
-            actual.pop('sha256')
-        assert expected == actual
     print(json.dumps({'status': 'NATIVE_UNINSTALL_SELECTION_ONLY', 'output_prefix': OUTPUT_PREFIX,
         'cases': results, 'native_calls': native_calls, 'installed_root': str(installed),
         'before_inventory': str(before_inventory.relative_to(ROOT)),
@@ -378,16 +374,7 @@ permit_argv[permit_argv.index('--nonce') + 1] = nonce
 permit_common[permit_common.index('--nonce') + 1] = nonce
 oracle = run(['/bin/sh', ROOT / 'instruments/oracle.sh', *permit_common])
 candidate = run(permit_argv)
-restored = json.loads(candidate.read_text())
-assert restored['decision'] == 'PASS' and restored['observation']['run_exit'] == 0
-assert restored['observation']['cleanup_complete']
-assert restored['observation']['selected'] == ['test_subject.py::test_value']
-comparison = run([PYTHON, '-I', '-S', '-B', ROOT / 'instruments/trustcheck.py', 'compare',
-    '--oracle', oracle, '--candidate', candidate, '--nonce', nonce,
-    '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
-    '--expect-subject-digest', permit_pins['subject'],
-    '--expect-dependency-digests', json.dumps(permit_pins)])
-assert comparison.read_text().startswith('OK')
+compare_receipt(candidate, oracle, nonce, permit_pins)
 results.append({'case': 'permit-restored', 'raw_exit': 0, 'decision': 'PASS',
                 'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle),
                 'receipt': str(candidate.relative_to(ROOT)), 'oracle': str(oracle.relative_to(ROOT)),
@@ -396,16 +383,78 @@ if UPDATE:
     assert snapshot(foreign_paths) == foreign_before
     assert snapshot(old_paths, strict=True) == old_cache_before
     assert snapshot(retained_paths, strict=True) == retained_before
+metadata_before_failure = digest(metadata)
+failure = None
+if FAILED:
+    failure = {'foreign_before': snapshot(foreign_paths), 'installed_before': snapshot([installed, *installed.rglob('*')], strict=True),
+               'before_inventory': str(before_inventory.relative_to(ROOT))}
+    seed_manifest = ROOT / 'seed/plugins/autonomous-dev/.claude-plugin/plugin.json'
+    original = json.loads(seed_manifest.read_text())
+    bad = dict(original, version='3.8.0-r0.failed1', repository={})
+    write_json(seed_manifest, bad)
+    assert digest(seed_manifest) == CASE['failure_manifest_sha256']
+    write_json(ROOT / 'private/failed-update.before.json', failure)
+    parent = run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD']).read_text().strip()
+    failure['parent_commit'] = parent
+    run([GIT, '-C', ROOT / 'seed', 'add', '--', 'plugins/autonomous-dev/.claude-plugin/plugin.json'])
+    run([GIT, '-C', ROOT / 'seed', '-c', 'user.name=D0 fixture', '-c', 'user.email=d0@invalid',
+         '-c', 'commit.gpgsign=false', 'commit', '-m', 'frozen repository type rejection'])
+    assert run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD^']).read_text().strip() == parent
+    run([GIT, '-C', ROOT / 'seed', 'push', ROOT / 'origin.git', 'HEAD:refs/heads/main'])
+    run([CLI, 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'], cwd=POPULATED)
+    failed_output = run([CLI, 'plugin', 'update', PLUGIN_ID, '--scope', 'user'], None, cwd=POPULATED)
+    failure['update_exit'] = last_exit
+    failure['update_stdout'] = str(failed_output.relative_to(ROOT))
+    after_inventory = run([CLI, 'plugin', 'list', '--json'], None, cwd=POPULATED)
+    failure['after_inventory'] = str(after_inventory.relative_to(ROOT))
+    failure['inventory_exit'] = last_exit
+    try:
+        selected = [row for row in json.loads(after_inventory.read_text()) if row['id'] == PLUGIN_ID and row['scope'] == 'user']
+    except (ValueError, TypeError, KeyError):
+        selected = []
+    failure['selected_after'] = selected
+    observed = {}
+    for name in [*failure['installed_before'], *failure['foreign_before']]:
+        try:
+            observed.update(snapshot([ROOT / name], strict=name in failure['installed_before']))
+        except (OSError, AssertionError) as error:
+            observed[name] = {'observation_error': type(error).__name__}
+    failure['after'] = observed
+    if len(selected) == 1 and isinstance(selected[0].get('installPath'), str) and Path(selected[0]['installPath']).resolve().is_relative_to(cache.resolve()):
+        selected_leaf = Path(selected[0]['installPath']) / 'scripts/control_evidence.py'
+        try:
+            failure['selected_files'] = snapshot([selected_leaf], strict=True)
+            admitted_leaf = (digest(selected_leaf) == EXPECTED['leaf']
+                             and selected_leaf.stat().st_nlink == 1)
+        except (OSError, AssertionError) as error:
+            admitted_leaf = False
+            failure['selected_file_error'] = type(error).__name__
+        if admitted_leaf:
+            permit_argv[4] = selected_leaf
+            nonce = os.urandom(16).hex()
+            permit_argv[permit_argv.index('--nonce') + 1] = nonce
+            permit_common[permit_common.index('--nonce') + 1] = nonce
+            after_oracle = run(['/bin/sh', ROOT / 'instruments/oracle.sh', *permit_common])
+            executed = run(permit_argv, None)
+            failure['execution'] = {'stdout': str(executed.relative_to(ROOT)), 'raw_exit': last_exit,
+                                    'argv': list(map(str, permit_argv)), 'oracle': str(after_oracle.relative_to(ROOT)), 'nonce': nonce}
+    try:
+        failure['cache_after'] = snapshot([cache, *cache.rglob('*')])
+        failure['registry_after'] = metadata.read_text()
+    except (OSError, AssertionError) as error:
+        failure['cache_observation_error'] = type(error).__name__
+    write_json(ROOT / 'private/failed-update.json', failure)
 broken_error = broken_output.with_suffix('.stderr')
 print(json.dumps({'status': 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY' if UPDATE else
                   'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY', 'cases': results,
-                  'installed_root': str(installed), 'metadata_sha256': digest(metadata),
-                  'installed_leaf_sha256': digest(leaf), 'restored_leaf_inode': after.st_ino,
+                  'installed_root': str(installed), 'metadata_sha256': metadata_before_failure,
+                  'installed_leaf_sha256': EXPECTED['leaf'], 'restored_leaf_inode': after.st_ino,
                   'broken_route_refused_and_restored': True,
                   'broken_route': {'stdout': str(broken_output.relative_to(ROOT)),
                                    'stderr': str(broken_error.relative_to(ROOT)), 'raw_exit': 2,
                                    'stdout_sha256': digest(broken_output), 'stderr_sha256': digest(broken_error)},
                   'native_hooks_loaded': 'UNMEASURED', 'output_prefix': OUTPUT_PREFIX,
+                  'native_calls': native_calls, 'failure': failure,
                   'update': {'new_commit': new_commit, 'catalogue_root': str(catalogue),
                              'catalogue_commit': catalogue_commit, 'native_calls': native_calls,
                              'preservation_file': OUTPUT_PREFIX + 'preservation.json',

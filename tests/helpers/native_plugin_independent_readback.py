@@ -13,8 +13,14 @@ assert len(sys.argv) == 2 and re.fullmatch('[0-9a-f]{32}', sys.argv[1])
 op = Path('/var/lib/adev-d0-native-consumer') / sys.argv[1]
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
 UNINSTALL = case['case'] == 'D0-R0-UNINSTALL-1'
-assert case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
-if UNINSTALL:
+FRESH = case['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-FAILED-UPDATE-1')
+FAILED = case['case'] == 'D0-R0-FAILED-UPDATE-1'
+if FAILED:
+    acquisition = (op / 'inputs/acquire-case.json').read_bytes()
+    assert len(acquisition) <= 8192 and hashlib.sha256(acquisition).hexdigest() == case['acquisition_fixture_sha256']
+    case = dict(json.loads(acquisition), **case)
+assert FRESH or case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
+if UNINSTALL or FRESH:
     root = op / 'run'
 else:
     assert case['baseline']['operation'] == '61a33d713b794460abc1fb0db07ef508'
@@ -32,9 +38,9 @@ for key in ('NoNewPrivileges', 'ProtectHome', 'PrivateTmp', 'PrivateDevices',
     assert meta[key] == 'yes'
 assert meta['ProtectSystem'] == 'strict'
 
-assert report['status'] == ('NATIVE_UNINSTALL_SELECTION_ONLY' if UNINSTALL else 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY')
+assert report['status'] == ('NATIVE_UNINSTALL_SELECTION_ONLY' if UNINSTALL else 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY' if FRESH else 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY')
 prefix = report['output_prefix']
-assert re.fullmatch(('uninstall-' if UNINSTALL else 'update-') + '[0-9a-f]{32}-', prefix)
+assert prefix == '' if FRESH else re.fullmatch(('uninstall-' if UNINSTALL else 'update-') + '[0-9a-f]{32}-', prefix)
 
 
 def digest(path):
@@ -83,7 +89,6 @@ def contains(actual, expected):
 
 
 def cleanup():
-    unit = 'adev-d0-acquire-' + op.name + '.service'
     current = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
         '--property=Id,ActiveState,MainPID,LoadState'], capture_output=True, text=True)
     state = dict(line.split('=', 1) for line in current.stdout.splitlines() if '=' in line)
@@ -93,6 +98,44 @@ def cleanup():
     assert not (Path('/run/systemd/system') / (unit + '.d')).exists()
     actors = subprocess.run(['/bin/ps', '-eo', 'uid=,pid='], capture_output=True, text=True, check=True).stdout
     assert not [line for line in actors.splitlines() if line.split()[0] == '999']
+
+
+def select(rows):
+    assert type(rows) is list
+    found = [row for row in rows if row['id'] == case['plugin_id'] and row['scope'] == 'user']
+    assert len(found) <= 1
+    return found[0] if found else None
+
+nonces = set()
+results = []
+def compare_case(row, decision, code):
+    candidate = local(row['receipt'])
+    oracle = local(row['oracle'])
+    assert digest(candidate) == row['receipt_sha256'] and digest(oracle) == row['oracle_sha256']
+    receipt = json.loads(candidate.read_text())
+    obs = receipt['observation']
+    nonce = obs['nonce']
+    assert re.fullmatch('[0-9a-f]{32}', nonce) and nonce == row['nonce'] and nonce not in nonces
+    nonces.add(nonce)
+    subject = 'refuse' if row['case'] == 'refuse' else 'permit'
+    target_relative = str(Path('subjects') / prefix / subject / 'test_subject.py')
+    assert obs['target'] == row['target'] == '/work/' + target_relative
+    target = local(target_relative)
+    manifest = target.parent / 'cases.json'
+    assert receipt['decision'] == row['decision'] == decision and obs['run_exit'] == row['raw_exit'] == code
+    assert obs['selected'] == ['test_subject.py::test_value'] and obs['cleanup_complete']
+    pins = {'case_manifest': digest(manifest), 'verifier': case['pins']['leaf'],
+            'python': digest(Path(case['tools']['python']['path']).resolve()), 'subject': digest(target)}
+    args = ['/usr/bin/python3', '-I', '-S', '-B', str(op / 'inputs/instruments/trustcheck.py'),
+            'compare', '--oracle', str(oracle), '--candidate', str(candidate), '--nonce', nonce,
+            '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
+            '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)]
+    checked = subprocess.run(args, cwd=op, env={'PATH': '/usr/bin:/bin'},
+                             capture_output=True, timeout=10, check=True)
+    assert checked.stdout.startswith(b'OK')
+    results.append({'case': row['case'], 'decision': decision,
+                    'receipt': digest(candidate), 'oracle': digest(oracle)})
+
 
 
 if UNINSTALL:
@@ -110,11 +153,6 @@ if UNINSTALL:
     for call, tail in zip(calls, expected):
         assert call['argv'] == [case['tools']['cli']['path'], *tail]
         assert call['cwd'] == '/work/' + prefix + 'consumer' and call['raw_exit'] == 0
-    def select(rows):
-        assert type(rows) is list
-        found = [row for row in rows if row['id'] == case['plugin_id'] and row['scope'] == 'user']
-        assert len(found) <= 1
-        return found[0] if found else None
     before = select(json.loads(local(report['before_inventory']).read_text()))
     assert before and before['version'] == '3.8.0-r0.2' and before['enabled'] is True
     assert select(json.loads(local(report['after_inventory']).read_text())) is None
@@ -125,21 +163,10 @@ if UNINSTALL:
     assert saved['selected_before'] == before
     assert len(report['cases']) == 1
     row = report['cases'][0]
-    candidate, oracle = local(row['receipt']), local(row['oracle'])
-    assert digest(candidate) == row['receipt_sha256'] and digest(oracle) == row['oracle_sha256']
-    receipt = json.loads(candidate.read_text())
-    target = local(f'subjects/{prefix}/permit/test_subject.py')
-    assert row['case'] == 'permit' and row['target'] == '/work/' + str(target.relative_to(root))
-    assert receipt['decision'] == 'PASS' and receipt['observation']['run_exit'] == 0
-    assert receipt['observation']['nonce'] == row['nonce'] and receipt['observation']['cleanup_complete']
+    assert row['case'] == 'permit'
     assert saved['installed_before'][str((selected / 'scripts/control_evidence.py').relative_to('/work'))]['sha256'] == case['pins']['leaf']
     assert saved['installed_before'][str((selected / '.claude-plugin/plugin.json').relative_to('/work'))]['sha256'] == case['pins']['manifest']
-    pins = {'case_manifest': digest(target.parent / 'cases.json'), 'verifier': case['pins']['leaf'], 'subject': digest(target), 'python': digest(Path(case['tools']['python']['path']).resolve())}
-    checked = subprocess.run(['/usr/bin/python3', '-I', '-S', '-B', str(op / 'inputs/instruments/trustcheck.py'),
-        'compare', '--oracle', oracle, '--candidate', candidate, '--nonce', row['nonce'], '--expect-case', 'installed-r0',
-        '--expect-tool-version', 'control-evidence-1', '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)],
-        capture_output=True, timeout=10, check=True)
-    assert checked.stdout.startswith(b'OK')
+    compare_case(row, 'PASS', 0)
     consumer = prefix + 'consumer'
     assert set(saved['foreign_before']) == {'config/settings.json', f'{consumer}/.claude/settings.json', f'{consumer}/.claude/settings.local.json', f'{consumer}/unrelated.txt'}
     user_before = json.loads(saved['user_before_text'])
@@ -171,15 +198,18 @@ if UNINSTALL:
     sys.exit(0)
 
 
-assert digest(op / 'inputs/operator.py') == '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3'
-assert digest(op / 'inputs/case.PUBLIC.json') == '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388'
+assert digest(op / 'inputs/operator.py') == ('3286b366c1a41c6fb9d258e7e063b82330c2f0c54026b6215c09d929a380b944' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
+assert digest(op / 'inputs/case.PUBLIC.json') == ('058bb47b6548b830fd2650ca6efcb319fdf15e430c5094f87535c4f993bcd114' if FAILED else '5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
 assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
 assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
 assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-restored']
-entry = json.loads((root / 'config/plugins/installed_plugins.json').read_text())['plugins'][case['plugin_id']][0]
+entries = json.loads((root / 'config/plugins/installed_plugins.json').read_text())['plugins'][case['plugin_id']]
+assert len(entries) == 1
+entry = entries[0]
 inside = Path(entry['installPath'])
-assert entry['scope'] == 'user' and entry['version'] == '3.8.0-r0.2' and str(inside).endswith('/3.8.0-r0.2')
+version = '3.8.0-r0.1' if FRESH else '3.8.0-r0.2'
+assert entry['scope'] == 'user' and entry['version'] == version and inside.name == version
 assert inside.is_relative_to('/work/config/plugins/cache')
 installed = local(str(inside.relative_to('/work')))
 assert installed.resolve().is_relative_to(local('config/plugins/cache').resolve())
@@ -189,36 +219,9 @@ assert not any(p.is_symlink() for p in installed.rglob('*'))
 leaf = installed / 'scripts/control_evidence.py'
 assert digest(leaf) == case['pins']['leaf']
 assert digest(installed / '.claude-plugin/plugin.json') == case['pins']['manifest']
-assert json.loads((installed / '.claude-plugin/plugin.json').read_text())['version'] == '3.8.0-r0.2'
-nonces = set()
-results = []
+assert json.loads((installed / '.claude-plugin/plugin.json').read_text())['version'] == version
 for row, decision, code in zip(report['cases'], ['PASS', 'FAIL', 'PASS'], [0, 1, 0]):
-    candidate = local(row['receipt'])
-    oracle = local(row['oracle'])
-    assert digest(candidate) == row['receipt_sha256'] and digest(oracle) == row['oracle_sha256']
-    receipt = json.loads(candidate.read_text())
-    obs = receipt['observation']
-    nonce = obs['nonce']
-    assert re.fullmatch('[0-9a-f]{32}', nonce) and nonce == row['nonce'] and nonce not in nonces
-    nonces.add(nonce)
-    subject = 'refuse' if row['case'] == 'refuse' else 'permit'
-    target_relative = f'subjects/{prefix}/{subject}/test_subject.py'
-    assert obs['target'] == row['target'] == '/work/' + target_relative
-    target = local(target_relative)
-    manifest = target.parent / 'cases.json'
-    assert receipt['decision'] == row['decision'] == decision and obs['run_exit'] == row['raw_exit'] == code
-    assert obs['selected'] == ['test_subject.py::test_value'] and obs['cleanup_complete']
-    pins = {'case_manifest': digest(manifest), 'verifier': digest(leaf),
-            'python': digest(Path(case['tools']['python']['path']).resolve()), 'subject': digest(target)}
-    args = ['/usr/bin/python3', '-I', '-S', '-B', str(op / 'inputs/instruments/trustcheck.py'),
-            'compare', '--oracle', str(oracle), '--candidate', str(candidate), '--nonce', nonce,
-            '--expect-case', 'installed-r0', '--expect-tool-version', 'control-evidence-1',
-            '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)]
-    checked = subprocess.run(args, cwd=op, env={'PATH': '/usr/bin:/bin'},
-                             capture_output=True, timeout=10, check=True)
-    assert checked.stdout.startswith(b'OK')
-    results.append({'case': row['case'], 'decision': decision,
-                    'receipt': digest(candidate), 'oracle': digest(oracle)})
+    compare_case(row, decision, code)
 broken = report['broken_route']
 assert broken['raw_exit'] == 2 and not local(broken['stdout']).read_bytes()
 assert digest(local(broken['stdout'])) == broken['stdout_sha256']
@@ -235,6 +238,66 @@ def git(repo, *arguments):
         capture_output=True, timeout=5, check=True)
     assert not checked.stderr and len(checked.stdout) <= 65536
     return checked.stdout
+
+
+if FRESH:
+    expected_calls = [['marketplace', 'add', case['url']], ['install', case['plugin_id'], '--scope', 'user']]
+    if FAILED:
+        expected_calls += [['list', '--json'], ['marketplace', 'update', 'adev-d0-native-consumer'], ['update', case['plugin_id'], '--scope', 'user'], ['list', '--json']]
+    assert len(report['native_calls']) == len(expected_calls)
+    for index, (call, tail) in enumerate(zip(report['native_calls'], expected_calls)):
+        assert call['argv'] == [case['tools']['cli']['path'], 'plugin', *tail]
+        assert call['cwd'] == ('/work/consumer' if index >= 2 else '/work/foreign')
+        assert index == 4 or call['raw_exit'] == 0
+    catalogue = local('config/plugins/marketplaces/adev-d0-native-consumer')
+    head = git(local('seed'), 'rev-parse', 'HEAD').decode().strip()
+    assert git(local('origin.git'), 'rev-parse', 'HEAD').decode().strip() == head
+    assert git(catalogue, 'rev-parse', 'HEAD').decode().strip() == head
+    baseline = report['failure']['parent_commit'] if FAILED else head
+    with tarfile.open(op / 'inputs/payload.tar') as archive:
+        members = [member for member in archive.getmembers() if member.isfile()]
+        assert len(members) == 3
+        for member in members:
+            assert git(catalogue, 'cat-file', 'blob', baseline + ':' + member.name) == archive.extractfile(member).read()
+            assert git(catalogue, 'ls-tree', baseline, '--', member.name).decode().split()[0] == ('100755' if member.mode & 0o111 else '100644')
+            if member.name.startswith('plugins/autonomous-dev/'):
+                assert fact(installed / member.name.removeprefix('plugins/autonomous-dev/'))['mode'] == member.mode
+    if FAILED:
+        failure = report['failure']
+        assert git(catalogue, 'rev-parse', 'HEAD^').decode().strip() == baseline
+        assert git(catalogue, 'diff', '--name-only', baseline, head).decode().splitlines() == ['plugins/autonomous-dev/.claude-plugin/plugin.json']
+        bad = git(catalogue, 'cat-file', 'blob', 'HEAD:plugins/autonomous-dev/.claude-plugin/plugin.json')
+        assert hashlib.sha256(bad).hexdigest() == case['failure_manifest_sha256']
+        good = json.loads((installed / '.claude-plugin/plugin.json').read_text())
+        assert json.loads(bad) == dict(good, version='3.8.0-r0.failed1', repository={})
+        assert failure['update_exit'] == report['native_calls'][4]['raw_exit'] != 0, 'FAILURE_POINT_NOT_ESTABLISHED'
+        assert failure['update_stdout'] == report['native_calls'][4]['stdout'] and failure['after_inventory'] == report['native_calls'][5]['stdout']
+        error = local(failure['update_stdout']).read_text() + local(failure['update_stdout']).with_suffix('.stderr').read_text()
+        assert 'repository' in error and 'string' in error and 'object' in error, 'FAILURE_STAGE_UNMEASURED'
+        assert failure['inventory_exit'] == 0
+        before = select(json.loads(local(failure['before_inventory']).read_text()))
+        after = select(json.loads(local(failure['after_inventory']).read_text()))
+        assert before and after == before and failure['selected_after'] == [after]
+        preserved(failure['installed_before'], {name: fact(local(name), True) for name in failure['installed_before']})
+        preserved(failure['foreign_before'], {name: fact(local(name)) for name in failure['foreign_before']})
+        fixture = op / 'inputs/foreign-case.json'
+        assert digest(fixture) == case['foreign_fixture_sha256']
+        foreign = json.loads(fixture.read_text())['foreign']
+        assert set(failure['foreign_before']) == {'config/settings.json', 'consumer/.claude/settings.json', 'consumer/.claude/settings.local.json', 'consumer/unrelated.txt'}
+        for path, key in [('config/settings.json', 'user'), ('consumer/.claude/settings.json', 'repo'), ('consumer/.claude/settings.local.json', 'local')]:
+            contains(json.loads(local(path).read_text()), foreign[key])
+        assert local('consumer/unrelated.txt').read_text() == foreign['unrelated']
+        execution = failure['execution']
+        assert execution['raw_exit'] == 0
+        assert execution['argv'][:5] == [case['tools']['python']['path'], '-I', '-S', '-B', str(inside / 'scripts/control_evidence.py')]
+        assert execution['nonce'] == execution['argv'][execution['argv'].index('--nonce') + 1]
+        compare_case({'case': 'permit-restored', 'decision': 'PASS', 'raw_exit': execution['raw_exit'],
+            'receipt': execution['stdout'], 'oracle': execution['oracle'], 'nonce': execution['nonce'],
+            'receipt_sha256': digest(local(execution['stdout'])), 'oracle_sha256': digest(local(execution['oracle'])),
+            'target': '/work/subjects/permit/test_subject.py'}, 'PASS', 0)
+    cleanup()
+    print(json.dumps({'status': 'FAILED_NATIVE_UPDATE_SURVIVAL_OBSERVED' if FAILED else 'ACQUIRE_REPLACEMENT_OBSERVED', 'operation': op.name}))
+    sys.exit(0)
 
 
 catalogue_inside = Path(report['update']['catalogue_root'])

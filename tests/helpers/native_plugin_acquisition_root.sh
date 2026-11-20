@@ -29,12 +29,14 @@ for pave_file in oracle.sh trustcheck.py; do
   install -o 0 -g 0 -m 0444 "$pave_upload/$pave_file" "$pave_op/inputs/instruments/$pave_file"
 done
 pave_foreign_bind=
-if test -e "$pave_upload/foreign-case.json"; then
-  test -f "$pave_upload/foreign-case.json" && test ! -L "$pave_upload/foreign-case.json"
-  test "$(stat -c %u:%h "$pave_upload/foreign-case.json")" = 0:1
-  install -o 0 -g 0 -m 0444 "$pave_upload/foreign-case.json" "$pave_op/inputs/foreign-case.json"
-  pave_foreign_bind="$pave_op/inputs/foreign-case.json:/work/foreign-case.json"
-fi
+for pave_file in foreign-case.json acquire-case.json; do
+  if test -e "$pave_upload/$pave_file"; then
+    test -f "$pave_upload/$pave_file" && test ! -L "$pave_upload/$pave_file"
+    test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 0:1
+    install -o 0 -g 0 -m 0444 "$pave_upload/$pave_file" "$pave_op/inputs/$pave_file"
+    pave_foreign_bind+=" $pave_op/inputs/$pave_file:/work/$pave_file"
+  fi
+done
 pave_sum=$(sha256sum "$pave_op/inputs/SHA256SUMS")
 test "${pave_sum%% *}" = "$pave_sums_sha"
 (cd "$pave_op/inputs" && sha256sum --check --strict --status SHA256SUMS)
@@ -146,7 +148,7 @@ if case['case'] == 'D0-R0-UPDATE-1':
             before[str(path.relative_to(old))] = [hashlib.sha256(path.read_bytes()).hexdigest(), info.st_mode]
     (op / 'OLD-INPUTS.BEFORE.PUBLIC.json').write_text(json.dumps(before, sort_keys=True) + '\n')
 else:
-    assert case['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UNINSTALL-1')
+    assert case['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-FAILED-UPDATE-1')
     root = op / 'run'
     root.mkdir(mode=0o700)
     os.chown(root, 999, 990)
