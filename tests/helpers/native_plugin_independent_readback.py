@@ -14,8 +14,19 @@ case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
 assert case['case'] == 'D0-R0-UPDATE-1'
 assert case['baseline']['operation'] == '61a33d713b794460abc1fb0db07ef508'
 root = op.parent / case['baseline']['operation'] / 'run'
-report = json.loads(next(line for line in (op / 'outer.stdout').read_text().splitlines()
-                         if line.startswith('{')))
+lines = (op / 'outer.stdout').read_text().splitlines()
+report = json.loads(next(line for line in lines if line.startswith('{')))
+meta = dict(line.split('=', 1) for line in lines if '=' in line and not line.startswith('{'))
+unit = 'adev-d0-acquire-' + op.name + '.service'
+assert meta['Id'] == unit and re.fullmatch('[0-9a-f]{32}', meta['InvocationID'])
+assert meta['ControlGroup'] == '/system.slice/' + unit
+assert meta['Result'] == 'success' and meta['ExecMainStatus'] == '0'
+assert meta['TypedCredentialsEmpty'] == 'yes'
+for key in ('NoNewPrivileges', 'ProtectHome', 'PrivateTmp', 'PrivateDevices',
+            'PrivateNetwork', 'ProtectControlGroups', 'ProtectKernelTunables', 'ProtectKernelModules'):
+    assert meta[key] == 'yes'
+assert meta['ProtectSystem'] == 'strict'
+
 assert report['status'] == 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY'
 prefix = report['output_prefix']
 assert re.fullmatch('update-[0-9a-f]{32}-', prefix)
@@ -66,6 +77,9 @@ def contains(actual, expected):
         assert actual == expected
 
 
+assert digest(op / 'inputs/operator.py') == '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3'
+assert digest(op / 'inputs/case.PUBLIC.json') == '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388'
+assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
 assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
 assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-restored']
@@ -201,7 +215,15 @@ old_members = {old_root, old_root + '/.claude-plugin', old_root + '/scripts',
 assert old_members <= set(held['old_cache_before'])
 assert {name for name, value in held['old_cache_before'].items() if 'sha256' in value} == {
     old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
-assert {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))} == set(held['old_cache_before'])
+actual_old_members = {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))}
+assert set(held['old_cache_before']) <= actual_old_members
+additions = {}
+for name in sorted(actual_old_members - set(held['old_cache_before'])):
+    path = local(name)
+    additions[name] = fact(path)
+    additions[name]['type'] = 'file' if path.is_file() else 'directory'
+    additions[name]['size'] = path.stat().st_size
+
 for category in ('old_cache_before', 'retained_before'):
     preserved(held[category], snapshot[category])
     preserved(held[category], {name: fact(local(name), identity=True) for name in held[category]})
@@ -213,17 +235,32 @@ except ValueError as error:
     assert str(error) == 'PRESERVATION_DENOMINATOR'
 else:
     raise AssertionError('Omitted old-cache entry was permitted')
+old_inputs = json.loads((op / 'OLD-INPUTS.BEFORE.PUBLIC.json').read_text())
+assert old_inputs
+for relative, expected in old_inputs.items():
+    path = root.parent / relative
+    assert path.resolve().is_relative_to(root.parent / 'inputs') and not path.is_symlink()
+    assert [digest(path), path.stat().st_mode] == expected
 unit = 'adev-d0-acquire-' + op.name + '.service'
+current = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
+    '--property=Id,ActiveState,MainPID,LoadState'], capture_output=True, text=True)
+state = dict(line.split('=', 1) for line in current.stdout.splitlines() if '=' in line)
+assert state['Id'] == unit and state['ActiveState'] == 'inactive' and state['MainPID'] == '0'
+assert current.returncode == 0 or (current.returncode == 1 and state['LoadState'] == 'not-found')
 assert not (Path('/sys/fs/cgroup/system.slice') / unit).exists()
 assert not (Path('/run/systemd/system') / (unit + '.d')).exists()
 actors = subprocess.run(['/bin/ps', '-eo', 'uid=,pid='], capture_output=True, text=True, check=True).stdout
 assert not [line for line in actors.splitlines() if line.split()[0] == '999']
-result = {'status': 'INDEPENDENT_NATIVE_UPDATE_READBACK_PASS', 'operation': op.name,
+result = {'status': 'AMENDED_IDLE_UPDATE_PRESERVATION_ASSESSMENT_PASS', 'operation': op.name,
+          'unit_invocation': meta['InvocationID'], 'native_service_result': 'success',
+          'original_root_assessment': 'FAILED_OLD_EXACT_TREE_CONTRACT_RETAINED',
+          'inactive_old_cache_additions': additions, 'addition_writer_provenance': 'UNKNOWN',
+          'old_generation_reuse_rollback_active_safety': 'UNQUALIFIED',
           'baseline_operation': case['baseline']['operation'], 'installed_root': str(inside),
           'cases': results, 'foreign_settings_preserved': True, 'old_cache_preserved': True,
           'bad_settings_observation_refused': True, 'omitted_old_cache_entry_refused': True,
           'old_registry_admitted': True, 'cleanup': True,
           'catalogue_commit': commit, 'registry_commit_identity': registry_identity,
           'native_hooks_loaded': 'UNMEASURED'}
-(op / 'INDEPENDENT-UPDATE-READBACK.PUBLIC.json').write_text(json.dumps(result, sort_keys=True) + '\n')
+(op / 'INDEPENDENT-UPDATE-REASSESSMENT.PUBLIC.json').write_text(json.dumps(result, sort_keys=True) + '\n')
 print(json.dumps(result, sort_keys=True))

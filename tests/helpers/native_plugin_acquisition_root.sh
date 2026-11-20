@@ -325,7 +325,22 @@ if update:
     assert preserved['old_cache_before'] == held['old_cache_before']
     assert preserved['retained_before'] == held['retained_before']
     old_cache = root / pathlib.Path(case['baseline']['cache']).relative_to('/work')
-    assert {str(path.relative_to(root)) for path in [old_cache, *old_cache.rglob('*')]} == set(held['old_cache_before'])
+    after_paths = {str(path.relative_to(root)): path for path in [old_cache, *old_cache.rglob('*')]}
+    assert set(held['old_cache_before']) <= set(after_paths)
+    additions = {}
+    for relative in sorted(set(after_paths) - set(held['old_cache_before'])):
+        path = after_paths[relative]
+        assert not path.is_symlink() and path.resolve().is_relative_to(old_cache)
+        info = path.lstat()
+        assert stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)
+        value = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid,
+                 'size': info.st_size, 'type': 'file' if stat.S_ISREG(info.st_mode) else 'directory'}
+        if stat.S_ISREG(info.st_mode):
+            assert info.st_nlink == 1 and info.st_size <= 131072
+            data = path.read_bytes()
+            assert len(data) <= 131072
+            value['sha256'] = hashlib.sha256(data).hexdigest()
+        additions[relative] = value
     expected_foreign = {'config/settings.json', prefix + 'consumer/.claude/settings.json',
                         prefix + 'consumer/.claude/settings.local.json', prefix + 'consumer/unrelated.txt'}
     assert set(preserved['foreign_before']) == expected_foreign
@@ -380,7 +395,7 @@ if update:
     assert report['update']['registry_commit_identity'] == (
         'MATCH' if entry.get('gitCommitSha') == commit else
         'CONFLICTED' if entry.get('gitCommitSha') else 'UNMEASURED')
-result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED','effective_hardening':{key:meta[key] for key in flags},'credentials_absent':True,'owned_policy_removed':True,'policy_sha256':sys.argv[4],'installed_root':str(inside),'update':report.get('update'),'output_prefix':report.get('output_prefix'),'broken_route':report.get('broken_route'),'baseline_operation':case.get('baseline',{}).get('operation')}
+result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED','effective_hardening':{key:meta[key] for key in flags},'credentials_absent':True,'owned_policy_removed':True,'policy_sha256':sys.argv[4],'installed_root':str(inside),'update':report.get('update'),'output_prefix':report.get('output_prefix'),'broken_route':report.get('broken_route'),'baseline_operation':case.get('baseline',{}).get('operation'),'old_cache_additions':{'status':'OBSERVED','objects':additions} if update else None,'old_generation_reuse':'UNQUALIFIED','rollback':'UNQUALIFIED','active_session':'UNQUALIFIED'}
 (op/'OUTSIDE-RESULT.PUBLIC.json').write_text(json.dumps(result,sort_keys=True)+'\n')
 print(json.dumps(result,sort_keys=True))
 AUDIT
