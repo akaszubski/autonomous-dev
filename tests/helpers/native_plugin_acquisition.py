@@ -421,7 +421,7 @@ if FAILED:
             observed[name] = {'observation_error': type(error).__name__}
     failure['after'] = observed
     if len(selected) == 1 and isinstance(selected[0].get('installPath'), str) and Path(selected[0]['installPath']).resolve().is_relative_to(cache.resolve()):
-        selected_leaf = Path(selected[0]['installPath']) / 'scripts/control_evidence.py'
+        selected_leaf = (Path(selected[0]['installPath']) / 'scripts/control_evidence.py').resolve()
         try:
             failure['selected_files'] = snapshot([selected_leaf], strict=True)
             admitted_leaf = (digest(selected_leaf) == EXPECTED['leaf']

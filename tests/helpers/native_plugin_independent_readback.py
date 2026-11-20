@@ -198,7 +198,7 @@ if UNINSTALL:
     sys.exit(0)
 
 
-assert digest(op / 'inputs/operator.py') == ('697aa787da1a83b64be16273a4be9aac8deeecd03c8f64466033c6e7d812305a' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
+assert digest(op / 'inputs/operator.py') == ('ee6de3fbf262777f2310ad570f804334392f4503d11ad0bab614b0976cda40f0' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
 assert digest(op / 'inputs/case.PUBLIC.json') == ('058bb47b6548b830fd2650ca6efcb319fdf15e430c5094f87535c4f993bcd114' if FAILED else '5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
 assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
