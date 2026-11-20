@@ -425,7 +425,8 @@ if FAILED:
         try:
             failure['selected_files'] = snapshot([selected_leaf], strict=True)
             admitted_leaf = (digest(selected_leaf) == EXPECTED['leaf']
-                             and selected_leaf.stat().st_nlink == 1)
+                             and selected_leaf.stat().st_nlink == 1
+                             and selected_leaf.resolve().is_relative_to(cache))
         except (OSError, AssertionError) as error:
             admitted_leaf = False
             failure['selected_file_error'] = type(error).__name__
