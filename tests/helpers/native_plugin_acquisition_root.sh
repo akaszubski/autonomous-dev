@@ -50,17 +50,18 @@ import hashlib,json,os,pathlib,re,stat,subprocess,sys
 op = pathlib.Path(sys.argv[1])
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
 recovery = case['case'] == 'D0-R0-RECOVERY-1'
-if recovery:
+idempotent = case['case'] == 'D0-R0-IDLE-IDEMPOTENCE-1'
+if recovery or idempotent:
     assert set(case) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
     fixture = (op / 'inputs/foreign-case.json').read_bytes()
     assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == case.pop('fixture_sha256')
     assert hashlib.sha256((op / 'inputs/operator.py').read_bytes()).hexdigest() == case['operator_sha256']
     case = dict(json.loads(fixture), **case)
-if case['case'] == 'D0-R0-UPDATE-1' or recovery:
+if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     baseline = case['baseline']
-    assert baseline['accepted_freeze_sha256'] == ('3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3' if recovery else '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b')
+    assert baseline['accepted_freeze_sha256'] == ('044a3e9be9aa5f6fc56eabd7d27c5d41fb01c84e9d9fd1734fdfbe1fe553410e' if idempotent else '3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3' if recovery else '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b')
     assert set(baseline) == {'operation', 'invocation_id', 'cache', 'leaf_inode',
-                             'manifest_sha256', 'accepted_freeze_sha256'}
+                             'manifest_sha256', 'accepted_freeze_sha256'} | ({'physical_operation'} if idempotent else set())
     assert re.fullmatch('[0-9a-f]{32}', baseline['operation']) and baseline['operation'] != op.name
     old = op.parent / baseline['operation']
     assert old == old.resolve() and not old.is_symlink()
@@ -70,12 +71,20 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
     assert not record.is_symlink() and record.stat().st_uid == 0
     assert record.stat().st_nlink == 1 and not (record.stat().st_mode & 0o022)
     receipt = json.loads(record.read_text())
-    assert receipt['status'] == ('RAW_UNIT_AND_CLEANUP_OBSERVED' if recovery else 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED')
+    assert receipt['status'] == ('RAW_UNIT_AND_CLEANUP_OBSERVED' if recovery or idempotent else 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED')
     assert receipt['operation'] == baseline['operation'] and receipt['invocation_id'] == baseline['invocation_id']
     assert receipt['raw_unit_exit'] == 0 and receipt['cgroup_empty']
-    assert recovery or receipt['broken_route_restored']
+    assert recovery or idempotent or receipt['broken_route_restored']
     if recovery:
         assert baseline['operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
+    if idempotent:
+        assert baseline['operation'] == '8a2551344cb04053a21c6f7b90eec29d'
+        assert baseline['invocation_id'] == '755314a5e7184c64a3cf46c0fa12a5d9'
+        assert baseline['physical_operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
+        physical = op.parent / baseline['physical_operation']
+        assert physical == physical.resolve() and not physical.is_symlink()
+        info = physical.stat()
+        assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, 0, 0o700)
     old_unit = 'adev-d0-acquire-' + baseline['operation'] + '.service'
     assert receipt['unit'] == old_unit
     query = subprocess.run(['/usr/bin/systemctl', 'show', '--all', old_unit,
@@ -89,7 +98,7 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
     assert not old_group.exists() or not (old_group / 'cgroup.procs').read_text().strip()
     old_policy = pathlib.Path('/run/systemd/system') / (old_unit + '.d')
     assert not old_policy.exists() and not old_policy.is_symlink()
-    root = old / 'run'
+    root = (op.parent / baseline['physical_operation'] if idempotent else old) / 'run'
     assert root == root.resolve() and not root.is_symlink()
     info = root.stat()
     assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (999, 990, 0o700)
@@ -103,15 +112,19 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
     registry_text = registry_raw.decode('utf-8')
     rows = json.loads(registry_text)['plugins'][case['plugin_id']]
     assert type(rows) is list and len(rows) == 1 and rows[0]['scope'] == 'user'
-    assert rows[0]['version'] == ('57f1c12d3b81' if recovery else '3.8.0-r0.1') and rows[0]['installPath'] == baseline['cache']
+    assert rows[0]['version'] == ('3.8.0-r0.2' if idempotent else '57f1c12d3b81' if recovery else '3.8.0-r0.1') and rows[0]['installPath'] == baseline['cache']
     if recovery:
         assert hashlib.sha256(registry_raw).hexdigest() == '5400080596072c5216e2ae7d79729be40d0dd746e255d2a446829e09832272df'
+    if idempotent:
+        assert hashlib.sha256(registry_raw).hexdigest() == '4e22d4d763bc5021b0faab1033a48997711a14b8976a834b676876979715f8f9'
+        assert (info.st_dev, info.st_ino, info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (41, 287737, 1, 438, 1795156450840208439, 1795156450840208439, 999, 990, 0o600)
     cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
     assert cache == cache.resolve() and cache.is_relative_to(root / 'config/plugins/cache')
     expected_cache = {'.claude-plugin', 'scripts', '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
     assert expected_cache <= {str(path.relative_to(cache)) for path in cache.rglob('*')}
-    assert {str(path.relative_to(cache)) for path in cache.rglob('*') if path.is_file()} == {
-        '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
+    payload_files = {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
+    cache_files = {str(path.relative_to(cache)) for path in cache.rglob('*') if path.is_file()}
+    assert payload_files <= cache_files if idempotent else payload_files == cache_files
 
     def fact(path):
         assert path == path.resolve() and not path.is_symlink()
@@ -129,7 +142,10 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
                                  info.st_mtime_ns, info.st_ctime_ns]
         return value
 
-    old_cache_before = {str(path.relative_to(root)): fact(path) for path in [cache, *cache.rglob('*')]}
+    cache_paths = [cache, *cache.rglob('*')]
+    stable_paths = [cache, cache / '.claude-plugin', cache / '.claude-plugin/plugin.json',
+                    cache / 'scripts', cache / 'scripts/control_evidence.py'] if idempotent else cache_paths
+    old_cache_before = {str(path.relative_to(root)): fact(path) for path in stable_paths}
     retained_before = {}
     for folder in ('private', 'subjects'):
         directory = root / folder
@@ -141,7 +157,9 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
     retained_before['home/.gitconfig'] = fact(root / 'home/.gitconfig')
     held = {'registry_text': registry_text, 'registry_sha256': hashlib.sha256(registry_raw).hexdigest(),
             'old_cache_before': old_cache_before, 'retained_before': retained_before}
-    if recovery:
+    if recovery or idempotent:
+        if idempotent:
+            held['vendor_before'] = {str(path.relative_to(root)): fact(path) for path in cache_paths if path not in stable_paths}
         names = ('config/settings.json', 'consumer/.claude/settings.json',
                  'consumer/.claude/settings.local.json', 'consumer/unrelated.txt')
         held['foreign_before'] = {name: fact(root / name) for name in names}
@@ -150,6 +168,18 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery:
             '3d5e4c0d461c1893959b290e415483987bda74a67e807f62e547aed7c1e985ee',
             'f10d0d00aa75b9a4e40245fbb2897b9a9d5ead29a9cf5b4b7f48dd1d50678085',
             'e951dbb7bfc4942f7ced0928f8224cd8f56bc73dbd8ce6a2cc664bffee59a6da']
+        if idempotent:
+            selected_names = (str((cache / '.claude-plugin/plugin.json').relative_to(root)),
+                              str((cache / 'scripts/control_evidence.py').relative_to(root)))
+            expected_ids = [
+                [41, 287732, 1, 289, 1795156450838208448, 1795156450838208448],
+                [41, 287734, 1, 21230, 1795156450838208448, 1795156454375192375],
+                [41, 287198, 1, 410, 1795147349924921213, 1795147349924921213],
+                [41, 287231, 1, 200, 1795147349924958922, 1795147349924958922],
+                [41, 287232, 1, 199, 1795147349924980672, 1795147349924980672],
+                [41, 287233, 1, 39, 1795147349924996339, 1795147349924996339],
+            ]
+            assert [held['old_cache_before'][name]['identity'] for name in selected_names] + [held['foreign_before'][name]['identity'] for name in names] == expected_ids
     encoded = json.dumps(held, sort_keys=True) + '\n'
     assert len(encoded.encode('utf-8')) <= 131072
     held_path = op / 'OLD-CONSUMER.BEFORE.PUBLIC.json'

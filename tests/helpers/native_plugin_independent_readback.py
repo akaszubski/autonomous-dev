@@ -13,19 +13,20 @@ assert len(sys.argv) == 2 and re.fullmatch('[0-9a-f]{32}', sys.argv[1])
 op = Path('/var/lib/adev-d0-native-consumer') / sys.argv[1]
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
 RECOVERY = case['case'] == 'D0-R0-RECOVERY-1'
-if RECOVERY:
+IDEMPOTENT = case['case'] == 'D0-R0-IDLE-IDEMPOTENCE-1'
+if RECOVERY or IDEMPOTENT:
     assert set(case) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
     fixture = (op / 'inputs/foreign-case.json').read_bytes()
     assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == case.pop('fixture_sha256')
     case = dict(json.loads(fixture), **case)
 UNINSTALL = case['case'] == 'D0-R0-UNINSTALL-1'
 FRESH = case['case'] == 'D0-R0-ACQUIRE-1'
-assert FRESH or case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-RECOVERY-1')
+assert FRESH or case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-RECOVERY-1', 'D0-R0-IDLE-IDEMPOTENCE-1')
 if UNINSTALL or FRESH:
     root = op / 'run'
 else:
-    assert case['baseline']['operation'] == ('bd960e7a8de14af09c1d919c6f57b319' if RECOVERY else '61a33d713b794460abc1fb0db07ef508')
-    root = op.parent / case['baseline']['operation'] / 'run'
+    assert case['baseline']['operation'] == ('8a2551344cb04053a21c6f7b90eec29d' if IDEMPOTENT else 'bd960e7a8de14af09c1d919c6f57b319' if RECOVERY else '61a33d713b794460abc1fb0db07ef508')
+    root = op.parent / (case['baseline']['physical_operation'] if IDEMPOTENT else case['baseline']['operation']) / 'run'
 lines = (op / 'outer.stdout').read_text().splitlines()
 report = json.loads(next(line for line in lines if line.startswith('{')))
 meta = dict(line.split('=', 1) for line in lines if '=' in line and not line.startswith('{'))
@@ -199,12 +200,12 @@ if UNINSTALL:
     sys.exit(0)
 
 
-assert digest(op / 'inputs/operator.py') == (case['operator_sha256'] if RECOVERY else 'f77020adf56d3966622a71b7ec630c0b5691cddbc879f028eefd7ef58b0d95f9' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
-assert digest(op / 'inputs/case.PUBLIC.json') == ('02aa3721075304f36627541ee4509271cee7e27fa0b55f902a7429ae84b82cd5' if RECOVERY else '5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
+assert digest(op / 'inputs/operator.py') == (case['operator_sha256'] if RECOVERY or IDEMPOTENT else 'f77020adf56d3966622a71b7ec630c0b5691cddbc879f028eefd7ef58b0d95f9' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
+assert digest(op / 'inputs/case.PUBLIC.json') == ('8d503bd1fbcfaf856f626df5ad6f98f5679bf87838f9c8b1efd6285e9c0ddec7' if IDEMPOTENT else '02aa3721075304f36627541ee4509271cee7e27fa0b55f902a7429ae84b82cd5' if RECOVERY else '5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
 assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
 assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
-assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-restored']
+assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-repeat' if IDEMPOTENT else 'permit-restored']
 version = '3.8.0-r0.1' if FRESH else '3.8.0-r0.2'
 def admitted_selection(raw):
     entries = json.loads(raw)['plugins'][case['plugin_id']]
@@ -241,8 +242,9 @@ if FRESH:
     else:
         raise AssertionError('SOURCE_ORIGIN_NOT_REFUSED')
     assert (root / 'config/plugins/installed_plugins.json').read_text() == registry_raw
-assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()) == [
-    '.claude-plugin/plugin.json', 'scripts/control_evidence.py']
+actual_files = {str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()}
+payload_files = {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
+assert payload_files <= actual_files if IDEMPOTENT else payload_files == actual_files
 assert not any(p.is_symlink() for p in installed.rglob('*'))
 leaf = installed / 'scripts/control_evidence.py'
 assert digest(leaf) == case['pins']['leaf']
@@ -250,10 +252,14 @@ assert digest(installed / '.claude-plugin/plugin.json') == case['pins']['manifes
 for row, decision, code in zip(report['cases'], ['PASS', 'FAIL', 'PASS'], [0, 1, 0]):
     compare_case(row, decision, code)
 broken = report['broken_route']
-assert broken['raw_exit'] == 2 and not local(broken['stdout']).read_bytes()
-assert digest(local(broken['stdout'])) == broken['stdout_sha256']
-assert digest(local(broken['stderr'])) == broken['stderr_sha256']
-assert str(inside / 'scripts/control_evidence.py') in local(broken['stderr']).read_text()
+if IDEMPOTENT:
+    assert broken is None and report['broken_route_refused_and_restored'] == 'NOT_RUN_REUSED_PRIOR'
+    assert case['baseline']['accepted_freeze_sha256'] == '044a3e9be9aa5f6fc56eabd7d27c5d41fb01c84e9d9fd1734fdfbe1fe553410e'
+else:
+    assert broken['raw_exit'] == 2 and not local(broken['stdout']).read_bytes()
+    assert digest(local(broken['stdout'])) == broken['stdout_sha256']
+    assert digest(local(broken['stderr'])) == broken['stderr_sha256']
+    assert str(inside / 'scripts/control_evidence.py') in local(broken['stderr']).read_text()
 assert leaf.stat().st_nlink == 1 and leaf.stat().st_ino == report['restored_leaf_inode']
 
 
@@ -321,20 +327,21 @@ registry_sha = entry.get('gitCommitSha')
 registry_identity = ('MATCH' if registry_sha == commit else
                      'CONFLICTED' if registry_sha else 'UNMEASURED')
 assert report['update']['registry_commit_identity'] == registry_identity
-calls = [call for call in report['update']['native_calls'] if call['argv'][1:3] != ['plugin', 'list']] if RECOVERY else report['update']['native_calls']
+calls = [call for call in report['update']['native_calls'] if call['argv'][1:3] != ['plugin', 'list']] if RECOVERY or IDEMPOTENT else report['update']['native_calls']
 expected_calls = [
     [case['tools']['cli']['path'], 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'],
     [case['tools']['cli']['path'], 'plugin', 'update', case['plugin_id'], '--scope', 'user'],
 ]
+expected_calls = expected_calls * (2 if IDEMPOTENT else 1)
 assert len(calls) == len(expected_calls)
 for call, expected in zip(calls, expected_calls):
-    assert call['argv'] == expected and call['cwd'] == ('/work/consumer' if RECOVERY else '/work/' + prefix + 'consumer')
+    assert call['argv'] == expected and call['cwd'] == ('/work/consumer' if RECOVERY or IDEMPOTENT else '/work/' + prefix + 'consumer')
     assert call['raw_exit'] == 0
     assert local(call['stdout']).is_file() and local(call['stderr']).is_file()
 assert report['update']['preservation_file'] == prefix + 'preservation.json'
 snapshot = json.loads(local('private/' + report['update']['preservation_file']).read_text())
 assert snapshot['new_commit'] == commit
-consumer = 'consumer' if RECOVERY else prefix + 'consumer'
+consumer = 'consumer' if RECOVERY or IDEMPOTENT else prefix + 'consumer'
 expected_paths = {'config/settings.json', f'{consumer}/.claude/settings.json',
                   f'{consumer}/.claude/settings.local.json', f'{consumer}/unrelated.txt'}
 before = snapshot['foreign_before']
@@ -370,7 +377,7 @@ assert hashlib.sha256(held['registry_text'].encode()).hexdigest() == held['regis
 old_entries = json.loads(held['registry_text'])['plugins'][case['plugin_id']]
 assert len(old_entries) == 1 and old_entries[0]['scope'] == 'user'
 assert old_entries[0]['installPath'] == case['baseline']['cache']
-assert old_entries[0]['version'] == ('57f1c12d3b81' if RECOVERY else '3.8.0-r0.1')
+assert old_entries[0]['version'] == ('3.8.0-r0.2' if IDEMPOTENT else '57f1c12d3b81' if RECOVERY else '3.8.0-r0.1')
 if RECOVERY:
     before_inventory = select(json.loads(local(report['recovery']['before_inventory']).read_text()))
     after_inventory = select(json.loads(local(report['recovery']['after_inventory']).read_text()))
@@ -384,6 +391,31 @@ if RECOVERY:
     assert after_inventory['version'] == '3.8.0-r0.2' and after_inventory['installPath'] == str(inside)
     assert report['recovery']['foreign_before'] == report['recovery']['foreign_after'] == before
     preserved(held['foreign_before'], {name: fact(local(name), identity=True) for name in held['foreign_before']})
+if IDEMPOTENT:
+    assert commit == '43a53efffd3eba6c26a2129a067fd7070d7771fd'
+    assert case['baseline']['physical_operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
+    assert report['idempotence']['broken_control'] == 'NOT_RUN_REUSED_PRIOR'
+    assert len(report['idempotence']['before_heads']) == 3 and all(local(path).read_text().strip() == commit for path in report['idempotence']['before_heads'])
+    cycles = report['idempotence']['cycles']
+    assert len(cycles) == 2
+    lists = [call for call in report['native_calls'] if call['argv'][1:] == ['plugin', 'list', '--json']]
+    assert len(lists) == 4 and all(call['cwd'] == '/work/consumer' and call['raw_exit'] == 0 for call in lists)
+    assert [call['stdout'] for call in lists] == [cycle[key] for cycle in cycles for key in ('before_inventory', 'after_inventory')]
+    for call in lists:
+        selected = select(json.loads(local(call['stdout']).read_text()))
+        assert selected and selected['enabled'] and not selected.get('errors')
+        assert selected['version'] == '3.8.0-r0.2' and selected['installPath'] == old_entries[0]['installPath']
+    for cycle in cycles:
+        assert cycle['foreign_after'] == before
+        assert cycle['vendor_after']['error'] is None and isinstance(cycle['vendor_after']['value'], dict)
+        assert len(cycle['head_records']) == 3 and all(local(path).read_text().strip() == commit for path in cycle['head_records'])
+        assert cycle['cache_after'] == {'value': held['old_cache_before'], 'error': None}
+        assert cycle['retained_after'] == {'value': held['retained_before'], 'error': None}
+        selected_names = (str(Path(case['baseline']['cache']).relative_to('/work') / '.claude-plugin/plugin.json'),
+                          str(Path(case['baseline']['cache']).relative_to('/work') / 'scripts/control_evidence.py'))
+        assert cycle['selected_after'] == {'value': {name: held['old_cache_before'][name] for name in selected_names}, 'error': None}
+    preserved(held['foreign_before'], {name: fact(local(name), identity=True) for name in held['foreign_before']})
+    assert cycles[-1]['vendor_after']['value'] == {name: fact(local(name), identity=True) for name in cycles[-1]['vendor_after']['value']}
 old_root = str(Path(case['baseline']['cache']).relative_to('/work'))
 old_members = {old_root, old_root + '/.claude-plugin', old_root + '/scripts',
                old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
@@ -392,8 +424,10 @@ assert {name for name, value in held['old_cache_before'].items() if 'sha256' in 
     old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
 actual_old_members = {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))}
 assert set(held['old_cache_before']) <= actual_old_members
+if IDEMPOTENT:
+    assert set(cycles[-1]['vendor_after']['value']) == actual_old_members - set(held['old_cache_before'])
 additions = {}
-for name in sorted(actual_old_members - set(held['old_cache_before'])):
+for name in sorted(actual_old_members - set(held['old_cache_before']) - set(held.get('vendor_before', {}))):
     path = local(name)
     if path.is_file():
         assert path.stat().st_nlink == 1 and path.stat().st_size <= 131072
@@ -415,11 +449,12 @@ else:
 old_inputs = json.loads((op / 'OLD-INPUTS.BEFORE.PUBLIC.json').read_text())
 assert old_inputs
 for relative, expected in old_inputs.items():
-    path = root.parent / relative
-    assert path.resolve().is_relative_to(root.parent / 'inputs') and not path.is_symlink()
+    proof_root = op.parent / case['baseline']['operation'] if IDEMPOTENT else root.parent
+    path = proof_root / relative
+    assert path.resolve().is_relative_to(proof_root / 'inputs') and not path.is_symlink()
     assert [digest(path), path.stat().st_mode] == expected
 cleanup()
-result = {'status': 'AMENDED_IDLE_UPDATE_PRESERVATION_ASSESSMENT_PASS', 'operation': op.name,
+result = {'status': 'IDLE_IDEMPOTENCE_ASSESSMENT_PASS' if IDEMPOTENT else 'AMENDED_IDLE_UPDATE_PRESERVATION_ASSESSMENT_PASS', 'operation': op.name,
           'unit_invocation': meta['InvocationID'], 'native_service_result': 'success',
           'original_root_assessment': 'FAILED_OLD_EXACT_TREE_CONTRACT_RETAINED',
           'inactive_old_cache_additions': additions, 'addition_writer_provenance': 'UNKNOWN',
@@ -428,6 +463,8 @@ result = {'status': 'AMENDED_IDLE_UPDATE_PRESERVATION_ASSESSMENT_PASS', 'operati
           'cases': results, 'foreign_settings_preserved': True, 'old_cache_preserved': True,
           'bad_settings_observation_refused': True, 'omitted_old_cache_entry_refused': True,
           'old_registry_admitted': True, 'cleanup': True,
+          **({'vendor_metadata_before': held['vendor_before'], 'vendor_metadata_after': cycles[-1]['vendor_after']['value'],
+              'broken_control': 'NOT_RUN_REUSED_PRIOR'} if IDEMPOTENT else {}),
           'catalogue_commit': commit, 'registry_commit_identity': registry_identity,
           'native_hooks_loaded': 'UNMEASURED'}
 (op / 'INDEPENDENT-UPDATE-REASSESSMENT.PUBLIC.json').write_text(json.dumps(result, sort_keys=True) + '\n')
