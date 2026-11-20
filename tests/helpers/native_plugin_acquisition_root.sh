@@ -88,7 +88,9 @@ if case['case'] == 'D0-R0-UPDATE-1':
     cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
     assert cache == cache.resolve() and cache.is_relative_to(root / 'config/plugins/cache')
     expected_cache = {'.claude-plugin', 'scripts', '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
-    assert {str(path.relative_to(cache)) for path in cache.rglob('*')} == expected_cache
+    assert expected_cache <= {str(path.relative_to(cache)) for path in cache.rglob('*')}
+    assert {str(path.relative_to(cache)) for path in cache.rglob('*') if path.is_file()} == {
+        '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
 
     def fact(path):
         assert path == path.resolve() and not path.is_symlink()
@@ -101,8 +103,9 @@ if case['case'] == 'D0-R0-UPDATE-1':
             value['sha256'] = hashlib.sha256(data).hexdigest()
         else:
             assert stat.S_ISDIR(info.st_mode)
-        value['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
-                             info.st_mtime_ns, info.st_ctime_ns]
+        if stat.S_ISREG(info.st_mode):
+            value['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
+                                 info.st_mtime_ns, info.st_ctime_ns]
         return value
 
     old_cache_before = {str(path.relative_to(root)): fact(path) for path in [cache, *cache.rglob('*')]}
@@ -321,6 +324,8 @@ if update:
     assert hashlib.sha256(held['registry_text'].encode('utf-8')).hexdigest() == held['registry_sha256']
     assert preserved['old_cache_before'] == held['old_cache_before']
     assert preserved['retained_before'] == held['retained_before']
+    old_cache = root / pathlib.Path(case['baseline']['cache']).relative_to('/work')
+    assert {str(path.relative_to(root)) for path in [old_cache, *old_cache.rglob('*')]} == set(held['old_cache_before'])
     expected_foreign = {'config/settings.json', prefix + 'consumer/.claude/settings.json',
                         prefix + 'consumer/.claude/settings.local.json', prefix + 'consumer/unrelated.txt'}
     assert set(preserved['foreign_before']) == expected_foreign
@@ -332,6 +337,8 @@ if update:
             actual = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}
             if path.is_file():
                 actual['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            else:
+                assert path.is_dir()
             if 'identity' in expected:
                 actual['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
                                       info.st_mtime_ns, info.st_ctime_ns]

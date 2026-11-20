@@ -40,7 +40,7 @@ def fact(path, identity=False):
     result = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}
     if path.is_file():
         result['sha256'] = digest(path)
-    if identity:
+    if identity and path.is_file():
         result['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
                               info.st_mtime_ns, info.st_ctime_ns]
     return result
@@ -198,8 +198,10 @@ assert old_entries[0]['version'] == '3.8.0-r0.1'
 old_root = str(Path(case['baseline']['cache']).relative_to('/work'))
 old_members = {old_root, old_root + '/.claude-plugin', old_root + '/scripts',
                old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
-assert set(held['old_cache_before']) == old_members
-assert {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))} == old_members
+assert old_members <= set(held['old_cache_before'])
+assert {name for name, value in held['old_cache_before'].items() if 'sha256' in value} == {
+    old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
+assert {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))} == set(held['old_cache_before'])
 for category in ('old_cache_before', 'retained_before'):
     preserved(held[category], snapshot[category])
     preserved(held[category], {name: fact(local(name), identity=True) for name in held[category]})

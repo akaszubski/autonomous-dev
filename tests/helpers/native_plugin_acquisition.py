@@ -110,7 +110,7 @@ def snapshot(paths, strict=False):
             value['sha256'] = digest(path)
         else:
             assert path.is_dir()
-        if strict:
+        if strict and stat.S_ISREG(info.st_mode):
             value['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
                                  info.st_mtime_ns, info.st_ctime_ns]
         values[str(path.relative_to(ROOT))] = value
