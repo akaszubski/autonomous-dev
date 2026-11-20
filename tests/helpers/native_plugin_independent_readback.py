@@ -185,9 +185,32 @@ except ValueError as error:
     assert str(error) == 'FOREIGN_SETTING_CHANGED:config/settings.json'
 else:
     raise AssertionError('Bad settings observation was permitted')
+held_path = op / 'OLD-CONSUMER.BEFORE.PUBLIC.json'
+info = held_path.lstat()
+assert stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+assert not info.st_mode & 0o022
+held = json.loads(held_path.read_text())
+assert hashlib.sha256(held['registry_text'].encode()).hexdigest() == held['registry_sha256']
+old_entries = json.loads(held['registry_text'])['plugins'][case['plugin_id']]
+assert len(old_entries) == 1 and old_entries[0]['scope'] == 'user'
+assert old_entries[0]['installPath'] == case['baseline']['cache']
+assert old_entries[0]['version'] == '3.8.0-r0.1'
+old_root = str(Path(case['baseline']['cache']).relative_to('/work'))
+old_members = {old_root, old_root + '/.claude-plugin', old_root + '/scripts',
+               old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}
+assert set(held['old_cache_before']) == old_members
+assert {old_root, *(str(p.relative_to(root)) for p in local(old_root).rglob('*'))} == old_members
 for category in ('old_cache_before', 'retained_before'):
-    assert snapshot[category]
-    assert snapshot[category] == {name: fact(local(name), identity=True) for name in snapshot[category]}
+    preserved(held[category], snapshot[category])
+    preserved(held[category], {name: fact(local(name), identity=True) for name in held[category]})
+omitted = copy.deepcopy(snapshot['old_cache_before'])
+del omitted[old_root + '/scripts/control_evidence.py']
+try:
+    preserved(held['old_cache_before'], omitted)
+except ValueError as error:
+    assert str(error) == 'PRESERVATION_DENOMINATOR'
+else:
+    raise AssertionError('Omitted old-cache entry was permitted')
 unit = 'adev-d0-acquire-' + op.name + '.service'
 assert not (Path('/sys/fs/cgroup/system.slice') / unit).exists()
 assert not (Path('/run/systemd/system') / (unit + '.d')).exists()
@@ -196,7 +219,8 @@ assert not [line for line in actors.splitlines() if line.split()[0] == '999']
 result = {'status': 'INDEPENDENT_NATIVE_UPDATE_READBACK_PASS', 'operation': op.name,
           'baseline_operation': case['baseline']['operation'], 'installed_root': str(inside),
           'cases': results, 'foreign_settings_preserved': True, 'old_cache_preserved': True,
-          'bad_settings_observation_refused': True, 'cleanup': True,
+          'bad_settings_observation_refused': True, 'omitted_old_cache_entry_refused': True,
+          'old_registry_admitted': True, 'cleanup': True,
           'catalogue_commit': commit, 'registry_commit_identity': registry_identity,
           'native_hooks_loaded': 'UNMEASURED'}
 (op / 'INDEPENDENT-UPDATE-READBACK.PUBLIC.json').write_text(json.dumps(result, sort_keys=True) + '\n')

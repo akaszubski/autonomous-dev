@@ -74,9 +74,55 @@ if case['case'] == 'D0-R0-UPDATE-1':
     assert root == root.resolve() and not root.is_symlink()
     info = root.stat()
     assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (999, 990, 0o700)
+    registry = root / 'config/plugins/installed_plugins.json'
+    assert registry == registry.resolve() and not registry.is_symlink()
+    with os.fdopen(os.open(registry, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC), 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 65536
+        registry_raw = stream.read(65537)
+    assert len(registry_raw) <= 65536
+    registry_text = registry_raw.decode('utf-8')
+    rows = json.loads(registry_text)['plugins'][case['plugin_id']]
+    assert type(rows) is list and len(rows) == 1 and rows[0]['scope'] == 'user'
+    assert rows[0]['version'] == '3.8.0-r0.1' and rows[0]['installPath'] == baseline['cache']
     cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
     assert cache == cache.resolve() and cache.is_relative_to(root / 'config/plugins/cache')
-    assert all(not path.is_symlink() for path in cache.rglob('*'))
+    expected_cache = {'.claude-plugin', 'scripts', '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
+    assert {str(path.relative_to(cache)) for path in cache.rglob('*')} == expected_cache
+
+    def fact(path):
+        assert path == path.resolve() and not path.is_symlink()
+        info = path.stat()
+        value = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}
+        if stat.S_ISREG(info.st_mode):
+            with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC), 'rb') as stream:
+                data = stream.read(131073)
+            assert len(data) <= 131072
+            value['sha256'] = hashlib.sha256(data).hexdigest()
+        else:
+            assert stat.S_ISDIR(info.st_mode)
+        value['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
+                             info.st_mtime_ns, info.st_ctime_ns]
+        return value
+
+    old_cache_before = {str(path.relative_to(root)): fact(path) for path in [cache, *cache.rglob('*')]}
+    retained_before = {}
+    for folder in ('private', 'subjects'):
+        directory = root / folder
+        assert directory.is_dir() and directory == directory.resolve() and not directory.is_symlink()
+        for path in directory.rglob('*'):
+            assert not path.is_symlink()
+            if not path.is_dir():
+                retained_before[str(path.relative_to(root))] = fact(path)
+    retained_before['home/.gitconfig'] = fact(root / 'home/.gitconfig')
+    held = {'registry_text': registry_text, 'registry_sha256': hashlib.sha256(registry_raw).hexdigest(),
+            'old_cache_before': old_cache_before, 'retained_before': retained_before}
+    encoded = json.dumps(held, sort_keys=True) + '\n'
+    assert len(encoded.encode('utf-8')) <= 131072
+    held_path = op / 'OLD-CONSUMER.BEFORE.PUBLIC.json'
+    with held_path.open('x') as stream:
+        stream.write(encoded)
+    held_path.chmod(0o444)
     leaf = cache / 'scripts/control_evidence.py'
     assert leaf.stat().st_ino == baseline['leaf_inode'] and leaf.stat().st_nlink == 1
     assert hashlib.sha256(leaf.read_bytes()).hexdigest() == case['pins']['leaf']
@@ -271,6 +317,10 @@ if update:
     assert re.fullmatch('update-[0-9a-f]{32}-', prefix)
     assert report['update']['preservation_file'] == prefix + 'preservation.json'
     preserved = json.loads((root / 'private' / report['update']['preservation_file']).read_text())
+    held = json.loads((op / 'OLD-CONSUMER.BEFORE.PUBLIC.json').read_text())
+    assert hashlib.sha256(held['registry_text'].encode('utf-8')).hexdigest() == held['registry_sha256']
+    assert preserved['old_cache_before'] == held['old_cache_before']
+    assert preserved['retained_before'] == held['retained_before']
     expected_foreign = {'config/settings.json', prefix + 'consumer/.claude/settings.json',
                         prefix + 'consumer/.claude/settings.local.json', prefix + 'consumer/unrelated.txt'}
     assert set(preserved['foreign_before']) == expected_foreign
