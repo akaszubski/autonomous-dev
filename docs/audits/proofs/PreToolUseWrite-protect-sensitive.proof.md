@@ -120,3 +120,24 @@ The `id_rsa`/`id_ed25519` gap documented above is untouched by this fix — it i
 gap in WHAT is protected, not the extraction defect this arm closed. This proof should no
 longer be read as recording an open MCP-coverage defect; see `CHANGELOG.md` [Unreleased]
 and `docs/HOOKS.md` for the current state.
+
+## 2026-11-20 — direct installed-copy requalification (S0 component only)
+
+Actual registered copies at user-global and main-repository .claude/hooks each
+returned deny / deny / allow for built-in credentials.json, Serena relative_path
+credentials.json, and ordinary src/hello.py. Six raw invocations matched; four
+artifact-local refusal rows matched their emitted decisions, synthetic session
+inputs, tools, paths and reasons. Both independent outcome reviews passed.
+Installed hook/extractor/telemetry/settings bytes remained unchanged. Source hook
+bd961ed3 and extractor4fa63243 match both installs; installed telemetry25cba845
+is older than source21222, explicitly retained rather than silently repaired.
+
+No target write was attempted. This does not establish actual prevented writes,
+authorized allow effects, native callback/routing, full S0 or full plugin delivery.
+The separate real-Claude/Serena carrier remains required. Synthetic session values
+are qualification inputs, never asserted native identities. No proof_of_block
+production baseline or block authority was minted.
+
+Evidence: /Users/akaszubski/.codex/artifacts/pave-s0-installed-jul89tw5,
+accepted freeze SHA-256 d5bf12aaa9aa8987d343fa8f440a859cc9cb8544879b2ff717440302811fadf7;
+securityc684fbe8 and scope954efae9, exact request41e74617 / actual run88ff94.
