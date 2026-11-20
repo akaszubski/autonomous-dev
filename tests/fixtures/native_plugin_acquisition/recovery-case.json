@@ -1,0 +1,13 @@
+{
+  "baseline": {
+    "accepted_freeze_sha256": "3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3",
+    "cache": "/work/config/plugins/cache/adev-d0-native-consumer/autonomous-dev/57f1c12d3b81",
+    "invocation_id": "fc10b5a4e5234d66a90f49bbc4b90589",
+    "leaf_inode": 287347,
+    "manifest_sha256": "5bdde4d91f7452a4ca80b66148d333c0e758445d16f77154c2f00880317072ee",
+    "operation": "bd960e7a8de14af09c1d919c6f57b319"
+  },
+  "case": "D0-R0-RECOVERY-1",
+  "fixture_sha256": "65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388",
+  "operator_sha256": "f8b7ec7c97bcddf009e7a5e1fecdcb2ef62a17f2912d3095bbc39e2b59abf10c"
+}
