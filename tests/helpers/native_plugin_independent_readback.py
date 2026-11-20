@@ -256,7 +256,11 @@ if FRESH:
                 observed = fact(installed / member.name.removeprefix('plugins/autonomous-dev/'))
                 assert (observed['mode'], observed['uid'], observed['gid']) == (member.mode & 0o700, 999, 990)
     cleanup()
-    print(json.dumps({'status': 'ACQUIRE_REPLACEMENT_OBSERVED', 'operation': op.name}))
+    print(json.dumps({'status': 'ACQUIRE_REPLACEMENT_OBSERVED', 'operation': op.name,
+        'installed_root': str(inside), 'version': version, 'leaf_sha256': digest(leaf),
+        'manifest_sha256': digest(installed / '.claude-plugin/plugin.json'), 'cases': results,
+        'restored_leaf_inode': leaf.stat().st_ino, 'broken_route_refused': True,
+        'invocation_id': meta['InvocationID'], 'cleanup_verified': True, 'native_hooks_loaded': 'UNMEASURED'}))
     sys.exit(0)
 
 
