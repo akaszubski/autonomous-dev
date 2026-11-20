@@ -21,8 +21,9 @@ finally:
     os.close(case_fd)
 CASE = json.loads(case_raw)
 UPDATE = CASE['case'] == 'D0-R0-UPDATE-1'
-assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1')
-assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign'} if UPDATE else set())
+UNINSTALL = CASE['case'] == 'D0-R0-UNINSTALL-1'
+assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
+assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign'} if UPDATE else {'foreign_fixture_sha256', 'operator_sha256'} if UNINSTALL else set())
 assert set(CASE['tools']) == {'cli', 'python', 'git'}
 assert all(set(tool) == {'path', 'sha256'} for tool in CASE['tools'].values())
 assert set(CASE['versions']) == {'python', 'pytest'}
@@ -73,7 +74,7 @@ def run(argv, expected=0, cwd=None):
 
 sequence = 0
 native_calls = []
-OUTPUT_PREFIX = 'update-' + os.urandom(16).hex() + '-' if UPDATE else ''
+OUTPUT_PREFIX = ('update-' if UPDATE else 'uninstall-') + os.urandom(16).hex() + '-' if UPDATE or UNINSTALL else ''
 POPULATED = ROOT / (OUTPUT_PREFIX + 'consumer')
 assert os.getuid() == 999 and os.getgid() == 990
 assert set(os.getgroups()) <= {990}
@@ -115,6 +116,41 @@ def snapshot(paths, strict=False):
                                  info.st_mtime_ns, info.st_ctime_ns]
         values[str(path.relative_to(ROOT))] = value
     return values
+
+
+FOREIGN_SETTINGS = CASE.get('foreign')
+if UNINSTALL:
+    fixture = ROOT / 'foreign-case.json'
+    assert digest(fixture) == CASE['foreign_fixture_sha256'] and fixture.stat().st_size <= 8192
+    FOREIGN_SETTINGS = json.loads(fixture.read_text())['foreign']
+
+
+def populate_consumer():
+    POPULATED.mkdir(mode=0o700)
+    run([GIT, 'init', '--initial-branch=main', POPULATED])
+    (POPULATED / '.claude').mkdir(mode=0o700)
+    user = ROOT / 'config/settings.json'
+    assert not user.is_symlink() and user.parent == user.parent.resolve()
+    user_mode = stat.S_IMODE(user.stat().st_mode) if user.exists() else 0o600
+    settings = json.loads(user.read_text()) if user.exists() else {}
+    assert set(FOREIGN_SETTINGS) == {'user', 'repo', 'local', 'unrelated'}
+    for key, value in FOREIGN_SETTINGS['user']['env'].items():
+        assert key not in settings.get('env', {})
+        settings.setdefault('env', {})[key] = value
+    for section in ('permissions', 'hooks'):
+        for key, values in FOREIGN_SETTINGS['user'][section].items():
+            existing = settings.setdefault(section, {}).setdefault(key, [])
+            assert not any(value in existing for value in values)
+            existing.extend(values)
+    write_json(user, settings).chmod(user_mode)
+    project = POPULATED / '.claude/settings.json'
+    local = POPULATED / '.claude/settings.local.json'
+    write_json(project, FOREIGN_SETTINGS['repo']).chmod(0o640)
+    write_json(local, FOREIGN_SETTINGS['local']).chmod(0o600)
+    unrelated = POPULATED / 'unrelated.txt'
+    unrelated.write_text(FOREIGN_SETTINGS['unrelated'])
+    unrelated.chmod(0o644)
+    return [user, project, local, unrelated]
 
 
 with tarfile.open(ROOT / 'payload.tar') as archive:
@@ -165,31 +201,7 @@ if UPDATE:
         assert mode == ('100755' if payload[name][1] & 0o111 else '100644')
         assert run([GIT, '-C', ROOT / 'seed', 'cat-file', 'blob', blob]).read_bytes() == payload[name][0]
     run([GIT, '-C', ROOT / 'seed', 'push', ROOT / 'origin.git', 'HEAD:refs/heads/main'])
-    POPULATED.mkdir(mode=0o700)
-    run([GIT, 'init', '--initial-branch=main', POPULATED])
-    (POPULATED / '.claude').mkdir(mode=0o700)
-    user = ROOT / 'config/settings.json'
-    assert not user.is_symlink() and user.parent == user.parent.resolve()
-    user_mode = stat.S_IMODE(user.stat().st_mode) if user.exists() else 0o600
-    settings = json.loads(user.read_text()) if user.exists() else {}
-    assert set(CASE['foreign']) == {'user', 'repo', 'local', 'unrelated'}
-    for key, value in CASE['foreign']['user']['env'].items():
-        assert key not in settings.get('env', {})
-        settings.setdefault('env', {})[key] = value
-    for section in ('permissions', 'hooks'):
-        for key, values in CASE['foreign']['user'][section].items():
-            existing = settings.setdefault(section, {}).setdefault(key, [])
-            assert not any(value in existing for value in values)
-            existing.extend(values)
-    write_json(user, settings).chmod(user_mode)
-    project = POPULATED / '.claude/settings.json'
-    local = POPULATED / '.claude/settings.local.json'
-    write_json(project, CASE['foreign']['repo']).chmod(0o640)
-    write_json(local, CASE['foreign']['local']).chmod(0o600)
-    unrelated = POPULATED / 'unrelated.txt'
-    unrelated.write_text(CASE['foreign']['unrelated'])
-    unrelated.chmod(0o644)
-    foreign_paths = [user, project, local, unrelated]
+    foreign_paths = populate_consumer()
     foreign_before = snapshot(foreign_paths)
     write_json(ROOT / 'private' / (OUTPUT_PREFIX + 'preservation.json'), {
         'foreign_before': foreign_before, 'old_cache_before': old_cache_before,
@@ -251,11 +263,32 @@ if UPDATE:
             assert path.read_bytes() == payload[name][0]
             assert bool(path.stat().st_mode & 0o111) == bool(payload[name][1] & 0o111)
             assert not (path.stat().st_mode & 0o022)
+if UNINSTALL:
+    foreign_paths = populate_consumer()
+    foreign_before = snapshot(foreign_paths)
+    user_before = (ROOT / 'config/settings.json').read_text()
+    before_inventory = run([CLI, 'plugin', 'list', '--json'], cwd=POPULATED)
+
+    def select_native(rows):
+        assert type(rows) is list
+        matches = [row for row in rows if row['id'] == PLUGIN_ID and row['scope'] == 'user']
+        assert len(matches) <= 1
+        return matches[0] if matches else None
+
+    selected = select_native(json.loads(before_inventory.read_text()))
+    assert selected and selected['enabled'] is True and selected['version'] == '3.8.0-r0.2'
+    assert selected['installPath'] == str(installed)
+    leaf = Path(selected['installPath']) / 'scripts/control_evidence.py'
+    write_json(ROOT / 'private' / (OUTPUT_PREFIX + 'preservation.json'), {
+        'foreign_before': foreign_before, 'user_before_text': user_before,
+        'installed_before': snapshot([leaf, installed / '.claude-plugin/plugin.json'], strict=True),
+        'selected_before': selected})
 results = []
-subject_parent = ROOT / 'subjects' / OUTPUT_PREFIX if UPDATE else ROOT / 'subjects'
-if UPDATE:
+subject_parent = ROOT / 'subjects' / OUTPUT_PREFIX if UPDATE or UNINSTALL else ROOT / 'subjects'
+if UPDATE or UNINSTALL:
     subject_parent.mkdir()
-for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse', 'False', 'FAIL', 1)]:
+cases = [('permit', 'True', 'PASS', 0)] if UNINSTALL else [('permit', 'True', 'PASS', 0), ('refuse', 'False', 'FAIL', 1)]
+for name, truth, decision, exit_code in cases:
     work = subject_parent / name
     work.mkdir()
     target = work / 'test_subject.py'
@@ -291,6 +324,32 @@ for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse
                     'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle),
                     'receipt': str(candidate.relative_to(ROOT)), 'oracle': str(oracle.relative_to(ROOT)),
                     'target': str(target), 'nonce': nonce})
+if UNINSTALL:
+    run([CLI, 'plugin', 'uninstall', PLUGIN_ID, '--scope', 'user'], cwd=POPULATED)
+    after_inventory = run([CLI, 'plugin', 'list', '--json'], cwd=POPULATED)
+    assert select_native(json.loads(after_inventory.read_text())) is None
+    user_after = json.loads((ROOT / 'config/settings.json').read_text())
+    assert PLUGIN_ID not in user_after.get('enabledPlugins', {})
+    user_before_json = json.loads(user_before)
+    assert user_before_json['enabledPlugins'].pop(PLUGIN_ID) is True
+    for settings in (user_before_json, user_after):
+        if not settings.get('enabledPlugins'):
+            settings.pop('enabledPlugins', None)
+    assert user_before_json == user_after
+    after = snapshot(foreign_paths)
+    for name in foreign_before:
+        expected, actual = foreign_before[name].copy(), after[name].copy()
+        if name == 'config/settings.json':
+            expected.pop('sha256')
+            actual.pop('sha256')
+        assert expected == actual
+    print(json.dumps({'status': 'NATIVE_UNINSTALL_SELECTION_ONLY', 'output_prefix': OUTPUT_PREFIX,
+        'cases': results, 'native_calls': native_calls, 'installed_root': str(installed),
+        'before_inventory': str(before_inventory.relative_to(ROOT)),
+        'after_inventory': str(after_inventory.relative_to(ROOT)),
+        'preservation_file': OUTPUT_PREFIX + 'preservation.json',
+        'owned_data': 'UNMEASURED_NO_PRODUCT_STORE', 'native_hooks_loaded': 'UNMEASURED'}, sort_keys=True))
+    sys.exit(0)
 before = leaf.stat()
 held = leaf.with_name(leaf.name + '.held')
 os.link(leaf, held, follow_symlinks=False)

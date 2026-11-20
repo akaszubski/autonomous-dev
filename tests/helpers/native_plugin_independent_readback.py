@@ -7,13 +7,18 @@ import re
 import stat
 import subprocess
 import sys
+import tarfile
 
 assert len(sys.argv) == 2 and re.fullmatch('[0-9a-f]{32}', sys.argv[1])
 op = Path('/var/lib/adev-d0-native-consumer') / sys.argv[1]
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
-assert case['case'] == 'D0-R0-UPDATE-1'
-assert case['baseline']['operation'] == '61a33d713b794460abc1fb0db07ef508'
-root = op.parent / case['baseline']['operation'] / 'run'
+UNINSTALL = case['case'] == 'D0-R0-UNINSTALL-1'
+assert case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
+if UNINSTALL:
+    root = op / 'run'
+else:
+    assert case['baseline']['operation'] == '61a33d713b794460abc1fb0db07ef508'
+    root = op.parent / case['baseline']['operation'] / 'run'
 lines = (op / 'outer.stdout').read_text().splitlines()
 report = json.loads(next(line for line in lines if line.startswith('{')))
 meta = dict(line.split('=', 1) for line in lines if '=' in line and not line.startswith('{'))
@@ -27,9 +32,9 @@ for key in ('NoNewPrivileges', 'ProtectHome', 'PrivateTmp', 'PrivateDevices',
     assert meta[key] == 'yes'
 assert meta['ProtectSystem'] == 'strict'
 
-assert report['status'] == 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY'
+assert report['status'] == ('NATIVE_UNINSTALL_SELECTION_ONLY' if UNINSTALL else 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY')
 prefix = report['output_prefix']
-assert re.fullmatch('update-[0-9a-f]{32}-', prefix)
+assert re.fullmatch(('uninstall-' if UNINSTALL else 'update-') + '[0-9a-f]{32}-', prefix)
 
 
 def digest(path):
@@ -77,6 +82,95 @@ def contains(actual, expected):
         assert actual == expected
 
 
+def cleanup():
+    unit = 'adev-d0-acquire-' + op.name + '.service'
+    current = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
+        '--property=Id,ActiveState,MainPID,LoadState'], capture_output=True, text=True)
+    state = dict(line.split('=', 1) for line in current.stdout.splitlines() if '=' in line)
+    assert state['Id'] == unit and state['ActiveState'] == 'inactive' and state['MainPID'] == '0'
+    assert current.returncode == 0 or (current.returncode == 1 and state['LoadState'] == 'not-found')
+    assert not (Path('/sys/fs/cgroup/system.slice') / unit).exists()
+    assert not (Path('/run/systemd/system') / (unit + '.d')).exists()
+    actors = subprocess.run(['/bin/ps', '-eo', 'uid=,pid='], capture_output=True, text=True, check=True).stdout
+    assert not [line for line in actors.splitlines() if line.split()[0] == '999']
+
+
+if UNINSTALL:
+    assert digest(op / 'inputs/case.PUBLIC.json') == '872c90d1176830dbf8ce63fefc294aae595e5749fa0707b82319c672e342dc47'
+    assert digest(op / 'inputs/operator.py') == case['operator_sha256']
+    assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
+    assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
+    assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
+    foreign_path = op / 'inputs/foreign-case.json'
+    assert digest(foreign_path) == case['foreign_fixture_sha256']
+    foreign = json.loads(foreign_path.read_text())['foreign']
+    calls = report['native_calls'][-3:]
+    expected = [['plugin', 'list', '--json'], ['plugin', 'uninstall', case['plugin_id'], '--scope', 'user'], ['plugin', 'list', '--json']]
+    assert len(calls) == 3
+    for call, tail in zip(calls, expected):
+        assert call['argv'] == [case['tools']['cli']['path'], *tail]
+        assert call['cwd'] == '/work/' + prefix + 'consumer' and call['raw_exit'] == 0
+    def select(rows):
+        assert type(rows) is list
+        found = [row for row in rows if row['id'] == case['plugin_id'] and row['scope'] == 'user']
+        assert len(found) <= 1
+        return found[0] if found else None
+    before = select(json.loads(local(report['before_inventory']).read_text()))
+    assert before and before['version'] == '3.8.0-r0.2' and before['enabled'] is True
+    assert select(json.loads(local(report['after_inventory']).read_text())) is None
+    assert before['installPath'] == report['installed_root']
+    selected = Path(before['installPath'])
+    assert selected.is_relative_to('/work/config/plugins/cache')
+    saved = json.loads(local('private/' + report['preservation_file']).read_text())
+    assert saved['selected_before'] == before
+    assert len(report['cases']) == 1
+    row = report['cases'][0]
+    candidate, oracle = local(row['receipt']), local(row['oracle'])
+    assert digest(candidate) == row['receipt_sha256'] and digest(oracle) == row['oracle_sha256']
+    receipt = json.loads(candidate.read_text())
+    target = local(f'subjects/{prefix}/permit/test_subject.py')
+    assert row['case'] == 'permit' and row['target'] == '/work/' + str(target.relative_to(root))
+    assert receipt['decision'] == 'PASS' and receipt['observation']['run_exit'] == 0
+    assert receipt['observation']['nonce'] == row['nonce'] and receipt['observation']['cleanup_complete']
+    assert saved['installed_before'][str((selected / 'scripts/control_evidence.py').relative_to('/work'))]['sha256'] == case['pins']['leaf']
+    assert saved['installed_before'][str((selected / '.claude-plugin/plugin.json').relative_to('/work'))]['sha256'] == case['pins']['manifest']
+    pins = {'case_manifest': digest(target.parent / 'cases.json'), 'verifier': case['pins']['leaf'], 'subject': digest(target), 'python': digest(Path(case['tools']['python']['path']).resolve())}
+    checked = subprocess.run(['/usr/bin/python3', '-I', '-S', '-B', str(op / 'inputs/instruments/trustcheck.py'),
+        'compare', '--oracle', oracle, '--candidate', candidate, '--nonce', row['nonce'], '--expect-case', 'installed-r0',
+        '--expect-tool-version', 'control-evidence-1', '--expect-subject-digest', digest(target), '--expect-dependency-digests', json.dumps(pins)],
+        capture_output=True, timeout=10, check=True)
+    assert checked.stdout.startswith(b'OK')
+    consumer = prefix + 'consumer'
+    assert set(saved['foreign_before']) == {'config/settings.json', f'{consumer}/.claude/settings.json', f'{consumer}/.claude/settings.local.json', f'{consumer}/unrelated.txt'}
+    user_before = json.loads(saved['user_before_text'])
+    user_after = json.loads(local('config/settings.json').read_text())
+    contains(user_before, foreign['user'])
+    contains(user_after, foreign['user'])
+    assert user_before['enabledPlugins'].pop(case['plugin_id']) is True
+    assert case['plugin_id'] not in user_after.get('enabledPlugins', {})
+    for value in (user_before, user_after):
+        if not value.get('enabledPlugins'):
+            value.pop('enabledPlugins', None)
+    assert user_before == user_after
+    for name, expected_fact in saved['foreign_before'].items():
+        actual = fact(local(name))
+        if name == 'config/settings.json':
+            expected_fact = expected_fact.copy()
+            expected_fact.pop('sha256')
+            actual.pop('sha256')
+        preserved({name: expected_fact}, {name: actual})
+    assert json.loads(local(f'{consumer}/.claude/settings.json').read_text()) == foreign['repo']
+    assert json.loads(local(f'{consumer}/.claude/settings.local.json').read_text()) == foreign['local']
+    assert local(f'{consumer}/unrelated.txt').read_text() == foreign['unrelated']
+    cleanup()
+    result = {'status': 'NATIVE_UNINSTALL_SELECTION_ASSESSMENT_PASS', 'operation': op.name,
+        'before_selected': True, 'after_selected': False, 'permit_before': 'PASS', 'foreign_settings_preserved': True,
+        'owned_data': 'UNMEASURED_NO_PRODUCT_STORE', 'historical_cache_eradication': 'NOT_CLAIMED', 'native_hooks_loaded': 'UNMEASURED'}
+    (op / 'INDEPENDENT-UNINSTALL.PUBLIC.json').write_text(json.dumps(result, sort_keys=True) + '\n')
+    print(json.dumps(result, sort_keys=True))
+    sys.exit(0)
+
+
 assert digest(op / 'inputs/operator.py') == '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3'
 assert digest(op / 'inputs/case.PUBLIC.json') == '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388'
 assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
@@ -85,9 +179,10 @@ assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
 assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-restored']
 entry = json.loads((root / 'config/plugins/installed_plugins.json').read_text())['plugins'][case['plugin_id']][0]
 inside = Path(entry['installPath'])
-assert entry['scope'] == 'user' and str(inside).endswith('/3.8.0-r0.2')
+assert entry['scope'] == 'user' and entry['version'] == '3.8.0-r0.2' and str(inside).endswith('/3.8.0-r0.2')
 assert inside.is_relative_to('/work/config/plugins/cache')
 installed = local(str(inside.relative_to('/work')))
+assert installed.resolve().is_relative_to(local('config/plugins/cache').resolve())
 assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()) == [
     '.claude-plugin/plugin.json', 'scripts/control_evidence.py']
 assert not any(p.is_symlink() for p in installed.rglob('*'))
@@ -129,7 +224,7 @@ assert broken['raw_exit'] == 2 and not local(broken['stdout']).read_bytes()
 assert digest(local(broken['stdout'])) == broken['stdout_sha256']
 assert digest(local(broken['stderr'])) == broken['stderr_sha256']
 assert str(inside / 'scripts/control_evidence.py') in local(broken['stderr']).read_text()
-assert leaf.stat().st_nlink == 1
+assert leaf.stat().st_nlink == 1 and leaf.stat().st_ino == report['restored_leaf_inode']
 
 
 def git(repo, *arguments):
@@ -155,6 +250,10 @@ assert git(catalogue, 'ls-tree', '-r', '--name-only', 'HEAD:plugins/autonomous-d
 for name in ('.claude-plugin/plugin.json', 'scripts/control_evidence.py'):
     blob = git(catalogue, 'cat-file', 'blob', 'HEAD:plugins/autonomous-dev/' + name)
     assert hashlib.sha256(blob).hexdigest() == digest(installed / name)
+with tarfile.open(op / 'inputs/payload.tar') as archive:
+    for member in archive.getmembers():
+        if member.isfile():
+            assert git(catalogue, 'cat-file', 'blob', 'HEAD:' + member.name) == archive.extractfile(member).read()
 registry_sha = entry.get('gitCommitSha')
 registry_identity = ('MATCH' if registry_sha == commit else
                      'CONFLICTED' if registry_sha else 'UNMEASURED')
@@ -220,6 +319,8 @@ assert set(held['old_cache_before']) <= actual_old_members
 additions = {}
 for name in sorted(actual_old_members - set(held['old_cache_before'])):
     path = local(name)
+    if path.is_file():
+        assert path.stat().st_nlink == 1 and path.stat().st_size <= 131072
     additions[name] = fact(path)
     additions[name]['type'] = 'file' if path.is_file() else 'directory'
     additions[name]['size'] = path.stat().st_size
@@ -241,16 +342,7 @@ for relative, expected in old_inputs.items():
     path = root.parent / relative
     assert path.resolve().is_relative_to(root.parent / 'inputs') and not path.is_symlink()
     assert [digest(path), path.stat().st_mode] == expected
-unit = 'adev-d0-acquire-' + op.name + '.service'
-current = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
-    '--property=Id,ActiveState,MainPID,LoadState'], capture_output=True, text=True)
-state = dict(line.split('=', 1) for line in current.stdout.splitlines() if '=' in line)
-assert state['Id'] == unit and state['ActiveState'] == 'inactive' and state['MainPID'] == '0'
-assert current.returncode == 0 or (current.returncode == 1 and state['LoadState'] == 'not-found')
-assert not (Path('/sys/fs/cgroup/system.slice') / unit).exists()
-assert not (Path('/run/systemd/system') / (unit + '.d')).exists()
-actors = subprocess.run(['/bin/ps', '-eo', 'uid=,pid='], capture_output=True, text=True, check=True).stdout
-assert not [line for line in actors.splitlines() if line.split()[0] == '999']
+cleanup()
 result = {'status': 'AMENDED_IDLE_UPDATE_PRESERVATION_ASSESSMENT_PASS', 'operation': op.name,
           'unit_invocation': meta['InvocationID'], 'native_service_result': 'success',
           'original_root_assessment': 'FAILED_OLD_EXACT_TREE_CONTRACT_RETAINED',
