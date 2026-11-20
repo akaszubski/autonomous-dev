@@ -199,15 +199,35 @@ assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
 assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
 assert [row['case'] for row in report['cases']] == ['permit', 'refuse', 'permit-restored']
-entries = json.loads((root / 'config/plugins/installed_plugins.json').read_text())['plugins'][case['plugin_id']]
-assert len(entries) == 1
-entry = entries[0]
-inside = Path(entry['installPath'])
 version = '3.8.0-r0.1' if FRESH else '3.8.0-r0.2'
-assert entry['scope'] == 'user' and entry['version'] == version and inside.name == version
-assert inside.is_relative_to('/work/config/plugins/cache')
-installed = local(str(inside.relative_to('/work')))
-assert installed.resolve().is_relative_to(local('config/plugins/cache').resolve())
+def admitted_selection(raw):
+    entries = json.loads(raw)['plugins'][case['plugin_id']]
+    assert len(entries) == 1
+    entry = entries[0]
+    inside = Path(entry['installPath'])
+    if not inside.is_relative_to('/work/config/plugins/cache'):
+        raise ValueError('SOURCE_ORIGIN_REFUSED')
+    installed = local(str(inside.relative_to('/work')))
+    if not installed.resolve().is_relative_to(local('config/plugins/cache').resolve()):
+        raise ValueError('SOURCE_ORIGIN_REFUSED')
+    assert entry['scope'] == 'user' and entry['version'] == version and inside.name == version
+    return entry, inside, installed
+
+registry_raw = (root / 'config/plugins/installed_plugins.json').read_text()
+entry, inside, installed = admitted_selection(registry_raw)
+if FRESH:
+    seed = local('seed/plugins/autonomous-dev/scripts/control_evidence.py')
+    assert seed.is_file() and not seed.is_symlink() and digest(seed) == case['pins']['leaf']
+    info = seed.stat()
+    assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and ((info.st_uid == 999 and info.st_mode & 0o400) or (info.st_gid == 990 and info.st_mode & 0o040) or info.st_mode & 0o004)
+    mutant = json.loads(registry_raw)
+    mutant['plugins'][case['plugin_id']][0]['installPath'] = '/work/seed/plugins/autonomous-dev'
+    try:
+        admitted_selection(json.dumps(mutant))
+    except ValueError as error:
+        assert str(error) == 'SOURCE_ORIGIN_REFUSED'
+    else:
+        raise AssertionError('SOURCE_ORIGIN_NOT_REFUSED')
 assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()) == [
     '.claude-plugin/plugin.json', 'scripts/control_evidence.py']
 assert not any(p.is_symlink() for p in installed.rglob('*'))
@@ -260,7 +280,8 @@ if FRESH:
         'installed_root': str(inside), 'version': version, 'leaf_sha256': digest(leaf),
         'manifest_sha256': digest(installed / '.claude-plugin/plugin.json'), 'cases': results,
         'restored_leaf_inode': leaf.stat().st_ino, 'broken_route_refused': True,
-        'invocation_id': meta['InvocationID'], 'cleanup_verified': True, 'native_hooks_loaded': 'UNMEASURED'}))
+        'invocation_id': meta['InvocationID'], 'cleanup_verified': True, 'native_hooks_loaded': 'UNMEASURED',
+        'source_origin_control': 'RETAINED_INPUT_REFUSED_NOT_NATIVE_FALLBACK_OR_FULL_D0'}))
     sys.exit(0)
 
 
