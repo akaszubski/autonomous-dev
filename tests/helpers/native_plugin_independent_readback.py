@@ -221,7 +221,7 @@ if FRESH:
     info = seed.stat()
     assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 999 and info.st_mode & 0o400
     for parent in (seed.parent, *seed.parent.parents):
-        assert not parent.is_symlink() and parent.is_dir() and parent.stat().st_mode & 0o100
+        assert not parent.is_symlink() and parent.is_dir() and parent.stat().st_uid == 999 and parent.stat().st_mode & 0o100
         if parent == root:
             break
     else:
