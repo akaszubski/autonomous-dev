@@ -219,7 +219,13 @@ if FRESH:
     seed = local('seed/plugins/autonomous-dev/scripts/control_evidence.py')
     assert seed.is_file() and not seed.is_symlink() and digest(seed) == case['pins']['leaf']
     info = seed.stat()
-    assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and ((info.st_uid == 999 and info.st_mode & 0o400) or (info.st_gid == 990 and info.st_mode & 0o040) or info.st_mode & 0o004)
+    assert stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 999 and info.st_mode & 0o400
+    for parent in (seed.parent, *seed.parent.parents):
+        assert not parent.is_symlink() and parent.is_dir() and parent.stat().st_mode & 0o100
+        if parent == root:
+            break
+    else:
+        raise AssertionError('SOURCE_OUTSIDE_ADMITTED_ROOT')
     mutant = json.loads(registry_raw)
     mutant['plugins'][case['plugin_id']][0]['installPath'] = '/work/seed/plugins/autonomous-dev'
     try:
@@ -228,6 +234,7 @@ if FRESH:
         assert str(error) == 'SOURCE_ORIGIN_REFUSED'
     else:
         raise AssertionError('SOURCE_ORIGIN_NOT_REFUSED')
+    assert (root / 'config/plugins/installed_plugins.json').read_text() == registry_raw
 assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()) == [
     '.claude-plugin/plugin.json', 'scripts/control_evidence.py']
 assert not any(p.is_symlink() for p in installed.rglob('*'))
@@ -281,7 +288,7 @@ if FRESH:
         'manifest_sha256': digest(installed / '.claude-plugin/plugin.json'), 'cases': results,
         'restored_leaf_inode': leaf.stat().st_ino, 'broken_route_refused': True,
         'invocation_id': meta['InvocationID'], 'cleanup_verified': True, 'native_hooks_loaded': 'UNMEASURED',
-        'source_origin_control': 'RETAINED_INPUT_REFUSED_NOT_NATIVE_FALLBACK_OR_FULL_D0'}))
+        'source_origin_control': 'CHECKER_ONLY_SOURCE_REFUSED_NATIVE_EXECUTION_UNMEASURED'}))
     sys.exit(0)
 
 
