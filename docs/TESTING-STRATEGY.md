@@ -263,6 +263,27 @@ A named case in `bootstrap/control_trust/cases.json` fixes intent BEFORE any imp
 
 **Manifest checks are structural, not semantic**: `test_case_manifest.py` requires every case's `denominator` field to name two distinct source labels and a `measurement.state` of `MEASURED` or `UNMEASURED`; only an `UNMEASURED` state additionally requires a non-trivial `reason` string. A `MEASURED` case carries no equivalent field requirement enforced by this test — in practice the manifest's `MEASURED` rows carry `observed_by`/`artifact` keys, but the test does not check for their presence, their content, or the absence of a `reason`. The test also never cross-checks a case's `expected.selected_ids` value against `_harness.py::SUBJECTS`, and two distinct denominator labels are not themselves proof the two sources are independent — the test asserts the labels are present and different, nothing about what actually produced them. `f0-descendant-process-cleanup` is a concrete case that stays `UNMEASURED` with no mutant declared: grandchild-process cleanup below the candidate's direct child was never observed, and no reaper or descendant tracker exists to make it observable.
 
+### R0 per-test observations
+
+The source-free `plugins/autonomous-dev/scripts/control_evidence.py` can request
+per-test pytest outcomes through an `expected.results` mapping, for example
+`{"tests/test_widget.py::test_retry[with space]": "PASSED"}`. Its keys must match
+the declared selected IDs exactly. This optional mode keeps collection unchanged
+and records the actual verbose run command; the ordinary quiet mode and existing
+proof-of-block result lists retain their behavior.
+
+Missing reports are unmeasured; duplicate, conflicting or unselected reports are
+errors. A captured SKIPPED result cannot satisfy a PASSED expectation, even when
+pytest exits zero. A matching SKIPPED expectation can pass an observation case;
+that does not approve skipped validation or grant workflow progression.
+
+These are configuration-bound child reports, not proof against a hostile pytest
+implementation. Public receipts retain stream hashes and lengths, not raw logs.
+Actual custody, current run/subject binding, independent changed-behavior checks,
+and the signed, successfully returned ACK remain the consuming issuer's duties.
+The F0 oracle/comparator qualify R0 independently; they are not runtime approval
+authority. See the [control-tool contract](plans/20260909-control-tool-v12.md).
+
 ## Coverage Gap Assessment (HARD GATE)
 
 **Before writing ANY tests**, the test-master agent must run a coverage gap assessment:

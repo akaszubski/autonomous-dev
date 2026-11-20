@@ -19,6 +19,9 @@ SCHEMA = "control-tool-receipt-1"
 VERSION = "control-evidence-1"
 OUTPUT_LIMIT = 65536
 ENV = {"PATH": "/usr/bin:/bin", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
+PYTEST_OUTCOME = r"PASSED|FAILED|SKIPPED|XFAIL|XPASS|ERROR"
+PYTEST_REPORT = (r"(?:PASSED|FAILED|ERROR|(?:SKIPPED|XFAIL|XPASS)(?: \([^\r\n]*\))?)"
+                 r"(?:\s+\[\s*\d+%\])?")
 
 
 def unique(pairs: list) -> dict:
@@ -251,11 +254,34 @@ def decide(case: dict, observation: dict) -> tuple[str, str]:
     return "PASS", "EXPECTED_FACTS"
 
 
-def pytest_argv(args: argparse.Namespace, collect: bool) -> list:
+def pytest_results(output: str, selected: list) -> dict | None:
+    """Reconcile verbose reports with complete collected IDs, including spaces.
+
+    Stages behavior reuse from test_runner._reported_nodes; its legacy owner
+    remains until consumer migration. Reports are child attestations only.
+    """
+    results = {}
+    for line in output.splitlines():
+        line = line.strip()
+        if not re.match(r"^\S+\.py::", line):
+            continue
+        matches = [node for node in selected if line.startswith(node + " ") and
+                   re.fullmatch(PYTEST_REPORT, line[len(node):].strip())]
+        if len(matches) != 1:
+            raise ValueError("UNEXPECTED_PYTEST_REPORT")
+        node = matches[0]
+        if node in results:
+            raise ValueError("DUPLICATE_PYTEST_REPORT")
+        results[node] = line[len(node):].split()[0]
+    return results if set(results) == set(selected) else None
+
+
+def pytest_argv(args: argparse.Namespace, collect: bool, per_node: bool = False) -> list:
     argv = [args.python, "-B", "-X", f"pycache_prefix={args.pycache_prefix}",
             "-I", "-m", "pytest", "-p", "no:cacheprovider", "-c", "/dev/null",
             f"--rootdir={args.workroot}", "--noconftest"]
-    return [*argv, *(["--collect-only"] if collect else []), "-q", args.target]
+    return [*argv, *(["--collect-only"] if collect else []),
+            "-v" if per_node and not collect else "-q", args.target]
 
 
 def record_process(observation: dict, argv: list, stdin: bytes, result: dict) -> None:
@@ -302,7 +328,8 @@ def observe(args: argparse.Namespace, case: dict, receipt: dict) -> None:
                    "cleanup_scope": "owned_process_group", "context_resolved": resolved,
                    "capture_stop": ""})
     observation["command_file_sha256"] = before["command_file"][0] if args.command_file else None
-    commands = [pytest_argv(args, True), pytest_argv(args, False)]
+    per_node = not args.command_file and isinstance(case.get("expected", {}).get("results"), dict)
+    commands = [pytest_argv(args, True), pytest_argv(args, False, per_node)]
     stdin = b""
     if args.command_file:
         command_fact = file_fact(Path(args.command_file), True)
@@ -368,6 +395,10 @@ def observe(args: argparse.Namespace, case: dict, receipt: dict) -> None:
         observation["selected_count"] = len(observation["selected"])
         if result["stop"] or not result["cleanup"]:
             return
+        if per_node and index == 1:
+            reports = pytest_results(result["stdout"].decode("utf-8"), observation["selected"])
+            if reports is not None:
+                observation["results"] = reports
     observation["phase"] = "identity_recheck"
     if identity(root)[:5] != cwd or any(file_fact(path) != before[key] for key, path in files.items()):
         raise ValueError("IDENTITY_CHANGED")
@@ -409,6 +440,12 @@ def main(argv: list | None = None) -> int:
         if "selected_ids" in expected and (not isinstance(expected["selected_ids"], list)
                 or not all(isinstance(v, str) for v in expected["selected_ids"])):
             raise ValueError("SELECTION_TYPE")
+        if not args.command_file and isinstance(expected.get("results"), dict):
+            results = expected["results"]
+            if (not results or set(results) != set(expected.get("selected_ids", []))
+                    or any(not isinstance(value, str) or not re.fullmatch(PYTEST_OUTCOME, value)
+                           for value in results.values())):
+                raise ValueError("PYTEST_RESULTS_EXPECTATION")
         observe(args, cases[0], receipt)
         if receipt["dependency_digests"]["case_manifest"] != manifest_fact[0]:
             raise ValueError("MANIFEST_CHANGED")

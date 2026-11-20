@@ -375,3 +375,67 @@ def test_injected_os_denial_retains_partial_facts_and_closes_pipes(tmp_path, mon
             proc.wait(timeout=2)
             for stream in (proc.stdin, proc.stdout, proc.stderr):
                 stream.close()
+
+
+@pytest.mark.parametrize("stimulus,decision,reason", [
+    ("passed", "PASS", "EXPECTED_FACTS"),
+    ("skipped", "PASS", "EXPECTED_FACTS"),
+    ("skip-claimed-pass", "FAIL", "RESULTS_MISMATCH"),
+    ("status-space-id", "PASS", "EXPECTED_FACTS"),
+    ("omitted", "UNMEASURED", "RESULTS_UNOBSERVED"),
+    ("duplicate", "ERROR", "DUPLICATE_PYTEST_REPORT"),
+    ("conflict", "ERROR", "DUPLICATE_PYTEST_REPORT"),
+    ("unexpected", "ERROR", "UNEXPECTED_PYTEST_REPORT"),
+])
+def test_per_node_actual_entrypoint(tmp_path, stimulus, decision, reason):
+    source = LEAF
+    if stimulus in {"omitted", "duplicate", "conflict", "unexpected"}:
+        # Corrupt one actual capture at the existing instrument seam. The child
+        # still executes; this is parser fault detection, not native evidence.
+        source = tmp_path / "instrument.py"
+        anchor = '        result = capture(argv, root, args.child_timeout, stdin)\n'
+        fault = {
+            "omitted": 'lines.remove(row)',
+            "duplicate": 'lines.append(row)',
+            "conflict": 'lines.append(row.replace(" PASSED", " FAILED"))',
+            "unexpected": 'lines[lines.index(row)] = row.replace("test_alpha", "test_foreign")',
+        }[stimulus]
+        replacement = anchor + ('        if per_node and index == 1:\n'
+            '            lines = result["stdout"].decode().splitlines()\n'
+            '            row = next(line for line in lines if "::test_alpha[" in line)\n'
+            f'            {fault}\n'
+            '            result["stdout"] = ("\\n".join(lines) + "\\n").encode()\n')
+        text = LEAF.read_text()
+        assert text.count(anchor) == 1
+        source.write_text(text.replace(anchor, replacement))
+    def change(case, target, root):
+        selected = H.selected_of("s_pass")
+        if stimulus in {"skipped", "skip-claimed-pass"}:
+            text = target.read_text()
+            assert text.count("assert True") == 2
+            target.write_text(text.replace("assert True", "pytest.skip('controlled unconditional skip')"))
+        if stimulus == "status-space-id":
+            target.write_text(target.read_text().replace("with space", "PASSED [ 50%] with space"))
+            selected = [node.replace("with space", "PASSED [ 50%] with space") for node in selected]
+        case["expected"]["selected_ids"] = selected
+        case["expected"]["results"] = {node: "SKIPPED" if stimulus == "skipped" else "PASSED"
+                                       for node in selected}
+        return []
+    process, receipt, _, _ = measure(tmp_path, "s_pass", change=change, source=source, oracle=False)
+    observation = receipt["observation"]
+    assert receipt["decision"] == decision and observation["reason"] == reason
+    assert process.returncode == {"PASS": 0, "FAIL": 1, "UNMEASURED": 1, "ERROR": 2}[decision]
+    assert observation["collect_exit"] == observation["run_exit"] == 0
+    assert observation["cleanup_complete"] is True
+    assert all(row["reaped"] and row["pipes_closed"] and row["group_absent"]
+               for row in observation["processes"])
+    if decision in {"PASS", "FAIL"}:
+        assert observation["identities_rechecked"] is True
+        assert set(observation["results"]) == set(observation["selected"])
+        assert set(observation["results"].values()) == (
+            {"SKIPPED"} if stimulus in {"skipped", "skip-claimed-pass"} else {"PASSED"})
+    else:
+        assert "results" not in observation
+    assert "-q" in observation["processes"][1]["argv"]
+    assert "-v" in observation["processes"][2]["argv"]
+    assert all("stdout" not in row and "stderr" not in row for row in observation["processes"])
