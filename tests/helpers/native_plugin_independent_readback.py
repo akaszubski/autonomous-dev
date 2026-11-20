@@ -12,13 +12,19 @@ import tarfile
 assert len(sys.argv) == 2 and re.fullmatch('[0-9a-f]{32}', sys.argv[1])
 op = Path('/var/lib/adev-d0-native-consumer') / sys.argv[1]
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
+RECOVERY = case['case'] == 'D0-R0-RECOVERY-1'
+if RECOVERY:
+    assert set(case) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
+    fixture = (op / 'inputs/foreign-case.json').read_bytes()
+    assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == case.pop('fixture_sha256')
+    case = dict(json.loads(fixture), **case)
 UNINSTALL = case['case'] == 'D0-R0-UNINSTALL-1'
 FRESH = case['case'] == 'D0-R0-ACQUIRE-1'
-assert FRESH or case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1')
+assert FRESH or case['case'] in ('D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-RECOVERY-1')
 if UNINSTALL or FRESH:
     root = op / 'run'
 else:
-    assert case['baseline']['operation'] == '61a33d713b794460abc1fb0db07ef508'
+    assert case['baseline']['operation'] == ('bd960e7a8de14af09c1d919c6f57b319' if RECOVERY else '61a33d713b794460abc1fb0db07ef508')
     root = op.parent / case['baseline']['operation'] / 'run'
 lines = (op / 'outer.stdout').read_text().splitlines()
 report = json.loads(next(line for line in lines if line.startswith('{')))
@@ -193,8 +199,8 @@ if UNINSTALL:
     sys.exit(0)
 
 
-assert digest(op / 'inputs/operator.py') == ('f77020adf56d3966622a71b7ec630c0b5691cddbc879f028eefd7ef58b0d95f9' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
-assert digest(op / 'inputs/case.PUBLIC.json') == ('5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
+assert digest(op / 'inputs/operator.py') == (case['operator_sha256'] if RECOVERY else 'f77020adf56d3966622a71b7ec630c0b5691cddbc879f028eefd7ef58b0d95f9' if FRESH else '808a29678d820fe0bfcce073f71045a579d6d74eee74e76dcfbae89344ac0ab3')
+assert digest(op / 'inputs/case.PUBLIC.json') == ('02aa3721075304f36627541ee4509271cee7e27fa0b55f902a7429ae84b82cd5' if RECOVERY else '5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072' if FRESH else '65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388')
 assert digest(op / 'inputs/payload.tar') == case['pins']['archive']
 assert digest(op / 'inputs/instruments/trustcheck.py') == case['pins']['trustcheck.py']
 assert digest(op / 'inputs/instruments/oracle.sh') == case['pins']['oracle.sh']
@@ -298,6 +304,8 @@ catalogue = local(str(catalogue_inside.relative_to('/work')))
 commit = git(local('seed'), 'rev-parse', 'HEAD').decode().strip()
 assert re.fullmatch('[0-9a-f]{40}', commit)
 assert commit == report['update']['new_commit'] == report['update']['catalogue_commit']
+if RECOVERY:
+    assert git(local('seed'), 'rev-parse', 'HEAD^').decode().strip() == '57f1c12d3b8162c411745168bd67351249d11eb1'
 assert git(catalogue, 'rev-parse', 'HEAD').decode().strip() == commit
 assert git(local('origin.git'), 'rev-parse', 'HEAD').decode().strip() == commit
 assert git(catalogue, 'ls-tree', '-r', '--name-only', 'HEAD:plugins/autonomous-dev').decode().splitlines() == [
@@ -313,20 +321,20 @@ registry_sha = entry.get('gitCommitSha')
 registry_identity = ('MATCH' if registry_sha == commit else
                      'CONFLICTED' if registry_sha else 'UNMEASURED')
 assert report['update']['registry_commit_identity'] == registry_identity
-calls = report['update']['native_calls']
+calls = [call for call in report['update']['native_calls'] if call['argv'][1:3] != ['plugin', 'list']] if RECOVERY else report['update']['native_calls']
 expected_calls = [
     [case['tools']['cli']['path'], 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'],
     [case['tools']['cli']['path'], 'plugin', 'update', case['plugin_id'], '--scope', 'user'],
 ]
 assert len(calls) == len(expected_calls)
 for call, expected in zip(calls, expected_calls):
-    assert call['argv'] == expected and call['cwd'] == '/work/' + prefix + 'consumer'
+    assert call['argv'] == expected and call['cwd'] == ('/work/consumer' if RECOVERY else '/work/' + prefix + 'consumer')
     assert call['raw_exit'] == 0
     assert local(call['stdout']).is_file() and local(call['stderr']).is_file()
 assert report['update']['preservation_file'] == prefix + 'preservation.json'
 snapshot = json.loads(local('private/' + report['update']['preservation_file']).read_text())
 assert snapshot['new_commit'] == commit
-consumer = prefix + 'consumer'
+consumer = 'consumer' if RECOVERY else prefix + 'consumer'
 expected_paths = {'config/settings.json', f'{consumer}/.claude/settings.json',
                   f'{consumer}/.claude/settings.local.json', f'{consumer}/unrelated.txt'}
 before = snapshot['foreign_before']
@@ -362,7 +370,20 @@ assert hashlib.sha256(held['registry_text'].encode()).hexdigest() == held['regis
 old_entries = json.loads(held['registry_text'])['plugins'][case['plugin_id']]
 assert len(old_entries) == 1 and old_entries[0]['scope'] == 'user'
 assert old_entries[0]['installPath'] == case['baseline']['cache']
-assert old_entries[0]['version'] == '3.8.0-r0.1'
+assert old_entries[0]['version'] == ('57f1c12d3b81' if RECOVERY else '3.8.0-r0.1')
+if RECOVERY:
+    before_inventory = select(json.loads(local(report['recovery']['before_inventory']).read_text()))
+    after_inventory = select(json.loads(local(report['recovery']['after_inventory']).read_text()))
+    lists = [call for call in report['native_calls'] if call['argv'][1:] == ['plugin', 'list', '--json']]
+    assert len(lists) == 2 and all(call['cwd'] == '/work/consumer' and call['raw_exit'] == 0 for call in lists)
+    assert [call['stdout'] for call in lists] == [report['recovery']['before_inventory'], report['recovery']['after_inventory']]
+    assert before_inventory and before_inventory['enabled'] and before_inventory['installPath'] == old_entries[0]['installPath']
+    assert before_inventory['version'] == old_entries[0]['version']
+    assert any('repository: Invalid input: expected string, received object' in item for item in before_inventory.get('errors', []))
+    assert after_inventory and after_inventory['enabled'] and not after_inventory.get('errors')
+    assert after_inventory['version'] == '3.8.0-r0.2' and after_inventory['installPath'] == str(inside)
+    assert report['recovery']['foreign_before'] == report['recovery']['foreign_after'] == before
+    preserved(held['foreign_before'], {name: fact(local(name), identity=True) for name in held['foreign_before']})
 old_root = str(Path(case['baseline']['cache']).relative_to('/work'))
 old_members = {old_root, old_root + '/.claude-plugin', old_root + '/scripts',
                old_root + '/.claude-plugin/plugin.json', old_root + '/scripts/control_evidence.py'}

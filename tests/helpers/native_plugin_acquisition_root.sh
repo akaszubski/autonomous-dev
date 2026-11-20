@@ -49,9 +49,16 @@ pave_run=$(/usr/bin/python3 -I -S -B - "$pave_op" <<'BASELINE'
 import hashlib,json,os,pathlib,re,stat,subprocess,sys
 op = pathlib.Path(sys.argv[1])
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
-if case['case'] == 'D0-R0-UPDATE-1':
+recovery = case['case'] == 'D0-R0-RECOVERY-1'
+if recovery:
+    assert set(case) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
+    fixture = (op / 'inputs/foreign-case.json').read_bytes()
+    assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == case.pop('fixture_sha256')
+    assert hashlib.sha256((op / 'inputs/operator.py').read_bytes()).hexdigest() == case['operator_sha256']
+    case = dict(json.loads(fixture), **case)
+if case['case'] == 'D0-R0-UPDATE-1' or recovery:
     baseline = case['baseline']
-    assert baseline['accepted_freeze_sha256'] == '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b'
+    assert baseline['accepted_freeze_sha256'] == ('3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3' if recovery else '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b')
     assert set(baseline) == {'operation', 'invocation_id', 'cache', 'leaf_inode',
                              'manifest_sha256', 'accepted_freeze_sha256'}
     assert re.fullmatch('[0-9a-f]{32}', baseline['operation']) and baseline['operation'] != op.name
@@ -63,9 +70,12 @@ if case['case'] == 'D0-R0-UPDATE-1':
     assert not record.is_symlink() and record.stat().st_uid == 0
     assert record.stat().st_nlink == 1 and not (record.stat().st_mode & 0o022)
     receipt = json.loads(record.read_text())
-    assert receipt['status'] == 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED'
+    assert receipt['status'] == ('RAW_UNIT_AND_CLEANUP_OBSERVED' if recovery else 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED')
     assert receipt['operation'] == baseline['operation'] and receipt['invocation_id'] == baseline['invocation_id']
-    assert receipt['raw_unit_exit'] == 0 and receipt['cgroup_empty'] and receipt['broken_route_restored']
+    assert receipt['raw_unit_exit'] == 0 and receipt['cgroup_empty']
+    assert recovery or receipt['broken_route_restored']
+    if recovery:
+        assert baseline['operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
     old_unit = 'adev-d0-acquire-' + baseline['operation'] + '.service'
     assert receipt['unit'] == old_unit
     query = subprocess.run(['/usr/bin/systemctl', 'show', '--all', old_unit,
@@ -93,7 +103,9 @@ if case['case'] == 'D0-R0-UPDATE-1':
     registry_text = registry_raw.decode('utf-8')
     rows = json.loads(registry_text)['plugins'][case['plugin_id']]
     assert type(rows) is list and len(rows) == 1 and rows[0]['scope'] == 'user'
-    assert rows[0]['version'] == '3.8.0-r0.1' and rows[0]['installPath'] == baseline['cache']
+    assert rows[0]['version'] == ('57f1c12d3b81' if recovery else '3.8.0-r0.1') and rows[0]['installPath'] == baseline['cache']
+    if recovery:
+        assert hashlib.sha256(registry_raw).hexdigest() == '5400080596072c5216e2ae7d79729be40d0dd746e255d2a446829e09832272df'
     cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
     assert cache == cache.resolve() and cache.is_relative_to(root / 'config/plugins/cache')
     expected_cache = {'.claude-plugin', 'scripts', '.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
@@ -129,6 +141,15 @@ if case['case'] == 'D0-R0-UPDATE-1':
     retained_before['home/.gitconfig'] = fact(root / 'home/.gitconfig')
     held = {'registry_text': registry_text, 'registry_sha256': hashlib.sha256(registry_raw).hexdigest(),
             'old_cache_before': old_cache_before, 'retained_before': retained_before}
+    if recovery:
+        names = ('config/settings.json', 'consumer/.claude/settings.json',
+                 'consumer/.claude/settings.local.json', 'consumer/unrelated.txt')
+        held['foreign_before'] = {name: fact(root / name) for name in names}
+        assert [held['foreign_before'][name]['sha256'] for name in names] == [
+            'cdb576a3e399423dd4d535f802b0981e5d256fcf2ec19eb3978135c91ec2e28b',
+            '3d5e4c0d461c1893959b290e415483987bda74a67e807f62e547aed7c1e985ee',
+            'f10d0d00aa75b9a4e40245fbb2897b9a9d5ead29a9cf5b4b7f48dd1d50678085',
+            'e951dbb7bfc4942f7ced0928f8224cd8f56bc73dbd8ce6a2cc664bffee59a6da']
     encoded = json.dumps(held, sort_keys=True) + '\n'
     assert len(encoded.encode('utf-8')) <= 131072
     held_path = op / 'OLD-CONSUMER.BEFORE.PUBLIC.json'
