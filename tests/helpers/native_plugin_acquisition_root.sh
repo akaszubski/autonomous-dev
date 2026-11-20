@@ -34,7 +34,7 @@ for pave_file in foreign-case.json acquire-case.json; do
     test -f "$pave_upload/$pave_file" && test ! -L "$pave_upload/$pave_file"
     test "$(stat -c %u:%h "$pave_upload/$pave_file")" = 0:1
     install -o 0 -g 0 -m 0444 "$pave_upload/$pave_file" "$pave_op/inputs/$pave_file"
-    pave_foreign_bind+=" $pave_op/inputs/$pave_file:/work/$pave_file"
+    pave_foreign_bind+="${pave_foreign_bind:+ }$pave_op/inputs/$pave_file:/work/$pave_file"
   fi
 done
 pave_sum=$(sha256sum "$pave_op/inputs/SHA256SUMS")
@@ -264,7 +264,7 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p RestrictAddressFamilies='AF_UNIX AF_INET AF_INET6' \
   -p InaccessiblePaths='-/Users -/mnt -/media -/Volumes -/var/lib/adev-f0-stored-login-proposed' \
   -p BindPaths="$pave_run:/work" \
-  -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments $pave_foreign_bind" \
+  -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments${pave_foreign_bind:+ }$pave_foreign_bind" \
   -p WorkingDirectory=/work -p UMask=0077 -p RuntimeMaxSec=240s -p TimeoutStopSec=3s \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
   -p "ExecStartPre=$pave_pre_gate pre" \
@@ -288,8 +288,6 @@ flags = {
 keys = {'Id', 'InvocationID', 'ControlGroup', 'Result', 'ExecMainCode', 'ExecMainStatus',
         'TypedCredentialsEmpty', *flags}
 meta = dict(line.split('=', 1) for line in lines if line.partition('=')[0] in keys)
-assert meta.get('Id') == unit and re.fullmatch('[0-9a-f]{32}',meta.get('InvocationID',''))
-assert meta.get('ControlGroup') == '/system.slice/'+unit
 query = subprocess.run(['/usr/bin/systemctl', 'show', '--all', unit,
                         '--property=Id,ActiveState,LoadState'], capture_output=True, text=True)
 current = dict(line.split('=', 1) for line in query.stdout.splitlines() if '=' in line)
@@ -307,6 +305,8 @@ for owned in (op / 'zzzz-pave-d0.conf', policy):
 policy.unlink()
 dropdir.rmdir()
 subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True)
+assert meta.get('Id') == unit and re.fullmatch('[0-9a-f]{32}',meta.get('InvocationID',''))
+assert meta.get('ControlGroup') == '/system.slice/'+unit
 assert all(meta.get(key) == value for key, value in flags.items())
 assert meta.get('TypedCredentialsEmpty') == 'yes'
 assert raw_exit == 0 and meta.get('Result') == 'success' and meta.get('ExecMainStatus') == '0'

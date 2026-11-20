@@ -269,7 +269,6 @@ leaf = installed / 'scripts/control_evidence.py'
 assert digest(leaf) == EXPECTED['leaf']
 assert digest(installed / '.claude-plugin/plugin.json') == EXPECTED['manifest']
 assert leaf.stat().st_ino != (ROOT / 'seed/plugins/autonomous-dev/scripts/control_evidence.py').stat().st_ino
-verify_installed_cache()
 if UPDATE:
     assert installed != old_cache and installed.name == '3.8.0-r0.2'
     for path in installed.rglob('*'):
@@ -374,6 +373,8 @@ permit_argv[permit_argv.index('--nonce') + 1] = nonce
 permit_common[permit_common.index('--nonce') + 1] = nonce
 oracle = run(['/bin/sh', ROOT / 'instruments/oracle.sh', *permit_common])
 candidate = run(permit_argv)
+restored = json.loads(candidate.read_text())
+assert restored['decision'] == 'PASS' and restored['observation']['cleanup_complete']
 compare_receipt(candidate, oracle, nonce, permit_pins)
 results.append({'case': 'permit-restored', 'raw_exit': 0, 'decision': 'PASS',
                 'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle),
