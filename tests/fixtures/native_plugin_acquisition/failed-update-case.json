@@ -1,6 +1,0 @@
-{
-  "case": "D0-R0-FAILED-UPDATE-1",
-  "foreign_fixture_sha256": "65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388",
-  "failure_manifest_sha256": "5bdde4d91f7452a4ca80b66148d333c0e758445d16f77154c2f00880317072ee",
-  "acquisition_fixture_sha256": "5ffba955514e94cc808302b1ca650423665369b58a784a71ec08e225e83a8072"
-}

@@ -29,5 +29,5 @@
   "plugin_id": "autonomous-dev@adev-d0-native-consumer",
   "url": "https://pave-d0.invalid/marketplace.git",
   "foreign_fixture_sha256": "65fb0df3db245d54dfd45aed0e38573d35bc3bcd89ae5e9e2043cd355c366388",
-  "operator_sha256": "80e1019bf18b7fbb796183963950b2f1b2d3c09405c163f8a2bf73ff0dd6fa69"
+  "operator_sha256": "f77020adf56d3966622a71b7ec630c0b5691cddbc879f028eefd7ef58b0d95f9"
 }
