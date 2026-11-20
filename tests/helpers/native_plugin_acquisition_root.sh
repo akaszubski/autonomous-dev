@@ -46,22 +46,25 @@ for pave_policy in /etc/claude-code/managed-settings.json /etc/claude-code/manag
   test ! -e "$pave_policy"
 done
 pave_run=$(/usr/bin/python3 -I -S -B - "$pave_op" <<'BASELINE'
-import hashlib,json,os,pathlib,re,stat,subprocess,sys
+import hashlib,json,os,pathlib,re,stat,subprocess,sys,tarfile
 op = pathlib.Path(sys.argv[1])
 case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
 recovery = case['case'] == 'D0-R0-RECOVERY-1'
 idempotent = case['case'] == 'D0-R0-IDLE-IDEMPOTENCE-1'
-if recovery or idempotent:
+prior = case['case'] == 'D0-R0-PRIOR-SELECTION-1'
+if recovery or idempotent or prior:
     assert set(case) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
     fixture = (op / 'inputs/foreign-case.json').read_bytes()
     assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == case.pop('fixture_sha256')
     assert hashlib.sha256((op / 'inputs/operator.py').read_bytes()).hexdigest() == case['operator_sha256']
     case = dict(json.loads(fixture), **case)
-if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
+    if prior:
+        case['pins'] = dict(case['pins'], archive=case['baseline']['target_archive'], manifest=case['baseline']['target_manifest'])
+if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent or prior:
     baseline = case['baseline']
-    assert baseline['accepted_freeze_sha256'] == ('044a3e9be9aa5f6fc56eabd7d27c5d41fb01c84e9d9fd1734fdfbe1fe553410e' if idempotent else '3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3' if recovery else '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b')
+    assert baseline['accepted_freeze_sha256'] == ('815cf36ab2c561898fd5e63c22ba5dbfdb5c0a514e3a1e8b18e7e0e4d61abdef' if prior else '044a3e9be9aa5f6fc56eabd7d27c5d41fb01c84e9d9fd1734fdfbe1fe553410e' if idempotent else '3baf71dc69dc3a5fbeafecf7f2e014f5a04e695b18b607fe73c8fd1dd460e4b3' if recovery else '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b')
     assert set(baseline) == {'operation', 'invocation_id', 'cache', 'leaf_inode',
-                             'manifest_sha256', 'accepted_freeze_sha256'} | ({'physical_operation'} if idempotent else set())
+                             'manifest_sha256', 'accepted_freeze_sha256'} | ({'physical_operation'} if idempotent or prior else set()) | ({'target_archive', 'target_manifest'} if prior else set())
     assert re.fullmatch('[0-9a-f]{32}', baseline['operation']) and baseline['operation'] != op.name
     old = op.parent / baseline['operation']
     assert old == old.resolve() and not old.is_symlink()
@@ -71,15 +74,15 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     assert not record.is_symlink() and record.stat().st_uid == 0
     assert record.stat().st_nlink == 1 and not (record.stat().st_mode & 0o022)
     receipt = json.loads(record.read_text())
-    assert receipt['status'] == ('RAW_UNIT_AND_CLEANUP_OBSERVED' if recovery or idempotent else 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED')
+    assert receipt['status'] == ('RAW_UNIT_AND_CLEANUP_OBSERVED' if recovery or idempotent or prior else 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED')
     assert receipt['operation'] == baseline['operation'] and receipt['invocation_id'] == baseline['invocation_id']
     assert receipt['raw_unit_exit'] == 0 and receipt['cgroup_empty']
-    assert recovery or idempotent or receipt['broken_route_restored']
+    assert recovery or idempotent or prior or receipt['broken_route_restored']
     if recovery:
         assert baseline['operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
-    if idempotent:
-        assert baseline['operation'] == '8a2551344cb04053a21c6f7b90eec29d'
-        assert baseline['invocation_id'] == '755314a5e7184c64a3cf46c0fa12a5d9'
+    if idempotent or prior:
+        assert baseline['operation'] == ('d3d50527ae024480ac8b61872fe7b62e' if prior else '8a2551344cb04053a21c6f7b90eec29d')
+        assert baseline['invocation_id'] == ('7ab881e606114cb49f87538f4ef4654f' if prior else '755314a5e7184c64a3cf46c0fa12a5d9')
         assert baseline['physical_operation'] == 'bd960e7a8de14af09c1d919c6f57b319'
         physical = op.parent / baseline['physical_operation']
         assert physical == physical.resolve() and not physical.is_symlink()
@@ -98,7 +101,7 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     assert not old_group.exists() or not (old_group / 'cgroup.procs').read_text().strip()
     old_policy = pathlib.Path('/run/systemd/system') / (old_unit + '.d')
     assert not old_policy.exists() and not old_policy.is_symlink()
-    root = (op.parent / baseline['physical_operation'] if idempotent else old) / 'run'
+    root = (op.parent / baseline['physical_operation'] if idempotent or prior else old) / 'run'
     assert root == root.resolve() and not root.is_symlink()
     info = root.stat()
     assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (999, 990, 0o700)
@@ -112,10 +115,10 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     registry_text = registry_raw.decode('utf-8')
     rows = json.loads(registry_text)['plugins'][case['plugin_id']]
     assert type(rows) is list and len(rows) == 1 and rows[0]['scope'] == 'user'
-    assert rows[0]['version'] == ('3.8.0-r0.2' if idempotent else '57f1c12d3b81' if recovery else '3.8.0-r0.1') and rows[0]['installPath'] == baseline['cache']
+    assert rows[0]['version'] == ('3.8.0-r0.2' if idempotent or prior else '57f1c12d3b81' if recovery else '3.8.0-r0.1') and rows[0]['installPath'] == baseline['cache']
     if recovery:
         assert hashlib.sha256(registry_raw).hexdigest() == '5400080596072c5216e2ae7d79729be40d0dd746e255d2a446829e09832272df'
-    if idempotent:
+    if idempotent or prior:
         assert hashlib.sha256(registry_raw).hexdigest() == '4e22d4d763bc5021b0faab1033a48997711a14b8976a834b676876979715f8f9'
         assert (info.st_dev, info.st_ino, info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (41, 287737, 1, 438, 1795156450840208439, 1795156450840208439, 999, 990, 0o600)
     cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
@@ -124,7 +127,7 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     assert expected_cache <= {str(path.relative_to(cache)) for path in cache.rglob('*')}
     payload_files = {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
     cache_files = {str(path.relative_to(cache)) for path in cache.rglob('*') if path.is_file()}
-    assert payload_files <= cache_files if idempotent else payload_files == cache_files
+    assert payload_files <= cache_files if idempotent or prior else payload_files == cache_files
 
     def fact(path):
         assert path == path.resolve() and not path.is_symlink()
@@ -144,7 +147,7 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
 
     cache_paths = [cache, *cache.rglob('*')]
     stable_paths = [cache, cache / '.claude-plugin', cache / '.claude-plugin/plugin.json',
-                    cache / 'scripts', cache / 'scripts/control_evidence.py'] if idempotent else cache_paths
+                    cache / 'scripts', cache / 'scripts/control_evidence.py'] if idempotent or prior else cache_paths
     old_cache_before = {str(path.relative_to(root)): fact(path) for path in stable_paths}
     retained_before = {}
     for folder in ('private', 'subjects'):
@@ -157,8 +160,8 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
     retained_before['home/.gitconfig'] = fact(root / 'home/.gitconfig')
     held = {'registry_text': registry_text, 'registry_sha256': hashlib.sha256(registry_raw).hexdigest(),
             'old_cache_before': old_cache_before, 'retained_before': retained_before}
-    if recovery or idempotent:
-        if idempotent:
+    if recovery or idempotent or prior:
+        if idempotent or prior:
             held['vendor_before'] = {str(path.relative_to(root)): fact(path) for path in cache_paths if path not in stable_paths}
         names = ('config/settings.json', 'consumer/.claude/settings.json',
                  'consumer/.claude/settings.local.json', 'consumer/unrelated.txt')
@@ -168,7 +171,7 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
             '3d5e4c0d461c1893959b290e415483987bda74a67e807f62e547aed7c1e985ee',
             'f10d0d00aa75b9a4e40245fbb2897b9a9d5ead29a9cf5b4b7f48dd1d50678085',
             'e951dbb7bfc4942f7ced0928f8224cd8f56bc73dbd8ce6a2cc664bffee59a6da']
-        if idempotent:
+        if idempotent or prior:
             selected_names = (str((cache / '.claude-plugin/plugin.json').relative_to(root)),
                               str((cache / 'scripts/control_evidence.py').relative_to(root)))
             expected_ids = [
@@ -180,6 +183,34 @@ if case['case'] == 'D0-R0-UPDATE-1' or recovery or idempotent:
                 [41, 287233, 1, 39, 1795147349924996339, 1795147349924996339],
             ]
             assert [held['old_cache_before'][name]['identity'] for name in selected_names] + [held['foreign_before'][name]['identity'] for name in names] == expected_ids
+    if prior:
+        assert baseline['target_archive'] == '1660ff991cebff108931cb145f24f46651de31ae7bacc770c61d79b3e4d4ffc1'
+        assert baseline['target_manifest'] == '89e2ee8d3458d71b9085510436fda4da88f587b98067ba2d5ad727a757699771'
+        archive_path = op / 'inputs/payload.tar'
+        assert hashlib.sha256(archive_path.read_bytes()).hexdigest() == baseline['target_archive']
+        with tarfile.open(archive_path) as archive:
+            member = archive.getmember('plugins/autonomous-dev/.claude-plugin/plugin.json')
+            assert member.isfile() and member.size <= 8192
+            manifest_raw = archive.extractfile(member).read()
+        assert hashlib.sha256(manifest_raw).hexdigest() == baseline['target_manifest']
+        target_version = json.loads(manifest_raw)['version']
+        assert isinstance(target_version, str) and re.fullmatch('[A-Za-z0-9][A-Za-z0-9._-]*', target_version)
+        target_cache = root / 'config/plugins/cache/adev-d0-native-consumer/autonomous-dev' / target_version
+        assert target_cache == target_cache.resolve() and target_cache.is_dir() and not target_cache.is_symlink()
+        target_paths = [target_cache, target_cache / '.claude-plugin', target_cache / '.claude-plugin/plugin.json',
+                        target_cache / 'scripts', target_cache / 'scripts/control_evidence.py']
+        held['target_before'] = {str(path.relative_to(root)): fact(path) for path in target_paths}
+        target_leaf = held['target_before'][str(target_paths[-1].relative_to(root))]
+        target_manifest = held['target_before'][str(target_paths[2].relative_to(root))]
+        assert target_manifest['sha256'] == baseline['target_manifest'] and target_manifest['identity'] == [41, 287202, 1, 289, 1795147349871580631, 1795147349871580631]
+        assert target_leaf['sha256'] == case['pins']['leaf'] and target_leaf['identity'] == [41, 287204, 1, 21230, 1795147349871580631, 1795147353286612558]
+        vendor = [path for path in target_cache.rglob('*') if path not in target_paths]
+        assert len(vendor) <= 64
+        held['target_vendor_before'] = {str(path.relative_to(root)): fact(path) for path in vendor}
+        marker = held['target_vendor_before'][str((target_cache / '.orphaned_at').relative_to(root))]
+        assert marker == {'uid': 999, 'gid': 990, 'mode': 0o600,
+            'sha256': '5f07b4a93691e851a32e7a5b588dc2a4382aea5928d5b4761b21170c063f9dbc',
+            'identity': [41, 287349, 1, 13, 1795147355157630049, 1795147355157630049]}
     encoded = json.dumps(held, sort_keys=True) + '\n'
     assert len(encoded.encode('utf-8')) <= 131072
     held_path = op / 'OLD-CONSUMER.BEFORE.PUBLIC.json'

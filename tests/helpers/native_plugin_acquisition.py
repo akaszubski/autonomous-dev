@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import resource
 import stat
 import subprocess
@@ -22,15 +23,18 @@ finally:
 CASE = json.loads(case_raw)
 IDEMPOTENT = CASE['case'] == 'D0-R0-IDLE-IDEMPOTENCE-1'
 RECOVERY = CASE['case'] == 'D0-R0-RECOVERY-1'
-if RECOVERY or IDEMPOTENT:
+PRIOR = CASE['case'] == 'D0-R0-PRIOR-SELECTION-1'
+if RECOVERY or IDEMPOTENT or PRIOR:
     assert set(CASE) == {'case', 'fixture_sha256', 'operator_sha256', 'baseline'}
     fixture = (Path('/work') / 'foreign-case.json').read_bytes()
     assert len(fixture) <= 8192 and hashlib.sha256(fixture).hexdigest() == CASE.pop('fixture_sha256')
     CASE = dict(json.loads(fixture), **CASE)
-UPDATE = CASE['case'] == 'D0-R0-UPDATE-1' or RECOVERY or IDEMPOTENT
+    if PRIOR:
+        CASE['pins'] = dict(CASE['pins'], archive=CASE['baseline']['target_archive'], manifest=CASE['baseline']['target_manifest'])
+UPDATE = CASE['case'] == 'D0-R0-UPDATE-1' or RECOVERY or IDEMPOTENT or PRIOR
 UNINSTALL = CASE['case'] == 'D0-R0-UNINSTALL-1'
-assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-RECOVERY-1', 'D0-R0-IDLE-IDEMPOTENCE-1')
-assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign', 'operator_sha256'} if RECOVERY or IDEMPOTENT else {'baseline', 'foreign'} if UPDATE else {'foreign_fixture_sha256', 'operator_sha256'} if UNINSTALL else set())
+assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1', 'D0-R0-UNINSTALL-1', 'D0-R0-RECOVERY-1', 'D0-R0-IDLE-IDEMPOTENCE-1', 'D0-R0-PRIOR-SELECTION-1')
+assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign', 'operator_sha256'} if RECOVERY or IDEMPOTENT or PRIOR else {'baseline', 'foreign'} if UPDATE else {'foreign_fixture_sha256', 'operator_sha256'} if UNINSTALL else set())
 assert set(CASE['tools']) == {'cli', 'python', 'git'}
 assert all(set(tool) == {'path', 'sha256'} for tool in CASE['tools'].values())
 assert set(CASE['versions']) == {'python', 'pytest'}
@@ -61,7 +65,7 @@ def write_json(path, value):
 
 def run(argv, expected=0, cwd=None):
     global sequence
-    assert expected is not None or ((RECOVERY or IDEMPOTENT) and str(argv[0]) == str(CLI))
+    assert expected is not None or ((RECOVERY or IDEMPOTENT or PRIOR) and str(argv[0]) == str(CLI))
     sequence += 1
     out = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stdout'
     err = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stderr'
@@ -104,7 +108,7 @@ def select_native(rows):
 sequence = 0
 native_calls = []
 OUTPUT_PREFIX = ('update-' if UPDATE else 'uninstall-') + os.urandom(16).hex() + '-' if UPDATE or UNINSTALL else ''
-POPULATED = ROOT / ('consumer' if RECOVERY or IDEMPOTENT else OUTPUT_PREFIX + 'consumer')
+POPULATED = ROOT / ('consumer' if RECOVERY or IDEMPOTENT or PRIOR else OUTPUT_PREFIX + 'consumer')
 assert os.getuid() == 999 and os.getgid() == 990
 assert set(os.getgroups()) <= {990}
 assert not ROOT.is_symlink() and ROOT.is_dir()
@@ -192,6 +196,9 @@ with tarfile.open(ROOT / 'payload.tar') as archive:
     for member in files:
         assert member.isfile() and not member.issym() and not member.islnk()
         payload[member.name] = (archive.extractfile(member).read(), member.mode)
+if PRIOR:
+    target_version = json.loads(payload['plugins/autonomous-dev/.claude-plugin/plugin.json'][0])['version']
+    assert isinstance(target_version, str) and re.fullmatch('[A-Za-z0-9][A-Za-z0-9._-]*', target_version)
 if UPDATE:
     baseline = CASE['baseline']
     old_cache = ROOT / Path(baseline['cache']).relative_to('/work')
@@ -201,22 +208,32 @@ if UPDATE:
     assert digest(old_cache / '.claude-plugin/plugin.json') == baseline['manifest_sha256']
     old_paths = ([old_cache, old_cache / '.claude-plugin', old_cache / '.claude-plugin/plugin.json',
                   old_cache / 'scripts', old_cache / 'scripts/control_evidence.py']
-                 if IDEMPOTENT else [old_cache, *old_cache.rglob('*')])
+                 if IDEMPOTENT or PRIOR else [old_cache, *old_cache.rglob('*')])
     old_cache_before = snapshot(old_paths, strict=True)
     retained_paths = [path for folder in ('private', 'subjects')
                       for path in (ROOT / folder).rglob('*') if path.is_file()]
     retained_paths.append(ROOT / 'home/.gitconfig')
     retained_before = snapshot(retained_paths, strict=True)
-    if RECOVERY or IDEMPOTENT:
+    if RECOVERY or IDEMPOTENT or PRIOR:
         foreign_paths = [ROOT / 'config/settings.json', POPULATED / '.claude/settings.json',
                          POPULATED / '.claude/settings.local.json', POPULATED / 'unrelated.txt']
         foreign_before = snapshot(foreign_paths)
         before_inventory = run([CLI, 'plugin', 'list', '--json'], cwd=POPULATED)
         selected = select_native(json.loads(before_inventory.read_text()))
-        assert selected and selected['enabled'] and selected['version'] == ('3.8.0-r0.2' if IDEMPOTENT else '57f1c12d3b81')
+        assert selected and selected['enabled'] and selected['version'] == ('3.8.0-r0.2' if IDEMPOTENT or PRIOR else '57f1c12d3b81')
         assert Path(selected['installPath']) == old_cache and old_cache == old_cache.resolve()
         assert old_leaf == old_leaf.resolve() and old_leaf.stat().st_uid == 999 and old_leaf.stat().st_nlink == 1
-        assert (not selected.get('errors') if IDEMPOTENT else any('repository: Invalid input: expected string, received object' in item for item in selected.get('errors', [])))
+        assert (not selected.get('errors') if IDEMPOTENT or PRIOR else any('repository: Invalid input: expected string, received object' in item for item in selected.get('errors', [])))
+    if PRIOR:
+        target_cache = ROOT / 'config/plugins/cache/adev-d0-native-consumer/autonomous-dev' / target_version
+        assert target_cache == target_cache.resolve() and not target_cache.is_symlink()
+        target_paths = [target_cache, target_cache / '.claude-plugin', target_cache / '.claude-plugin/plugin.json',
+                        target_cache / 'scripts', target_cache / 'scripts/control_evidence.py']
+        target_before = snapshot(target_paths, strict=True)
+        target_vendor_paths = [path for path in target_cache.rglob('*') if path not in target_paths]
+        assert len(target_vendor_paths) <= 64 and all(path.is_dir() or path.stat().st_size <= 131072 for path in target_vendor_paths)
+        target_vendor_before = snapshot(target_vendor_paths, strict=True)
+        assert digest(target_paths[2]) == EXPECTED['manifest'] and digest(target_paths[-1]) == EXPECTED['leaf']
     seed_manifest = ROOT / 'seed/plugins/autonomous-dev/.claude-plugin/plugin.json'
     assert digest(seed_manifest) == baseline['manifest_sha256']
     for name, (body, mode) in payload.items():
@@ -229,6 +246,9 @@ if UPDATE:
     if RECOVERY:
         assert run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD']).read_text().strip() == '57f1c12d3b8162c411745168bd67351249d11eb1'
         assert run([GIT, '-C', ROOT / 'origin.git', 'rev-parse', 'refs/heads/main']).read_text().strip() == '57f1c12d3b8162c411745168bd67351249d11eb1'
+    if PRIOR:
+        assert run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD']).read_text().strip() == '43a53efffd3eba6c26a2129a067fd7070d7771fd'
+        assert run([GIT, '-C', ROOT / 'origin.git', 'rev-parse', 'refs/heads/main']).read_text().strip() == '43a53efffd3eba6c26a2129a067fd7070d7771fd'
     if not IDEMPOTENT:
         seed_manifest.write_bytes(payload['plugins/autonomous-dev/.claude-plugin/plugin.json'][0])
         run([GIT, '-C', ROOT / 'seed', 'add', '--', 'plugins/autonomous-dev/.claude-plugin/plugin.json'])
@@ -238,6 +258,8 @@ if UPDATE:
              '-c', 'commit.gpgsign=false', 'commit', '-m', 'frozen R0 family update'])
     seed_head = run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD'])
     new_commit = seed_head.read_text().strip()
+    if PRIOR:
+        assert run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD^']).read_text().strip() == '43a53efffd3eba6c26a2129a067fd7070d7771fd'
     git_rows = run([GIT, '-C', ROOT / 'seed', 'ls-tree', '-r', '--full-tree', new_commit]).read_text().splitlines()
     assert len(git_rows) == len(payload)
     for row in git_rows:
@@ -253,7 +275,7 @@ if UPDATE:
         assert all(path.read_text().strip() == new_commit for path in before_heads)
     else:
         run([GIT, '-C', ROOT / 'seed', 'push', ROOT / 'origin.git', 'HEAD:refs/heads/main'])
-    if not RECOVERY and not IDEMPOTENT:
+    if not RECOVERY and not IDEMPOTENT and not PRIOR:
         foreign_paths = populate_consumer()
         foreign_before = snapshot(foreign_paths)
     write_json(ROOT / 'private' / (OUTPUT_PREFIX + 'preservation.json'), {
@@ -274,22 +296,22 @@ if UPDATE:
                                   'native_calls': native_calls, 'stage': 'SECOND_BEFORE_SELECTION'}, sort_keys=True))
                 sys.exit(0)
         try:
-            run([CLI, 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'], None if RECOVERY or IDEMPOTENT else 0, cwd=POPULATED)
+            run([CLI, 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'], None if RECOVERY or IDEMPOTENT or PRIOR else 0, cwd=POPULATED)
             marketplace_exit = native_calls[-1]['raw_exit']
         except (AssertionError, OSError, subprocess.SubprocessError):
-            if not RECOVERY and not IDEMPOTENT:
+            if not RECOVERY and not IDEMPOTENT and not PRIOR:
                 raise
             marketplace_exit = -1
         update_exit = None
-        if not (RECOVERY or IDEMPOTENT) or marketplace_exit == 0:
+        if not (RECOVERY or IDEMPOTENT or PRIOR) or marketplace_exit == 0:
             try:
-                run([CLI, 'plugin', 'update', PLUGIN_ID, '--scope', 'user'], None if RECOVERY or IDEMPOTENT else 0, cwd=POPULATED)
+                run([CLI, 'plugin', 'update', PLUGIN_ID, '--scope', 'user'], None if RECOVERY or IDEMPOTENT or PRIOR else 0, cwd=POPULATED)
                 update_exit = native_calls[-1]['raw_exit']
             except (AssertionError, OSError, subprocess.SubprocessError):
-                if not RECOVERY and not IDEMPOTENT:
+                if not RECOVERY and not IDEMPOTENT and not PRIOR:
                     raise
                 update_exit = -1
-        if RECOVERY or IDEMPOTENT:
+        if RECOVERY or IDEMPOTENT or PRIOR:
             after_inventory, after_exit, after_selected = None, -1, None
             try:
                 after_inventory = run([CLI, 'plugin', 'list', '--json'], None, cwd=POPULATED)
@@ -318,29 +340,40 @@ if UPDATE:
                 selected_after = {'value': snapshot(selected_files, strict=True), 'error': None}
             except (AssertionError, KeyError, TypeError, ValueError, OSError):
                 pass
-            if IDEMPOTENT:
+            if IDEMPOTENT or PRIOR:
                 try:
                     vendor = [path for path in old_cache.rglob('*') if path not in old_paths]
                     assert len(vendor) <= 64 and all(path.is_dir() or path.stat().st_size <= 131072 for path in vendor)
                     after_maps['vendor'] = {'value': snapshot(vendor, strict=True), 'error': None}
                 except (AssertionError, OSError, ValueError):
                     after_maps['vendor'] = {'value': None, 'error': 'UNAVAILABLE'}
+            if PRIOR:
+                try:
+                    target_vendor_paths = [path for path in target_cache.rglob('*') if path not in target_paths]
+                    assert len(target_vendor_paths) <= 64 and all(path.is_dir() or path.stat().st_size <= 131072 for path in target_vendor_paths)
+                    after_maps['target'] = {'value': snapshot(target_paths, strict=True), 'error': None}
+                    after_maps['target_vendor'] = {'value': snapshot(target_vendor_paths, strict=True), 'error': None}
+                except (AssertionError, OSError, ValueError):
+                    after_maps['target'] = {'value': None, 'error': 'UNAVAILABLE'}
+                    after_maps['target_vendor'] = {'value': None, 'error': 'UNAVAILABLE'}
             after_files = after_maps['foreign']['value']
             if (marketplace_exit != 0 or update_exit != 0 or after_exit != 0 or not after_selected or
-                    not after_selected.get('enabled') or after_selected.get('version') != '3.8.0-r0.2' or
+                    not after_selected.get('enabled') or after_selected.get('version') != (target_version if PRIOR else '3.8.0-r0.2') or
                     after_selected.get('errors') or selected_after['error'] or after_files != foreign_before or
                     (IDEMPOTENT and after_selected.get('installPath') != str(old_cache)) or
-                    (IDEMPOTENT and after_maps['vendor']['error']) or
+                    ((IDEMPOTENT or PRIOR) and after_maps['vendor']['error']) or
+                    (PRIOR and (after_selected.get('installPath') != str(target_cache) or after_maps['target']['error'] or after_maps['target_vendor']['error'])) or
                     after_maps['old_cache']['value'] != old_cache_before or
                     after_maps['retained']['value'] != retained_before):
-                print(json.dumps({'status': 'IDLE_IDEMPOTENCE_NONPASS_OBSERVED' if IDEMPOTENT else 'RECOVERY_NONPASS_OBSERVED', 'output_prefix': OUTPUT_PREFIX,
+                print(json.dumps({'status': 'PRIOR_SELECTION_NONPASS_OBSERVED' if PRIOR else 'IDLE_IDEMPOTENCE_NONPASS_OBSERVED' if IDEMPOTENT else 'RECOVERY_NONPASS_OBSERVED', 'output_prefix': OUTPUT_PREFIX,
                     'before_inventory': str(before_inventory.relative_to(ROOT)),
                     'after_inventory': str(after_inventory.relative_to(ROOT)) if after_inventory else None,
                     'foreign_before': foreign_before, 'foreign_after': after_files, 'native_calls': native_calls,
                     'old_cache_after': after_maps['old_cache'], 'retained_after': after_maps['retained'],
                     'foreign_after_status': after_maps['foreign']['error'],
                     'selected_after': selected_after,
-                    **({'vendor_after': after_maps['vendor']} if IDEMPOTENT else {}),
+                    **({'vendor_after': after_maps['vendor']} if IDEMPOTENT or PRIOR else {}),
+                    **({'target_after': after_maps['target'], 'target_vendor_after': after_maps['target_vendor']} if PRIOR else {}),
                 **({'completed_cycles': cycle_records} if IDEMPOTENT else {}),
                     'marketplace_exit': marketplace_exit, 'update_exit': update_exit,
                     'native_hooks_loaded': 'UNMEASURED'}, sort_keys=True))
@@ -382,7 +415,7 @@ assert metadata.is_file() and not metadata.is_symlink() and metadata.stat().st_s
 entries = json.loads(metadata.read_text())['plugins'][PLUGIN_ID]
 assert len(entries) == 1 and entries[0]['scope'] == 'user'
 if UPDATE:
-    assert entries[0]['version'] == '3.8.0-r0.2'
+    assert entries[0]['version'] == (target_version if PRIOR else '3.8.0-r0.2')
 installed = Path(entries[0]['installPath'])
 cache = ROOT / 'config/plugins/cache'
 def verify_installed_cache():
@@ -395,7 +428,7 @@ def verify_installed_cache():
         assert path.is_dir() or path.is_file()
     actual_files = {str(p.relative_to(installed)) for p in installed.rglob('*') if p.is_file()}
     payload_files = {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}
-    assert payload_files <= actual_files if IDEMPOTENT else payload_files == actual_files
+    assert payload_files <= actual_files if IDEMPOTENT or PRIOR else payload_files == actual_files
 
 
 verify_installed_cache()
@@ -404,9 +437,9 @@ assert digest(leaf) == EXPECTED['leaf']
 assert digest(installed / '.claude-plugin/plugin.json') == EXPECTED['manifest']
 assert leaf.stat().st_ino != (ROOT / 'seed/plugins/autonomous-dev/scripts/control_evidence.py').stat().st_ino
 if UPDATE:
-    assert (installed == old_cache if IDEMPOTENT else installed != old_cache) and installed.name == '3.8.0-r0.2'
+    assert (installed == old_cache if IDEMPOTENT else installed != old_cache) and installed.name == (target_version if PRIOR else '3.8.0-r0.2')
     for path in installed.rglob('*'):
-        if path.is_file() and (not IDEMPOTENT or str(path.relative_to(installed)) in {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}):
+        if path.is_file() and (not (IDEMPOTENT or PRIOR) or str(path.relative_to(installed)) in {'.claude-plugin/plugin.json', 'scripts/control_evidence.py'}):
             name = 'plugins/autonomous-dev/' + str(path.relative_to(installed))
             assert path.read_bytes() == payload[name][0]
             assert bool(path.stat().st_mode & 0o111) == bool(payload[name][1] & 0o111)
@@ -530,7 +563,11 @@ print(json.dumps({'status': 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY' if UPDATE e
                   **({'recovery': {'before_inventory': str(before_inventory.relative_to(ROOT)),
                                    'after_inventory': str(after_inventory.relative_to(ROOT)),
                                    'foreign_before': foreign_before, 'foreign_after': after_files}}
-                     if RECOVERY else {}),
+                     if RECOVERY or PRIOR else {}),
+                  **({'prior': {'target_version': target_version, 'target_before': target_before,
+                                 'target_vendor_before': target_vendor_before, 'target_after': after_maps['target'],
+                                 'target_vendor_after': after_maps['target_vendor'],
+                                 'current_vendor_after': after_maps['vendor']}} if PRIOR else {}),
                   **({'idempotence': {'cycles': cycle_records, 'broken_control': 'NOT_RUN_REUSED_PRIOR',
                                       'before_heads': [str(path.relative_to(ROOT)) for path in before_heads]}} if IDEMPOTENT else {}),
                   'update': {'new_commit': new_commit, 'catalogue_root': str(catalogue),
