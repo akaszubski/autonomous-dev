@@ -36,7 +36,67 @@ test -z "$pave_actors"
 for pave_policy in /etc/claude-code/managed-settings.json /etc/claude-code/managed-mcp.json; do
   test ! -e "$pave_policy"
 done
-install -d -o 999 -g 990 -m 0700 "$pave_op/run"
+pave_run=$(/usr/bin/python3 -I -S -B - "$pave_op" <<'BASELINE'
+import hashlib,json,os,pathlib,re,stat,subprocess,sys
+op = pathlib.Path(sys.argv[1])
+case = json.loads((op / 'inputs/case.PUBLIC.json').read_text())
+if case['case'] == 'D0-R0-UPDATE-1':
+    baseline = case['baseline']
+    assert baseline['accepted_freeze_sha256'] == '6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b'
+    assert set(baseline) == {'operation', 'invocation_id', 'cache', 'leaf_inode',
+                             'manifest_sha256', 'accepted_freeze_sha256'}
+    assert re.fullmatch('[0-9a-f]{32}', baseline['operation']) and baseline['operation'] != op.name
+    old = op.parent / baseline['operation']
+    assert old == old.resolve() and not old.is_symlink()
+    info = old.stat()
+    assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, 0, 0o700)
+    record = old / 'OUTSIDE-RESULT.PUBLIC.json'
+    assert not record.is_symlink() and record.stat().st_uid == 0
+    assert record.stat().st_nlink == 1 and not (record.stat().st_mode & 0o022)
+    receipt = json.loads(record.read_text())
+    assert receipt['status'] == 'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED'
+    assert receipt['operation'] == baseline['operation'] and receipt['invocation_id'] == baseline['invocation_id']
+    assert receipt['raw_unit_exit'] == 0 and receipt['cgroup_empty'] and receipt['broken_route_restored']
+    old_unit = 'adev-d0-acquire-' + baseline['operation'] + '.service'
+    assert receipt['unit'] == old_unit
+    query = subprocess.run(['/usr/bin/systemctl', 'show', '--all', old_unit,
+                            '--property=Id,ActiveState,LoadState,MainPID'], capture_output=True,
+                           env={'PATH': '/usr/bin:/bin'}, text=True, timeout=5)
+    current = dict(line.split('=', 1) for line in query.stdout.splitlines() if '=' in line)
+    assert current.get('Id') == old_unit and current.get('ActiveState') == 'inactive'
+    assert current.get('MainPID') == '0'
+    assert query.returncode == 0 or (query.returncode == 1 and current.get('LoadState') == 'not-found')
+    old_group = pathlib.Path('/sys/fs/cgroup/system.slice') / old_unit
+    assert not old_group.exists() or not (old_group / 'cgroup.procs').read_text().strip()
+    old_policy = pathlib.Path('/run/systemd/system') / (old_unit + '.d')
+    assert not old_policy.exists() and not old_policy.is_symlink()
+    root = old / 'run'
+    assert root == root.resolve() and not root.is_symlink()
+    info = root.stat()
+    assert (info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (999, 990, 0o700)
+    cache = root / pathlib.Path(baseline['cache']).relative_to('/work')
+    assert cache == cache.resolve() and cache.is_relative_to(root / 'config/plugins/cache')
+    assert all(not path.is_symlink() for path in cache.rglob('*'))
+    leaf = cache / 'scripts/control_evidence.py'
+    assert leaf.stat().st_ino == baseline['leaf_inode'] and leaf.stat().st_nlink == 1
+    assert hashlib.sha256(leaf.read_bytes()).hexdigest() == case['pins']['leaf']
+    assert hashlib.sha256((cache / '.claude-plugin/plugin.json').read_bytes()).hexdigest() == baseline['manifest_sha256']
+    before = {}
+    for path in (old / 'inputs').rglob('*'):
+        assert not path.is_symlink()
+        if path.is_file():
+            info = path.stat()
+            assert info.st_uid == 0 and info.st_nlink == 1
+            before[str(path.relative_to(old))] = [hashlib.sha256(path.read_bytes()).hexdigest(), info.st_mode]
+    (op / 'OLD-INPUTS.BEFORE.PUBLIC.json').write_text(json.dumps(before, sort_keys=True) + '\n')
+else:
+    assert case['case'] == 'D0-R0-ACQUIRE-1'
+    root = op / 'run'
+    root.mkdir(mode=0o700)
+    os.chown(root, 999, 990)
+print(root)
+BASELINE
+)
 pave_unit="adev-d0-acquire-$pave_id.service"
 pave_load_status=0
 pave_load=$(systemctl show --value --property=LoadState "$pave_unit" 2>"$pave_op/unit-before.stderr") || pave_load_status=$?
@@ -145,7 +205,7 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   -p RestrictNamespaces=yes -p RestrictSUIDSGID=yes -p LockPersonality=yes \
   -p RestrictAddressFamilies='AF_UNIX AF_INET AF_INET6' \
   -p InaccessiblePaths='-/Users -/mnt -/media -/Volumes -/var/lib/adev-f0-stored-login-proposed' \
-  -p BindPaths="$pave_op/run:/work" \
+  -p BindPaths="$pave_run:/work" \
   -p BindReadOnlyPaths="$pave_op/inputs/operator.py:/work/operator.py $pave_op/inputs/case.PUBLIC.json:/work/case.PUBLIC.json $pave_op/inputs/payload.tar:/work/payload.tar $pave_op/inputs/instruments:/work/instruments" \
   -p WorkingDirectory=/work -p UMask=0077 -p RuntimeMaxSec=240s -p TimeoutStopSec=3s \
   -p KillMode=control-group -p TasksMax=128 -p MemoryMax=1G -p LimitFSIZE=131072 \
@@ -154,8 +214,8 @@ systemd-run --unit="$pave_unit" --wait --pipe --collect \
   /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/python3 -I -S -B \
   /work/operator.py /work/case.PUBLIC.json \
   >"$pave_op/outer.stdout" 2>"$pave_op/outer.stderr" || pave_status=$?
-/usr/bin/python3 -I -S -B - "$pave_op" "$pave_unit" "$pave_status" "$pave_policy_sha" <<'AUDIT'
-import hashlib,json,pathlib,re,stat,subprocess,sys
+/usr/bin/python3 -I -S -B - "$pave_op" "$pave_unit" "$pave_status" "$pave_policy_sha" "$pave_run" <<'AUDIT'
+import hashlib,json,pathlib,re,stat,subprocess,sys,tarfile
 op=pathlib.Path(sys.argv[1]);unit=sys.argv[2];raw_exit=int(sys.argv[3])
 cgroup=pathlib.Path('/sys/fs/cgroup/system.slice')/unit
 empty=not cgroup.exists() or not (cgroup/'cgroup.procs').read_text().strip()
@@ -193,8 +253,10 @@ assert all(meta.get(key) == value for key, value in flags.items())
 assert meta.get('TypedCredentialsEmpty') == 'yes'
 assert raw_exit == 0 and meta.get('Result') == 'success' and meta.get('ExecMainStatus') == '0'
 report=json.loads(next(line for line in lines if line.startswith('{')))
-assert report['status'] == 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY'
-root=op/'run';metadata=root/'config/plugins/installed_plugins.json'
+case=json.loads((op/'inputs/case.PUBLIC.json').read_text())
+update=case['case']=='D0-R0-UPDATE-1'
+assert report['status'] == ('UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY' if update else 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY')
+root=pathlib.Path(sys.argv[5]);metadata=root/'config/plugins/installed_plugins.json'
 entry=json.loads(metadata.read_text())['plugins']['autonomous-dev@adev-d0-native-consumer'][0]
 inside=pathlib.Path(entry['installPath']);assert inside.is_relative_to('/work/config/plugins/cache')
 installed=root/inside.relative_to('/work');assert installed.resolve().is_relative_to((root/'config/plugins/cache').resolve())
@@ -204,7 +266,64 @@ assert sorted(str(p.relative_to(installed)) for p in installed.rglob('*') if p.i
 assert hashlib.sha256(leaf.read_bytes()).hexdigest() == case['pins']['leaf']
 assert hashlib.sha256((installed/'.claude-plugin/plugin.json').read_bytes()).hexdigest() == case['pins']['manifest']
 assert leaf.stat().st_ino == report['restored_leaf_inode'] and leaf.stat().st_nlink == 1
-result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED','effective_hardening':{key:meta[key] for key in flags},'credentials_absent':True,'owned_policy_removed':True,'policy_sha256':sys.argv[4]}
+if update:
+    prefix = report['output_prefix']
+    assert re.fullmatch('update-[0-9a-f]{32}-', prefix)
+    assert report['update']['preservation_file'] == prefix + 'preservation.json'
+    preserved = json.loads((root / 'private' / report['update']['preservation_file']).read_text())
+    expected_foreign = {'config/settings.json', prefix + 'consumer/.claude/settings.json',
+                        prefix + 'consumer/.claude/settings.local.json', prefix + 'consumer/unrelated.txt'}
+    assert set(preserved['foreign_before']) == expected_foreign
+    for category in ('foreign_before', 'old_cache_before', 'retained_before'):
+        for relative, expected in preserved[category].items():
+            path = root / relative
+            assert not path.is_symlink() and path.resolve().is_relative_to(root)
+            info = path.stat()
+            actual = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}
+            if path.is_file():
+                actual['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            if 'identity' in expected:
+                actual['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
+                                      info.st_mtime_ns, info.st_ctime_ns]
+            assert actual == expected
+    user = json.loads((root / 'config/settings.json').read_text())
+    for key, value in case['foreign']['user']['env'].items():
+        assert user['env'][key] == value
+    for section in ('permissions', 'hooks'):
+        for key, values in case['foreign']['user'][section].items():
+            assert all(value in user[section][key] for value in values)
+    consumer = root / (prefix + 'consumer')
+    assert json.loads((consumer / '.claude/settings.json').read_text()) == case['foreign']['repo']
+    assert json.loads((consumer / '.claude/settings.local.json').read_text()) == case['foreign']['local']
+    assert (consumer / 'unrelated.txt').read_text() == case['foreign']['unrelated']
+    before = json.loads((op / 'OLD-INPUTS.BEFORE.PUBLIC.json').read_text())
+    old = root.parent
+    for relative, expected in before.items():
+        path = old / relative
+        assert [hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mode] == expected
+    assert installed.name == '3.8.0-r0.2' and entry['version'] == '3.8.0-r0.2'
+    commit = report['update']['new_commit']
+    assert re.fullmatch('[0-9a-f]{40}', commit) and commit == preserved['new_commit']
+    assert report['update']['catalogue_commit'] == commit
+    assert report['update']['catalogue_root'] == '/work/config/plugins/marketplaces/adev-d0-native-consumer'
+    calls = report['update']['native_calls']
+    assert len(calls) == 2
+    assert calls[0]['argv'] == [case['tools']['cli']['path'], 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer']
+    assert calls[1]['argv'] == [case['tools']['cli']['path'], 'plugin', 'update', 'autonomous-dev@adev-d0-native-consumer', '--scope', 'user']
+    assert all(call['cwd'] == '/work/' + prefix + 'consumer' and call['raw_exit'] == 0 for call in calls)
+    git = ['/usr/bin/git', '-c', 'safe.directory=' + str(root / 'seed'), '-C', str(root / 'seed')]
+    git_env = {'PATH': '/usr/bin:/bin', 'GIT_CONFIG_GLOBAL': '/dev/null',
+               'GIT_CONFIG_NOSYSTEM': '1', 'GIT_NO_REPLACE_OBJECTS': '1'}
+    with tarfile.open(op / 'inputs/payload.tar') as archive:
+        for member in archive.getmembers():
+            if member.isfile():
+                actual = subprocess.run([*git, 'cat-file', 'blob', commit + ':' + member.name],
+                                        env=git_env, capture_output=True, timeout=5, check=True).stdout
+                assert actual == archive.extractfile(member).read()
+    assert report['update']['registry_commit_identity'] == (
+        'MATCH' if entry.get('gitCommitSha') == commit else
+        'CONFLICTED' if entry.get('gitCommitSha') else 'UNMEASURED')
+result={'status':'D0_FAMILY_CASES_AND_CLEANUP_OBSERVED','operation':op.name,'unit':unit,'invocation_id':meta['InvocationID'],'cgroup_empty':empty,'raw_unit_exit':raw_exit,'cases':report['cases'],'broken_route_restored':report['broken_route_refused_and_restored'],'installed_leaf_sha256':case['pins']['leaf'],'native_hooks_loaded':'UNMEASURED','effective_hardening':{key:meta[key] for key in flags},'credentials_absent':True,'owned_policy_removed':True,'policy_sha256':sys.argv[4],'installed_root':str(inside),'update':report.get('update'),'output_prefix':report.get('output_prefix'),'broken_route':report.get('broken_route'),'baseline_operation':case.get('baseline',{}).get('operation')}
 (op/'OUTSIDE-RESULT.PUBLIC.json').write_text(json.dumps(result,sort_keys=True)+'\n')
 print(json.dumps(result,sort_keys=True))
 AUDIT

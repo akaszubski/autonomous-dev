@@ -1,0 +1,112 @@
+{
+  "case": "D0-R0-UPDATE-1",
+  "root": "/work",
+  "tools": {
+    "cli": {
+      "path": "/opt/adev-probe/claude-2.1.236",
+      "sha256": "c38d37deaf1643083326c48a6acc0afb09dada126e6bda77ef1a4410ae60ca12"
+    },
+    "python": {
+      "path": "/usr/bin/python3",
+      "sha256": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960"
+    },
+    "git": {
+      "path": "/usr/bin/git",
+      "sha256": "aa6540695d076182256dd6e96c8b302e4d56381e3000bbfd5c71bbdfe94a4942"
+    }
+  },
+  "versions": {
+    "python": "3.12.3",
+    "pytest": "7.4.4"
+  },
+  "pins": {
+    "archive": "832aaf9d061cc7e6bc130966ea2c19d240e03f47a80b68c9acc7e527945479d5",
+    "leaf": "2e57635e754d710fa9b59bada574155c435a788885fe2cd986d2973649070dcf",
+    "manifest": "5f324f9db54c1f70f78f95bdbdb9a28b6730ae801934fc8b9c9ec0e79eb93ecd",
+    "oracle.sh": "24128c14771cb3b0e7f0d6dccaf790a08b3a5e969a510df7c0caa21b36cd730f",
+    "trustcheck.py": "38cde3438250ea0c2967ec4f641992ad3e3d69be2598de533adb6010025e5828"
+  },
+  "plugin_id": "autonomous-dev@adev-d0-native-consumer",
+  "url": "https://pave-d0.invalid/marketplace.git",
+  "baseline": {
+    "operation": "61a33d713b794460abc1fb0db07ef508",
+    "invocation_id": "302c2d3dcfe046f9b2a49bba7f5fe1a4",
+    "cache": "/work/config/plugins/cache/adev-d0-native-consumer/autonomous-dev/3.8.0-r0.1",
+    "leaf_inode": 286461,
+    "manifest_sha256": "89e2ee8d3458d71b9085510436fda4da88f587b98067ba2d5ad727a757699771",
+    "accepted_freeze_sha256": "6ee2f213871c69d5f687fcef6f161cf1fca05c8e21999414b5ad5f5300f3f81b"
+  },
+  "foreign": {
+    "user": {
+      "env": {
+        "PAVE_D0_USER_SENTINEL": "preserve-user"
+      },
+      "permissions": {
+        "deny": [
+          "Write(./user-protected.txt)"
+        ]
+      },
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Read",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/usr/bin/true",
+                "timeout": 3
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "repo": {
+      "env": {
+        "PAVE_D0_REPO_SENTINEL": "preserve-repo"
+      },
+      "permissions": {
+        "allow": [
+          "Read(./unrelated.txt)"
+        ]
+      },
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Write",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/usr/bin/true"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "local": {
+      "env": {
+        "PAVE_D0_LOCAL_SENTINEL": "preserve-local"
+      },
+      "permissions": {
+        "deny": [
+          "Read(./private.txt)"
+        ]
+      },
+      "hooks": {
+        "PostToolUse": [
+          {
+            "matcher": "Read",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "/usr/bin/true"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "unrelated": "Consumer-owned file: preserve exactly.\n"
+  }
+}

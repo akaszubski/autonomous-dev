@@ -20,8 +20,9 @@ try:
 finally:
     os.close(case_fd)
 CASE = json.loads(case_raw)
-assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'}
-assert CASE['case'] == 'D0-R0-ACQUIRE-1'
+UPDATE = CASE['case'] == 'D0-R0-UPDATE-1'
+assert CASE['case'] in ('D0-R0-ACQUIRE-1', 'D0-R0-UPDATE-1')
+assert set(CASE) == {'case', 'root', 'tools', 'versions', 'pins', 'plugin_id', 'url'} | ({'baseline', 'foreign'} if UPDATE else set())
 assert set(CASE['tools']) == {'cli', 'python', 'git'}
 assert all(set(tool) == {'path', 'sha256'} for tool in CASE['tools'].values())
 assert set(CASE['versions']) == {'python', 'pytest'}
@@ -50,22 +51,30 @@ def write_json(path, value):
     return path
 
 
-def run(argv, expected=0):
+def run(argv, expected=0, cwd=None):
     global sequence
     sequence += 1
-    out = ROOT / 'private' / f'{sequence}.stdout'
-    err = ROOT / 'private' / f'{sequence}.stderr'
+    out = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stdout'
+    err = ROOT / 'private' / f'{OUTPUT_PREFIX}{sequence}.stderr'
+    assert cwd in (None, POPULATED)
     assert not list(FOREIGN.iterdir())
     with out.open('xb') as stdout, err.open('xb') as stderr:
-        proc = subprocess.run(list(map(str, argv)), cwd=FOREIGN, env=ENV,
+        proc = subprocess.run(list(map(str, argv)), cwd=cwd or FOREIGN, env=ENV,
                               stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, timeout=40)
     assert out.stat().st_size <= 131072 and err.stat().st_size <= 131072
     assert not list(FOREIGN.iterdir())
+    if str(argv[0]) == str(CLI):
+        native_calls.append({'argv': list(map(str, argv)), 'cwd': str(cwd or FOREIGN),
+                             'raw_exit': proc.returncode, 'stdout': str(out.relative_to(ROOT)),
+                             'stderr': str(err.relative_to(ROOT))})
     assert proc.returncode == expected, (sequence, proc.returncode)
     return out
 
 
 sequence = 0
+native_calls = []
+OUTPUT_PREFIX = 'update-' + os.urandom(16).hex() + '-' if UPDATE else ''
+POPULATED = ROOT / (OUTPUT_PREFIX + 'consumer')
 assert os.getuid() == 999 and os.getgid() == 990
 assert set(os.getgroups()) <= {990}
 assert not ROOT.is_symlink() and ROOT.is_dir()
@@ -80,7 +89,10 @@ assert status['NoNewPrivs'].strip() == '1'
 assert {line.split(':', 1)[0].strip()
         for line in Path('/proc/self/net/dev').read_text().splitlines()[2:]} == {'lo'}
 for name in ('home', 'config', 'private', 'seed', 'empty-template', 'subjects', 'foreign'):
-    (ROOT / name).mkdir(mode=0o700)
+    if UPDATE:
+        assert (ROOT / name).is_dir() and not (ROOT / name).is_symlink()
+    else:
+        (ROOT / name).mkdir(mode=0o700)
 FOREIGN = ROOT / 'foreign'
 ENV = {'PATH': '/usr/bin:/bin', 'HOME': str(ROOT / 'home'),
        'CLAUDE_CONFIG_DIR': str(ROOT / 'config'), 'XDG_CONFIG_HOME': str(ROOT / 'home'),
@@ -88,30 +100,129 @@ ENV = {'PATH': '/usr/bin:/bin', 'HOME': str(ROOT / 'home'),
        'GIT_TERMINAL_PROMPT': '0', 'GIT_TEMPLATE_DIR': str(ROOT / 'empty-template'),
        'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1', 'DISABLE_AUTOUPDATER': '1',
        'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': '1'}
+def snapshot(paths, strict=False):
+    values = {}
+    for path in paths:
+        assert not path.is_symlink() and path.resolve().is_relative_to(ROOT)
+        info = path.stat()
+        value = {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}
+        if path.is_file():
+            value['sha256'] = digest(path)
+        else:
+            assert path.is_dir()
+        if strict:
+            value['identity'] = [info.st_dev, info.st_ino, info.st_nlink, info.st_size,
+                                 info.st_mtime_ns, info.st_ctime_ns]
+        values[str(path.relative_to(ROOT))] = value
+    return values
+
+
 with tarfile.open(ROOT / 'payload.tar') as archive:
     files = [member for member in archive.getmembers() if not member.isdir()]
-    assert {member.name for member in files} == {
+    assert len(files) == 3 and {member.name for member in files} == {
         '.claude-plugin/marketplace.json',
         'plugins/autonomous-dev/.claude-plugin/plugin.json',
         'plugins/autonomous-dev/scripts/control_evidence.py'}
+    payload = {}
     for member in files:
         assert member.isfile() and not member.issym() and not member.islnk()
-        target = ROOT / 'seed' / member.name
+        payload[member.name] = (archive.extractfile(member).read(), member.mode)
+if UPDATE:
+    baseline = CASE['baseline']
+    old_cache = ROOT / Path(baseline['cache']).relative_to('/work')
+    assert old_cache.is_dir() and old_cache == old_cache.resolve()
+    old_leaf = old_cache / 'scripts/control_evidence.py'
+    assert old_leaf.stat().st_ino == baseline['leaf_inode'] and digest(old_leaf) == EXPECTED['leaf']
+    assert digest(old_cache / '.claude-plugin/plugin.json') == baseline['manifest_sha256']
+    old_paths = [old_cache, *old_cache.rglob('*')]
+    old_cache_before = snapshot(old_paths, strict=True)
+    retained_paths = [path for folder in ('private', 'subjects')
+                      for path in (ROOT / folder).rglob('*') if path.is_file()]
+    retained_paths.append(ROOT / 'home/.gitconfig')
+    retained_before = snapshot(retained_paths, strict=True)
+    seed_manifest = ROOT / 'seed/plugins/autonomous-dev/.claude-plugin/plugin.json'
+    assert digest(seed_manifest) == baseline['manifest_sha256']
+    for name, (body, mode) in payload.items():
+        target = ROOT / 'seed' / name
+        assert target.is_file() and not target.is_symlink()
+        if target != seed_manifest:
+            assert target.read_bytes() == body
+    assert hashlib.sha256(payload['plugins/autonomous-dev/.claude-plugin/plugin.json'][0]).hexdigest() == EXPECTED['manifest']
+    assert run([GIT, '-C', ROOT / 'seed', 'status', '--porcelain']).read_bytes() == b''
+    seed_manifest.write_bytes(payload['plugins/autonomous-dev/.claude-plugin/plugin.json'][0])
+    run([GIT, '-C', ROOT / 'seed', 'add', '--', 'plugins/autonomous-dev/.claude-plugin/plugin.json'])
+    assert run([GIT, '-C', ROOT / 'seed', 'diff', '--cached', '--name-only']).read_text().splitlines() == [
+        'plugins/autonomous-dev/.claude-plugin/plugin.json']
+    run([GIT, '-C', ROOT / 'seed', '-c', 'user.name=D0 fixture', '-c', 'user.email=d0@invalid',
+         '-c', 'commit.gpgsign=false', 'commit', '-m', 'frozen R0 family update'])
+    new_commit = run([GIT, '-C', ROOT / 'seed', 'rev-parse', 'HEAD']).read_text().strip()
+    git_rows = run([GIT, '-C', ROOT / 'seed', 'ls-tree', '-r', '--full-tree', new_commit]).read_text().splitlines()
+    assert len(git_rows) == len(payload)
+    for row in git_rows:
+        header, name = row.split('\t', 1)
+        mode, kind, blob = header.split()
+        assert name in payload and kind == 'blob'
+        assert mode == ('100755' if payload[name][1] & 0o111 else '100644')
+        assert run([GIT, '-C', ROOT / 'seed', 'cat-file', 'blob', blob]).read_bytes() == payload[name][0]
+    run([GIT, '-C', ROOT / 'seed', 'push', ROOT / 'origin.git', 'HEAD:refs/heads/main'])
+    POPULATED.mkdir(mode=0o700)
+    run([GIT, 'init', '--initial-branch=main', POPULATED])
+    (POPULATED / '.claude').mkdir(mode=0o700)
+    user = ROOT / 'config/settings.json'
+    assert not user.is_symlink() and user.parent == user.parent.resolve()
+    user_mode = stat.S_IMODE(user.stat().st_mode) if user.exists() else 0o600
+    settings = json.loads(user.read_text()) if user.exists() else {}
+    assert set(CASE['foreign']) == {'user', 'repo', 'local', 'unrelated'}
+    for key, value in CASE['foreign']['user']['env'].items():
+        assert key not in settings.get('env', {})
+        settings.setdefault('env', {})[key] = value
+    for section in ('permissions', 'hooks'):
+        for key, values in CASE['foreign']['user'][section].items():
+            existing = settings.setdefault(section, {}).setdefault(key, [])
+            assert not any(value in existing for value in values)
+            existing.extend(values)
+    write_json(user, settings).chmod(user_mode)
+    project = POPULATED / '.claude/settings.json'
+    local = POPULATED / '.claude/settings.local.json'
+    write_json(project, CASE['foreign']['repo']).chmod(0o640)
+    write_json(local, CASE['foreign']['local']).chmod(0o600)
+    unrelated = POPULATED / 'unrelated.txt'
+    unrelated.write_text(CASE['foreign']['unrelated'])
+    unrelated.chmod(0o644)
+    foreign_paths = [user, project, local, unrelated]
+    foreign_before = snapshot(foreign_paths)
+    write_json(ROOT / 'private' / (OUTPUT_PREFIX + 'preservation.json'), {
+        'foreign_before': foreign_before, 'old_cache_before': old_cache_before,
+        'retained_before': retained_before, 'new_commit': new_commit})
+    run([CLI, 'plugin', 'marketplace', 'update', 'adev-d0-native-consumer'], cwd=POPULATED)
+    run([CLI, 'plugin', 'update', PLUGIN_ID, '--scope', 'user'], cwd=POPULATED)
+    catalogue = ROOT / 'config/plugins/marketplaces/adev-d0-native-consumer'
+    assert catalogue == catalogue.resolve() and catalogue.is_dir() and not catalogue.is_symlink()
+    catalogue_commit = run([GIT, '-C', catalogue, 'rev-parse', 'HEAD']).read_text().strip()
+    assert catalogue_commit == new_commit
+    assert snapshot(foreign_paths) == foreign_before
+    assert snapshot(old_paths, strict=True) == old_cache_before
+    assert snapshot(retained_paths, strict=True) == retained_before
+else:
+    for name, (body, mode) in payload.items():
+        target = ROOT / 'seed' / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(archive.extractfile(member).read())
-        target.chmod(member.mode)
-run([GIT, 'init', '--initial-branch=main', ROOT / 'seed'])
-run([GIT, '-C', ROOT / 'seed', 'add', '.'])
-run([GIT, '-C', ROOT / 'seed', '-c', 'user.name=D0 fixture',
-     '-c', 'user.email=d0@invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'frozen R0 family'])
-run([GIT, 'clone', '--bare', ROOT / 'seed', ROOT / 'origin.git'])
-run([GIT, 'config', '--global', f'url.file://{ROOT}/origin.git.insteadOf', URL])
-run([CLI, 'plugin', 'marketplace', 'add', URL])
-run([CLI, 'plugin', 'install', PLUGIN_ID, '--scope', 'user'])
+        target.write_bytes(body)
+        target.chmod(mode)
+    run([GIT, 'init', '--initial-branch=main', ROOT / 'seed'])
+    run([GIT, '-C', ROOT / 'seed', 'add', '.'])
+    run([GIT, '-C', ROOT / 'seed', '-c', 'user.name=D0 fixture',
+         '-c', 'user.email=d0@invalid', '-c', 'commit.gpgsign=false', 'commit', '-m', 'frozen R0 family'])
+    run([GIT, 'clone', '--bare', ROOT / 'seed', ROOT / 'origin.git'])
+    run([GIT, 'config', '--global', f'url.file://{ROOT}/origin.git.insteadOf', URL])
+    run([CLI, 'plugin', 'marketplace', 'add', URL])
+    run([CLI, 'plugin', 'install', PLUGIN_ID, '--scope', 'user'])
 metadata = ROOT / 'config/plugins/installed_plugins.json'
 assert metadata.is_file() and not metadata.is_symlink() and metadata.stat().st_size <= 131072
 entries = json.loads(metadata.read_text())['plugins'][PLUGIN_ID]
 assert len(entries) == 1 and entries[0]['scope'] == 'user'
+if UPDATE:
+    assert entries[0]['version'] == '3.8.0-r0.2'
 installed = Path(entries[0]['installPath'])
 cache = ROOT / 'config/plugins/cache'
 def verify_installed_cache():
@@ -132,9 +243,20 @@ assert digest(leaf) == EXPECTED['leaf']
 assert digest(installed / '.claude-plugin/plugin.json') == EXPECTED['manifest']
 assert leaf.stat().st_ino != (ROOT / 'seed/plugins/autonomous-dev/scripts/control_evidence.py').stat().st_ino
 verify_installed_cache()
+if UPDATE:
+    assert installed != old_cache and installed.name == '3.8.0-r0.2'
+    for path in installed.rglob('*'):
+        if path.is_file():
+            name = 'plugins/autonomous-dev/' + str(path.relative_to(installed))
+            assert path.read_bytes() == payload[name][0]
+            assert bool(path.stat().st_mode & 0o111) == bool(payload[name][1] & 0o111)
+            assert not (path.stat().st_mode & 0o022)
 results = []
+subject_parent = ROOT / 'subjects' / OUTPUT_PREFIX if UPDATE else ROOT / 'subjects'
+if UPDATE:
+    subject_parent.mkdir()
 for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse', 'False', 'FAIL', 1)]:
-    work = ROOT / 'subjects' / name
+    work = subject_parent / name
     work.mkdir()
     target = work / 'test_subject.py'
     target.write_text(f'def test_value():\n    assert {truth}\n')
@@ -166,7 +288,9 @@ for name, truth, decision, exit_code in [('permit', 'True', 'PASS', 0), ('refuse
     if name == 'permit':
         permit_argv, permit_common, permit_pins = candidate_argv.copy(), common.copy(), pins.copy()
     results.append({'case': name, 'raw_exit': exit_code, 'decision': decision,
-                    'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle)})
+                    'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle),
+                    'receipt': str(candidate.relative_to(ROOT)), 'oracle': str(oracle.relative_to(ROOT)),
+                    'target': str(target), 'nonce': nonce})
 before = leaf.stat()
 held = leaf.with_name(leaf.name + '.held')
 os.link(leaf, held, follow_symlinks=False)
@@ -174,7 +298,8 @@ leaf.unlink()
 try:
     broken_argv = permit_argv.copy()
     broken_argv[broken_argv.index('--nonce') + 1] = os.urandom(16).hex()
-    run(broken_argv, 2)
+    broken_output = run(broken_argv, 2)
+    assert not broken_output.read_bytes()
     assert not leaf.exists() and digest(held) == EXPECTED['leaf']
 finally:
     current = held.stat()
@@ -205,9 +330,26 @@ comparison = run([PYTHON, '-I', '-S', '-B', ROOT / 'instruments/trustcheck.py', 
     '--expect-dependency-digests', json.dumps(permit_pins)])
 assert comparison.read_text().startswith('OK')
 results.append({'case': 'permit-restored', 'raw_exit': 0, 'decision': 'PASS',
-                'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle)})
-print(json.dumps({'status': 'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY', 'cases': results,
+                'receipt_sha256': digest(candidate), 'oracle_sha256': digest(oracle),
+                'receipt': str(candidate.relative_to(ROOT)), 'oracle': str(oracle.relative_to(ROOT)),
+                'target': str(permit_argv[permit_argv.index('--target') + 1]), 'nonce': nonce})
+if UPDATE:
+    assert snapshot(foreign_paths) == foreign_before
+    assert snapshot(old_paths, strict=True) == old_cache_before
+    assert snapshot(retained_paths, strict=True) == retained_before
+broken_error = broken_output.with_suffix('.stderr')
+print(json.dumps({'status': 'UPDATE_AND_INSTALLED_R0_EXECUTION_ONLY' if UPDATE else
+                  'ACQUISITION_AND_INSTALLED_R0_EXECUTION_ONLY', 'cases': results,
                   'installed_root': str(installed), 'metadata_sha256': digest(metadata),
                   'installed_leaf_sha256': digest(leaf), 'restored_leaf_inode': after.st_ino,
                   'broken_route_refused_and_restored': True,
-                  'native_hooks_loaded': 'UNMEASURED'}, sort_keys=True))
+                  'broken_route': {'stdout': str(broken_output.relative_to(ROOT)),
+                                   'stderr': str(broken_error.relative_to(ROOT)), 'raw_exit': 2,
+                                   'stdout_sha256': digest(broken_output), 'stderr_sha256': digest(broken_error)},
+                  'native_hooks_loaded': 'UNMEASURED', 'output_prefix': OUTPUT_PREFIX,
+                  'update': {'new_commit': new_commit, 'catalogue_root': str(catalogue),
+                             'catalogue_commit': catalogue_commit, 'native_calls': native_calls,
+                             'preservation_file': OUTPUT_PREFIX + 'preservation.json',
+                             'registry_commit_identity': 'MATCH' if entries[0].get('gitCommitSha') == new_commit else
+                             'CONFLICTED' if entries[0].get('gitCommitSha') else 'UNMEASURED'}
+                             if UPDATE else None}, sort_keys=True))
